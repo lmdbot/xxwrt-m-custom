@@ -119,7 +119,8 @@ jobs:
           test -f "$APK"
           test -x "$AAPT" || { echo "::error::Android aapt is unavailable"; exit 1; }
 
-          PACKAGE_LINE="$("$AAPT" dump badging "$APK" | grep -m 1 '^package:')"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          PACKAGE_LINE="$(printf '%s\n' "$BADGING" | grep '^package:')"
           if [[ "$PACKAGE_LINE" =~ versionName=\'([^\']+)\' ]]; then
             VERSION="${BASH_REMATCH[1]}"
           else
@@ -152,8 +153,8 @@ jobs:
           cat > "$NOTES" <<EOF
           基于已编译 APK 资源重打包的非官方自定义版本。
 
-          - APK versionName：`$APK_VERSION`
-          - Git 提交：`$GITHUB_SHA`
+          - APK versionName：\`$APK_VERSION\`
+          - Git 提交：\`$GITHUB_SHA\`
           - Actions 构建：[$GITHUB_RUN_NUMBER](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
           - 使用仓库 Secrets 中的固定签名密钥。
 
