@@ -1,0 +1,19 @@
+# 变更记录（2026-11-14）
+
+## 联网监测
+
+旧实现 `processAllStatusData()` 使用 `c.slice(0,3)` 将监测实例截为前三项，并以 `+N` 概括剩余实例。详情页将全文放在一个双列 `detail-row` 中，手机上名称和状态挤成一行并截断。
+
+新实现：
+- 保留所有 `c.instances`，映射至响应式 `systemStatus.internetDetectorItems`。
+- 新增 `internetDetectorSummary` 用于汇总 `正常数 / 总数`。
+- 单独的纵向区域呈现所有监测目标；每个目标占据一行，名称可换行、状态不换行，采用独立颜色标识。
+- 无实例、读取失败情况回退到简短状态文字。
+
+## 签名
+
+以先前已签名安装包为基础，证书 SHA-256 始终固定。密钥应通过 GitHub Secrets 注入，不直接提交。
+
+## 构建范围
+
+编译后的 `app-service.js` 在 `src/www`；`vendor/base.apk` 提供 Android/uni-app 原生运行时。这不是 Android 原生源码工程，也不是原始 Vue 工程。

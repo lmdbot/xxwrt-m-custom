@@ -1,0 +1,79 @@
+name: Build signed XX-WRT M APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "vendor/base.apk"
+      - "scripts/**"
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android build-tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android build-tools
+        run: sdkmanager "build-tools;35.0.0"
+
+      - name: Validate compiled JavaScript
+        run: node --check src/www/app-service.js
+
+      - name: Repackage (this is compiled-bundle overlay, not original Vue compilation)
+        run: python3 scripts/repackage.py
+
+      - name: Zip-align APK
+        shell: bash
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -p -f 4 build/app-unsigned.apk build/app-aligned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 build/app-aligned.apk
+
+      - name: Restore signing key from GitHub Actions Secrets and sign
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.XXWRT_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.XXWRT_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64" || { echo 'Missing secret XXWRT_KEYSTORE_BASE64'; exit 1; }
+          test -n "$KEYSTORE_PASSWORD" || { echo 'Missing secret XXWRT_KEYSTORE_PASSWORD'; exit 1; }
+          mkdir -p dist build/private
+          chmod 700 build/private
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > build/private/signing.p12
+          chmod 600 build/private/signing.p12
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks build/private/signing.p12 \
+            --ks-type PKCS12 \
+            --ks-key-alias xxwrt \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEYSTORE_PASSWORD \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --out dist/XX-WRT-M-custom.apk build/app-aligned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs dist/XX-WRT-M-custom.apk
+          rm -f build/private/signing.p12
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: XX-WRT-M-custom-signed-apk
+          path: dist/XX-WRT-M-custom.apk
+          if-no-files-found: error
+          retention-days: 30

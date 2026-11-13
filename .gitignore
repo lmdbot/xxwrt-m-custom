@@ -1,0 +1,16 @@
+# Signing credentials must never enter Git history
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.key
+*.pem
+.env
+
+# Build outputs
+build/
+dist/
+*.apk
+!vendor/base.apk
+__pycache__/
+.DS_Store
