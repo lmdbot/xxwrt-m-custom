@@ -27,11 +27,36 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android build-tools
-        uses: android-actions/setup-android@v3
+      # GitHub-hosted Ubuntu runners include an Android SDK. Avoid
+      # android-actions/setup-android@v3 here: it requests the removed
+      # legacy SDK package "tools", causing sdkmanager to exit with code 1.
+      - name: Ensure Android build-tools 35.0.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          BUILD_TOOLS="$SDK_ROOT/build-tools/35.0.0"
 
-      - name: Install pinned Android build-tools
-        run: sdkmanager "build-tools;35.0.0"
+          if [[ ! -x "$BUILD_TOOLS/zipalign" || ! -x "$BUILD_TOOLS/apksigner" ]]; then
+            if command -v sdkmanager >/dev/null 2>&1; then
+              SDKMANAGER="$(command -v sdkmanager)"
+            else
+              shopt -s nullglob
+              managers=( "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager )
+              if (( ${#managers[@]} == 0 )); then
+                echo "::error::Android sdkmanager not found in $SDK_ROOT"
+                exit 1
+              fi
+              SDKMANAGER="${managers[${#managers[@]}-1]}"
+            fi
+            "$SDKMANAGER" --sdk_root="$SDK_ROOT" "build-tools;35.0.0"
+          fi
+
+          test -x "$BUILD_TOOLS/zipalign"
+          test -x "$BUILD_TOOLS/apksigner"
+          "$BUILD_TOOLS/zipalign" -h >/dev/null
+          "$BUILD_TOOLS/apksigner" version
 
       - name: Validate compiled JavaScript
         run: node --check src/www/app-service.js
