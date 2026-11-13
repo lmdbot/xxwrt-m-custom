@@ -55,7 +55,8 @@ jobs:
 
           test -x "$BUILD_TOOLS/zipalign"
           test -x "$BUILD_TOOLS/apksigner"
-          "$BUILD_TOOLS/zipalign" -h >/dev/null
+          # zipalign does not implement -h/--help on some SDK versions.
+          # Executable checks above are sufficient; actual alignment is checked below.
           "$BUILD_TOOLS/apksigner" version
 
       - name: Validate compiled JavaScript
