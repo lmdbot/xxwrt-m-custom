@@ -63,6 +63,18 @@ git push -u origin main
 
 GitHub 接口也允许向**现有仓库**提交二进制文件；但当前连接不提供“创建仓库”和“写入 Actions Secrets”能力，所以新建仓库及填写 Secrets 需要在 GitHub 界面完成。
 
+## 自动发布 GitHub Release
+
+每次工作流成功签名并校验 APK 后，会使用 Android SDK 的 `aapt dump badging` 读取实际 APK 的 `versionName`：
+
+- 首次遇到版本 `1.0.6` 时，创建 Release `v1.0.6`，并上传 `XX-WRT-M-custom-v1.0.6.apk`。
+- 后续构建仍是 `1.0.6` 时，不新建 Release，而是覆盖同名 APK 附件并更新 Release 说明（含最新提交和 Actions 构建链接）。
+- 当 APK 内 `versionName` 变为 `1.0.7` 等新值时，创建对应的新 Release。**仅修改前端代码或 README 不会自动改变 AndroidManifest 中的版本号**，因此仍会更新同一版本的 Release。
+- Release 使用仓库默认 `GITHUB_TOKEN`（工作流 `contents: write`）；不必额外配置个人访问令牌。P12 密钥和密码仍从 GitHub Actions Secrets 读取。
+- 为避免并发覆盖同一个版本，构建添加了串行执行约束。已发布 Git Tag 不会被强制移动，最新构建提交通过 Release 说明追溯。
+
+**发布注意：** 当前仓库为 Public，GitHub Release APK 可供公众下载。请确保拥有原始应用的修改和分发权限；如仅供个人使用，可将仓库改为 Private。
+
 ## 限制
 
 1. 这条工作流是**预编译资源替换 + APK 重打包 + 签名**，不是从原始 Vue / Android 工程进行完整编译；目前没有原作者源代码。
