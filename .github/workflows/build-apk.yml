@@ -64,8 +64,13 @@ jobs:
           # Executable checks above are sufficient; actual alignment is checked below.
           "$BUILD_TOOLS/apksigner" version
 
+      - name: Repair UniApp Internet Detector view bindings
+        run: python3 scripts/fix_internet_detector_binding.py
+
       - name: Validate compiled JavaScript
-        run: node --check src/www/app-service.js
+        run: |
+          node --check src/www/app-service.js
+          node --check src/www/app-view.js
 
       - name: Repackage (this is compiled-bundle overlay, not original Vue compilation)
         run: python3 scripts/repackage.py
