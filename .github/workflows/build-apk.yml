@@ -10,8 +10,13 @@ on:
       - "scripts/**"
       - ".github/workflows/build-apk.yml"
 
+# Serialise builds to avoid simultaneous updates to the same versioned Release.
+concurrency:
+  group: xxwrt-m-release-main
+  cancel-in-progress: false
+
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   apk:
@@ -103,3 +108,69 @@ jobs:
           path: dist/XX-WRT-M-custom.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Read version from signed APK
+        id: apk_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="dist/XX-WRT-M-custom.apk"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          test -f "$APK"
+          test -x "$AAPT" || { echo "::error::Android aapt is unavailable"; exit 1; }
+
+          PACKAGE_LINE="$("$AAPT" dump badging "$APK" | grep -m 1 '^package:')"
+          if [[ "$PACKAGE_LINE" =~ versionName=\'([^\']+)\' ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            echo "::error::Cannot read versionName from AndroidManifest.xml"
+            exit 1
+          fi
+          # Ensure versionName is safe for a Git tag and APK asset filename.
+          if [[ ! "$VERSION" =~ ^[0-9A-Za-z][0-9A-Za-z._-]*$ ]]; then
+            echo "::error::Unsupported APK versionName: $VERSION"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          cp "$APK" "dist/XX-WRT-M-custom-v$VERSION.apk"
+          echo "APK versionName: $VERSION; Release tag: v$VERSION"
+
+      - name: Publish or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.apk_version.outputs.tag }}
+          APK_VERSION: ${{ steps.apk_version.outputs.version }}
+        run: |
+          set -euo pipefail
+          ASSET="dist/XX-WRT-M-custom-v$APK_VERSION.apk"
+          TITLE="XX-WRT M Custom v$APK_VERSION"
+          NOTES="build/release-notes.md"
+          mkdir -p build
+          cat > "$NOTES" <<EOF
+          基于已编译 APK 资源重打包的非官方自定义版本。
+
+          - APK versionName：`$APK_VERSION`
+          - Git 提交：`$GITHUB_SHA`
+          - Actions 构建：[$GITHUB_RUN_NUMBER](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+          - 使用仓库 Secrets 中的固定签名密钥。
+
+          **更新规则：** 相同 APK versionName 使用同一个 Release Tag，覆盖原 APK 附件；不会强制移动已有 Git Tag。
+          EOF
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Updating existing Release $RELEASE_TAG"
+            gh release upload "$RELEASE_TAG" "$ASSET" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit "$RELEASE_TAG" --title "$TITLE" --notes-file "$NOTES" --latest --repo "$GITHUB_REPOSITORY"
+          else
+            echo "Creating new Release $RELEASE_TAG"
+            gh release create "$RELEASE_TAG" "$ASSET" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --latest
+          fi
+          echo "Release: https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG"
