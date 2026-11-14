@@ -6,6 +6,8 @@ import { Browser } from '@capacitor/browser'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import AppFilterPanel from './components/AppFilterPanel.vue'
+import CompactManagementLists from './components/CompactManagementLists.vue'
+import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import {
   readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
@@ -1105,51 +1107,9 @@ onUnmounted(() => {
                 <div><span>DNS</span><strong>{{ snapshot.dns }}</strong></div>
               </div>
             </v-card>
-            <v-card v-if="networkHardware.wired.length || networkHardware.wireless.length" rounded="xl" elevation="1" class="network-card mb-4">
-              <h2>网络硬件设备</h2>
-              <div v-if="networkHardware.wired.length" class="mt-3">
-                <h3>有线接口</h3>
-                <v-expansion-panels class="mt-2" rounded="lg" variant="accordion">
-                  <v-expansion-panel v-for="nic in networkHardware.wired" :key="'wired-'+nic.name">
-                    <v-expansion-panel-title>
-                      <span class="network-detail-title">{{ nic.name }}</span>
-                      <v-chip size="x-small" class="mr-4" :color="nic.up ? 'success' : 'secondary'" variant="tonal">{{ nic.up ? '在线' : '未连接' }}</v-chip>
-                    </v-expansion-panel-title>
-                    <v-expansion-panel-text>
-                      <div class="details">
-                        <div><span>MAC</span><strong>{{ nic.mac }}</strong></div>
-                        <div><span>类型</span><strong>{{ nic.type }}</strong></div>
-                        <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
-                        <div v-if="nic.ports.length"><span>网桥端口</span><strong>{{ nic.ports.join(' / ') }}</strong></div>
-                        <div v-if="nic.rxBytes !== null"><span>接收流量</span><strong>{{ prettyRate(nic.rxBytes).replace('/s','') }}</strong></div>
-                        <div v-if="nic.txBytes !== null"><span>发送流量</span><strong>{{ prettyRate(nic.txBytes).replace('/s','') }}</strong></div>
-                        <div v-if="nic.rxPackets !== null"><span>收包数</span><strong>{{ nic.rxPackets }}</strong></div>
-                        <div v-if="nic.txPackets !== null"><span>发包数</span><strong>{{ nic.txPackets }}</strong></div>
-                      </div>
-                    </v-expansion-panel-text>
-                  </v-expansion-panel>
-                </v-expansion-panels>
-              </div>
-              <div v-if="networkHardware.wireless.length" class="mt-4">
-                <h3>无线接口</h3>
-                <v-expansion-panels variant="accordion" rounded="lg" class="mt-2">
-                  <v-expansion-panel v-for="nic in networkHardware.wireless" :key="'wifi-'+nic.name">
-                    <v-expansion-panel-title>{{ nic.ssid || nic.name }}</v-expansion-panel-title>
-                    <v-expansion-panel-text>
-                      <div class="details">
-                        <div><span>接口</span><strong>{{ nic.name }}</strong></div>
-                        <div><span>MAC / BSSID</span><strong>{{ nic.bssid || nic.mac }}</strong></div>
-                        <div v-if="nic.ssid"><span>SSID</span><strong>{{ nic.ssid }}</strong></div>
-                        <div v-if="nic.mode"><span>模式</span><strong>{{ nic.mode }}</strong></div>
-                        <div v-if="nic.band"><span>频段</span><strong>{{ nic.band }}</strong></div>
-                        <div v-if="nic.channel"><span>信道</span><strong>{{ nic.channel }}</strong></div>
-                        <div v-if="nic.speed"><span>速率</span><strong>{{ nic.speed }}</strong></div>
-                        <div v-if="nic.encryption"><span>加密</span><strong>{{ typeof nic.encryption === 'string' ? nic.encryption : '已加密' }}</strong></div>
-                      </div>
-                    </v-expansion-panel-text>
-                  </v-expansion-panel>
-                </v-expansion-panels>
-              </div>
+            <v-card v-if="networkHardware.wired.length || networkHardware.wireless.length"
+              rounded="xl" elevation="1" class="network-card mb-4">
+              <NetworkHardwareList :wired="networkHardware.wired" :wireless="networkHardware.wireless"/>
             </v-card>
             <v-card v-for="nic in snapshot?.interfaces || []" :key="nic.interface" rounded="xl" elevation="1" class="interface-card mb-3">
               <div class="section-heading">
@@ -1199,32 +1159,15 @@ onUnmounted(() => {
               <v-card rounded="xl" elevation="1" class="network-card app-subpage">
                 <v-alert v-if="toolMessage" type="info" variant="tonal" density="compact" class="mb-3">{{ toolMessage }}</v-alert>
                 <v-progress-linear v-if="toolLoading" indeterminate class="mb-3"/>
-                <div v-if="toolPanel === 'process'" class="mt-3">
-                <h3>进程列表</h3>
-                <v-list v-if="processData.processes.length" density="compact">
-                  <v-list-item v-for="proc in processData.processes" :key="proc.pid + ':' + proc.command" :title="proc.command" :subtitle="'PID ' + proc.pid + ' · ' + proc.user + ' · CPU ' + proc.cpu + ' · MEM ' + proc.memory"/>
-                </v-list>
-                <p v-else class="muted-hint">暂无进程数据</p>
-              </div>
-              <div v-if="toolPanel === 'startup'" class="mt-3">
-                <h3>启动项 / 服务</h3>
-                <v-list v-if="serviceData.services.length" density="compact">
-                  <v-list-item v-for="svc in serviceData.services" :key="'startup-' + svc.name" :title="svc.name" :subtitle="svc.enabled ? '开机自启' : '未设置开机自启'">
-                    <template #append><v-chip size="x-small" :color="svc.running ? 'success' : 'secondary'" variant="tonal">{{ svc.running ? '运行中' : '未运行' }}</v-chip></template>
-                  </v-list-item>
-                </v-list>
-              </div>
-              <div v-if="toolPanel === 'routes'" class="mt-3">
-                <h3>静态路由配置</h3>
-                <v-list v-if="routeData.routes.length" density="compact">
-                  <v-list-item v-for="r in routeData.routes" :key="r.section" :title="r.target" :subtitle="r.type + ' · ' + r.interface + ' · 网关 ' + r.gateway + ' · 跃点 ' + r.metric"/>
-                </v-list>
-                <p v-else class="muted-hint">暂无静态路由配置或当前固件不提供对应接口</p>
-              </div>
-              <div v-if="toolPanel === 'routes' && liveRoutes.lines.length" class="mt-3">
-                <h3>当前 IPv4 路由表</h3>
-                <div class="route-table"><div v-for="(line, i) in liveRoutes.lines" :key="'route-' + i">{{ line }}</div></div>
-              </div>
+                <CompactManagementLists
+                v-if="['process','startup','routes'].includes(toolPanel)"
+                :kind="toolPanel"
+                :processes="processData.processes"
+                :services="serviceData.services"
+                :static-routes="routeData.routes"
+                :live-routes="liveRoutes.lines"
+                :route-available="routeData.available || liveRoutes.available"
+              />
               <div v-if="toolPanel === 'wol'" class="mt-3">
                 <h3>网络唤醒</h3>
                 <p class="muted-hint mb-2">支持 main 相同的 LuCI WOL RPC；需要 QWRT 已安装 WOL 插件并授权。</p>
