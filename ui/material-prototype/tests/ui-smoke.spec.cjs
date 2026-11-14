@@ -45,6 +45,18 @@ const dataFor = (object, method, params = {}) => {
     ]
   }
   if (object === 'luci' && method === 'getOnlineUsers') return { onlineusers: '9' }
+  if (object === 'file' && method === 'read' && params.path === '/tmp/wechatpush/devices.json') {
+    return { data: JSON.stringify({ devices: [
+      { name: 'Phone', ip: '192.168.100.88', mac: 'AA:BB:CC:DD:EE:FF', status: 'online', interface: 'LAN', uptime: '2小时' },
+      // AP monitor sees a device online although the router ARP lookup failed.
+      { name: 'iPhone-15-Pro', ip: '192.168.100.89', mac: 'A6:83:E7:2C:91:0F', status: 'online', interface: '5G', uptime: '1小时' },
+      { name: 'MacBook-Air', ip: '192.168.100.90', mac: 'F0:EE:7A:91:AA:12', status: 'offline', interface: '5G' }
+    ] }) }
+  }
+  if (object === 'file' && method === 'read' && params.path === '/usr/share/wechatpush/api/diy.json') {
+    return { data: '{"url":"https://example.invalid/test","type":{"text":"hello"}}\n' }
+  }
+  if (object === 'file' && method === 'write' && params.path === '/usr/share/wechatpush/api/diy.json') return {}
   if (object === 'file' && method === 'read') {
     return { data: 'nf_conntrack_count' === 'nf_conntrack_count' ? '2070' : '65535' }
   }
@@ -317,10 +329,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
-  await expect(page.locator('.terminal-online-dot.is-online')).toHaveCount(1)
-  await expect(page.locator('.terminal-online-dot.is-offline')).toHaveCount(2)
+  await expect(page.locator('.terminal-online-dot.is-online')).toHaveCount(2)
+  await expect(page.locator('.terminal-online-dot.is-offline')).toHaveCount(1)
   // A stored host IP must never turn an unreachable terminal green.
-  await expect(page.locator('.terminal-tile').filter({ hasText: 'iPhone-15-Pro' }).locator('.terminal-online-dot')).toHaveClass(/is-offline/)
+  await expect(page.locator('.terminal-tile').filter({ hasText: 'iPhone-15-Pro' }).locator('.terminal-online-dot')).toHaveClass(/is-online/)
   await expect(page.locator('.terminal-tile').filter({ hasText: 'MacBook-Air' }).locator('.terminal-online-dot')).toHaveClass(/is-offline/)
   await expect(page.getByText('Apple · 手机')).toBeVisible()
   await expect(page.locator('.terminal-identity--brand')).toHaveCount(2)
@@ -393,6 +405,15 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '打开微信推送' }).click()
   await expect(page.getByText('启用微信推送')).toBeVisible()
   await expect(page.getByText('PushPlus', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: '在线设备' }).click()
+  await expect(page.locator('.wechat-online-row')).toHaveCount(2)
+  await expect(page.getByText('iPhone-15-Pro', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '推送内容' }).click()
+  await expect(page.getByText('设备上线通知')).toBeVisible()
+  await expect(page.getByText('CPU 负载告警')).toBeVisible()
+  await page.getByRole('button', { name: '高级' }).click()
+  await expect(page.getByText('小米 AP 设备信息辅助')).toBeVisible()
+  await page.getByRole('button', { name: '基本配置' }).click()
   await page.getByRole('button', { name: '发送测试推送' }).click()
   await expect(page.getByText('test sent')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
