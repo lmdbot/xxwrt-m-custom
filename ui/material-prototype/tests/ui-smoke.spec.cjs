@@ -99,8 +99,6 @@ const dataFor = (object, method, params = {}) => {
   return null
 }
 
-let dhcpLeaseMockCalls = 0
-
 const handler = async route => {
   if (route.request().method() === 'OPTIONS') {
     await route.fulfill({ status: 204, headers: {
@@ -114,8 +112,6 @@ const handler = async route => {
     const args = item.params || []
     const output = dataFor(args[1], args[2], args[3])
     if (args[1] === 'luci-rpc' && args[2] === 'getDHCPLeases') {
-      dhcpLeaseMockCalls++
-      console.log('[MOCK DHCP LEASES]', JSON.stringify(output))
     }
     return { jsonrpc: '2.0', id: item.id, result: output == null ? [6] : [0, output] }
   }
@@ -127,9 +123,8 @@ const handler = async route => {
 
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
   const errors = []
-  page.on('pageerror', e => { errors.push(e.message); console.error('[BROWSER PAGEERROR]', e.stack || e.message) })
+  page.on('pageerror', e => errors.push(e.message))
   page.on('console', m => {
-    if (m.type() === 'error') console.error('[BROWSER CONSOLE ERROR]', m.text())
     if (m.type() === 'warning' && m.text().includes('Failed to resolve component')) errors.push(m.text())
   })
   await page.route('**/ubus', handler)
@@ -245,8 +240,6 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
-  await page.waitForTimeout(300)
-  console.log('[TERMINAL DEBUG]', JSON.stringify({ dhcpLeaseMockCalls, text: await page.locator('.terminal-screen').innerText() }))
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
   await expect(page.getByText('Apple · 手机')).toBeVisible()
   await expect(page.locator('.terminal-identity--brand')).toHaveCount(2)
