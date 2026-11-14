@@ -4,6 +4,7 @@ import { useTheme } from 'vuetify'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
+import AppFilterPanel from './components/AppFilterPanel.vue'
 import {
   loadDevices, saveDevices, newDevice, probeDevice,
   storeDevicePassword, fetchDevicePassword, deleteDevicePassword
@@ -76,6 +77,10 @@ const snapshot = ref(null)
 const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
 const serviceData = ref({ services: [], available: false })
 const confirmReboot = ref(false)
+const factoryDialog = ref(false)
+const factoryPhrase = ref('')
+const factoryBusy = ref(false)
+const factoryError = ref('')
 const actionBusy = ref(false)
 const selectedClient = ref(null)
 const toolPanel = ref('')
@@ -97,9 +102,9 @@ const legacyTools = [
   { id: 'process', title: '进程管理', subtitle: '只读进程列表', icon: 'mdi-format-list-bulleted' },
   { id: 'startup', title: '启动项', subtitle: '服务及自启动状态', icon: 'mdi-power' },
   { id: 'routes', title: '静态路由', subtitle: '查看 network 配置', icon: 'mdi-routes' },
-  { id: 'wol', title: '网络唤醒', subtitle: '使用 LuCI 完成唤醒', icon: 'mdi-power-plug' },
-  { id: 'parental', title: '家长控制', subtitle: '通过 LuCI 管理规则', icon: 'mdi-account-child' },
-  { id: 'reset', title: '恢复出厂', subtitle: '通过 LuCI 二次确认', icon: 'mdi-restore' }
+  { id: 'wol', title: '网络唤醒', subtitle: 'RPC 唤醒及目标管理', icon: 'mdi-power-plug' },
+  { id: 'parental', title: '家长控制', subtitle: 'RPC 规则、时间及高级设置', icon: 'mdi-account-child' },
+  { id: 'reset', title: '恢复出厂', subtitle: '原版命令及强制二次确认', icon: 'mdi-restore' }
 ]
 const onlineCount = computed(() => snapshot.value?.checks.filter(check => check.state === 'up').length || 0)
 const allChecks = computed(() => snapshot.value?.checks || [])
@@ -407,9 +412,12 @@ async function showLegacyTool(toolId) {
   toolPanel.value = toolId
   toolMessage.value = ''
   if (toolId === 'reset') {
-    toolMessage.value = '恢复出厂会清空路由器配置。为确保二次确认、权限和设备版本兼容，请通过原 LuCI 页面执行。'
+    factoryPhrase.value = ''
+    factoryError.value = ''
+    factoryDialog.value = true
     return
   }
+  if (toolId === 'parental') return
   if (toolId === 'startup') {
     if (!serviceData.value.available) {
       toolLoading.value = true
@@ -423,28 +431,20 @@ async function showLegacyTool(toolId) {
   try {
     if (toolId === 'process') {
       processData.value = await readProcessList(client.value)
-      if (!processData.value.available) toolMessage.value = '当前 QWRT 未开放 luci.getProcessList，使用 LuCI 进程页面查看。'
+      if (!processData.value.available) toolMessage.value = '当前 QWRT 未开放 luci.getProcessList RPC 接口，请核实固件插件及权限。'
     }
     if (toolId === 'routes') {
       ;[routeData.value, liveRoutes.value] = await Promise.all([
         readRouteConfig(client.value), readRuntimeRoutes(client.value)
       ])
-      if (!routeData.value.available && !liveRoutes.value.available) toolMessage.value = '当前账号无路由表读取权限，可在 LuCI 查看。'
+      if (!routeData.value.available && !liveRoutes.value.available) toolMessage.value = '当前账号无路由表读取权限，请检查 ubus ACL。'
     }
     if (toolId === 'wol') {
       wolData.value = await readWolDevices(client.value)
       wolForm.iface = wolData.value.interfaces.includes('br-lan') ? 'br-lan' : (wolData.value.interfaces[0] || '')
       if (!wolData.value.available) toolMessage.value = '未安装 LuCI WOL 服务，需先在路由器安装 luci-app-wol。'
     }
-    if (toolId === 'parental') {
-      parentalData.value = await readParentalSettings(client.value)
-      Object.assign(parentalForm, {
-        enable: Number(parentalData.value.base.enable) === 1,
-        record_enable: Number(parentalData.value.base.record_enable) === 1,
-        work_mode: Number(parentalData.value.base.work_mode) === 1 ? 1 : 0
-      })
-      if (!parentalData.value.available) toolMessage.value = '尚未安装 appfilter 家长控制插件或接口没有授权。'
-    }
+
   } catch (e) {
     toolMessage.value = shortError(e)
   } finally {
@@ -511,12 +511,29 @@ async function showReleasePage() {
 }
 
 async function openRouterWeb() {
-  if (!client.value) return
+  // Retained as an intentionally disabled compatibility function.
+  // Missing management functionality must be migrated to native RPC,
+  // not delegated to a router web panel.
+  return
+}
+
+async function factoryResetRouter() {
+  if (!client.value || factoryBusy.value || factoryPhrase.value !== '恢复出厂') return
+  factoryBusy.value = true
+  factoryError.value = ''
   try {
-    await Browser.open({ url: client.value.baseUrl + '/cgi-bin/luci/', windowName: '_blank' })
+    const result = await client.value.call('file', 'exec', {
+      command: '/sbin/firstboot', params: ['-r', '-y'], env: null
+    })
+    if (result && typeof result.code === 'number' && result.code !== 0) {
+      throw new Error('恢复出厂命令返回失败代码：' + result.code)
+    }
+    factoryDialog.value = false
+    resetSession()
+    listError.value = '已向路由器提交恢复出厂请求，设备将断开连接。'
   } catch (e) {
-    handleRpcError(e)
-  }
+    factoryError.value = '执行结果未确认：' + shortError(e) + '。如设备已断线请勿立即重复操作。'
+  } finally { factoryBusy.value = false }
 }
 
 async function rebootRouter() {
@@ -829,7 +846,7 @@ onUnmounted(() => {
             </v-card>
             <v-card rounded="xl" elevation="1" class="network-card mt-4">
               <div class="section-heading"><h2>基础版管理工具</h2><v-chip size="small" variant="tonal" color="primary">main 功能入口</v-chip></div>
-              <p class="muted-hint">优先使用 QWRT 已授权的只读 RPC。网络唤醒、家长控制和恢复出厂等依赖专有插件或敏感配置的功能，交由 LuCI 安全完成。</p>
+              <p class="muted-hint">基于 main 分支真实 RPC 逐项迁移。受固件版本和权限影响，部分功能可能不可用；不会自动跳转 LuCI 替代。</p>
               <div class="legacy-tool-grid">
                 <v-btn v-for="tool in legacyTools" :key="tool.id" variant="tonal" color="primary" rounded="lg" class="legacy-tool-button" :prepend-icon="tool.icon" @click="showLegacyTool(tool.id)">{{ tool.title }}</v-btn>
               </div>
@@ -884,25 +901,8 @@ onUnmounted(() => {
                   </form>
                 </template>
               </div>
-              <div v-if="toolPanel === 'parental'" class="mt-3">
-                <h3>家长控制 / OpenAppFilter</h3>
-                <v-alert v-if="!parentalData.available" type="warning" variant="tonal" density="compact">尚未安装 appfilter 或缺少 RPC 权限。</v-alert>
-                <template v-else>
-                  <div class="details">
-                    <div><span>插件版本</span><strong>{{ parentalData.status.version || '--' }}</strong></div>
-                    <div><span>引擎版本</span><strong>{{ parentalData.status.engine_version || '--' }}</strong></div>
-                    <div><span>规则数量</span><strong>{{ parentalData.selectedRules.length }}</strong></div>
-                    <div><span>已识别终端</span><strong>{{ parentalData.users.length }}</strong></div>
-                  </div>
-                  <v-switch v-model="parentalForm.enable" color="primary" label="启用应用过滤"/>
-                  <v-switch v-model="parentalForm.record_enable" color="primary" label="记录访问日志"/>
-                  <v-select v-model.number="parentalForm.work_mode" label="工作模式" variant="outlined" density="compact"
-                    :items="[{title:'网关模式',value:0},{title:'旁路模式',value:1}]" item-title="title" item-value="value"/>
-                  <v-btn block color="primary" :loading="parentalSaving" @click="saveParentalOptions">保存家长控制基础设置</v-btn>
-                  <p class="muted-hint mt-3">应用分类、时间策略、终端规则及高级选项与插件版本强相关。此版本只操作已核对的基础设置接口，其余请在 LuCI 完整管理界面调整。</p>
-                </template>
-              </div>
-              <v-btn v-if="toolPanel" block variant="outlined" color="primary" prepend-icon="mdi-open-in-new" class="mt-3" @click="openRouterWeb">打开 LuCI 完整管理页面</v-btn>
+              <AppFilterPanel v-if="toolPanel === 'parental' && client" :client="client"/>
+
             </v-card>
             <v-card rounded="xl" elevation="1" class="network-card mt-4">
               <h2>路由器维护</h2>
@@ -944,7 +944,7 @@ onUnmounted(() => {
             <div><span>MAC 地址</span><strong>{{ selectedClient.mac }}</strong></div>
             <div><span>租约时间</span><strong>{{ selectedClient.expires ?? '--' }}</strong></div>
           </div>
-          <p class="muted-hint mt-3">租约存在并不代表设备当前在线；其他终端管理功能请使用 LuCI。</p>
+          <p class="muted-hint mt-3">租约存在并不代表设备当前在线；其他终端扩展功能需继续按原版 RPC 接口迁移。</p>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
       </v-card>
@@ -990,6 +990,25 @@ onUnmounted(() => {
       <v-card rounded="xl" title="删除网络唤醒目标">
         <v-card-text>删除 {{ wolDeleteTarget?.name }} 的 WOL 配置？这只删除保存的唤醒目标，不会关闭当前设备。</v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="wolDeleteDialog = false">取消</v-btn><v-btn color="error" @click="confirmRemoveWol">删除目标</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="factoryDialog" max-width="420" :persistent="factoryBusy">
+      <v-card rounded="xl" title="恢复 QWRT 出厂设置">
+        <v-card-text>
+          <v-alert type="error" variant="tonal" density="comfortable" class="mb-4">
+            此操作将删除路由器当前配置，影响所有连接设备，且无法撤销。
+            本功能使用 main 原版的 file.exec /sbin/firstboot -r -y 命令。
+          </v-alert>
+          <v-text-field v-model.trim="factoryPhrase" variant="outlined" label="请输入“恢复出厂”以确认"
+            autocapitalize="off" autocomplete="off" :disabled="factoryBusy"/>
+          <v-alert v-if="factoryError" type="warning" variant="tonal" density="compact">{{ factoryError }}</v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn variant="text" :disabled="factoryBusy" @click="factoryDialog = false">取消</v-btn>
+          <v-btn color="error" :disabled="factoryPhrase !== '恢复出厂'" :loading="factoryBusy"
+            @click="factoryResetRouter">确认恢复出厂</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="confirmReboot" max-width="360">
