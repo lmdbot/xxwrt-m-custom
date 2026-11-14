@@ -91,7 +91,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the broken preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 8/; s/versionName "[^"]+"/versionName "0.4.0"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 9/; s/versionName "[^"]+"/versionName "0.5.0"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -128,7 +128,7 @@ jobs:
             --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk \
             ../../build/material-preview/aligned.apk
           "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk | grep '^package:'
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk | grep '^package:' | grep "versionName='0.5.0'" | grep "versionCode='9'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
