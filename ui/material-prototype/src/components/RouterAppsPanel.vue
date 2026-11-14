@@ -273,9 +273,19 @@ async function saveWechat() {
 }
 async function testWechat() {
   await run(async () => {
-    const result = await command('/usr/share/wechatpush/wechatpush', ['test'])
-    notice.value = String(result.stdout || '').trim().slice(0, 260) || '测试推送命令已执行，请检查手机是否收到消息'
-  }, '', false)
+    // The script may print the full outgoing payload, including webhook URLs
+    // and API tokens. Never surface raw stdout/stderr in the notification.
+    const result = await props.client.call('file', 'exec', {
+      command: '/usr/share/wechatpush/wechatpush',
+      params: ['test'], env: null
+    }, true)
+    if (!result) throw new Error('无法执行测试推送，请检查微信推送脚本的 RPC 权限')
+    const exitCode = Number(result.code ?? 0)
+    if (exitCode !== 0) {
+      throw new Error('测试推送命令执行失败（退出码 ' +
+        (Number.isInteger(exitCode) ? exitCode : '未知') + '），请在 QWRT 微信推送日志中查看原因')
+    }
+  }, '测试推送命令已执行，请检查接收端是否收到消息', false)
 }
 watch(wechatTab, next => {
   if (props.kind !== 'wechatpush') return
