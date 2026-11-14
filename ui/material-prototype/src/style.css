@@ -283,3 +283,16 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .device-page-meta-line span{min-width:0;overflow-wrap:anywhere;word-break:break-word}
 /* Match the precise color, weight and size of the '运行时间' label. */
 .detector-area .detector-title{font-size:13px;color:#8790a2;font-weight:400;line-height:1.5}
+
+/* Carbon-inspired terminal identity: brand glyph, inferred device type and connection sources. */
+.terminal-identity{display:flex;align-items:center;justify-content:center;flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:rgba(var(--v-theme-primary),.10);color:rgb(var(--v-theme-primary));overflow:hidden}
+.terminal-identity--brand{background:var(--brand-bg,rgba(var(--v-theme-primary),.12));color:var(--brand-fg,#fff)}
+.terminal-identity--brand svg{width:23px;height:23px;fill:currentColor}
+.terminal-identity--brand.terminal-identity--inverse{background:rgb(var(--v-theme-on-surface));color:rgb(var(--v-theme-surface))}
+.terminal-kind{font-size:11px;color:rgb(var(--v-theme-on-surface-variant));line-height:1.25}
+.terminal-tags{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px}
+.terminal-tag{font-size:10px!important;height:19px!important;padding-inline:6px!important}
+.terminal-tag--wifi{color:#2385d1!important;background:rgba(35,133,209,.12)!important}
+.terminal-tag--private{color:#b7791f!important;background:rgba(183,121,31,.12)!important}
+.terminal-source{font-size:10px;color:rgb(var(--v-theme-on-surface-variant));white-space:nowrap}
+.terminal-ip6{overflow-wrap:anywhere;white-space:normal}
