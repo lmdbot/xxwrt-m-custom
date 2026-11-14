@@ -2,6 +2,10 @@ const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
 let networkBytes = 1024 * 1024
 let firewallRuleEnabled = '1'
+let zeroTierRpcAllowed = true
+let zeroTierCliAllowed = true
+let ssrExecAllowed = true
+let ssrLuciAllowed = true
 
 const dataFor = (object, method, params = {}) => {
   if (object === 'session' && method === 'login') return { ubus_rpc_session: '0123456789abcdef0123456789abcdef' }
@@ -35,6 +39,14 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'luci.carbon_update' && method === 'check') return { started: true }
   if (object === 'luci.carbon_update' && method === 'configure') return { mirror: params.mirror || '' }
   if (object === 'luci.carbon_update' && method === 'upgrade') return { started: true }
+  if (object === 'luci-zerotier' && zeroTierRpcAllowed && method === 'status') return { running: true, identity: 'abcdef1234' }
+  if (object === 'luci-zerotier' && zeroTierRpcAllowed && method === 'get_networks_peers') return {
+    code: 0,
+    networks: JSON.stringify([{ id: '1234567890abcdef', name: 'home', status: 'OK',
+      mac: 'aa:bb:cc:dd:ee:ff', type: 'PRIVATE', portDeviceName: 'zt0',
+      assignedAddresses: ['10.10.10.2/24'] }]),
+    peers: '[]'
+  }
   if (object === 'service' && method === 'list' && params.name === 'wechatpush') {
     return { wechatpush: { instances: { instance1: { running: true } } } }
   }
@@ -93,6 +105,7 @@ const dataFor = (object, method, params = {}) => {
       : 'fe80::1 dev br-lan lladdr bb:cc:dd:ee:ff:00 STALE\n' }
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n192.168.100.88 dev br-lan proto kernel scope link\n' }
   }
+  if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli' && !zeroTierCliAllowed) return null
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
     if (params.params?.join(' ') === '-j info') return { code: 0, stdout: JSON.stringify({ address: 'abcdef1234', version: '1.14.0', online: true }) }
     if (params.params?.join(' ') === '-j listnetworks') return { code: 0, stdout: JSON.stringify([{ id: '1234567890abcdef', name: 'home', status: 'OK', mac: 'aa:bb:cc:dd:ee:ff', type: 'PRIVATE', portDeviceName: 'zt0', assignedAddresses: ['10.10.10.2/24'] }]) }
@@ -104,6 +117,8 @@ const dataFor = (object, method, params = {}) => {
     if (params.params?.length === 1 && params.params[0] === 'test') return { code: 0, stdout: '{"url":"https://example.invalid/secret-webhook-key","content":"sensitive request payload"}' }
     return null
   }
+  if (object === 'file' && method === 'exec' && !ssrExecAllowed &&
+      ['/bin/nc', '/usr/bin/nping'].includes(params.command)) return null
   if (object === 'file' && method === 'exec' && params.command === '/usr/share/shadowsocksr/update_components.sh') {
     return { code: 0, stdout: 'component=xray\ncurrent_version=1.2.0\nlatest_version=1.3.0\npackage_manager=apk\ncan_upgrade=1\nsuccess=1\n' }
   }
@@ -125,7 +140,9 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'uci' && method === 'get' && params.config === 'luci-wol') return { values: { demo: { '.type': 'target', '.name': 'demo', name: '测试主机', mac: 'AA:BB:CC:DD:EE:FF', iface: 'br-lan' } } }
   if (object === 'uci' && method === 'get' && params.config === 'shadowsocksr') return { values: {
     global: { '.type': 'global', '.name': 'global', global_server: 'node1', run_mode: 'gfw' },
-    node1: { '.type': 'servers', '.name': 'node1', alias: '香港节点', type: 'ssr', server: '203.0.113.10', server_port: '8388' }
+    node1: { '.type': 'servers', '.name': 'node1', alias: '香港节点', type: 'ssr', server: '203.0.113.10', server_port: '8388' },
+    node2: { '.type': 'servers', '.name': 'node2', alias: '新加坡节点', type: 'ssr', server: '203.0.113.11', server_port: '8388' },
+    node3: { '.type': 'servers', '.name': 'node3', alias: '日本节点', type: 'ssr', server: '203.0.113.12', server_port: '8388' }
   } }
   if (object === 'uci' && method === 'get' && params.config === 'wechatpush') return { values: {
     config: { '.type': 'wechatpush', '.name': 'config', enable: '1', jsonpath: '/usr/share/wechatpush/api/pushplus.json', pushplus_token: 'test-token', sleeptime: '60' }
@@ -221,6 +238,15 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     if (m.type() === 'warning' && m.text().includes('Failed to resolve component')) errors.push(m.text())
   })
   await page.route('**/ubus', handler)
+  await page.route('**/cgi-bin/luci/admin/services/shadowsocksr/ping?**', async route => {
+    if (!ssrLuciAllowed) {
+      await route.fulfill({ status: 403, contentType: 'text/html', body: '<h1>Access denied</h1>' })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ socket: true, ping: 23 }) })
+  })
   await page.goto('/')
   fs.mkdirSync('test-results/screenshots', { recursive: true })
   await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
@@ -336,11 +362,13 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.mouse.wheel(0, 800)
   await page.waitForTimeout(300)
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(top + 10)
-  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.evaluate(() => window.scrollTo(0, 480))
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(10)
   fs.mkdirSync('test-results/screenshots', { recursive: true })
   await page.screenshot({ path: 'test-results/screenshots/live-standard.png', fullPage: true })
 
   await page.getByRole('button', { name: '终端' }).click()
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
@@ -419,7 +447,15 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   await expect(page.getByText('香港节点', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: '批量探测节点' }).click()
-  await expect(page.getByText(/TCP 可连接/).first()).toBeVisible()
+  await expect(page.getByText(/插件探测可用|TCP 可连接/).first()).toBeVisible()
+  await expect(page.locator('.ssr-probe-results > div')).toHaveCount(3)
+  ssrLuciAllowed = false
+  ssrExecAllowed = false
+  await page.getByRole('button', { name: '批量探测节点' }).click()
+  await expect(page.getByText(/当前 QWRT 未提供可访问的 SSR Plus\+ 节点探测接口/)).toBeVisible()
+  await expect(page.locator('.ssr-probe-results > div')).toHaveCount(0)
+  ssrLuciAllowed = true
+  ssrExecAllowed = true
   await page.getByRole('button', { name: '运行状态' }).click()
   await expect(page.getByText('SSR Plus+ 运行状态')).toBeVisible()
   await page.getByRole('button', { name: '组件更新' }).click()
@@ -467,6 +503,14 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('节点 ID')).toBeVisible()
   await expect(page.getByText('abcdef1234')).toBeVisible()
   await expect(page.getByText('10.10.10.2/24')).toBeVisible()
+  zeroTierRpcAllowed = false
+  zeroTierCliAllowed = false
+  await page.getByRole('button', { name: '刷新当前功能' }).click()
+  await expect(page.getByText(/未开放实时 ZeroTier 状态读取接口/)).toBeVisible()
+  await expect(page.getByText('未确认', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
+  zeroTierRpcAllowed = true
+  zeroTierCliAllowed = true
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开防火墙' }).click()
   await expect(page.getByText('区域策略', { exact: true })).toBeVisible()
@@ -494,6 +538,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('停用防火墙规则？')).toBeVisible()
   await page.getByRole('button', { name: '确认应用' }).click()
   await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' })).toContainText('已停用')
+  await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' }).getByLabel('规则状态：已停用')).toBeVisible()
+  expect(firewallRuleEnabled).toBe('0')
   await expect(page.getByText('已启用 0', { exact: false }).first()).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开进程' }).click()
