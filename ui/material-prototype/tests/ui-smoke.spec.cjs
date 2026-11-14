@@ -201,7 +201,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('firewall')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开路由表' }).click()
-  await expect(page.getByText('10.0.0.0/24')).toBeVisible()
+  await expect(page.getByText('10.0.0.0/24', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开网络唤醒' }).click()
   await expect(page.getByText('测试主机')).toBeVisible()
