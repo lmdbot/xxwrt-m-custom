@@ -1,5 +1,49 @@
 const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
+
+/* Contrast smoke check for common text families. All selected nodes are text
+   rendered on either a dark surface or the application's dark canvas.
+   Test both backdrops so translucent cards cannot mask unreadable labels. */
+async function auditDarkTextContrast(page, selectors) {
+  const result = await page.evaluate((queries) => {
+    const readRgb = value => {
+      const values = String(value).match(/[\d.]+/g)?.map(Number) || []
+      return values.length >= 3 ? values.slice(0, 3) : null
+    }
+    const luminance = rgb => {
+      const transform = x => {
+        const v = x / 255
+        return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+      }
+      return rgb.map(transform).reduce((sum, value, i) =>
+        sum + value * [0.2126, 0.7152, 0.0722][i], 0)
+    }
+    const contrast = (a, b) => {
+      const x = luminance(a), y = luminance(b)
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+    }
+    const backdrops = [[29, 32, 41], [17, 20, 27]]
+    const checked = [], failures = []
+    for (const query of queries) {
+      const elements = [...document.querySelectorAll(query)].filter(node =>
+        node.getClientRects().length && node.textContent?.trim())
+      for (const node of elements.slice(0, 8)) {
+        const color = readRgb(getComputedStyle(node).color)
+        if (!color) continue
+        const ratio = Math.min(...backdrops.map(bg => contrast(color, bg)))
+        checked.push(query)
+        if (ratio < 4.5) failures.push({
+          selector: query, text: node.textContent.trim().slice(0, 45),
+          color, ratio: +ratio.toFixed(2)
+        })
+      }
+    }
+    return { checked, failures }
+  }, selectors)
+  expect(result.checked.length).toBeGreaterThan(0)
+  expect(result.failures).toEqual([])
+}
+
 let networkBytes = 1024 * 1024
 let firewallRuleEnabled = '1'
 let zeroTierRpcAllowed = true
@@ -268,6 +312,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('button', { name: '打开路由器设置' })).toBeVisible()
   await expect(page.getByRole('button', { name: '打开显示设置' })).toBeVisible()
   await expect(page.getByRole('button', { name: '打开隐私设置' })).toBeVisible()
+  await expect(page.locator('.sidebar-brand small')).toHaveText('路由器管理')
+  await expect(page.locator('.sidebar-footer')).toContainText('QWRT · OpenWrt 移动管理')
   await expect(page.getByText('语言设置', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '打开路由器设置' }).click()
   await expect(page.getByRole('heading', { name: '路由器', level: 1 })).toBeVisible()
@@ -282,6 +328,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '液态底栏' }).click()
   await expect(page.locator('.settings-nav-toggle .v-btn--active')).toContainText('液态')
   await page.getByRole('button', { name: '标准底栏' }).click()
+  await page.getByRole('button', { name: '深色主题' }).click()
+  await expect(page.locator('.theme-is-dark')).toBeVisible()
+  await auditDarkTextContrast(page, ['.settings-page-heading p:last-child', '.settings-option-heading p', '.settings-switch-row p'])
   await page.screenshot({ path: 'test-results/screenshots/settings-display.png', fullPage: true })
 
   await page.getByRole('button', { name: '打开侧栏菜单' }).click()
@@ -306,6 +355,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '登录并进入' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
   await expect(page.getByText('38℃')).toBeVisible()
+  await auditDarkTextContrast(page, ['.router-toolbar-context', '.details span', '.device-heading-label p', '.storage-label small', '.ethernet-port-counters'])
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/)
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1/);
 
@@ -358,7 +408,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.waitForTimeout(1200)
   await expect(page.locator('.realtime-chart')).toHaveCount(2)
   await page.screenshot({ path: 'test-results/screenshots/actual-traffic-history.png', fullPage: true })
-  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('list')
+  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await page.getByRole('button', { name: '进入 QWRT 主路由' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
   await page.getByRole('button', { name: '统计' }).click()
   await expect(page.getByText('实时带宽')).toBeVisible()
@@ -382,6 +434,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.router-toolbar-context')).toContainText('终端')
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
+  await auditDarkTextContrast(page, ['.terminal-header p', '.terminal-mac', '.terminal-kind', '.terminal-source'])
   await expect(page.locator('.terminal-online-dot.is-online')).toHaveCount(2)
   await expect(page.locator('.terminal-online-dot.is-offline')).toHaveCount(1)
   // A stored host IP must never turn an unreachable terminal green.
@@ -484,6 +537,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('启用微信推送')).toBeVisible()
   await expect(page.getByText('PushPlus', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: '在线设备' }).click()
+  await expect(page.locator('.wechat-device-address').first()).toBeVisible()
+  await auditDarkTextContrast(page, ['.wechat-device-address', '.wechat-device-address>span', '.app-compact-sub'])
   await expect(page.locator('.wechat-online-row')).toHaveCount(2)
   await expect(page.getByText('AP备注手机', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '推送内容' }).click()
@@ -531,6 +586,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('Full Cone NAT')).toBeVisible()
   await expect(page.getByText('BBR', { exact: true })).toBeVisible()
   await expect(page.locator('.firewall-policy-preview')).toHaveCount(2)
+  await auditDarkTextContrast(page, ['.router-app-summary span', '.firewall-kernel-item span', '.firewall-zone-title small'])
   await expect(page.locator('.firewall-policy-preview').first()).toContainText('入站 ACCEPT')
   await expect(page.locator('.firewall-policy-preview').first()).toContainText('出站 ACCEPT')
   await expect(page.locator('.firewall-policy-preview').first()).toContainText('转发 ACCEPT')
@@ -605,6 +661,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('已发现的网络设备')).toBeVisible()
   await expect(page.getByText('邻居电脑')).toBeVisible()
   await expect(page.locator('.wol-neighbor-card')).toHaveCount(3)
+  await auditDarkTextContrast(page, ['.wol-neighbor-card__field', '.wol-neighbor-card__field>span:first-child'])
   await expect(page.locator('.wol-neighbor-card').filter({ hasText: '邻居电脑' })).toContainText('192.168.100.99')
   await expect(page.locator('.wol-neighbor-card').filter({ hasText: '邻居电脑' })).toContainText('BB:CC:DD:EE:FF:00')
   const wolCardsOverflow = await page.locator('.wol-neighbor-card').evaluateAll(nodes =>
@@ -653,6 +710,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '首页' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/live-liquid.png', fullPage: true })
+  await page.getByRole('button', { name: '网络' }).click()
+  await expect(page.locator('.router-toolbar-context')).toContainText('网络')
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('list')
+  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
   await page.reload()
   await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
   await expect(page.getByText('QWRT 主路由')).toBeVisible()
