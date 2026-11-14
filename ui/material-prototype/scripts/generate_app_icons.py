@@ -140,8 +140,8 @@ def main():
     color_dir = RES / "values"
     color_dir.mkdir(parents=True, exist_ok=True)
     (color_dir / "qwrt_launcher_colors.xml").write_text(
-        '<?xml version="1.0" encoding="utf-8"?>\\n'
-        f'<resources><color name="qwrt_launcher_background">{ADAPTIVE_BACKGROUND}</color></resources>\\n'
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        f'<resources><color name="qwrt_launcher_background">{ADAPTIVE_BACKGROUND}</color></resources>\n'
     )
     print("QWRT icon: enlarged artwork, trimmed black halo, opaque adaptive background")
 
