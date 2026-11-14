@@ -61,3 +61,24 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .v-bottom-navigation .v-btn{touch-action:manipulation}
 .liquid-bottom .glass-tab{touch-action:manipulation}
 @media(max-width:420px){.page-head h1{font-size:24px}.main-container{padding-top:16px}.status-chip{min-height:32px!important}.device-card{padding:16px}.device-heading-label h2{font-size:17px}.resource-card{padding:14px}}
+
+
+/* Live QWRT RPC screens; retain the same Vuetify Material component styling. */
+.login-card{padding:22px;max-width:620px;margin:0 auto}
+.login-hint{font-size:12px;color:#7d899c;line-height:1.75;margin-top:18px}
+.network-card{padding:20px}
+.network-card h2{font-size:16px;font-weight:650}
+.network-card .v-list{max-height:560px;overflow-y:auto}
+.client-item{padding:7px 3px!important;border-bottom:1px solid rgba(128,137,154,.14)}
+.interface-card{padding:17px}
+.interface-card .section-heading{margin-bottom:8px}
+.muted-hint{color:#8490a0;font-size:12px;line-height:1.65}
+.detector-area .muted-hint{margin:12px 0 0}
+.v-dialog .v-card{overflow:hidden}
+@media(max-width:420px){
+  .login-card{padding:17px}
+  .network-card{padding:16px}
+  .interface-card{padding:14px}
+  .top-bar .app-name{font-size:20px}
+  .page-head h1{font-size:24px}
+}
