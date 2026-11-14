@@ -15,6 +15,12 @@ const dataFor = (object, method, params = {}) => {
   }
   if (object === 'luci' && method === 'getCPUUsage') return { cpuusage: '7%' }
   if (object === 'luci' && method === 'getTempInfo') return { tempinfo: '38°C' }
+  if (object === 'luci' && method === 'getMountPoints') return { result: [
+    {device: '/dev/root', mount: '/', size: 2147483648, free: 1073741824},
+    {device: '/dev/sda2', mount: '/overlay', size: 536870912, free: 134217728},
+    {device: 'tmpfs', mount: '/tmp', size: 1073741824, free: 805306368},
+    {device: 'devtmpfs', mount: '/dev', size: 10485760, free: 5242880}
+  ] }
   if (object === 'luci.internet-detector' && method === 'UIPoll') return {
     instances: [
       { instance: 'netease_music', inet: 0 }, { instance: 'telegram', inet: 0 },
@@ -39,9 +45,6 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'rc' && method === 'list') return { network: { enabled: true, running: true }, firewall: { enabled: true, running: true } }
   if (object === 'luci.wol' && method === 'stat') return { etherwake: true }
   if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
-  if (object === 'file' && method === 'exec' && ['/bin/df','/usr/bin/df'].includes(params.command)) {
-    return { code: 0, stdout: 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/root 204800 102400 102400 50% /\n/dev/loop0 524288 262144 262144 50% /overlay\ntmpfs 1048576 131072 917504 13% /tmp\n' }
-  }
   if (object === 'file' && method === 'exec' && params.command === '/sbin/ip') {
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n' }
   }
@@ -148,6 +151,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('磁盘占用')).toBeVisible()
   await expect(page.getByText('系统可写空间')).toBeVisible()
   await expect(page.getByText('临时空间')).toBeVisible()
+  await expect(page.getByText('75%', { exact: true })).toBeVisible()
+  await expect(page.getByText('25%', { exact: true })).toBeVisible()
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
   await page.getByRole('button', { name: '统计' }).click()
   await expect(page.getByText('实时带宽')).toBeVisible()
@@ -156,6 +161,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.waitForTimeout(3600)
   await expect(page.locator('.realtime-chart')).toHaveCount(2)
   await page.screenshot({ path: 'test-results/screenshots/actual-traffic-history.png', fullPage: true })
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
+  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
+  await page.getByRole('button', { name: '统计' }).click()
+  await expect(page.getByText('实时带宽')).toBeVisible()
   await page.getByRole('button', { name: '首页' }).click()
 
   // Test page scrolling in the actual logged-in screen.
@@ -187,6 +196,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByText('Phone').click()
   await expect(page.getByText('终端详情')).toBeVisible()
   await expect(page.getByRole('dialog').getByText('AA:BB:CC:DD:EE:FF', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('dialog')
+  await expect(page.getByText('终端详情')).not.toBeVisible()
+  await page.getByText('Phone').click()
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '网络' }).click()
   await expect(page.getByText('10.12.4.5').first()).toBeVisible()
@@ -194,6 +206,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('应用管理')).toBeVisible()
   await expect(page.locator('.app-launcher-tile')).toHaveCount(7)
   await expect(page.getByText('firewall')).toHaveCount(0)
+  await page.getByRole('button', { name: '打开进程' }).click()
+  await expect(page.getByText('rpcd')).toBeVisible()
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
+  await expect(page.getByText('应用管理')).toBeVisible()
   await page.getByRole('button', { name: '打开进程' }).click()
   await expect(page.getByText('rpcd')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
@@ -228,7 +244,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
 
   await page.getByRole('button', { name: '打开侧栏菜单' }).click()
   await page.getByRole('button', { name: '液态底栏' }).click()
-  await page.getByRole('button', { name: '关闭侧栏菜单' }).click()
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('drawer')
+  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
   await expect(page.locator('.liquid-bottom .glass-nav')).toBeVisible()
   await page.getByRole('button', { name: '首页' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
@@ -278,13 +295,13 @@ test('saved routers retain independent addresses and can switch without overwrit
   await page.getByRole('textbox', { name: '路由器密码' }).fill('p1')
   await page.getByRole('button', { name: '登录并进入' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
-  await page.getByRole('button', { name: '返回设备列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByRole('button', { name: '进入 副路由' })).toBeVisible()
   await page.getByRole('button', { name: '进入 副路由' }).click()
   await page.getByRole('textbox', { name: '路由器密码' }).fill('p2')
   await page.getByRole('button', { name: '登录并进入' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
-  await page.getByRole('button', { name: '返回设备列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await page.reload()
   await expect(page.getByRole('button', { name: '进入 主路由' })).toBeVisible()
   await expect(page.getByRole('button', { name: '进入 副路由' })).toBeVisible()
