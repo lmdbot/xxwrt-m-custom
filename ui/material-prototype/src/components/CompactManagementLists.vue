@@ -85,7 +85,7 @@ const routes = computed(() => [
   ...props.liveRoutes.map(fromRuntimeLine)
 ])
 const filteredRoutes = computed(() => routes.value.filter(route =>
-  matches([route.destination, route.via, route.dev, route.table, route.protocol, route.metric, route.type, route.raw].join(' '))))
+  matches([route.destination, route.via, route.dev, route.table, route.protocol, route.metric, route.routeType, route.raw].join(' '))))
 const visibleRoutes = computed(() =>
   showAllRoutes.value || query.value ? filteredRoutes.value : filteredRoutes.value.slice(0, 32))
 const routeRemaining = computed(() => filteredRoutes.value.length - visibleRoutes.value.length)
@@ -180,7 +180,7 @@ const routeRemaining = computed(() => filteredRoutes.value.length - visibleRoute
             <div class="compact-entry-sub">
               <span v-if="route.via">经由 {{ route.via }}</span>
               <span v-if="route.dev"> · {{ route.dev }}</span>
-              <span v-if="!route.via && !route.dev">{{ route.type }}</span>
+              <span v-if="!route.via && !route.dev">{{ route.routeType }}</span>
             </div>
             <div class="compact-entry-tags">
               <span>{{ route.routeType }}</span>
