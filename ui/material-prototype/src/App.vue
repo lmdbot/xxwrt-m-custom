@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch } fr
 import { useTheme } from 'vuetify'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
+import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
@@ -161,6 +162,66 @@ watch(activeTab, (tab) => {
   if (tab === 'statistics') void pollTelemetry()
   if (tab !== 'apps') toolPanel.value = ''
 })
+// Capture logical application destinations rather than raw WebView history.
+// Android edge-back invokes the same handler as the explicit top-left back arrow.
+const navigationTrail = []
+let restoringNavigation = false
+let nativeBackSubscription = null
+const logicalRouteKey = computed(() => JSON.stringify({
+  mode: viewMode.value,
+  tab: viewMode.value === 'detail' ? activeTab.value : 'home',
+  tool: viewMode.value === 'detail' && activeTab.value === 'apps' ? toolPanel.value : ''
+}))
+watch(logicalRouteKey, (next, previous) => {
+  if (restoringNavigation || !previous || next === previous) return
+  const former = JSON.parse(previous)
+  // Never restore unrelated router details after a session is discarded.
+  navigationTrail.push(former)
+  if (navigationTrail.length > 40) navigationTrail.shift()
+}, { flush: 'sync' })
+
+function clearNavigationTrail() {
+  navigationTrail.length = 0
+}
+function restoreRoute(previous) {
+  restoringNavigation = true
+  try {
+    viewMode.value = previous.mode
+    activeTab.value = previous.mode === 'detail' ? previous.tab : 'home'
+    toolPanel.value = previous.mode === 'detail' && previous.tab === 'apps' ? previous.tool : ''
+  } finally { restoringNavigation = false }
+}
+
+// Screen content > side drawer > modal > app hierarchy > Android task.
+// A configured system back gesture must not immediately send the user home
+// while the WebView is showing a detail page, tool, tab or popup.
+async function handleBack() {
+  if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
+  if (factoryDialog.value) { factoryDialog.value = false; return 'dialog' }
+  if (confirmReboot.value) { confirmReboot.value = false; return 'dialog' }
+  if (wolDeleteDialog.value) { wolDeleteDialog.value = false; return 'dialog' }
+  if (deleteDialog.value) { deleteDialog.value = false; return 'dialog' }
+  if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
+  if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
+  if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
+  if (drawerOpen.value) { drawerOpen.value = false; return 'drawer' }
+
+  while (navigationTrail.length) {
+    const previous = navigationTrail.pop()
+    if (previous.mode === 'detail' && !connected.value) continue
+    restoreRoute(previous)
+    if (previous.mode === 'list') void refreshDeviceStatuses()
+    return 'page'
+  }
+  if (viewMode.value === 'detail') {
+    await goToDeviceList()
+    return 'list'
+  }
+  // Root of the app: minimize (preserve session) instead of force-killing it.
+  if (isNative) await CapacitorApp.minimizeApp()
+  return 'root'
+}
+
 watch(chosenInterface, () => {
   samplePrevious = null
   samplePreviousAt = 0
@@ -211,6 +272,7 @@ async function pollTelemetry() {
 }
 
 function resetSession() {
+  clearNavigationTrail()
   const oldId = selectedDeviceId.value
   if (oldId && sessions.has(oldId)) {
     sessions.get(oldId).logout()
@@ -357,9 +419,14 @@ async function refreshDeviceStatuses() {
 }
 
 async function goToDeviceList() {
-  drawerOpen.value = false
-  viewMode.value = 'list'
-  activeTab.value = 'home'
+  restoringNavigation = true
+  try {
+    drawerOpen.value = false
+    viewMode.value = 'list'
+    activeTab.value = 'home'
+    toolPanel.value = ''
+    clearNavigationTrail()
+  } finally { restoringNavigation = false }
   errorMessage.value = ''
   await refreshDeviceStatuses()
 }
@@ -667,6 +734,15 @@ async function rebootRouter() {
 }
 
 onMounted(() => {
+  if (isNative) {
+    void CapacitorApp.addListener('backButton', () => {
+      void handleBack().catch(error => { errorMessage.value = shortError(error) })
+    }).then(listener => { nativeBackSubscription = listener })
+      .catch(error => { console.warn('Android back listener unavailable', error) })
+  }
+  // Browser smoke tests can exercise the same navigation function without
+  // simulating hardware Android gestures. Never expose this in production.
+  if (import.meta.env.DEV) window.__xxwrtTestBack = handleBack
   mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   systemDark.value = mediaQuery.matches
   systemListener = e => { systemDark.value = e.matches }
@@ -681,6 +757,8 @@ onMounted(() => {
   }, 12000)
 })
 onUnmounted(() => {
+  if (nativeBackSubscription) void nativeBackSubscription.remove()
+  if (import.meta.env.DEV) delete window.__xxwrtTestBack
   mediaQuery?.removeEventListener?.('change', systemListener)
   if (refreshTimer) clearInterval(refreshTimer)
   if (probeTimer) clearInterval(probeTimer)
@@ -692,7 +770,7 @@ onUnmounted(() => {
   <v-app class="material-demo" :class="{ 'theme-is-dark': dark }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
       <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
-      <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回设备列表" @click="goToDeviceList"/>
+      <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack"/>
       <v-toolbar-title class="app-name">{{ viewMode === 'list' ? '我的 OpenWrt' : (selectedDevice?.name || 'QWRT') }}</v-toolbar-title>
       <v-spacer />
       <v-btn v-if="viewMode === 'detail' && connected" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
