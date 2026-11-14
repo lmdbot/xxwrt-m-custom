@@ -132,12 +132,13 @@ const parentalForm = reactive({ enable: false, record_enable: false, work_mode: 
 const parentalSaving = ref(false)
 const networkHardware = ref({ wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] })
 const legacyTools = [
-  { id: 'process', title: '进程管理', subtitle: '只读进程列表', icon: 'mdi-format-list-bulleted' },
-  { id: 'startup', title: '启动项', subtitle: '服务及自启动状态', icon: 'mdi-power' },
-  { id: 'routes', title: '静态路由', subtitle: '查看 network 配置', icon: 'mdi-routes' },
-  { id: 'wol', title: '网络唤醒', subtitle: 'RPC 唤醒及目标管理', icon: 'mdi-power-plug' },
-  { id: 'parental', title: '家长控制', subtitle: 'RPC 规则、时间及高级设置', icon: 'mdi-account-child' },
-  { id: 'reset', title: '恢复出厂', subtitle: '原版命令及强制二次确认', icon: 'mdi-restore' }
+  { id: 'parental', title: '家长控制', subtitle: '应用过滤与访问规则', icon: 'mdi-shield-account-outline' },
+  { id: 'routes', title: '路由表', subtitle: '静态与运行路由', icon: 'mdi-routes' },
+  { id: 'process', title: '进程', subtitle: '系统运行进程', icon: 'mdi-format-list-bulleted' },
+  { id: 'startup', title: '启动项', subtitle: '开机启动服务', icon: 'mdi-power-plug-outline' },
+  { id: 'wol', title: '网络唤醒', subtitle: '远程唤醒终端', icon: 'mdi-lan-connect' },
+  { id: 'reboot', title: '重启设备', subtitle: '需要二次确认', icon: 'mdi-restart' },
+  { id: 'reset', title: '恢复出厂', subtitle: '清除配置，请谨慎操作', icon: 'mdi-restore' }
 ]
 const onlineCount = computed(() => snapshot.value?.checks.filter(check => check.state === 'up').length || 0)
 const allChecks = computed(() => snapshot.value?.checks || [])
@@ -522,6 +523,7 @@ async function refreshCurrent() {
 
 async function showLegacyTool(toolId) {
   if (!client.value || toolLoading.value) return
+  if (toolId === 'reboot') { confirmReboot.value = true; return }
   toolPanel.value = toolId
   toolMessage.value = ''
   if (toolId === 'reset') {
@@ -1088,25 +1090,36 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'apps'">
-            <v-card rounded="xl" elevation="1" class="network-card">
-              <div class="section-heading"><h2>系统服务</h2><v-chip size="small" variant="tonal" color="primary">{{ serviceData.services.length }} 项</v-chip></div>
-              <p class="muted-hint">通过 QWRT 的 rc.list 读取服务；更深入的插件管理请进入路由器 LuCI 管理界面。</p>
-              <v-list v-if="serviceData.services.length" bg-color="transparent">
-                <v-list-item v-for="svc in serviceData.services" :key="svc.name" :title="svc.name" :subtitle="svc.enabled ? '开机启用' : '未启用'">
-                  <template #append><v-chip :color="svc.running ? 'success' : 'secondary'" variant="tonal" size="x-small">{{ svc.running ? '运行中' : '未运行' }}</v-chip></template>
-                </v-list-item>
-              </v-list>
-              <p v-else class="muted-hint">{{ serviceData.available ? '路由器没有返回服务项' : '当前固件不支持 rc.list 或接口权限不足' }}</p>
-            </v-card>
-            <v-card rounded="xl" elevation="1" class="network-card mt-4">
-              <div class="section-heading"><h2>基础版管理工具</h2><v-chip size="small" variant="tonal" color="primary">main 功能入口</v-chip></div>
-              <p class="muted-hint">基于 main 分支真实 RPC 逐项迁移。受固件版本和权限影响，部分功能可能不可用；不会自动跳转 LuCI 替代。</p>
-              <div class="legacy-tool-grid">
-                <v-btn v-for="tool in legacyTools" :key="tool.id" variant="tonal" color="primary" rounded="lg" class="legacy-tool-button" :prepend-icon="tool.icon" @click="showLegacyTool(tool.id)">{{ tool.title }}</v-btn>
+            <template v-if="!toolPanel">
+              <div class="app-launcher-heading">
+                <div><h2>应用管理</h2><p>点击图标进入相应的路由器管理功能</p></div>
               </div>
-              <v-alert v-if="toolMessage" type="info" variant="tonal" density="compact" class="mt-3">{{ toolMessage }}</v-alert>
-              <v-progress-linear v-if="toolLoading" indeterminate class="mt-3"/>
-              <div v-if="toolPanel === 'process'" class="mt-3">
+              <div class="app-launcher-grid" role="group" aria-label="应用功能入口">
+                <v-card v-for="tool in legacyTools" :key="tool.id" rounded="xl" variant="flat"
+                  role="button" tabindex="0" class="app-launcher-tile" :aria-label="'打开' + tool.title"
+                  @click="showLegacyTool(tool.id)" @keydown.enter.prevent="showLegacyTool(tool.id)">
+                  <v-avatar rounded="lg" size="49" :color="tool.id === 'reset' ? 'error' : 'primary'" variant="tonal">
+                    <v-icon :icon="tool.icon" size="25"/>
+                  </v-avatar>
+                  <strong>{{ tool.title }}</strong>
+                  <span>{{ tool.subtitle }}</span>
+                </v-card>
+              </div>
+              <p class="muted-hint mt-4">本页入口与基础版应用模块对应。功能在独立二级页面展开，不直接展示进程或服务列表。</p>
+            </template>
+            <template v-else>
+              <div class="app-subpage-heading">
+                <v-btn icon="mdi-arrow-left" size="small" variant="text" aria-label="返回应用功能列表"
+                  @click="toolPanel = ''; toolMessage = ''"/>
+                <div><h2>{{ legacyTools.find(x => x.id === toolPanel)?.title || '功能详情' }}</h2>
+                  <p>{{ legacyTools.find(x => x.id === toolPanel)?.subtitle }}</p></div>
+                <v-btn icon="mdi-refresh" size="small" color="primary" variant="tonal" :loading="toolLoading"
+                  aria-label="刷新当前功能" @click="showLegacyTool(toolPanel)"/>
+              </div>
+              <v-card rounded="xl" elevation="1" class="network-card app-subpage">
+                <v-alert v-if="toolMessage" type="info" variant="tonal" density="compact" class="mb-3">{{ toolMessage }}</v-alert>
+                <v-progress-linear v-if="toolLoading" indeterminate class="mb-3"/>
+                <div v-if="toolPanel === 'process'" class="mt-3">
                 <h3>进程列表</h3>
                 <v-list v-if="processData.processes.length" density="compact">
                   <v-list-item v-for="proc in processData.processes" :key="proc.pid + ':' + proc.command" :title="proc.command" :subtitle="'PID ' + proc.pid + ' · ' + proc.user + ' · CPU ' + proc.cpu + ' · MEM ' + proc.memory"/>
@@ -1156,12 +1169,8 @@ onUnmounted(() => {
                 </template>
               </div>
               <AppFilterPanel v-if="toolPanel === 'parental' && client" :client="client"/>
-
-            </v-card>
-            <v-card rounded="xl" elevation="1" class="network-card mt-4">
-              <h2>路由器维护</h2>
-              <v-btn variant="tonal" color="error" class="mt-3" prepend-icon="mdi-restart" @click="confirmReboot = true">重启路由器</v-btn>
-            </v-card>
+              </v-card>
+            </template>
           </template>
 
 
