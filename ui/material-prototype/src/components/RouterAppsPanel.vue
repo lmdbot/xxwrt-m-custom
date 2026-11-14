@@ -633,6 +633,7 @@ async function loadFirewall() {
       output: String(x.options.output || 'ACCEPT').toUpperCase(),
       forward: String(x.options.forward || 'REJECT').toUpperCase(),
       masq: String(x.options.masq || '0') === '1',
+      savedPolicy: { input: String(x.options.input || 'REJECT').toUpperCase(), output: String(x.options.output || 'ACCEPT').toUpperCase(), forward: String(x.options.forward || 'REJECT').toUpperCase() },
       network: Array.isArray(x.options.network) ? x.options.network.join(', ') : String(x.options.network || '')
     })),
     redirects: list.filter(x => x.type === 'redirect').map(x => ({ section: x.id, ...x.options })),
@@ -937,7 +938,21 @@ defineExpose({ refresh })
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(fw.service) }}</strong></div><div><span>防火墙区域</span><strong>{{ fw.zones.length }}</strong></div><div><span>端口转发</span><strong>{{ fw.redirects.length }}</strong></div></div>
         <h3 class="router-app-section-title">区域策略</h3>
-        <v-expansion-panels variant="accordion"><v-expansion-panel v-for="zone in fw.zones" :key="zone.section"><v-expansion-panel-title><div class="firewall-zone-title"><strong>{{ zone.name }}</strong><small>{{ zone.network || '未绑定网络' }}</small></div></v-expansion-panel-title><v-expansion-panel-text>
+        <v-expansion-panels variant="accordion" class="firewall-policy-expansion">
+          <v-expansion-panel v-for="zone in fw.zones" :key="zone.section">
+            <v-expansion-panel-title>
+              <div class="firewall-zone-title">
+                <strong>{{ zone.name }}</strong>
+                <small>{{ zone.network || '未绑定网络' }}</small>
+                <div class="firewall-policy-preview" :aria-label="'当前策略：入站 ' + zone.savedPolicy.input + '，出站 ' + zone.savedPolicy.output + '，转发 ' + zone.savedPolicy.forward">
+                  <v-chip size="x-small" variant="tonal" :color="zone.savedPolicy.input === 'ACCEPT' ? 'success' : zone.savedPolicy.input === 'DROP' ? 'error' : 'warning'">入站 {{ zone.savedPolicy.input }}</v-chip>
+                  <v-chip size="x-small" variant="tonal" :color="zone.savedPolicy.output === 'ACCEPT' ? 'success' : zone.savedPolicy.output === 'DROP' ? 'error' : 'warning'">出站 {{ zone.savedPolicy.output }}</v-chip>
+                  <v-chip size="x-small" variant="tonal" :color="zone.savedPolicy.forward === 'ACCEPT' ? 'success' : zone.savedPolicy.forward === 'DROP' ? 'error' : 'warning'">转发 {{ zone.savedPolicy.forward }}</v-chip>
+                </div>
+                <small v-if="zone.input !== zone.savedPolicy.input || zone.output !== zone.savedPolicy.output || zone.forward !== zone.savedPolicy.forward" class="firewall-pending-label">有未保存的策略修改</small>
+              </div>
+            </v-expansion-panel-title>
+            <v-expansion-panel-text>
           <v-row dense><v-col cols="12" sm="4"><v-select v-model="zone.input" label="入站 INPUT" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col><v-col cols="12" sm="4"><v-select v-model="zone.output" label="出站 OUTPUT" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col><v-col cols="12" sm="4"><v-select v-model="zone.forward" label="转发 FORWARD" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col></v-row>
           <v-switch v-model="zone.masq" label="启用 IPv4 地址伪装（Masquerading）" color="primary" hide-details/><v-btn size="small" color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZone(zone)">保存区域策略</v-btn>
         </v-expansion-panel-text></v-expansion-panel></v-expansion-panels>
