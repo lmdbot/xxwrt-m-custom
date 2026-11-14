@@ -7,7 +7,65 @@ const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
 const ssr = ref({ available: false, section: '', global: {}, nodes: [], service: null })
 const ssrNode = ref('nil')
 const wechat = ref({ available: false, section: '', service: null })
-const wechatForm = reactive({ enable: '0', jsonpath: '', sleeptime: '60', sckey: '', pushplus_token: '', wxpusher_apptoken: '', wxpusher_uids: '', wpush_apikey: '', tg_token: '', tg_chat_id: '', corpid: '', userid: '', agentid: '', corpsecret: '' })
+const DIY_FILE = '/usr/share/wechatpush/api/diy.json'
+const DEVICES_FILE = '/tmp/wechatpush/devices.json'
+const wechatTab = ref('settings')
+const wechatDevices = ref([])
+const wechatDevicesAvailable = ref(false)
+const wechatDevicesError = ref('')
+const wechatDiy = ref('')
+const wechatDiyOriginal = ref('')
+const wechatDiyError = ref('')
+const wechatDiyLoaded = ref(false)
+const wechatDiyDirty = computed(() => wechatDiyLoaded.value && wechatDiy.value !== wechatDiyOriginal.value)
+const wechatForm = reactive({
+  enable: '0', jsonpath: '', sleeptime: '60', device_name: '', debuglevel: '0',
+  reset_regularly: '0', prefer_client_page: '1', passive_mode: '0',
+  up_timeout: '2', down_timeout: '10', timeout_retry_count: '2', thread_num: '3',
+  only_timeout_push: '0', miwifi_ip: '', miwifi_password: '',
+  crontab_mode: '', crontab_interval_time: '', do_not_disturb_mode: '',
+  sckey: '', sc3key: '', sc3uid: '', sc3tags: '', pushplus_token: '',
+  wxpusher_apptoken: '', wxpusher_uids: '', wxpusher_topicIds: '', wpush_apikey: '',
+  tg_token: '', tg_chat_id: '', tg_thread_id: '', tg_api_server: '', 
+  corpid: '', userid: '', agentid: '', corpsecret: '', proxy_address: ''
+})
+const wechatMulti = reactive({
+  device_notification: [], cpu_notification: [], login_notification: [],
+  lite_enable: [], send_notification: [], device_info_helper: []
+})
+const wechatMultiOptions = {
+  device_notification: [{ value: 'online', title: '设备上线通知' }, { value: 'offline', title: '设备离线通知' }],
+  cpu_notification: [{ value: 'load', title: 'CPU 负载告警' }, { value: 'temp', title: '温度告警' }],
+  login_notification: [
+    { value: 'web_logged', title: '网页登录提醒' }, { value: 'ssh_logged', title: 'SSH 登录提醒' },
+    { value: 'web_login_failed', title: '网页登录失败提醒' },
+    { value: 'ssh_login_failed', title: 'SSH 登录失败提醒' }
+  ],
+  lite_enable: [
+    { value: 'device', title: '精简设备列表' }, { value: 'nowtime', title: '精简时间' },
+    { value: 'content', title: '仅推送标题' }
+  ],
+  send_notification: [
+    { value: 'router_status', title: '系统运行状态' }, { value: 'router_temp', title: '路由器温度' },
+    { value: 'wan_info', title: 'WAN 信息' }, { value: 'client_list', title: '在线终端列表' }
+  ]
+}
+const wechatDevicesShown = computed(() => wechatDevices.value
+  .filter(item => item.status === 'online' || item.status === 'unknown')
+  .sort((a, b) => String(a.ip || '').localeCompare(String(b.ip || ''), undefined, { numeric: true })))
+const wechatOnlineCount = computed(() => wechatDevicesShown.value.filter(d => d.status === 'online').length)
+function multiValues(raw) {
+  const values = Array.isArray(raw) ? raw : String(raw || '').split(/[\s,]+/)
+  return [...new Set(values.map(value => String(value).trim()).filter(Boolean))]
+}
+function toggleWechatMulti(key, value, enabled) {
+  const current = new Set(wechatMulti[key] || [])
+  if (enabled) current.add(value)
+  else current.delete(value)
+  wechatMulti[key] = [...current]
+}
+const wechatMiwifiEnabled = computed(() => wechatMulti.device_info_helper.includes('miwifi_info'))
+function toggleWechatMiwifi(enabled) { toggleWechatMulti('device_info_helper', 'miwifi_info', enabled) }
 const openclash = ref({ available: false, section: '', config: {}, service: null })
 const oc = reactive({ enable: '0', en_mode: 'fake-ip', proxy_mode: 'rule', ipv6_enable: '0', enable_udp_proxy: '1', router_self_proxy: '1' })
 const detector = ref({ available: false, instances: [], service: null })
@@ -28,20 +86,29 @@ const providers = [
   { title: 'WxPusher', value: '/usr/share/wechatpush/api/wxpusher.json' },
   { title: 'PushPlus', value: '/usr/share/wechatpush/api/pushplus.json' },
   { title: 'WPUSH', value: '/usr/share/wechatpush/api/wpush.json' },
-  { title: 'Telegram', value: '/usr/share/wechatpush/api/telegram.json' }
+  { title: 'Telegram', value: '/usr/share/wechatpush/api/telegram.json' },
+  { title: '企业微信图文', value: '/usr/share/wechatpush/api/qywx_mpnews.json' },
+  { title: '邮件 msmtp', value: '/usr/share/wechatpush/api/msmtp.json' },
+  { title: 'DIY 自定义推送', value: DIY_FILE }
 ]
+const wechatProviderItems = computed(() => providers.some(x => x.value === wechatForm.jsonpath)
+  ? providers : [...providers, { title: '其他现有渠道', value: wechatForm.jsonpath }])
 const providerFields = computed(() => ({
   '/usr/share/wechatpush/api/serverchan.json': ['sckey'],
-  '/usr/share/wechatpush/api/serverchan3.json': ['sc3key', 'sc3uid'],
-  '/usr/share/wechatpush/api/qywx_markdown.json': ['corpid', 'userid', 'agentid', 'corpsecret'],
-  '/usr/share/wechatpush/api/wxpusher.json': ['wxpusher_apptoken', 'wxpusher_uids'],
+  '/usr/share/wechatpush/api/serverchan3.json': ['sc3key', 'sc3uid', 'sc3tags'],
+  '/usr/share/wechatpush/api/qywx_markdown.json': ['corpid', 'userid', 'agentid', 'corpsecret', 'proxy_address'],
+  '/usr/share/wechatpush/api/qywx_mpnews.json': ['corpid', 'userid', 'agentid', 'corpsecret'],
+  '/usr/share/wechatpush/api/wxpusher.json': ['wxpusher_apptoken', 'wxpusher_uids', 'wxpusher_topicIds'],
   '/usr/share/wechatpush/api/pushplus.json': ['pushplus_token'],
   '/usr/share/wechatpush/api/wpush.json': ['wpush_apikey'],
-  '/usr/share/wechatpush/api/telegram.json': ['tg_token', 'tg_chat_id']
+  '/usr/share/wechatpush/api/telegram.json': ['tg_token', 'tg_chat_id', 'tg_thread_id', 'tg_api_server'],
+  '/usr/share/wechatpush/api/msmtp.json': ['proxy_address']
 }[wechatForm.jsonpath] || []))
 const providerLabels = {
   sckey: 'Server酱 SendKey', sc3key: 'Server酱 3 SendKey', sc3uid: 'Server酱 3 UID',
   corpid: '企业 ID', userid: '接收用户（@all 表示全部）', agentid: '应用 AgentID', corpsecret: '企业微信 Secret',
+  sc3tags: 'Server酱 3 标签', wxpusher_topicIds: 'WxPusher 群发 Topic IDs',
+  tg_thread_id: 'Telegram 话题 ID', tg_api_server: 'Telegram API 服务地址', proxy_address: '代理服务器地址',
   wxpusher_apptoken: 'WxPusher AppToken', wxpusher_uids: 'WxPusher 用户 UID',
   pushplus_token: 'PushPlus Token', wpush_apikey: 'WPUSH API Key', tg_token: 'Telegram Bot Token', tg_chat_id: 'Telegram Chat ID'
 }
@@ -126,13 +193,80 @@ async function loadWechat() {
     available: !!section, section: section?.id || '',
     service: { ...(rc?.wechatpush || {}), running: !!detail?.wechatpush?.instances?.instance1?.running || !!rc?.wechatpush?.running }
   }
-  for (const key of Object.keys(wechatForm)) wechatForm[key] = String(o[key] ?? (key === 'sleeptime' ? '60' : ''))
+  for (const key of Object.keys(wechatForm)) {
+    const fallback = { sleeptime: '60', prefer_client_page: '1', up_timeout: '2',
+      down_timeout: '10', timeout_retry_count: '2', thread_num: '3' }[key] || ''
+    wechatForm[key] = String(o[key] ?? fallback)
+  }
+  for (const key of Object.keys(wechatMulti)) wechatMulti[key] = multiValues(o[key])
+  if (wechatTab.value === 'online') await loadWechatDevices()
+  if (wechatForm.jsonpath === DIY_FILE && !wechatDiyDirty.value) await loadWechatDiy()
+}
+async function loadWechatDevices() {
+  wechatDevicesError.value = ''
+  const result = await props.client.call('file', 'read', { path: DEVICES_FILE }, true)
+  if (typeof result?.data !== 'string') {
+    wechatDevicesAvailable.value = false
+    wechatDevices.value = []
+    wechatDevicesError.value = '无法读取微信推送设备缓存。请先确认插件服务已运行，并允许读取 /tmp/wechatpush/devices.json。'
+    return
+  }
+  try {
+    const parsed = JSON.parse(result.data)
+    if (!Array.isArray(parsed.devices)) throw new Error('缺少 devices 数组')
+    wechatDevices.value = parsed.devices.slice(0, 512).map(item => ({
+      name: String(item.name || '未知设备'), ip: String(item.ip || '--'),
+      mac: String(item.mac || '--'), status: String(item.status || 'unknown'),
+      interface: String(item.type || item.interface || 'LAN'),
+      parent: String(item.parent || ''), uptime: String(item.uptime ?? '')
+    }))
+    wechatDevicesAvailable.value = true
+  } catch (_) {
+    wechatDevicesAvailable.value = false
+    wechatDevices.value = []
+    wechatDevicesError.value = '微信推送设备缓存不是有效的 devices.json 格式'
+  }
+}
+async function loadWechatDiy() {
+  wechatDiyError.value = ''
+  const result = await props.client.call('file', 'read', { path: DIY_FILE }, true)
+  if (typeof result?.data !== 'string') {
+    wechatDiyLoaded.value = false
+    wechatDiyError.value = '无法读取 DIY 配置文件，请检查 luci-app-wechatpush 文件读取权限'
+    return
+  }
+  wechatDiy.value = result.data
+  wechatDiyOriginal.value = result.data
+  wechatDiyLoaded.value = true
+}
+async function saveWechatDiy() {
+  await run(async () => {
+    if (!wechatDiyLoaded.value) throw new Error('DIY 文件未成功读取，禁止覆盖')
+    if (wechatDiy.value.length > 65536) throw new Error('DIY 文件不能超过 64 KB')
+    let parsed
+    try { parsed = JSON.parse(wechatDiy.value) } catch (e) { throw new Error('JSON 格式无效：' + e.message) }
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      throw new Error('DIY 配置必须是 JSON 对象')
+    }
+    if (!wechatDiyDirty.value) return
+    await props.client.call('file', 'write', {
+      path: DIY_FILE, data: wechatDiy.value.replace(/\r\n/g, '\n').trimEnd() + '\n'
+    })
+    await loadWechatDiy()
+  }, 'DIY JSON 内容已保存到路由器文件', false)
 }
 async function saveWechat() {
   await run(async () => {
     if (!wechat.value.available) throw new Error('未检测到 /etc/config/wechatpush')
-    const values = { enable: wechatForm.enable, jsonpath: wechatForm.jsonpath, sleeptime: wechatForm.sleeptime }
-    for (const key of providerFields.value) values[key] = wechatForm[key] || ''
+    if (!/^\d+$/.test(wechatForm.sleeptime) || Number(wechatForm.sleeptime) < 10) {
+      throw new Error('检测间隔必须是至少 10 秒的整数')
+    }
+    const values = Object.fromEntries(Object.entries(wechatForm).filter(([key]) =>
+      !['miwifi_password'].includes(key)))
+    // Only update MiWiFi credentials when the integration is enabled or already
+    // configured. Do not silently erase an existing password.
+    if (wechatForm.miwifi_password) values.miwifi_password = wechatForm.miwifi_password
+    for (const key of Object.keys(wechatMulti)) values[key] = wechatMulti[key].join(' ')
     await setUci('wechatpush', wechat.value.section, values)
     await service('wechat')
   }, '微信推送配置已保存，服务已重启')
@@ -143,6 +277,18 @@ async function testWechat() {
     notice.value = String(result.stdout || '').trim().slice(0, 260) || '测试推送命令已执行，请检查手机是否收到消息'
   }, '', false)
 }
+watch(wechatTab, next => {
+  if (props.kind !== 'wechatpush') return
+  if (next === 'online') void loadWechatDevices().catch(e => { wechatDevicesError.value = shortError(e) })
+  if (next === 'settings' && wechatForm.jsonpath === DIY_FILE && !wechatDiyLoaded.value) {
+    void loadWechatDiy().catch(e => { wechatDiyError.value = shortError(e) })
+  }
+})
+watch(() => wechatForm.jsonpath, next => {
+  if (props.kind === 'wechatpush' && next === DIY_FILE && !wechatDiyLoaded.value) {
+    void loadWechatDiy().catch(e => { wechatDiyError.value = shortError(e) })
+  }
+})
 
 async function loadOpenClash() {
   const [cfg, rc] = await Promise.all([getUci('openclash'), services()])
@@ -352,12 +498,86 @@ defineExpose({ refresh })
       <v-alert v-if="!wechat.available" type="warning" variant="tonal">未检测到 /etc/config/wechatpush，请先安装 luci-app-wechatpush。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(wechat.service) }}</strong></div><div><span>推送功能</span><strong>{{ wechatForm.enable === '1' ? '已启用' : '未启用' }}</strong></div></div>
-        <v-switch :model-value="wechatForm.enable === '1'" label="启用微信推送" color="primary" hide-details @update:model-value="wechatForm.enable = $event ? '1' : '0'"/>
-        <v-select v-model="wechatForm.jsonpath" label="推送渠道" :items="providers" item-title="title" item-value="value" density="comfortable" variant="outlined" class="mt-3"/>
-        <v-text-field v-model="wechatForm.sleeptime" label="检测间隔（秒）" type="number" min="10" density="comfortable" variant="outlined"/>
-        <v-text-field v-for="key in providerFields" :key="key" v-model="wechatForm[key]" :label="providerLabels[key]" :type="secretKey(key) ? 'password' : 'text'" autocomplete="off" density="comfortable" variant="outlined"/>
-        <div class="d-flex flex-wrap ga-2"><v-btn color="primary" variant="tonal" :disabled="busy" @click="saveWechat">保存配置并重启</v-btn><v-btn variant="outlined" :disabled="busy || wechatForm.enable !== '1'" @click="testWechat">发送测试推送</v-btn></div>
-        <p class="muted-hint mt-2">凭据通过路由器 UCI 接口写入。测试推送会真实发送一条测试消息。</p>
+        <v-btn-toggle v-model="wechatTab" mandatory variant="outlined" color="primary" class="d-flex mt-3 mb-4" style="width:100%" density="comfortable">
+          <v-btn value="settings" class="flex-grow-1">基本配置</v-btn>
+          <v-btn value="content" class="flex-grow-1">推送内容</v-btn>
+          <v-btn value="online" class="flex-grow-1">在线设备</v-btn>
+          <v-btn value="advanced" class="flex-grow-1">高级</v-btn>
+        </v-btn-toggle>
+        <template v-if="wechatTab === 'settings'">
+          <v-switch :model-value="wechatForm.enable === '1'" label="启用微信推送" color="primary" hide-details @update:model-value="wechatForm.enable = $event ? '1' : '0'"/>
+          <v-select v-model="wechatForm.jsonpath" label="推送渠道" :items="wechatProviderItems" item-title="title" item-value="value" density="comfortable" variant="outlined" class="mt-3"/>
+          <v-text-field v-model="wechatForm.device_name" label="消息中的设备名称（可选）" density="comfortable" variant="outlined"/>
+          <v-text-field v-model="wechatForm.sleeptime" label="检测间隔（秒）" type="number" min="10" density="comfortable" variant="outlined"/>
+          <v-text-field v-for="key in providerFields" :key="key" v-model="wechatForm[key]" :label="providerLabels[key]" :type="secretKey(key) ? 'password' : 'text'" autocomplete="off" density="comfortable" variant="outlined"/>
+          <template v-if="wechatForm.jsonpath === DIY_FILE">
+            <h3 class="router-app-section-title mt-3">DIY 推送 JSON 文件内容</h3>
+            <p class="muted-hint">直接编辑 {{ DIY_FILE }}，不是输入文件路径。保存前会校验 JSON 格式。</p>
+            <v-alert v-if="wechatDiyError" type="warning" variant="tonal" density="compact" class="my-2">{{ wechatDiyError }}</v-alert>
+            <v-textarea v-model="wechatDiy" label="DIY JSON 内容" aria-label="DIY JSON 内容" variant="outlined" auto-grow rows="10" :disabled="!wechatDiyLoaded" spellcheck="false"/>
+            <div class="d-flex flex-wrap ga-2 mb-3">
+              <v-btn color="primary" variant="tonal" :disabled="busy || !wechatDiyLoaded || !wechatDiyDirty" @click="saveWechatDiy">保存 DIY 文件内容</v-btn>
+              <v-btn variant="text" :disabled="busy" @click="loadWechatDiy">重新读取文件</v-btn>
+            </div>
+          </template>
+          <v-switch :model-value="wechatForm.reset_regularly === '1'" label="每天零点重置流量统计" color="primary" hide-details @update:model-value="wechatForm.reset_regularly = $event ? '1' : '0'"/>
+          <v-switch :model-value="wechatForm.prefer_client_page === '1'" label="优先显示在线设备页面" color="primary" hide-details @update:model-value="wechatForm.prefer_client_page = $event ? '1' : '0'"/>
+          <v-switch :model-value="wechatForm.debuglevel === '1'" label="记录运行日志" color="primary" hide-details @update:model-value="wechatForm.debuglevel = $event ? '1' : '0'"/>
+          <div class="d-flex flex-wrap ga-2 mt-3"><v-btn color="primary" variant="tonal" :disabled="busy" @click="saveWechat">保存配置并重启</v-btn><v-btn variant="outlined" :disabled="busy || wechatForm.enable !== '1'" @click="testWechat">发送测试推送</v-btn></div>
+          <p class="muted-hint mt-2">推送凭据通过 QWRT UCI 配置保存；DIY 内容单独写入 JSON 文件。测试推送会真实发送消息。</p>
+        </template>
+        <template v-else-if="wechatTab === 'content'">
+          <h3 class="router-app-section-title">设备上下线通知</h3>
+          <v-switch v-for="item in wechatMultiOptions.device_notification" :key="item.value" :model-value="wechatMulti.device_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('device_notification',item.value,$event)"/>
+          <h3 class="router-app-section-title mt-4">系统监测告警</h3>
+          <v-switch v-for="item in wechatMultiOptions.cpu_notification" :key="item.value" :model-value="wechatMulti.cpu_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('cpu_notification',item.value,$event)"/>
+          <h3 class="router-app-section-title mt-4">管理登录提醒</h3>
+          <v-switch v-for="item in wechatMultiOptions.login_notification" :key="item.value" :model-value="wechatMulti.login_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('login_notification',item.value,$event)"/>
+          <h3 class="router-app-section-title mt-4">简化推送内容</h3>
+          <v-switch v-for="item in wechatMultiOptions.lite_enable" :key="item.value" :model-value="wechatMulti.lite_enable.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('lite_enable',item.value,$event)"/>
+          <v-divider class="my-4"/><h3 class="router-app-section-title">定时推送</h3>
+          <v-select v-model="wechatForm.crontab_mode" label="定时任务模式" variant="outlined" density="comfortable" :items="[{title:'关闭',value:''},{title:'固定时间发送',value:'1'},{title:'按间隔发送',value:'2'}]"/>
+          <v-select v-if="wechatForm.crontab_mode === '2'" v-model="wechatForm.crontab_interval_time" label="发送间隔（小时）" variant="outlined" density="comfortable" :items="['1','2','3','4','6','8','12','24']"/>
+          <p v-if="wechatForm.crontab_mode === '1'" class="muted-hint">固定发送时间请到 QWRT 原版微信推送页面配置，APP 暂不修改已有时间列表。</p>
+          <v-switch v-for="item in wechatMultiOptions.send_notification" :key="item.value" :model-value="wechatMulti.send_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('send_notification',item.value,$event)"/>
+          <v-btn color="primary" variant="tonal" class="mt-4" :disabled="busy" @click="saveWechat">保存推送策略并重启</v-btn>
+        </template>
+        <template v-else-if="wechatTab === 'online'">
+          <div class="d-flex align-center justify-space-between mb-3">
+            <div><strong>微信推送检测设备</strong><p class="muted-hint">确认在线 {{ wechatOnlineCount }} · 未确认 {{ wechatDevicesShown.length - wechatOnlineCount }}</p></div>
+            <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" :disabled="loading || busy" @click="loadWechatDevices">刷新列表</v-btn>
+          </div>
+          <v-alert v-if="wechatDevicesError" type="info" variant="tonal" density="compact">{{ wechatDevicesError }}</v-alert>
+          <v-list v-else-if="wechatDevicesShown.length" density="compact" class="wechat-online-list">
+            <v-list-item v-for="item in wechatDevicesShown" :key="item.mac + '-' + item.ip" class="wechat-online-row"
+              :title="item.name" :subtitle="[item.ip,item.mac,item.interface,item.parent && item.parent !== 'Local' ? ('接入 ' + item.parent) : '',item.uptime ? ('在线时长 ' + item.uptime) : ''].filter(Boolean).join(' · ')">
+              <template #prepend><v-icon :icon="item.status === 'online' ? 'mdi-circle' : 'mdi-help-circle-outline'" :color="item.status === 'online' ? 'success' : 'grey'" size="small" class="mr-3"/></template>
+              <template #append><v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'default'" variant="tonal">{{ item.status === 'online' ? '在线' : '待确认' }}</v-chip></template>
+            </v-list-item>
+          </v-list>
+          <v-alert v-else-if="wechatDevicesAvailable" type="info" variant="tonal" density="compact">微信推送缓存中暂无在线或待确认的设备。</v-alert>
+          <p class="muted-hint mt-3">数据来自微信推送插件的 devices.json，不使用 DHCP 租约冒充在线终端。插件主动检测可能存在延迟，关闭服务时缓存不会继续刷新。</p>
+        </template>
+        <template v-else-if="wechatTab === 'advanced'">
+          <h3 class="router-app-section-title">设备探测</h3>
+          <v-switch :model-value="wechatForm.passive_mode === '1'" label="停用主动探测" color="primary" hide-details @update:model-value="wechatForm.passive_mode = $event ? '1' : '0'"/>
+          <v-alert v-if="wechatForm.passive_mode === '1'" type="warning" variant="tonal" density="compact">停用主动探测后，设备上下线通知和在线列表可能不准确。</v-alert>
+          <template v-else>
+            <v-text-field v-model="wechatForm.up_timeout" label="上线检测超时（秒）" type="number" min="1" variant="outlined" density="comfortable"/>
+            <v-text-field v-model="wechatForm.down_timeout" label="离线检测超时（秒）" type="number" min="1" variant="outlined" density="comfortable"/>
+            <v-text-field v-model="wechatForm.timeout_retry_count" label="离线重试次数" type="number" min="1" variant="outlined" density="comfortable"/>
+            <v-switch :model-value="wechatForm.only_timeout_push === '1'" label="离线超时仅对已订阅通知的设备生效" color="primary" hide-details @update:model-value="wechatForm.only_timeout_push = $event ? '1' : '0'"/>
+          </template>
+          <v-text-field v-model="wechatForm.thread_num" label="最大探测并发数" type="number" min="1" max="16" variant="outlined" density="comfortable" class="mt-3"/>
+          <v-divider class="my-4"/><h3 class="router-app-section-title">小米 AP 设备信息辅助</h3>
+          <v-switch :model-value="wechatMiwifiEnabled" label="从小米路由器读取终端名称及无线接入信息" color="primary" hide-details @update:model-value="toggleWechatMiwifi($event)"/>
+          <template v-if="wechatMiwifiEnabled">
+            <v-text-field v-model.trim="wechatForm.miwifi_ip" label="小米主 AP IP 地址" variant="outlined" density="comfortable" placeholder="192.168.100.x"/>
+            <v-text-field v-model="wechatForm.miwifi_password" label="小米路由器管理密码" type="password" autocomplete="new-password" variant="outlined" density="comfortable"/>
+          </template>
+          <p class="muted-hint">此功能调用 QWRT 已安装的微信推送插件，不会将密码上传到 GitHub。插件会以明文 UCI 配置保存小米密码，并通过局域网 HTTP 登录小米路由器；只建议在可信局域网使用。此选项用于补充设备信息，不等同于直接采集 AP 无线关联状态。</p>
+          <v-btn color="primary" variant="tonal" class="mt-3" :disabled="busy" @click="saveWechat">保存高级设置并重启</v-btn>
+        </template>
       </template>
     </template>
     <template v-else-if="kind === 'openclash'">
