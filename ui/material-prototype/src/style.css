@@ -1,4 +1,4 @@
-html,body,#app{margin:0;min-height:100%;font-family:Roboto,"Noto Sans SC","Microsoft YaHei",sans-serif}
+html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans SC","Microsoft YaHei",sans-serif;-webkit-text-size-adjust:100%}html,body{overflow-x:hidden;overscroll-behavior-y:auto}
 :root{color-scheme:light}
 .material-demo{background:rgb(var(--v-theme-background))}
 .theme-is-dark{color-scheme:dark}
@@ -54,3 +54,10 @@ html,body,#app{margin:0;min-height:100%;font-family:Roboto,"Noto Sans SC","Micro
 @media(max-width:365px){.main-container{padding:18px 12px 116px}.device-card{padding:15px}.glass-tab span{font-size:9px}.status-chip{padding:6px!important}}
 @supports not (backdrop-filter:blur(8px)){.glass-host{background:rgba(245,248,253,.94)}.theme-is-dark .glass-host{background:rgba(28,32,44,.95)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important}}
+
+/* Do not let Android WebView text autosizing enlarge responsive components. */
+.v-application,.v-main{min-width:0;max-width:100%}
+.v-app-bar .v-toolbar-title{min-width:0}
+.v-bottom-navigation .v-btn{touch-action:manipulation}
+.liquid-bottom .glass-tab{touch-action:manipulation}
+@media(max-width:420px){.page-head h1{font-size:24px}.main-container{padding-top:16px}.status-chip{min-height:32px!important}.device-card{padding:16px}.device-heading-label h2{font-size:17px}.resource-card{padding:14px}}

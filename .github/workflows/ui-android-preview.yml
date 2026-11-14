@@ -60,6 +60,21 @@ jobs:
       - name: Build Material UI
         run: npm run build
 
+      - name: Install Chromium for interaction tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify Material rendering, touch controls, and scroll
+        run: npm run test:ui
+
+      - name: Upload mobile UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: material-ui-smoke-screenshots
+          path: ui/material-prototype/test-results/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Generate native Capacitor app
         run: |
           npx cap add android
