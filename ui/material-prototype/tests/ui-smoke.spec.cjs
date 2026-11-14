@@ -66,6 +66,9 @@ const dataFor = (object, method, params = {}) => {
       { name: 'MacBook-Air', ip: '192.168.100.90', mac: 'F0:EE:7A:91:AA:12', status: 'offline', interface: '5G' }
     ] }) }
   }
+  if (object === 'file' && method === 'read' && params.path === '/proc/sys/net/ipv4/tcp_congestion_control') {
+    return { data: 'bbr\n' }
+  }
   if (object === 'file' && method === 'read' && params.path === '/usr/share/wechatpush/api/diy.json') {
     return { data: '{"url":"https://example.invalid/test","type":{"text":"hello"}}\n' }
   }
@@ -104,6 +107,9 @@ const dataFor = (object, method, params = {}) => {
       ? '192.168.100.88 dev br-lan lladdr aa:bb:cc:dd:ee:ff REACHABLE\n192.168.100.89 dev br-lan FAILED\n192.168.100.90 dev br-lan FAILED\n'
       : 'fe80::1 dev br-lan lladdr bb:cc:dd:ee:ff:00 STALE\n' }
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n192.168.100.88 dev br-lan proto kernel scope link\n' }
+  }
+  if (object === 'file' && method === 'exec' && params.command === '/usr/sbin/nft') {
+    return { code: 0, stdout: 'table inet fw4 { chain srcnat { fullcone ip saddr 192.168.100.0/24 } }' }
   }
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli' && !zeroTierCliAllowed) return null
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
@@ -192,7 +198,7 @@ const dataFor = (object, method, params = {}) => {
   }
   if (object === 'appfilter' && ['set_app_filter','set_app_filter_time','set_app_filter_user','set_app_filter_adv','add_app_filter_user','del_app_filter_user'].includes(method)) return {}
   if (object === 'luci-rpc' && method === 'getNetworkDevices') return {
-    eth0: { up: true, macaddr: '00:11:22:33:44:55', stats: {
+    eth0: { up: true, type: 1, macaddr: '00:11:22:33:44:55', stats: {
       rx_bytes: 10485760, tx_bytes: 5242880, rx_packets: 1000, tx_packets: 500
     }}
   }
@@ -432,6 +438,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.hardware-list')).toBeVisible()
   await expect(page.locator('.hardware-panel')).toHaveCount(1)
   await expect(page.locator('.hardware-panel').first().getByText('eth0')).toBeVisible()
+  await expect(page.locator('.hardware-panel').first().locator('.hardware-sub')).toContainText('以太网')
   await page.locator('.hardware-panel').first().locator('.v-expansion-panel-title').click()
   await expect(page.locator('.hardware-panel').first().getByText('00:11:22:33:44:55').last()).toBeVisible()
   await page.getByRole('button', { name: /无线，/ }).click()
@@ -521,6 +528,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开防火墙' }).click()
   await expect(page.getByText('区域策略', { exact: true })).toBeVisible()
+  await expect(page.getByText('Full Cone NAT')).toBeVisible()
+  await expect(page.getByText('BBR', { exact: true })).toBeVisible()
   await expect(page.locator('.firewall-policy-preview')).toHaveCount(2)
   await expect(page.locator('.firewall-policy-preview').first()).toContainText('入站 ACCEPT')
   await expect(page.locator('.firewall-policy-preview').first()).toContainText('出站 ACCEPT')
