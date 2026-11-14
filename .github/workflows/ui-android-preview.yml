@@ -202,6 +202,12 @@ jobs:
           fi
           APK="../../dist/material-preview/${APP_APK_NAME}"
           test -f "$APK" || { echo "::error::Release APK missing: $APK"; exit 1; }
+          VERSION_NOTES="../../docs/releases/v${APP_VERSION}.md"
+          test -s "$VERSION_NOTES" || { echo "::error::Missing per-version release notes: $VERSION_NOTES"; exit 1; }
+          grep -Eq '^## (新功能|优化|修复|其他变更)' "$VERSION_NOTES" || {
+            echo "::error::Release notes must contain structured change categories"
+            exit 1
+          }
           NOTES="../../build/material-preview/release-notes.md"
           cp "$VERSION_NOTES" "$NOTES"
           {
