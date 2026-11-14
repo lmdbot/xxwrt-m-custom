@@ -314,6 +314,13 @@ const liveRoutes = ref({ available: false, lines: [] })
 const wolData = ref({ available: false, tool: '', targets: [], interfaces: [], known: [], neighbors: [] })
 const wolForm = reactive({ name: '', mac: '', iface: '', broadcast: false })
 const wolTab = ref('targets')
+const wolNeighborSearch = ref('')
+const filteredWolNeighbors = computed(() => {
+  const term = String(wolNeighborSearch.value || '').trim().toLowerCase()
+  if (!term) return wolData.value.neighbors
+  return wolData.value.neighbors.filter(item =>
+    [item.name, item.ip, item.mac].some(value => String(value || '').toLowerCase().includes(term)))
+})
 const wolBusy = ref(false)
 const wolDeleteDialog = ref(false)
 const wolDeleteTarget = ref(null)
@@ -1710,16 +1717,40 @@ onUnmounted(() => {
                   </template>
                 </template>
                 <template v-else>
-                  <v-list v-if="wolData.neighbors.length" density="compact">
-                    <v-list-item v-for="neighbor in wolData.neighbors" :key="neighbor.mac"
-                      :title="neighbor.name" :subtitle="neighbor.mac + (neighbor.ip ? ' · ' + neighbor.ip : '')">
-                      <template #append>
-                        <v-btn size="small" color="primary" variant="tonal" :disabled="!wolData.available"
-                          :loading="wolBusy" @click="sendWakePacket({ name: neighbor.name, mac: neighbor.mac })">唤醒</v-btn>
-                      </template>
-                    </v-list-item>
-                  </v-list>
-                  <v-alert v-else type="info" variant="tonal" density="compact" class="mt-2">当前邻居表中没有可识别的设备。</v-alert>
+                  <div class="wol-neighbors-header">
+                    <div><strong>已发现的网络设备</strong><span>{{ wolData.neighbors.length }} 台</span></div>
+                    <p>来源为 QWRT 主机地址记录，可能包含已离线设备。</p>
+                  </div>
+                  <v-text-field v-if="wolData.neighbors.length" v-model="wolNeighborSearch"
+                    aria-label="搜索网络邻居" label="搜索名称、IP 或 MAC"
+                    prepend-inner-icon="mdi-magnify" density="compact" variant="outlined"
+                    clearable hide-details class="wol-neighbors-search"/>
+                  <div v-if="filteredWolNeighbors.length" class="wol-neighbor-list" role="list" aria-label="网络邻居设备列表">
+                    <div v-for="neighbor in filteredWolNeighbors" :key="neighbor.mac"
+                      class="wol-neighbor-card" role="listitem">
+                      <div class="wol-neighbor-card__icon" aria-hidden="true">
+                        <v-icon icon="mdi-laptop" size="21"/>
+                      </div>
+                      <div class="wol-neighbor-card__body">
+                        <strong class="wol-neighbor-card__name">{{ neighbor.name || '未命名设备' }}</strong>
+                        <div class="wol-neighbor-card__details">
+                          <div class="wol-neighbor-card__field">
+                            <span>IPv4</span><span class="wol-neighbor-card__value">{{ neighbor.ip || '暂无地址' }}</span>
+                          </div>
+                          <div class="wol-neighbor-card__field">
+                            <span>MAC</span><span class="wol-neighbor-card__value">{{ neighbor.mac }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <v-btn class="wol-neighbor-card__wake" size="small" color="primary" variant="tonal"
+                        prepend-icon="mdi-power" :disabled="!wolData.available || wolBusy"
+                        :loading="wolBusy" :aria-label="'唤醒 ' + (neighbor.name || neighbor.mac)"
+                        @click="sendWakePacket({ name: neighbor.name, mac: neighbor.mac })">唤醒</v-btn>
+                    </div>
+                  </div>
+                  <v-alert v-else type="info" variant="tonal" density="compact" class="mt-2">
+                    {{ wolData.neighbors.length ? '没有匹配的网络邻居，请更换搜索关键词。' : 'QWRT 当前没有可识别的网络邻居。' }}
+                  </v-alert>
                   <v-alert v-if="!wolData.available" type="warning" density="compact" variant="tonal">WOL RPC 未启用，仍可查看邻居，但不能发送唤醒包。</v-alert>
                 </template>
               </div>
