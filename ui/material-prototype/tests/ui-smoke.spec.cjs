@@ -36,6 +36,21 @@ const dataFor = (object, method) => {
   }
   if (object === 'luci-rpc' && method === 'getHostHints') return { 'AA:BB:CC:DD:EE:FF': { name: 'Phone' } }
   if (object === 'rc' && method === 'list') return { network: { enabled: true, running: true }, firewall: { enabled: true, running: true } }
+  if (object === 'luci.wol' && method === 'stat') return { etherwake: true }
+  if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
+  if (object === 'network.device' && method === 'status') return { 'br-lan': { up: true } }
+  if (object === 'uci' && method === 'get') return { values: { demo: { '.type': 'target', '.name': 'demo', name: '测试主机', mac: 'AA:BB:CC:DD:EE:FF', iface: 'br-lan' } } }
+  if (object === 'uci' && method === 'add') return { section: 'new-wol-target' }
+  if (object === 'uci' && method === 'commit') return {}
+  if (object === 'uci' && method === 'revert') return {}
+  if (object === 'uci' && method === 'delete') return {}
+  if (object === 'appfilter' && method === 'get_app_filter_base') return { data: { enable: 1, record_enable: 0, work_mode: 0 } }
+  if (object === 'appfilter' && method === 'get_oaf_status') return { data: { version: '2.0', engine_version: '2.1' } }
+  if (object === 'appfilter' && method === 'set_app_filter_base') return {}
+  if (object === 'appfilter' && method === 'get_app_filter') return { app_list: [1,2] }
+  if (object === 'appfilter' && method === 'get_all_users') return { data: { list: [] } }
+  if (object === 'luci-rpc' && method === 'getNetworkDevices') return { eth0: { up: true, macaddr: '00:11:22:33:44:55' } }
+  if (object === 'luci-rpc' && method === 'getWirelessDevices') return { radio0: { up: true } }
   if (object === 'luci' && method === 'getProcessList') return {
     processes: [{ pid: 123, user: 'root', cpu: '0.3', mem: '1.2', command: 'rpcd' }]
   }
@@ -120,8 +135,14 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('rpcd')).toBeVisible()
   await page.getByRole('button', { name: '静态路由' }).click()
   await expect(page.getByText('10.0.0.0/24')).toBeVisible()
+  await page.getByRole('button', { name: '网络唤醒' }).click()
+  await expect(page.getByText('测试主机')).toBeVisible()
+  await page.getByRole('button', { name: '唤醒' }).click()
+  await expect(page.getByText(/已向 测试主机 发送网络唤醒包/)).toBeVisible()
   await page.getByRole('button', { name: '家长控制' }).click()
-  await expect(page.getByText(/此功能依赖路由器安装的 LuCI 页面/)).toBeVisible()
+  await expect(page.getByText('家长控制 / OpenAppFilter')).toBeVisible()
+  await page.getByRole('button', { name: '保存家长控制基础设置' }).click()
+  await expect(page.getByText('家长控制基础设置已提交')).toBeVisible()
   await page.getByRole('button', { name: '重启路由器' }).click()
   await expect(page.getByText('确认重启 QWRT')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()

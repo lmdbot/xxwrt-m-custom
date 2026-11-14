@@ -333,6 +333,9 @@ async function refreshCurrent() {
   if (!client.value || refreshing.value) return
   if (activeTab.value === 'home' || activeTab.value === 'statistics' || activeTab.value === 'network') {
     await refreshDashboard()
+    if (activeTab.value === 'network') {
+      try { networkHardware.value = await readNetworkHardware(client.value) } catch (_) {}
+    }
     return
   }
   refreshing.value = true
@@ -516,7 +519,7 @@ onUnmounted(() => {
               <v-btn color="primary" rounded="xl" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
             </div>
           </div>
-          <v-alert v-if="listError" type="warning" variant="tonal" closable density="compact" class="mb-3" @click:close="listError = ''">{{ listError }}</v-alert>
+          <v-alert v-if="listError && !deviceDialog" type="warning" variant="tonal" closable density="compact" class="mb-3" @click:close="listError = ''">{{ listError }}</v-alert>
           <v-card v-if="!devices.length" rounded="xl" elevation="1" class="empty-devices">
             <v-avatar color="primary" variant="tonal" size="72"><v-icon icon="mdi-router-wireless" size="36"/></v-avatar>
             <h2>还没有添加 OpenWrt 设备</h2>
@@ -641,6 +644,23 @@ onUnmounted(() => {
                 <div><span>WAN IPv6</span><strong>{{ snapshot.wan6Ip }}</strong></div>
                 <div><span>默认网关</span><strong>{{ snapshot.gateway }}</strong></div>
                 <div><span>DNS</span><strong>{{ snapshot.dns }}</strong></div>
+              </div>
+            </v-card>
+            <v-card v-if="networkHardware.wired.length || networkHardware.wireless.length" rounded="xl" elevation="1" class="network-card mb-4">
+              <h2>网络硬件设备</h2>
+              <div v-if="networkHardware.wired.length" class="mt-3">
+                <h3>有线接口</h3>
+                <v-list density="compact">
+                  <v-list-item v-for="nic in networkHardware.wired" :key="'wired-'+nic.name" :title="nic.name" :subtitle="nic.mac">
+                    <template #append><v-chip size="x-small" :color="nic.up ? 'success' : 'secondary'" variant="tonal">{{ nic.up ? '在线' : '未连接' }}</v-chip></template>
+                  </v-list-item>
+                </v-list>
+              </div>
+              <div v-if="networkHardware.wireless.length" class="mt-3">
+                <h3>无线接口</h3>
+                <v-list density="compact">
+                  <v-list-item v-for="nic in networkHardware.wireless" :key="'wifi-'+nic.name" :title="nic.name" :subtitle="nic.mac"/>
+                </v-list>
               </div>
             </v-card>
             <v-card v-for="nic in snapshot?.interfaces || []" :key="nic.interface" rounded="xl" elevation="1" class="interface-card mb-3">

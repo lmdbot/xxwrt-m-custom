@@ -396,7 +396,7 @@ export async function saveParentalBase(client, settings) {
     work_mode: Number(settings.work_mode)
   }
   if (![0, 1].includes(values.enable) || ![0, 1].includes(values.record_enable) ||
-      !Number.isInteger(values.work_mode) || values.work_mode < 0 || values.work_mode > 3) {
+      !Number.isInteger(values.work_mode) || ![0, 1].includes(values.work_mode)) {
     throw new Error('家长控制参数不合法')
   }
   return client.call('appfilter', 'set_app_filter_base', values)
