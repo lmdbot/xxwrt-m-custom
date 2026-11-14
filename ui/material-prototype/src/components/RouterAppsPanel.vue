@@ -1143,7 +1143,7 @@ defineExpose({ refresh, refreshAction })
           <v-btn value="advanced" class="flex-grow-1">高级</v-btn>
         </v-btn-toggle>
         <template v-if="wechatTab === 'settings'">
-          <v-switch :model-value="wechatForm.enable === '1'" label="启用微信推送" color="primary" hide-details @update:model-value="wechatForm.enable = $event ? '1' : '0'"/>
+          <v-switch density="compact" inset :model-value="wechatForm.enable === '1'" label="启用微信推送" color="primary" hide-details @update:model-value="wechatForm.enable = $event ? '1' : '0'"/>
           <v-select v-model="wechatForm.jsonpath" label="推送渠道" :items="wechatProviderItems" item-title="title" item-value="value" density="comfortable" variant="outlined" class="mt-3"/>
           <v-text-field v-model="wechatForm.device_name" label="消息中的设备名称（可选）" density="comfortable" variant="outlined"/>
           <v-text-field v-model="wechatForm.sleeptime" label="检测间隔（秒）" type="number" min="10" density="comfortable" variant="outlined"/>
@@ -1158,26 +1158,26 @@ defineExpose({ refresh, refreshAction })
               <v-btn variant="text" :disabled="busy" @click="loadWechatDiy">重新读取文件</v-btn>
             </div>
           </template>
-          <v-switch :model-value="wechatForm.reset_regularly === '1'" label="每天零点重置流量统计" color="primary" hide-details @update:model-value="wechatForm.reset_regularly = $event ? '1' : '0'"/>
-          <v-switch :model-value="wechatForm.prefer_client_page === '1'" label="优先显示在线设备页面" color="primary" hide-details @update:model-value="wechatForm.prefer_client_page = $event ? '1' : '0'"/>
-          <v-switch :model-value="wechatForm.debuglevel === '1'" label="记录运行日志" color="primary" hide-details @update:model-value="wechatForm.debuglevel = $event ? '1' : '0'"/>
+          <v-switch density="compact" inset :model-value="wechatForm.reset_regularly === '1'" label="每天零点重置流量统计" color="primary" hide-details @update:model-value="wechatForm.reset_regularly = $event ? '1' : '0'"/>
+          <v-switch density="compact" inset :model-value="wechatForm.prefer_client_page === '1'" label="优先显示在线设备页面" color="primary" hide-details @update:model-value="wechatForm.prefer_client_page = $event ? '1' : '0'"/>
+          <v-switch density="compact" inset :model-value="wechatForm.debuglevel === '1'" label="记录运行日志" color="primary" hide-details @update:model-value="wechatForm.debuglevel = $event ? '1' : '0'"/>
           <div class="d-flex flex-wrap ga-2 mt-3"><v-btn color="primary" variant="tonal" :disabled="busy" @click="saveWechat">保存配置并重启</v-btn><v-btn variant="outlined" :disabled="busy || wechatForm.enable !== '1'" @click="testWechat">发送测试推送</v-btn></div>
           <p class="muted-hint mt-2">推送凭据通过 QWRT UCI 配置保存；DIY 内容单独写入 JSON 文件。测试推送会真实发送消息。</p>
         </template>
         <template v-else-if="wechatTab === 'content'">
           <h3 class="router-app-section-title">设备上下线通知</h3>
-          <v-switch v-for="item in wechatMultiOptions.device_notification" :key="item.value" :model-value="wechatMulti.device_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('device_notification',item.value,$event)"/>
+          <v-switch density="compact" inset v-for="item in wechatMultiOptions.device_notification" :key="item.value" :model-value="wechatMulti.device_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('device_notification',item.value,$event)"/>
           <h3 class="router-app-section-title mt-4">系统监测告警</h3>
-          <v-switch v-for="item in wechatMultiOptions.cpu_notification" :key="item.value" :model-value="wechatMulti.cpu_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('cpu_notification',item.value,$event)"/>
+          <v-switch density="compact" inset v-for="item in wechatMultiOptions.cpu_notification" :key="item.value" :model-value="wechatMulti.cpu_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('cpu_notification',item.value,$event)"/>
           <h3 class="router-app-section-title mt-4">管理登录提醒</h3>
-          <v-switch v-for="item in wechatMultiOptions.login_notification" :key="item.value" :model-value="wechatMulti.login_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('login_notification',item.value,$event)"/>
+          <v-switch density="compact" inset v-for="item in wechatMultiOptions.login_notification" :key="item.value" :model-value="wechatMulti.login_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('login_notification',item.value,$event)"/>
           <h3 class="router-app-section-title mt-4">简化推送内容</h3>
-          <v-switch v-for="item in wechatMultiOptions.lite_enable" :key="item.value" :model-value="wechatMulti.lite_enable.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('lite_enable',item.value,$event)"/>
+          <v-switch density="compact" inset v-for="item in wechatMultiOptions.lite_enable" :key="item.value" :model-value="wechatMulti.lite_enable.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('lite_enable',item.value,$event)"/>
           <v-divider class="my-4"/><h3 class="router-app-section-title">定时推送</h3>
           <v-select v-model="wechatForm.crontab_mode" label="定时任务模式" variant="outlined" density="comfortable" :items="[{title:'关闭',value:''},{title:'固定时间发送',value:'1'},{title:'按间隔发送',value:'2'}]"/>
           <v-select v-if="wechatForm.crontab_mode === '2'" v-model="wechatForm.crontab_interval_time" label="发送间隔（小时）" variant="outlined" density="comfortable" :items="['1','2','3','4','6','8','12','24']"/>
           <p v-if="wechatForm.crontab_mode === '1'" class="muted-hint">固定发送时间请到 QWRT 原版微信推送页面配置，APP 暂不修改已有时间列表。</p>
-          <v-switch v-for="item in wechatMultiOptions.send_notification" :key="item.value" :model-value="wechatMulti.send_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('send_notification',item.value,$event)"/>
+          <v-switch density="compact" inset v-for="item in wechatMultiOptions.send_notification" :key="item.value" :model-value="wechatMulti.send_notification.includes(item.value)" :label="item.title" color="primary" hide-details @update:model-value="toggleWechatMulti('send_notification',item.value,$event)"/>
           <v-btn color="primary" variant="tonal" class="mt-4" :disabled="busy" @click="saveWechat">保存推送策略并重启</v-btn>
         </template>
         <template v-else-if="wechatTab === 'online'">
@@ -1216,17 +1216,17 @@ defineExpose({ refresh, refreshAction })
         </template>
         <template v-else-if="wechatTab === 'advanced'">
           <h3 class="router-app-section-title">设备探测</h3>
-          <v-switch :model-value="wechatForm.passive_mode === '1'" label="停用主动探测" color="primary" hide-details @update:model-value="wechatForm.passive_mode = $event ? '1' : '0'"/>
+          <v-switch density="compact" inset :model-value="wechatForm.passive_mode === '1'" label="停用主动探测" color="primary" hide-details @update:model-value="wechatForm.passive_mode = $event ? '1' : '0'"/>
           <v-alert v-if="wechatForm.passive_mode === '1'" type="warning" variant="tonal" density="compact">停用主动探测后，设备上下线通知和在线列表可能不准确。</v-alert>
           <template v-else>
             <v-text-field v-model="wechatForm.up_timeout" label="上线检测超时（秒）" type="number" min="1" variant="outlined" density="comfortable"/>
             <v-text-field v-model="wechatForm.down_timeout" label="离线检测超时（秒）" type="number" min="1" variant="outlined" density="comfortable"/>
             <v-text-field v-model="wechatForm.timeout_retry_count" label="离线重试次数" type="number" min="1" variant="outlined" density="comfortable"/>
-            <v-switch :model-value="wechatForm.only_timeout_push === '1'" label="离线超时仅对已订阅通知的设备生效" color="primary" hide-details @update:model-value="wechatForm.only_timeout_push = $event ? '1' : '0'"/>
+            <v-switch density="compact" inset :model-value="wechatForm.only_timeout_push === '1'" label="离线超时仅对已订阅通知的设备生效" color="primary" hide-details @update:model-value="wechatForm.only_timeout_push = $event ? '1' : '0'"/>
           </template>
           <v-text-field v-model="wechatForm.thread_num" label="最大探测并发数" type="number" min="1" max="16" variant="outlined" density="comfortable" class="mt-3"/>
           <v-divider class="my-4"/><h3 class="router-app-section-title">小米 AP 设备信息辅助</h3>
-          <v-switch :model-value="wechatMiwifiEnabled" label="从小米路由器读取终端名称及无线接入信息" color="primary" hide-details @update:model-value="toggleWechatMiwifi($event)"/>
+          <v-switch density="compact" inset :model-value="wechatMiwifiEnabled" label="从小米路由器读取终端名称及无线接入信息" color="primary" hide-details @update:model-value="toggleWechatMiwifi($event)"/>
           <template v-if="wechatMiwifiEnabled">
             <v-text-field v-model.trim="wechatForm.miwifi_ip" label="小米主 AP IP 地址" variant="outlined" density="comfortable" placeholder="192.168.100.x"/>
             <v-text-field v-model="wechatForm.miwifi_password" label="小米路由器管理密码" type="password" autocomplete="new-password" variant="outlined" density="comfortable"/>
@@ -1239,12 +1239,12 @@ defineExpose({ refresh, refreshAction })
       <v-alert v-if="!openclash.available" type="warning" variant="tonal">未检测到 /etc/config/openclash，请先安装 OpenClash。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(openclash.service) }}</strong></div><div><span>插件开关</span><strong>{{ oc.enable === '1' ? '已启用' : '未启用' }}</strong></div><div><span>代理模式</span><strong>{{ oc.proxy_mode }}</strong></div></div>
-        <v-switch :model-value="oc.enable === '1'" label="启用 OpenClash" color="primary" hide-details @update:model-value="oc.enable = $event ? '1' : '0'"/>
+        <v-switch density="compact" inset :model-value="oc.enable === '1'" label="启用 OpenClash" color="primary" hide-details @update:model-value="oc.enable = $event ? '1' : '0'"/>
         <v-select v-model="oc.en_mode" label="运行模式" density="comfortable" variant="outlined" class="mt-3" :items="['fake-ip','fake-ip-tun','fake-ip-mix','redir-host','redir-host-tun','redir-host-mix']"/>
         <v-select v-model="oc.proxy_mode" label="代理模式" density="comfortable" variant="outlined" :items="[{title:'规则模式',value:'rule'},{title:'全局模式',value:'global'},{title:'直连模式',value:'direct'}]"/>
-        <v-switch :model-value="oc.ipv6_enable === '1'" label="IPv6 代理" color="primary" hide-details @update:model-value="oc.ipv6_enable = $event ? '1' : '0'"/>
-        <v-switch :model-value="oc.enable_udp_proxy === '1'" label="UDP 代理" color="primary" hide-details @update:model-value="oc.enable_udp_proxy = $event ? '1' : '0'"/>
-        <v-switch :model-value="oc.router_self_proxy === '1'" label="路由器自身流量代理" color="primary" hide-details @update:model-value="oc.router_self_proxy = $event ? '1' : '0'"/>
+        <v-switch density="compact" inset :model-value="oc.ipv6_enable === '1'" label="IPv6 代理" color="primary" hide-details @update:model-value="oc.ipv6_enable = $event ? '1' : '0'"/>
+        <v-switch density="compact" inset :model-value="oc.enable_udp_proxy === '1'" label="UDP 代理" color="primary" hide-details @update:model-value="oc.enable_udp_proxy = $event ? '1' : '0'"/>
+        <v-switch density="compact" inset :model-value="oc.router_self_proxy === '1'" label="路由器自身流量代理" color="primary" hide-details @update:model-value="oc.router_self_proxy = $event ? '1' : '0'"/>
         <div class="d-flex flex-wrap ga-2 mt-3"><v-btn color="primary" variant="tonal" :disabled="busy" @click="saveOpenClash">保存配置并重启</v-btn><v-btn variant="outlined" :disabled="busy" @click="run(() => service('openclash','start'),'OpenClash 已启动')">启动</v-btn><v-btn variant="outlined" :disabled="busy" @click="run(() => service('openclash','stop'),'OpenClash 已停止')">停止</v-btn><v-btn variant="outlined" :disabled="busy" @click="run(() => service('openclash','restart'),'OpenClash 已重启')">重启</v-btn></div>
         <p class="muted-hint mt-2">这里只修改 OpenClash 全局 UCI 选项，不改写 YAML 订阅、节点、规则集和自定义覆写。</p>
       </template>
@@ -1289,9 +1289,9 @@ defineExpose({ refresh, refreshAction })
       <v-alert v-if="!zt.available" type="warning" variant="tonal">未检测到 ZeroTier 配置，请先安装 zerotier 并初始化 /etc/config/zerotier。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(zt.service) }}</strong></div><div><span>全局开关</span><strong>{{ ztEnabled ? '已启用' : '未启用' }}</strong></div><div><span>网络数量</span><strong>{{ zt.networks.length }}</strong></div></div>
-        <v-switch v-model="ztEnabled" label="启用 ZeroTier" color="primary" hide-details/><v-btn color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZt">保存并重启服务</v-btn>
+        <v-switch density="compact" inset v-model="ztEnabled" label="启用 ZeroTier" color="primary" hide-details/><v-btn color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZt">保存并重启服务</v-btn>
         <h3 class="router-app-section-title mt-4">已加入的网络</h3>
-        <v-list v-if="zt.networks.length" density="compact"><v-list-item v-for="x in zt.networks" :key="x.section" :title="x.name || x.id" :subtitle="x.id"><template #append><v-switch :model-value="x.enabled" density="compact" color="primary" hide-details :disabled="busy" @update:model-value="toggleZt(x,$event)"/><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 ZeroTier 网络" @click="ztDelete=x;ztDeleteDialog=true"/></template></v-list-item></v-list>
+        <v-list v-if="zt.networks.length" density="compact"><v-list-item v-for="x in zt.networks" :key="x.section" :title="x.name || x.id" :subtitle="x.id"><template #append><v-switch inset :model-value="x.enabled" density="compact" color="primary" hide-details :disabled="busy" @update:model-value="toggleZt(x,$event)"/><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 ZeroTier 网络" @click="ztDelete=x;ztDeleteDialog=true"/></template></v-list-item></v-list>
         <v-alert v-else type="info" variant="tonal" density="compact">尚未配置 ZeroTier 网络。</v-alert>
         <h3 class="router-app-section-title mt-4">当前运行网络信息</h3>
         <div v-if="zt.node" class="router-app-summary">
@@ -1354,7 +1354,7 @@ defineExpose({ refresh, refreshAction })
             </v-expansion-panel-title>
             <v-expansion-panel-text>
           <v-row dense><v-col cols="12" sm="4"><v-select v-model="zone.input" label="入站 INPUT" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col><v-col cols="12" sm="4"><v-select v-model="zone.output" label="出站 OUTPUT" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col><v-col cols="12" sm="4"><v-select v-model="zone.forward" label="转发 FORWARD" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col></v-row>
-          <v-switch v-model="zone.masq" label="启用 IPv4 地址伪装（Masquerading）" color="primary" hide-details/><v-btn size="small" color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZone(zone)">保存区域策略</v-btn>
+          <v-switch density="compact" inset v-model="zone.masq" label="启用 IPv4 地址伪装（Masquerading）" color="primary" hide-details/><v-btn size="small" color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZone(zone)">保存区域策略</v-btn>
         </v-expansion-panel-text></v-expansion-panel></v-expansion-panels>
         <h3 class="router-app-section-title mt-4">端口转发</h3>
         <v-list v-if="fw.redirects.length" density="compact"><v-list-item v-for="x in fw.redirects" :key="x.section" :title="String(x.name || x.section)" :subtitle="String(x.src || 'wan') + ':' + String(x.src_dport || '--') + ' → ' + String(x.dest_ip || '--') + ':' + String(x.dest_port || x.src_dport || '--') + ' · ' + String(x.proto || 'tcp')"><template #append><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除端口转发" @click="fwDelete=x;fwDeleteDialog=true"/></template></v-list-item></v-list>
