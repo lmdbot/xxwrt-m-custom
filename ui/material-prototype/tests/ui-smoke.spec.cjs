@@ -123,6 +123,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   })
   await page.route('**/ubus', handler)
   await page.goto('/')
+  fs.mkdirSync('test-results/screenshots', { recursive: true })
   await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
   await expect(page.locator('.v-application')).toBeVisible()
   await expect(page.locator('v-app, v-card, v-btn')).toHaveCount(0)
