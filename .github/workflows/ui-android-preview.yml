@@ -6,6 +6,7 @@ on:
     branches: [feature/material-ui, main]
     paths:
       - "ui/material-prototype/**"
+      - "docs/releases/**"
       - ".github/workflows/ui-android-preview.yml"
 
 concurrency:
@@ -208,102 +209,25 @@ jobs:
             cp "$APK" "$COMPAT_APK"
             ASSETS+=("$COMPAT_APK")
           fi
+          # Release notes must be scoped to the current version.
+          # Do not append earlier releases to the new release description.
+          VERSION_NOTES="../../docs/releases/v${APP_VERSION}.md"
+          test -s "$VERSION_NOTES" || {
+            echo "::error::Missing release notes for v${APP_VERSION}"
+            exit 1
+          }
+          grep -Eq '^## (新功能|优化|修复|其他变更)' "$VERSION_NOTES" || {
+            echo "::error::Version release notes require structured sections"
+            exit 1
+          }
           NOTES="../../build/material-preview/release-notes.md"
-          cat > "$NOTES" <<'EOF'
-          ## XX-WRT管理器 v2.0.2 — 主线版本
-
-          - 应用名称由 XX-WRT Material Preview 缩短为 XX-WRT管理器。
-          - 修复 Android 自适应桌面图标的居中裁切问题，四周保留安全边距。
-          - 正式 APK 文件名采用 XX-WRT-Material-vx.x.x.apk，自动读取项目版本号。
-          - v2.0.2 Release 额外保留一次旧名称兼容文件，供 v2.0.1 内置更新器平滑升级。
-
-          - 新增 GitHub 正式 Release 自动检查、手动检查与系统下载管理器 APK 下载。
-          - 各版本号按数字逐段比较，排除 Draft、Pre-release 及测试标签。
-
-          主线应用升级为 Material / Liquid Glass 风格，保留 Material 分支独立包名和应用资料，不覆盖旧版 UniApp 安装包。
-          - Android applicationId: com.lmdbot.xxwrt.materialpreview
-          - 返回手势：应用子页面逐层返回，底栏根页面直接返回路由器设备列表。
-          - 深色模式：统一页面和表单文字对比度，增加自动化对比度回归测试。
-
-          - 标准底栏：Vuetify。液态底栏：开源 VGlass；样式切换已移入设备列表左侧菜单。
-          - 两种底栏可在 APP 内切换并记忆选择，支持浅色/深色主题。
-          - 恢复 main 的多台 OpenWrt 设备列表、状态检测、设备添加/编辑/删除、点击设备进入详情。
-          - 设备密码可以选择存入 Android Keystore；未勾选时每次重新验证。
-          - 本版没有硬编码演示数据，使用真实设备 RPC 返回的结果。
-          - 设备列表左侧菜单、底栏外观设置、可搜索 DHCPv4/v6/无线/应用过滤用户分组。
-          - 终端分类导航改为 2×2 宫格卡片，四类终端一屏可选，无需横向滑动；保留原有 DHCPv4/v6、无线终端和 OpenAppFilter 用户数据及切换逻辑。
-          - 设置侧栏按方案 C 改为卡片分类导航：路由器、显示、隐私、刷新、实验室、关于；点击后进入独立设置页面，在对应分组内修改设置。
-          - 设备列表、主题模式、标准/液态底栏、列表布局、主机名/IP 隐藏、刷新策略、语言、更新、帮助与项目入口均已归类保留。
-          - 设置页面支持 Android 返回手势；刷新页展示实际内置刷新周期并提供手动刷新，实验室页明确展示当前暂无可配置项目。
-          - 首页磁盘占用与临时空间严格复用 main 的 luci.getMountPoints RPC，无需 file.exec。
-          - 统计页展示网络接口 RX/TX 采样与负载历史，使用开源 ECharts。
-          - 修复 Android 手势返回：优先关闭弹窗、侧栏、应用二级页、恢复上一页及页签，仅根页面最小化应用。
-          - 应用首页改为与 main 类似的图标宫格，点击才显示进程/启动项/路由/WOL/家长控制二级页。
-          - 网络页增加 IPv6-PD、MTU、网桥端口、收发流量包数及无线参数。
-          - 本版 UI 优化：进程支持搜索、展开完整命令并显示 STAT 状态；启动项同时支持开机自启与运行状态筛选；路由表显示默认/网络/主机/本地等路由类型。
-          - 在线终端状态支持从 procd 运行实例确认微信推送正在运行，即使 rc.list 不返回 running 字段仍可优先使用监控数据。
-          - 修复 SSR 误显示未运行和防火墙状态未知：优先使用 SSR 原版 LuCI 运行状态，防火墙展示配置/规则状态，避免以常驻进程误判。
-          - 防火墙增加 NAT 模式与 TCP 拥塞控制信息卡：读取 nftables 实际规则及内核拥塞算法；无法读取时明确标注配置值或待确认，不写死 Full Cone NAT/BBR。
-          - ZeroTier 网络名称使用 UCI 本地名称补全；区分虚拟网卡启用与 ZeroTier 网络正式连接。
-          - Internet Detector 改为紧凑监测状态列表；SSR 运行状态改为清晰的配置网格。
-          - 顶部标题栏合并路由器名、当前页签/应用名称及刷新操作，长标题截断；减少单独页面标题占用。
-          - 终端分类与设备卡片压缩高度，将 DHCP 来源标签移至主机名同行；网卡硬件类型编号映射为人类可读名称。
-          - 统一所有设置开关的样式，改善微信推送及网络唤醒深色模式标签对比度；DIY JSON 输入框缩小并支持内部滚动。
-          - 手动刷新应用状态改为底部悬浮进度/结果反馈；SSR Country MMDB 改为官方 geo_status/geo_upgrade 接口并兼容布尔状态。
-          - 首页网口按自然序号排序；登录立即后台读取终端，不再等打开终端页。
-          - 移除每页底部地址及更新时间；网络唤醒按钮与主机名同行，优先读取微信推送主机名。
-          - 再次点击“应用”底栏可返回应用管理主页面；未安装应用隐藏入口，未安装 Internet Detector 则隐藏首页联网检测。
-          - SSR 节点、微信推送在线设备改为统一紧凑列表；操作中进度与结果改为底部浮动提示。
-          - SSR 探测与组件检查优先使用已认证 LuCI 原版接口，路由器侧权限不足时明确提示；不从手机侧探测。
-          - ZeroTier 结合专用 RPC、CLI 以及网络设备信息补全网卡 MAC、分配地址，缺失信息不伪造。
-          - 禁用 Android APP 双指缩放，保留正常滑动与点击。
-          - 终端设备主机名和在线状态优先使用运行中微信推送插件的设备检测记录，缺失时回退 DHCP、邻居表和无线关联。
-          - 修复应用管理中 ShadowSocksR Plus+ 长标题溢出；应用详情加载时显示骨架屏，避免误闪“未安装”。
-          - SSR Plus+ 新增代理节点 TCP 探测、运行状态以及组件本地/在线版本查询和确认升级，遵从路由器现有 RPC 授权。
-          - ZeroTier 新增节点在线状态、节点 ID、版本、虚拟网卡、网络状态和分配 IP。
-          - Carbon 检查更新后主动查询任务状态，刷新最新版和更新按钮；支持确认安装。
-          - 切换首页、统计、终端、网络、应用及二级页面时立即回到页面顶部，消除不同页面滚动位置串联。
-          - ZeroTier 优先读取已安装插件的专用只读 RPC，CLI 不可用时回退 UCI 配置和系统虚拟网卡信息，不再把读取受限误判为运行故障。
-          - 防火墙规则保存并重载后重新读取 UCI 核实开关值，并在每条规则始终展示“已启用/已停用”状态标签。
-          - SSR Plus+ 优先复用 LuCI 原版节点探测接口，保留 RPC TCP 探测作为已授权回退；无可用探测权限时尽早停止批量任务，只显示一次提示。
-          - 防火墙区域折叠标题直接展示已保存的 INPUT、OUTPUT、FORWARD 策略，未保存的修改另行提示。
-          - 防火墙其他规则优化为适配手机的规则卡片，展示来源、目标、协议、端口和动作，支持搜索、启用/停用筛选及二次确认操作。
-          - 网络唤醒的网络邻居使用响应式设备卡片，清晰显示主机名、IPv4、MAC，支持搜索和一键唤醒，避免移动端横向溢出。
-          - 微信推送测试反馈改为简洁状态消息，不展示原始 JSON、Webhook URL 或其他请求敏感内容；失败时仅显示退出码并引导查阅路由器日志。
-          - 修复微信推送“发送测试推送”：通过插件 ACL 授权的 /usr/share/wechatpush/wechatpush test 直接执行，不再经未授权的 /bin/bash 调用；无需修改路由器权限。
-          - 微信推送增加在线设备页签，直接读取插件 devices.json；展示在线及待确认终端、接入方式和在线时长。
-          - DIY 自定义推送改为可编辑的 /usr/share/wechatpush/api/diy.json 内容，校验 JSON 后单独保存，不再误将配置文件路径作为输入内容。
-          - 微信推送新增设备上下线、CPU/温度、登录事件、定时推送、主动探测及小米 AP 信息辅助选项；与上游 UCI 字段一致。
-          - 终端列表可选参考运行中的微信推送插件的主动检测结果，结合 ARP/无线关联判断，不依赖历史 HostHints IP 直接推断。
-          - 修复终端在线误判：DHCP 租约和历史 HostHints IP 不再代表在线；结合可达邻居状态、受限 ARP 刷新探测及无线关联判断，支持在线/离线/未知三态；清空终端搜索后恢复完整列表。
-          - 网络唤醒增加网络邻居页签，可直接向邻居表中的设备发送 WOL；网络页改为接口、设备、无线三个分类页签。
-          - 网络分类页签改为紧凑三列单行卡片，保留分类名称和数量；终端页签仍保持原有 2×2 布局。
-          - 首页增加以太网端口连接状态、实时 RX/TX 速率及累计收发字节；网络硬件数据同时兼容 stats/statistics 两种 RPC 字段。
-          - 首页以太网接口改为网口图标 + 接口信息卡片，集中展示名称、连接状态、实时 RX/TX 速率和累计收发流量，替代原表格式排版。
-          - 统计页改为连接后后台每 3 秒持续采样，切换页面直接呈现已有历史；RX/TX 卡片显示当前、平均和峰值。
-          - 联网检测状态胶囊增加水平内边距，圆点和连接状态不再贴近两侧。
-          - 应用子页面仅保留当前子应用的刷新按钮，隐藏不刷新子应用数据的上层通用刷新按钮；返回应用列表后恢复。
-          - 应用页新增 ShadowSocksR Plus+、微信推送、OpenClash、Internet Detector、Carbon 主题设置、ZeroTier、防火墙七个入口。
-          - ShadowSocksR Plus+ 支持读取节点列表、切换当前节点并重启服务；微信推送支持渠道凭据、启停配置和测试推送；OpenClash 支持运行模式、代理模式、IPv6/UDP/路由器自身代理及服务控制。
-          - Internet Detector 读取真实 UIPoll 监测结果；Carbon 支持 LuCI 主题切换、更新检查、下载镜像和已验证更新；ZeroTier 支持网络成员增删、启停及服务重启。
-          - 防火墙支持区域 INPUT/OUTPUT/FORWARD 策略、Masquerading、端口转发增删和防火墙重载；所有写操作均走 UCI/RPC，不执行用户自定义 Shell 命令。
-          - 设备列表参考 main：全部/可达/离线筛选、卡片/列表切换、设备状态、温度、CPU/内存、连接数、终端数和经真实网卡采样计算的上传/下载速率。
-          - 修复深色模式 Android 15/16 状态栏：原生背景和前景图标随 APP 深浅色同步；回前台重新应用。
-          - 后台刷新不再把已显示设备标成检测中；磁盘/无线/应用用户在可选 RPC 临时失败时保留上次有效数据。
-          - 设备详情所有页面将 IP/域名和刷新时间移到内容底部，移除重复宣传与开发说明。
-          - WAN/WAN6 显示人类可读运行时间；首页联网监测改为联网检测，字体与运行时间标签一致。
-          - 隐私：可独立隐藏路由器名称/系统主机名与 IP/域名；隐藏设置本机持久化，列表及路由器页同步遮挡，编辑配置时仍显示真实值。
-          - OpenAppFilter：按原版 RPC 增加应用分类、时间策略、受控终端和高级配置。
-          - 恢复出厂：沿用原版 file.exec 参数，必须输入确认短语后才允许执行。
-          - **仍有原版终端应用访问历史、断开终端、完整多语言/帮助等差异；历史曲线在当前连接会话内持续采样，退出会话后不跨次持久保存。**
-          - Android 独立包名 com.lmdbot.xxwrt.materialpreview（用于并存测试），不会覆盖正式版。
-          - 登录密码仅在用户勾选后保存于 Android Keystore；HTTP 明文通信仅建议可信局域网，远程请走 VPN/HTTPS。
-
-          EOF
+          cp "$VERSION_NOTES" "$NOTES"
           {
-            printf '%s\n' "- 本次构建提交：$GITHUB_SHA"
+            printf '\n---\n'
+            printf '%s\n' "- 构建提交：$GITHUB_SHA"
             printf '%s\n' "- [Actions 构建记录](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
           } >> "$NOTES"
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "${ASSETS[@]}" --clobber --repo "$GITHUB_REPOSITORY"
             if [[ "$GITHUB_REF_NAME" == "main" ]]; then
