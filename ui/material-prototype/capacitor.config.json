@@ -10,7 +10,7 @@
     "SystemBars": {
       "insetsHandling": "disable",
       "initialViewportFitValueHint": "contain",
-      "style": "DARK"
+      "style": "LIGHT"
     }
   }
 }

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Apply one authoritative Android 15/16 edge-to-edge inset handler.
+"""One native inset owner + theme-aware system-bar protection for Android 15/16.
 
-Capacitor 8 SystemBars with viewport-fit=contain did not reliably avoid the
-status-bar overlap on the tested Android 16 device. Disable its automatic
-padding in capacitor.config.json and apply systemBars + displayCutout padding
-once at the native android.R.id.content root. No hard-coded status bar height.
-This patch is intentionally limited to the generated Capacitor Android app.
+Capacitor's SystemBars backgroundColor is unavailable on Android 15+.
+We preserve the successful native WindowInsets layout and add a tiny native
+Capacitor bridge that updates the decor/content background and icon contrast
+whenever the Vue light/dark preference changes. No hardcoded status bar height.
 """
 from pathlib import Path
 
@@ -18,14 +17,14 @@ source = main.read_text(encoding="utf-8")
 if "extends BridgeActivity" not in source:
     raise SystemExit("Unexpected Capacitor activity class")
 if "setOnApplyWindowInsetsListener" in source:
-    print("Already patched")
-    raise SystemExit(0)
+    raise SystemExit("Generated native activity was already patched")
 
 start = source.find("package ")
 end = source.find(";", start)
 if start < 0 or end < 0:
     raise SystemExit("Cannot determine app Java package")
 package = source[start:end+1]
+
 main.write_text(
     package + """
 
@@ -39,9 +38,9 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(UiChromePlugin.class);
         super.onCreate(savedInstanceState);
-        // A single native inset owner, never combine with Capacitor CSS/native
-        // automatic padding. Keeps app bar, bottom bar and tap targets clear.
+        // Insets are applied exactly once at the native content root.
         final View content = findViewById(android.R.id.content);
         ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
             final Insets bars = windowInsets.getInsets(
@@ -56,4 +55,47 @@ public class MainActivity extends BridgeActivity {
 """,
     encoding="utf-8"
 )
-print("Patched", main)
+
+plugin = main.with_name("UiChromePlugin.java")
+plugin.write_text(
+    package + """
+
+import android.graphics.Color;
+import android.view.View;
+import android.view.Window;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+@CapacitorPlugin(name = "UiChrome")
+public class UiChromePlugin extends Plugin {
+    @PluginMethod
+    public void setTheme(PluginCall call) {
+        final boolean dark = Boolean.TRUE.equals(call.getBoolean("dark", false));
+        getActivity().runOnUiThread(() -> {
+            // The inset area belongs to Android, not the WebView's CSS.
+            // Paint the root/decor behind the transparent system status bar.
+            final int color = Color.parseColor(dark ? "#11141B" : "#F5F6FB");
+            final Window window = getActivity().getWindow();
+            window.getDecorView().setBackgroundColor(color);
+            final View content = getActivity().findViewById(android.R.id.content);
+            if (content != null) content.setBackgroundColor(color);
+
+            final WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(window, window.getDecorView());
+            // In Android terminology appearanceLightStatusBars(true) means
+            // DARK icons for a LIGHT background; the inverse for dark mode.
+            controller.setAppearanceLightStatusBars(!dark);
+            controller.setAppearanceLightNavigationBars(!dark);
+            call.resolve();
+        });
+    }
+}
+""",
+    encoding="utf-8"
+)
+
+print("Patched native insets and created", plugin)

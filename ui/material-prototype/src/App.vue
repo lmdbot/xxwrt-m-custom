@@ -4,7 +4,7 @@ import { useTheme } from 'vuetify'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
 import { App as CapacitorApp } from '@capacitor/app'
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
@@ -71,7 +71,10 @@ async function makeDeviceSummary(api, info, deviceId) {
     cpuPercent: info.cpuPercent, memoryPercent: info.memoryPercent,
     memoryDetail: info.memoryDetail, connUsed: String(info.connDetail || '--').split(' / ')[0],
     users: info.users, wanIp: info.wanIp, lanIp: info.lanIp,
-    rxBps: null, txBps: null, updatedAt: Date.now()
+    // Retain the last displayed rate until a new pair of counters is sampled.
+    // A transient counter RPC failure must not blank a saved router card.
+    rxBps: deviceSummaries[deviceId]?.rxBps ?? null,
+    txBps: deviceSummaries[deviceId]?.txBps ?? null, updatedAt: Date.now()
   }
   const wan = info.interfaces.find(i => i.interface === 'wan' && i.up)
     || info.interfaces.find(i => i.interface === 'wan')
@@ -103,6 +106,16 @@ const deleteDialog = ref(false)
 const deleteDeviceId = ref('')
 const loginRemember = ref(true)
 const isNative = Capacitor.isNativePlatform()
+const UiChrome = registerPlugin('UiChrome')
+function syncNativeChrome(isDark) {
+  const color = isDark ? '#11141B' : '#F5F6FB'
+  document.documentElement.style.backgroundColor = color
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
+  if (isNative) {
+    void UiChrome.setTheme({ dark: isDark }).catch(e =>
+      console.warn('Android system bar theme sync unavailable', e))
+  }
+}
 const listError = ref('')
 const deviceStatuses = reactive({})
 const deviceSummaries = reactive({})
@@ -217,7 +230,10 @@ watch(colorMode, v => localStorage.setItem(storage.theme, v))
 watch(showIp, v => localStorage.setItem(storage.showIp, String(v)))
 watch(showHostnames, v => localStorage.setItem(storage.showHostname, String(v)))
 watch(routerListLayout, v => localStorage.setItem(storage.listLayout, v))
-watch(dark, v => { theme.global.name.value = v ? 'dark' : 'light' }, { immediate: true })
+watch(dark, v => {
+  theme.global.name.value = v ? 'dark' : 'light'
+  syncNativeChrome(v)
+}, { immediate: true })
 watch(activeTab, (tab) => {
   if (connected.value) refreshCurrent()
   if (tab === 'statistics') void pollTelemetry()
@@ -228,6 +244,7 @@ watch(activeTab, (tab) => {
 const navigationTrail = []
 let restoringNavigation = false
 let nativeBackSubscription = null
+let nativeResumeSubscription = null
 const logicalRouteKey = computed(() => JSON.stringify({
   mode: viewMode.value,
   tab: viewMode.value === 'detail' ? activeTab.value : 'home',
@@ -441,7 +458,9 @@ async function refreshDeviceStatuses() {
     const worker = async () => {
       while (cursor < entries.length) {
         const d = entries[cursor++]
-        deviceStatuses[d.id] = 'checking'
+        // Preserve the previous state while an existing device is polled.
+        // Only a newly added router should display the transient checking state.
+        if (deviceStatuses[d.id] == null) deviceStatuses[d.id] = 'checking'
         let api = sessions.get(d.id)
         if (!api?.session && d.rememberPassword && isNative) {
           try {
@@ -589,8 +608,12 @@ async function refreshDashboard() {
     ])
     if (dashboardResult.status === 'rejected') throw dashboardResult.reason
     snapshot.value = dashboardResult.value
-    diskData.value = partitionsResult.status === 'fulfilled'
-      ? partitionsResult.value : { available: false, partitions: [], primary: null, temporary: null }
+    // A one-off disk RPC failure must not collapse an already visible disk card.
+    // Keep last good data; initial loading still displays the unavailable state.
+    if (partitionsResult.status === 'fulfilled' &&
+        (partitionsResult.value.available || !diskData.value.available)) {
+      diskData.value = partitionsResult.value
+    }
     if (selectedDeviceId.value) {
       deviceSummaries[selectedDeviceId.value] =
         await makeDeviceSummary(client.value, snapshot.value, selectedDeviceId.value)
@@ -622,12 +645,16 @@ async function refreshCurrent() {
       ])
       if (leases.status === 'fulfilled') clientData.value = leases.value
       else throw leases.reason
-      wifiClientData.value = stations.status === 'fulfilled'
-        ? stations.value : { available: false, stations: [] }
-      const rawUsers = oafUsers.status === 'fulfilled' ? oafUsers.value : null
-      const list = rawUsers?.data?.list || rawUsers?.list
-      appFilterUsers.value = {
-        available: !!rawUsers, users: Array.isArray(list) ? list : []
+      if (stations.status === 'fulfilled' &&
+          (stations.value.available || !wifiClientData.value.available)) {
+        wifiClientData.value = stations.value
+      }
+      if (oafUsers.status === 'fulfilled') {
+        const rawUsers = oafUsers.value
+        const list = rawUsers?.data?.list || rawUsers?.list
+        appFilterUsers.value = {
+          available: !!rawUsers, users: Array.isArray(list) ? list : []
+        }
       }
     }
     if (activeTab.value === 'apps') serviceData.value = await readServices(client.value)
@@ -786,6 +813,11 @@ async function rebootRouter() {
 
 onMounted(() => {
   if (isNative) {
+    // Android can reapply its system-bar appearance after returning from a
+    // settings page or another app, so restore both contrast and background.
+    void CapacitorApp.addListener('resume', () => syncNativeChrome(dark.value))
+      .then(listener => { nativeResumeSubscription = listener })
+      .catch(e => console.warn('Android resume listener unavailable', e))
     void CapacitorApp.addListener('backButton', () => {
       void handleBack().catch(error => { errorMessage.value = shortError(error) })
     }).then(listener => { nativeBackSubscription = listener })
@@ -793,7 +825,11 @@ onMounted(() => {
   }
   // Browser smoke tests can exercise the same navigation function without
   // simulating hardware Android gestures. Never expose this in production.
-  if (import.meta.env.DEV) window.__xxwrtTestBack = handleBack
+  if (import.meta.env.DEV) {
+    window.__xxwrtTestBack = handleBack
+    window.__xxwrtTestRefreshDevices = refreshDeviceStatuses
+    window.__xxwrtTestRefreshDashboard = refreshDashboard
+  }
   mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   systemDark.value = mediaQuery.matches
   systemListener = e => { systemDark.value = e.matches }
@@ -809,7 +845,12 @@ onMounted(() => {
 })
 onUnmounted(() => {
   if (nativeBackSubscription) void nativeBackSubscription.remove()
-  if (import.meta.env.DEV) delete window.__xxwrtTestBack
+  if (nativeResumeSubscription) void nativeResumeSubscription.remove()
+  if (import.meta.env.DEV) {
+    delete window.__xxwrtTestBack
+    delete window.__xxwrtTestRefreshDevices
+    delete window.__xxwrtTestRefreshDashboard
+  }
   mediaQuery?.removeEventListener?.('change', systemListener)
   if (refreshTimer) clearInterval(refreshTimer)
   if (probeTimer) clearInterval(probeTimer)
