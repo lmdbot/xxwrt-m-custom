@@ -5,7 +5,7 @@ import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
 import {
   RouterClient, readDashboard, readClients, readServices,
-  shortError
+  readProcessList, readRouteConfig, shortError
 } from './services/router.js'
 
 const theme = useTheme()
@@ -44,6 +44,20 @@ const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
 const serviceData = ref({ services: [], available: false })
 const confirmReboot = ref(false)
 const actionBusy = ref(false)
+const selectedClient = ref(null)
+const toolPanel = ref('')
+const toolLoading = ref(false)
+const toolMessage = ref('')
+const processData = ref({ available: false, processes: [] })
+const routeData = ref({ available: false, routes: [] })
+const legacyTools = [
+  { id: 'process', title: '进程管理', subtitle: '只读进程列表', icon: 'mdi-format-list-bulleted' },
+  { id: 'startup', title: '启动项', subtitle: '服务及自启动状态', icon: 'mdi-power' },
+  { id: 'routes', title: '静态路由', subtitle: '查看 network 配置', icon: 'mdi-routes' },
+  { id: 'wol', title: '网络唤醒', subtitle: '使用 LuCI 完成唤醒', icon: 'mdi-power-plug' },
+  { id: 'parental', title: '家长控制', subtitle: '通过 LuCI 管理规则', icon: 'mdi-account-child' },
+  { id: 'reset', title: '恢复出厂', subtitle: '通过 LuCI 二次确认', icon: 'mdi-restore' }
+]
 const onlineCount = computed(() => snapshot.value?.checks.filter(check => check.state === 'up').length || 0)
 const allChecks = computed(() => snapshot.value?.checks || [])
 const resourceCards = computed(() => {
@@ -68,6 +82,9 @@ function resetSession() {
   connected.value = false
   snapshot.value = null
   clientData.value = { data: [], ipv6: [], leasesAvailable: false }
+  selectedClient.value = null
+  toolPanel.value = ''
+  toolMessage.value = ''
   serviceData.value = { services: [], available: false }
   form.password = ''
   errorMessage.value = ''
@@ -140,6 +157,40 @@ async function refreshCurrent() {
     handleRpcError(e)
   } finally {
     refreshing.value = false
+  }
+}
+
+async function showLegacyTool(toolId) {
+  if (!client.value || toolLoading.value) return
+  toolPanel.value = toolId
+  toolMessage.value = ''
+  if (['wol', 'parental', 'reset'].includes(toolId)) {
+    toolMessage.value = '此功能依赖路由器安装的 LuCI 页面和相应插件。请通过“打开 LuCI”进入原管理界面操作。'
+    return
+  }
+  if (toolId === 'startup') {
+    if (!serviceData.value.available) {
+      toolLoading.value = true
+      try { serviceData.value = await readServices(client.value) }
+      catch (e) { toolMessage.value = shortError(e) }
+      finally { toolLoading.value = false }
+    }
+    return
+  }
+  toolLoading.value = true
+  try {
+    if (toolId === 'process') {
+      processData.value = await readProcessList(client.value)
+      if (!processData.value.available) toolMessage.value = '当前 QWRT 未开放 luci.getProcessList，使用 LuCI 进程页面查看。'
+    }
+    if (toolId === 'routes') {
+      routeData.value = await readRouteConfig(client.value)
+      if (!routeData.value.available) toolMessage.value = '当前账号无 UCI network 读取权限，可在 LuCI 网络页面查看路由配置。'
+    }
+  } catch (e) {
+    toolMessage.value = shortError(e)
+  } finally {
+    toolLoading.value = false
   }
 }
 
@@ -284,7 +335,7 @@ onUnmounted(() => {
               <div class="section-heading"><h2>DHCP 终端租约</h2><v-chip color="primary" variant="tonal" size="small">{{ clientData.data.length }} 条</v-chip></div>
               <p class="muted-hint">DHCP 租约不等于设备当前在线状态。此页直接读取路由器返回的终端地址与主机名。</p>
               <v-list v-if="clientData.data.length" bg-color="transparent">
-                <v-list-item v-for="item in clientData.data" :key="item.mac || item.ip" class="client-item" prepend-icon="mdi-laptop">
+                <v-list-item v-for="item in clientData.data" :key="item.mac || item.ip" class="client-item" prepend-icon="mdi-laptop" link @click="selectedClient = item">
                   <v-list-item-title>{{ item.name }}</v-list-item-title>
                   <v-list-item-subtitle>{{ item.ip }} · {{ item.mac }}</v-list-item-subtitle>
                 </v-list-item>
@@ -325,6 +376,38 @@ onUnmounted(() => {
               <p v-else class="muted-hint">{{ serviceData.available ? '路由器没有返回服务项' : '当前固件不支持 rc.list 或接口权限不足' }}</p>
             </v-card>
             <v-card rounded="xl" elevation="1" class="network-card mt-4">
+              <div class="section-heading"><h2>基础版管理工具</h2><v-chip size="small" variant="tonal" color="primary">main 功能入口</v-chip></div>
+              <p class="muted-hint">优先使用 QWRT 已授权的只读 RPC。网络唤醒、家长控制和恢复出厂等依赖专有插件或敏感配置的功能，交由 LuCI 安全完成。</p>
+              <div class="legacy-tool-grid">
+                <v-btn v-for="tool in legacyTools" :key="tool.id" variant="tonal" color="primary" rounded="lg" class="legacy-tool-button" :prepend-icon="tool.icon" @click="showLegacyTool(tool.id)">{{ tool.title }}</v-btn>
+              </div>
+              <v-alert v-if="toolMessage" type="info" variant="tonal" density="compact" class="mt-3">{{ toolMessage }}</v-alert>
+              <v-progress-linear v-if="toolLoading" indeterminate class="mt-3"/>
+              <div v-if="toolPanel === 'process'" class="mt-3">
+                <h3>进程列表</h3>
+                <v-list v-if="processData.processes.length" density="compact">
+                  <v-list-item v-for="proc in processData.processes" :key="proc.pid + ':' + proc.command" :title="proc.command" :subtitle="'PID ' + proc.pid + ' · ' + proc.user + ' · CPU ' + proc.cpu + ' · MEM ' + proc.memory"/>
+                </v-list>
+                <p v-else class="muted-hint">暂无进程数据</p>
+              </div>
+              <div v-if="toolPanel === 'startup'" class="mt-3">
+                <h3>启动项 / 服务</h3>
+                <v-list v-if="serviceData.services.length" density="compact">
+                  <v-list-item v-for="svc in serviceData.services" :key="'startup-' + svc.name" :title="svc.name" :subtitle="svc.enabled ? '开机自启' : '未设置开机自启'">
+                    <template #append><v-chip size="x-small" :color="svc.running ? 'success' : 'secondary'" variant="tonal">{{ svc.running ? '运行中' : '未运行' }}</v-chip></template>
+                  </v-list-item>
+                </v-list>
+              </div>
+              <div v-if="toolPanel === 'routes'" class="mt-3">
+                <h3>静态路由配置</h3>
+                <v-list v-if="routeData.routes.length" density="compact">
+                  <v-list-item v-for="r in routeData.routes" :key="r.section" :title="r.target" :subtitle="r.type + ' · ' + r.interface + ' · 网关 ' + r.gateway + ' · 跃点 ' + r.metric"/>
+                </v-list>
+                <p v-else class="muted-hint">暂无静态路由配置或当前固件不提供对应接口</p>
+              </div>
+              <v-btn v-if="toolPanel" block variant="outlined" color="primary" prepend-icon="mdi-open-in-new" class="mt-3" @click="openRouterWeb">打开 LuCI 完整管理页面</v-btn>
+            </v-card>
+            <v-card rounded="xl" elevation="1" class="network-card mt-4">
               <h2>路由器维护</h2>
               <v-btn variant="tonal" color="error" class="mt-3" prepend-icon="mdi-restart" @click="confirmReboot = true">重启路由器</v-btn>
             </v-card>
@@ -360,6 +443,20 @@ onUnmounted(() => {
         </div>
       </VGlass>
     </div>
+    <v-dialog v-model="selectedClient" max-width="420">
+      <v-card v-if="selectedClient" rounded="xl" title="终端详情">
+        <v-card-text>
+          <div class="details">
+            <div><span>名称</span><strong>{{ selectedClient.name }}</strong></div>
+            <div><span>IPv4</span><strong>{{ selectedClient.ip }}</strong></div>
+            <div><span>MAC 地址</span><strong>{{ selectedClient.mac }}</strong></div>
+            <div><span>租约时间</span><strong>{{ selectedClient.expires ?? '--' }}</strong></div>
+          </div>
+          <p class="muted-hint mt-3">租约存在并不代表设备当前在线；其他终端管理功能请使用 LuCI。</p>
+        </v-card-text>
+        <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
     <v-dialog v-model="confirmReboot" max-width="360">
       <v-card rounded="xl" title="确认重启 QWRT">
         <v-card-text>此操作将断开所有连接并重启路由器。确定执行吗？</v-card-text>
