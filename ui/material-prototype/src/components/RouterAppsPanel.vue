@@ -6,6 +6,24 @@ import { CapacitorHttp } from '@capacitor/core'
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
 const readyKind = ref('')
+const floatingNoticeOpen = ref(false)
+const operationWaiting = computed(() => busy.value || ssrProbeBusy.value ||
+  ssrComponentBusy.value || carbonChecking.value)
+const floatingNoticeText = computed(() => error.value || notice.value ||
+  (ssrProbeBusy.value ? '正在通过 QWRT 探测节点…'
+    : ssrComponentBusy.value ? '正在读取 SSR 组件版本或执行更新…'
+    : carbonChecking.value ? (carbonCheckText.value || '正在检查 Carbon 更新…')
+    : busy.value ? '正在提交配置，请稍候…' : ''))
+const floatingNoticeColor = computed(() => error.value ? 'error' : notice.value ? 'success' : 'primary')
+watch([floatingNoticeText, operationWaiting], () => {
+  floatingNoticeOpen.value = Boolean(floatingNoticeText.value)
+})
+function dismissFloatingNotice() {
+  if (operationWaiting.value) return
+  floatingNoticeOpen.value = false
+  error.value = ''
+  notice.value = ''
+}
 const ssrTab = ref('nodes')
 const ssrProbeBusy = ref(false)
 const ssrProbes = ref({})
@@ -870,8 +888,17 @@ defineExpose({ refresh })
 
 <template>
   <div class="router-app-panel">
-    <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">{{ error }}</v-alert>
-    <v-alert v-if="notice" type="success" variant="tonal" density="compact" class="mb-3">{{ notice }}</v-alert>
+    <v-snackbar v-model="floatingNoticeOpen" :timeout="operationWaiting ? -1 : 5200"
+      :color="floatingNoticeColor" location="bottom" :style="{ bottom: '77px' }"
+      role="status" aria-live="polite" class="router-app-floating-feedback">
+      <div class="d-flex align-center ga-3">
+        <v-progress-circular v-if="operationWaiting" indeterminate size="18" width="2"/>
+        <span>{{ floatingNoticeText }}</span>
+      </div>
+      <template #actions>
+        <v-btn v-if="!operationWaiting" variant="text" size="small" @click="dismissFloatingNotice">关闭</v-btn>
+      </template>
+    </v-snackbar>
     <v-progress-linear v-if="loading || busy" indeterminate color="primary" class="mb-3"/>
     <template v-if="readyKind !== kind">
       <v-skeleton-loader aria-label="正在加载应用配置" type="article,article" class="mb-3"/>
@@ -896,15 +923,26 @@ defineExpose({ refresh })
           </div>
           <p class="muted-hint mt-2">仅从 QWRT 路由器侧进行节点探测，优先使用 SSR Plus+ 原生探测接口，必要时尝试路由器已授权的 TCP 工具；不使用手机网络检测。</p>
           <v-alert v-if="ssrProbeUnavailable" type="info" variant="tonal" density="compact" class="mt-3">{{ ssrProbeUnavailable }}</v-alert>
-          <v-list v-if="ssr.nodes.length" density="compact" class="mt-3">
-            <v-list-item v-for="node in ssr.nodes" :key="node.id" class="ssr-probe-row" :title="node.title" :subtitle="[node.type,node.host,node.port].filter(Boolean).join(' · ')">
-              <template #append>
-                <div class="d-flex align-center ga-1">
-                  <v-chip v-if="ssrProbes[node.id]" size="x-small" variant="tonal" :color="ssrProbes[node.id].status === 'ok' ? 'success' : ssrProbes[node.id].status === 'failed' ? 'error' : 'default'">{{ ssrProbes[node.id].status === 'ok' ? '可连接' : ssrProbes[node.id].status === 'failed' ? '失败' : '未知' }}</v-chip>
-                  <v-chip v-if="node.id === ssr.global.global_server" size="x-small" variant="tonal" color="success">当前</v-chip>
-                  <v-btn icon="mdi-lan-check" variant="text" size="small" :disabled="busy || ssrProbeBusy" :aria-label="'探测节点 ' + node.title" @click="probeSsrNode(node)"/>
+          <div v-if="ssr.nodes.length" class="app-compact-table ssr-node-table mt-3" role="list" aria-label="SSR 节点列表">
+            <div v-for="node in ssr.nodes" :key="node.id" role="listitem" class="app-compact-row ssr-node-row">
+              <div class="app-compact-body">
+                <div class="app-compact-name">{{ node.title }}</div>
+                <div class="app-compact-sub">{{ [node.type,node.host,node.port].filter(Boolean).join(' · ') }}</div>
+                <div v-if="ssrProbes[node.id]" class="app-compact-sub ssr-node-probe"
+                  :class="{ 'is-success': ssrProbes[node.id].status === 'ok' }">
+                  {{ ssrProbes[node.id].text }}
                 </div>
-              </template>
+              </div>
+              <div class="app-compact-end">
+                <v-chip v-if="node.id === ssr.global.global_server" size="x-small" variant="tonal" color="success">当前</v-chip>
+                <v-btn icon="mdi-lan-check" variant="tonal" color="primary" size="small"
+                  :disabled="busy || ssrProbeBusy" :aria-label="'探测节点 ' + node.title"
+                  @click="probeSsrNode(node)"/>
+              </div>
+            </div>
+          </div>
+          <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">尚未配置代理节点，请先添加节点或订阅。</v-alert>
+        </template>
             </v-list-item>
           </v-list>
           <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">尚未配置代理节点，请先添加节点或订阅。</v-alert>
@@ -1011,26 +1049,22 @@ defineExpose({ refresh })
             <v-text-field v-model="wechatDeviceSearch" class="wechat-devices-search mb-3"
               label="搜索在线设备" aria-label="搜索在线设备" placeholder="主机名、IP、MAC 或接入信息"
               prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" hide-details clearable/>
-            <div v-if="filteredWechatDevices.length" class="wechat-device-grid" role="list" aria-label="微信推送在线设备">
+            <div v-if="filteredWechatDevices.length" class="app-compact-table wechat-device-table" role="list" aria-label="微信推送在线设备">
               <div v-for="item in filteredWechatDevices" :key="item.mac + '-' + item.ip"
-                class="wechat-device-card wechat-online-row" role="listitem">
-                <div class="wechat-device-card__top">
-                  <div class="wechat-device-card__identity">
-                    <v-icon icon="mdi-devices" size="19" color="primary" aria-hidden="true"/>
-                    <strong>{{ item.name || '未命名设备' }}</strong>
+                class="app-compact-row wechat-online-row" role="listitem">
+                <div class="app-compact-body">
+                  <div class="app-compact-name">{{ item.name || '未命名设备' }}</div>
+                  <div class="app-compact-sub">{{ item.ip || '暂无 IP' }}</div>
+                  <div class="app-compact-sub">{{ item.mac || '暂无 MAC' }}</div>
+                  <div v-if="item.interface || item.parent || item.uptime" class="app-compact-foot">
+                    <span>{{ item.interface || '接入未知' }}{{ item.parent && item.parent !== 'Local' ? ' · ' + item.parent : '' }}</span>
+                    <span v-if="item.uptime">在线 {{ item.uptime }}</span>
                   </div>
-                  <v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'secondary'"
-                    variant="tonal" class="wechat-device-card__status">
-                    <v-icon :icon="item.status === 'online' ? 'mdi-circle' : 'mdi-help-circle-outline'" start size="9"/>
-                    {{ item.status === 'online' ? '在线' : '待确认' }}
-                  </v-chip>
                 </div>
-                <div class="wechat-device-card__details">
-                  <div><span>IPv4</span><strong>{{ item.ip || '--' }}</strong></div>
-                  <div><span>MAC</span><strong>{{ item.mac || '--' }}</strong></div>
-                  <div><span>接入</span><strong>{{ item.interface || '未知' }}{{ item.parent && item.parent !== 'Local' ? ' · ' + item.parent : '' }}</strong></div>
-                  <div v-if="item.uptime"><span>在线时长</span><strong>{{ item.uptime }}</strong></div>
-                </div>
+                <v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'secondary'"
+                  variant="tonal" class="app-compact-status">
+                  {{ item.status === 'online' ? '在线' : '待确认' }}
+                </v-chip>
               </div>
             </div>
             <v-alert v-else type="info" variant="tonal" density="compact">
