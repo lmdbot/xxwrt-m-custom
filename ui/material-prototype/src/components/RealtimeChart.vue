@@ -27,8 +27,8 @@ function render() {
   }))
   chart.setOption({
     animationDuration: 250,
-    // Reduce reserved y-axis space so both mobile charts can use more width.
-    grid: { top: 38, bottom: 30, left: 32, right: 12, containLabel: false },
+    // Give mobile traffic and load graphs more room on both sides.
+    grid: { top: 38, bottom: 30, left: 24, right: 6, containLabel: false },
     legend: { top: 2, icon: 'roundRect', itemWidth: 13, textStyle: { fontSize: 11 } },
     tooltip: { trigger: 'axis', confine: true, valueFormatter: n => {
       return n == null ? '--' : Number(n).toFixed(1) + props.unit
@@ -36,7 +36,7 @@ function render() {
     xAxis: { type: 'category', data: timeLabels, boundaryGap: false,
       axisLabel: { fontSize: 10, interval: 'auto' }, axisLine: { lineStyle: { color: '#a1a8b6' } } },
     yAxis: { type: 'value', min: 0, scale: true, splitNumber: 3,
-      axisLabel: { fontSize: 10, margin: 5 }, splitLine: { lineStyle: { color: '#8795b21a' } } },
+      axisLabel: { fontSize: 10, margin: 3 }, splitLine: { lineStyle: { color: '#8795b21a' } } },
     series
   }, { replaceMerge: ['series'] })
 }
@@ -62,6 +62,6 @@ onUnmounted(() => {
   <div ref="root" class="realtime-chart" role="img" :aria-label="title + '（最近 ' + samples.length + ' 个采样点）'"/>
 </template>
 <style scoped>
-.realtime-chart{height:230px;width:100%;min-width:0;touch-action:pan-y}
+.realtime-chart{height:230px;width:calc(100% + 12px);margin-inline:-6px;min-width:0;touch-action:pan-y}
 @media(max-width:390px){.realtime-chart{height:205px}}
 </style>

@@ -23,19 +23,22 @@ ADAPTIVE_SIZES = {name: round(size * 108 / 48) for name, size in SIZES.items()}
 # The 108dp adaptive icon is clipped by Android to a central 66dp safe zone.
 # Foreground illustration must be smaller than that safe zone to retain margins.
 # Legacy icons are displayed without the adaptive foreground crop.
-# The source already has its own blue rounded-square background. Do not
-# add a second opaque blue frame around it.
-# Legacy bitmap: 6% transparent inset on each side.
-# Adaptive: 60/108 fits within the Android 66/108 central safe zone.
-LEGACY_ART_SCALE = 0.88
-ADAPTIVE_ART_SCALE = 0.60
+# The selected artwork already contains the finished blue rounded-square icon.
+# Enlarge the legacy bitmap (used by Settings/App info) while retaining a small
+# transparent margin. For adaptive icons the OS clips a 108dp canvas to a
+# roughly 72dp viewport; the 72% foreground fills that area without leaving
+# a dark transparent halo, while the important router/shield stays central.
+LEGACY_ART_SCALE = 0.94
+ADAPTIVE_ART_SCALE = 0.72
+ADAPTIVE_BACKGROUND = "#0A44B8"
+SOURCE_TRIM_RATIO = 0.035
 
 
 def remove_outer_black(image: Image.Image) -> Image.Image:
     """Make only the image's *connected outer* black matte transparent.
 
-    Interior deep blue in the selected artwork is preserved, unlike a naive
-    chroma key that would erase dark areas inside the router illustration.
+    The connected near-black background and original outer drop shadow are
+    removed without deleting the saturated blue body of the icon.
     """
     image = image.convert("RGBA")
     w, h = image.size
@@ -50,7 +53,8 @@ def remove_outer_black(image: Image.Image) -> Image.Image:
             continue
         visited.add((x, y))
         r, g, b, _ = pixels[x, y]
-        if max(r, g, b) >= 28:
+        # Allow near-black/neutral shadow, but never erase dark saturated blue.
+        if max(r, g, b) >= 72 or (b > r + 18 and b > g + 12):
             continue
         pixels[x, y] = (r, g, b, 0)
         queue.extend(((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)))
@@ -63,7 +67,7 @@ def write_png(image: Image.Image, path: Path):
 
 
 def framed_icon(source: Image.Image, size: int, art_scale: float) -> Image.Image:
-    """Place the full artwork on a color-matched background with padding."""
+    """Fit the selected rounded-square icon within a transparent canvas."""
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     illustration_size = round(size * art_scale)
     illustration = source.resize((illustration_size, illustration_size), Image.Resampling.LANCZOS)
@@ -79,11 +83,29 @@ def main():
         raise SystemExit(f"Android resources not initialized: {RES}")
 
     source = remove_outer_black(Image.open(SOURCE))
-    # Avoid stacking any existing transparent border on top of Android padding.
-    bbox = source.getchannel("A").getbbox()
-    if bbox is None:
+    if source.getchannel("A").getbbox() is None:
         raise SystemExit("Selected launcher artwork has no visible pixels")
-    source = source.crop(bbox)
+
+    # The original WebP includes a dark peripheral shadow. Trim that fringe
+    # before enlarging; otherwise it becomes a thick black ring in Settings.
+    w, h = source.size
+    inset = round(min(w, h) * SOURCE_TRIM_RATIO)
+    if w <= 2 * inset or h <= 2 * inset:
+        raise SystemExit("Selected launcher artwork is too small")
+    source = source.crop((inset, inset, w - inset, h - inset))
+
+    # Soft-clip only the *outer silhouette* of the existing rounded icon.
+    # This suppresses residual near-black pixels around the WebP's corners.
+    w, h = source.size
+    aa = 4
+    clip = Image.new("L", (w * aa, h * aa), 0)
+    ImageDraw.Draw(clip).rounded_rectangle(
+        (0, 0, w * aa - 1, h * aa - 1),
+        radius=round(min(w, h) * aa * 0.23),
+        fill=255
+    )
+    clip = clip.resize((w, h), Image.Resampling.LANCZOS)
+    source.putalpha(ImageChops.multiply(source.getchannel("A"), clip))
     for density, pixels in SIZES.items():
         target = RES / f"mipmap-{density}"
         icon = framed_icon(source, pixels, LEGACY_ART_SCALE)
@@ -96,8 +118,8 @@ def main():
         write_png(round_icon, target / "ic_launcher_round.png")
 
     for density, pixels in ADAPTIVE_SIZES.items():
-        # Only the central 66/108 section survives the system launcher crop.
-        # 0.50 of the 108dp canvas leaves visible spacing after that crop.
+        # Keep the original graphic large in the Android adaptive mask.
+        # Opaque blue background below prevents black margins on dark launchers.
         icon = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
         art_size = round(pixels * ADAPTIVE_ART_SCALE)
         art = source.resize((art_size, art_size), Image.Resampling.LANCZOS)
@@ -109,13 +131,19 @@ def main():
     xml_dir.mkdir(parents=True, exist_ok=True)
     adaptive_xml = """<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@android:color/transparent"/>
+    <background android:drawable="@color/qwrt_launcher_background"/>
     <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
 </adaptive-icon>
 """
     for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
         (xml_dir / name).write_text(adaptive_xml)
-    print("QWRT icon: original artwork with transparent, safe launcher margins")
+    color_dir = RES / "values"
+    color_dir.mkdir(parents=True, exist_ok=True)
+    (color_dir / "qwrt_launcher_colors.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\\n'
+        f'<resources><color name="qwrt_launcher_background">{ADAPTIVE_BACKGROUND}</color></resources>\\n'
+    )
+    print("QWRT icon: enlarged artwork, trimmed black halo, opaque adaptive background")
 
 
 if __name__ == "__main__":
