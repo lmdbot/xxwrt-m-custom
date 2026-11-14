@@ -1,33 +1,34 @@
-# XX-WRT Material UI QWRT 功能迁移工程
+# XX-WRT Material 2.0 — QWRT / OpenWrt 移动管理
 
-仅在 feature/material-ui 分支进行 UI 验证；不会修改 v1.0.6 生产 APK。当前页面**全部使用演示数据**。
+这是 `main` 的 Android 应用源码。Vue 3 + Vite + Vuetify 3 + Capacitor 8 构建 Material / Liquid Glass 界面，数据来自登录路由器的真实 ubus JSON-RPC、UCI 与授权的插件接口，不使用假终端数据。
 
-## 技术栈与开源复用
+## 独立 Android 应用
 
-- Vuetify 3.13.x：MIT，Material 组件和标准底栏（VBottomNavigation）
-- @daisigu/vue-liquid-glass：MIT，现成 VGlass 液态玻璃容器
-- Material Design Icons：Apache-2.0，现成图标
-- Vue3 + Vite：页面组合和本地预览
+- Material 包名：`com.lmdbot.xxwrt.materialpreview`
+- Material 应用名称：`XX-WRT Material Preview`
+- 版本：`2.0.0`（Gradle versionCode `20000`）
+- 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
+- 保留 Material 分支的应用信息、Capacitor 构建流程和原有 Material 图标资源。
+- `main` 提供正式发布渠道；`feature/material-ui` 提供预发布测试包。
 
-未重新编写 Material 组件库或 Liquid Glass 折射算法；仅编写路由器业务视图及必要的布局适配样式。打包的开源依赖保留上游许可证。
+## 功能与权限
 
-## 本地运行
+提供多路由器管理、终端在线状态、实时统计、WAN/LAN、网络设备、SSR Plus+、ZeroTier、微信推送、Internet Detector、网络唤醒、防火墙等已实现的 QWRT 功能。只有在 QWRT 允许相应 RPC/文件/服务操作时，才能读取实时状态或执行管理命令；无授权时不伪造状态，也不会打开任意 Shell 权限。
 
-1. 安装 Node.js 22
-2. 进入 ui/material-prototype
-3. 执行 npm install
-4. 执行 npm run dev，浏览终端输出的本地预览 URL
-5. 执行 npm run build 可生成 dist 静态页面
+支持浅色、深色和系统主题；统一文字对比度、弹窗/应用子页面返回逻辑及底栏根页面返回路由器列表。底栏可使用标准 Material 或 Liquid Glass 风格。
 
-右上角“标准 / 液态”可以切换底栏，选择保存在浏览器 localStorage；主题可选择跟随系统/浅色/深色。五个导航入口均可交互。
+## 开发与验证
 
-注意：此处的切换是**Vue3 原型里的 UI 行为**，尚未接入真实 APK、UniApp 原生 tabBar 或路由器 RPC。详见 docs/ui-material-evaluation.md。
+在 `ui/material-prototype/` 运行：
 
+```bash
+npm install --no-audit --no-fund
+npm run build
+npm run test:ui
+```
 
-## v0.4.0 UI 与 main 功能迁移进展
+APK 构建由 `.github/workflows/ui-android-preview.yml` 通过 GitHub Actions 执行，使用仓库 Secrets 中的签名凭据，不能将私钥写进源码。
 
-- 首页设备列表增加左侧抽屉菜单，复用原版菜单名称，并把底栏“标准/液态”和主题设置移动到侧栏。
-- 终端列表改为紧凑 Material 卡片，支持设备名/IP/MAC 检索。
-- 家长控制新增独立 OpenAppFilter RPC 规则编辑组件（分类、时间、用户、高级），不以 LuCI 页面代替。
-- 恢复出厂沿用 main 的 file.exec /sbin/firstboot -r -y 参数，加入输入“恢复出厂”确认；未对实际路由器执行破坏性测试。
-- **仍不等价于 main 全部功能**：历史统计、终端高级统计、多语言完整文案、部分帮助/关于未全量迁移。参见 docs/material-main-feature-parity.md。
+## 注意
+
+浏览器本地预览不具备 Android Keystore 能力。真实插件运行状态、路由器 RPC ACL、Full Cone NAT、TCP 拥塞算法等必须通过实机联调核验；CI 模拟环境不等于路由器。
