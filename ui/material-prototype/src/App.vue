@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme } from 'vuetify'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -422,6 +422,13 @@ watch(dark, v => {
   theme.global.name.value = v ? 'dark' : 'light'
   syncNativeChrome(v)
 }, { immediate: true })
+// Tab and subpage destinations must not inherit the scroll offset of a
+// previously visited screen. The WebView scrolls the document, not each tab.
+watch([activeTab, toolPanel, viewMode, settingsOpen, settingsCategory], async () => {
+  await nextTick()
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  if (document.scrollingElement) document.scrollingElement.scrollTop = 0
+}, { flush: 'post' })
 watch(activeTab, (tab) => {
   if (connected.value) refreshCurrent()
   if (tab === 'statistics') void pollTelemetry()
