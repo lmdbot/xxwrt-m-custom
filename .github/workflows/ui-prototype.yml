@@ -1,0 +1,43 @@
+name: Material UI prototype build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/material-ui
+    paths:
+      - "ui/material-prototype/**"
+      - ".github/workflows/ui-prototype.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  material-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: ui/material-prototype
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install open-source UI dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build Vuetify + Liquid Glass prototype
+        run: npm run build
+
+      - name: Upload static prototype (not an Android APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: xxwrt-material-ui-web-prototype
+          path: ui/material-prototype/dist/
+          if-no-files-found: error
+          retention-days: 30
