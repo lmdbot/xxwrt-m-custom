@@ -1,14 +1,9 @@
 name: Build signed XX-WRT M APK
 
+# Legacy UniApp APK repackaging, retained for manual archival builds only.
+# The 2.0 main branch is produced by ui-android-preview.yml instead.
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "src/**"
-      - "vendor/base.apk"
-      - "scripts/**"
-      - ".github/workflows/build-apk.yml"
 
 # Serialise builds to avoid simultaneous updates to the same versioned Release.
 concurrency:
