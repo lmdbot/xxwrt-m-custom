@@ -1053,7 +1053,7 @@ onUnmounted(() => {
                   <div><h2>主机名隐藏</h2><p>保护设备列表和路由器首页中的设备名称。</p></div>
                 </div>
                 <div class="settings-switch-row">
-                  <div><strong>隐藏主机名</strong><p>开启后，路由器名称和系统主机名将以占位符显示；不会修改 OpenWrt 实际主机名。</p></div>
+                  <div><p>开启后，路由器名称和系统主机名将以占位符显示；不会修改 OpenWrt 实际主机名。</p></div>
                   <v-switch v-model="hideHostnames" label="隐藏主机名" aria-label="隐藏主机名" color="primary" hide-details density="compact"/>
                 </div>
               </v-card>
@@ -1064,7 +1064,7 @@ onUnmounted(() => {
                   <div><h2>IP / 域名隐藏</h2><p>控制路由器地址在界面中的可见范围。</p></div>
                 </div>
                 <div class="settings-switch-row">
-                  <div><strong>隐藏 IP / 域名</strong><p>开启后，设备列表和设备详情页使用掩码显示地址，仅影响本机界面。</p></div>
+                  <div><p>开启后，设备列表和设备详情页使用掩码显示地址，仅影响本机界面。</p></div>
                   <v-switch v-model="hideIpAddresses" label="隐藏 IP / 域名" aria-label="隐藏 IP / 域名" color="primary" hide-details density="compact"/>
                 </div>
               </v-card>
