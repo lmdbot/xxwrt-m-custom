@@ -3,6 +3,11 @@ import { computed, onMounted, onUnmounted, reactive, ref, shallowRef, watch } fr
 import { useTheme } from 'vuetify'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
+import {
+  loadDevices, saveDevices, newDevice, probeDevice,
+  storeDevicePassword, fetchDevicePassword, deleteDevicePassword
+} from './services/devices.js'
 import {
   RouterClient, readDashboard, readClients, readServices,
   readProcessList, readRouteConfig, shortError
@@ -21,6 +26,23 @@ const storage = {
   nav: 'xxwrt_material_nav_style',
   theme: 'xxwrt_material_color_mode'
 }
+const devices = ref(loadDevices())
+const viewMode = ref('list')
+const selectedDeviceId = ref('')
+const loginDialog = ref(false)
+const deviceDialog = ref(false)
+const editDeviceId = ref('')
+const deleteDialog = ref(false)
+const deleteDeviceId = ref('')
+const loginRemember = ref(true)
+const isNative = Capacitor.isNativePlatform()
+const listError = ref('')
+const deviceStatuses = reactive({})
+const deviceSummaries = reactive({})
+const deviceForm = reactive({ name: '', address: 'http://192.168.100.1', username: 'root' })
+const sessions = new Map()
+const selectedDevice = computed(() => devices.value.find(d => d.id === selectedDeviceId.value) || null)
+const probeBusy = ref(false)
 const form = reactive({
   address: localStorage.getItem(storage.host) || 'http://192.168.100.1',
   username: 'root',
@@ -69,7 +91,7 @@ const resourceCards = computed(() => {
     { label: '连接数', value: snap.connPercent == null ? '--' : snap.connPercent + '%', detail: snap.connDetail || '--', icon: 'mdi-lan-connect', progress: snap.connPercent || 0 }
   ]
 })
-let mediaQuery, systemListener, refreshTimer
+let mediaQuery, systemListener, refreshTimer, probeTimer
 
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
@@ -77,6 +99,11 @@ watch(dark, v => { theme.global.name.value = v ? 'dark' : 'light' }, { immediate
 watch(activeTab, () => { if (connected.value) refreshCurrent() })
 
 function resetSession() {
+  const oldId = selectedDeviceId.value
+  if (oldId && sessions.has(oldId)) {
+    sessions.get(oldId).logout()
+    sessions.delete(oldId)
+  }
   client.value?.logout()
   client.value = null
   connected.value = false
@@ -89,6 +116,125 @@ function resetSession() {
   form.password = ''
   errorMessage.value = ''
   activeTab.value = 'home'
+  viewMode.value = 'list'
+  selectedDeviceId.value = ''
+  loginDialog.value = false
+  void refreshDeviceStatuses()
+}
+
+function showDeviceDialog(device = null) {
+  listError.value = ''
+  editDeviceId.value = device?.id || ''
+  Object.assign(deviceForm, device ? {
+    name: device.name, address: device.address, username: device.username
+  } : { name: '', address: 'http://192.168.100.1', username: 'root' })
+  deviceDialog.value = true
+}
+
+async function saveDeviceEntry() {
+  listError.value = ''
+  try {
+    const candidate = newDevice(deviceForm) // validates name, address, username
+    if (editDeviceId.value) {
+      const before = devices.value.find(d => d.id === editDeviceId.value)
+      if (!before) throw new Error('未找到需要编辑的路由器')
+      const changed = before.address !== candidate.address || before.username !== candidate.username
+      devices.value = devices.value.map(d => d.id === before.id
+        ? { ...d, name: candidate.name, address: candidate.address, username: candidate.username,
+            rememberPassword: changed ? false : d.rememberPassword }
+        : d)
+      if (changed) {
+        sessions.get(before.id)?.logout()
+        sessions.delete(before.id)
+        delete deviceSummaries[before.id]
+        await deleteDevicePassword(before.id)
+      }
+    } else {
+      if (devices.value.some(d => d.address === candidate.address && d.username === candidate.username)) {
+        throw new Error('同一地址及用户名的路由器已经添加')
+      }
+      devices.value = [...devices.value, candidate]
+    }
+    devices.value = saveDevices(devices.value)
+    deviceDialog.value = false
+    editDeviceId.value = ''
+    await refreshDeviceStatuses()
+  } catch (e) {
+    listError.value = shortError(e)
+  }
+}
+
+function askDeleteDevice(device) {
+  deleteDeviceId.value = device.id
+  deleteDialog.value = true
+}
+
+async function confirmDeleteDevice() {
+  const id = deleteDeviceId.value
+  deleteDialog.value = false
+  deleteDeviceId.value = ''
+  if (!id) return
+  sessions.get(id)?.logout()
+  sessions.delete(id)
+  try { await deleteDevicePassword(id) } catch (e) { listError.value = '删除本地密码失败：' + shortError(e) }
+  devices.value = saveDevices(devices.value.filter(d => d.id !== id))
+  delete deviceStatuses[id]
+  delete deviceSummaries[id]
+  if (id === selectedDeviceId.value) resetSession()
+}
+
+async function refreshDeviceStatuses() {
+  if (probeBusy.value) return
+  probeBusy.value = true
+  try {
+    await Promise.all(devices.value.map(async d => {
+      deviceStatuses[d.id] = 'checking'
+      const state = await probeDevice(d.address)
+      if (devices.value.some(item => item.id === d.id)) deviceStatuses[d.id] = state
+    }))
+  } finally {
+    probeBusy.value = false
+  }
+}
+
+async function goToDeviceList() {
+  viewMode.value = 'list'
+  activeTab.value = 'home'
+  errorMessage.value = ''
+  await refreshDeviceStatuses()
+}
+
+async function openDevice(device) {
+  selectedDeviceId.value = device.id
+  form.address = device.address
+  form.username = device.username
+  form.password = ''
+  listError.value = ''
+  errorMessage.value = ''
+  loginRemember.value = !!device.rememberPassword
+  const cached = sessions.get(device.id)
+  if (cached?.session) {
+    client.value = cached
+    connected.value = true
+    viewMode.value = 'detail'
+    activeTab.value = 'home'
+    await refreshDashboard()
+    return
+  }
+  if (device.rememberPassword && isNative) {
+    try {
+      const secret = await fetchDevicePassword(device.id)
+      if (secret) {
+        form.password = secret
+        await connect()
+        if (connected.value && viewMode.value === 'detail') return
+      }
+    } catch (e) {
+      listError.value = '读取加密凭据失败：' + shortError(e)
+    }
+  }
+  form.password = ''
+  loginDialog.value = true
 }
 
 async function connect() {
@@ -96,17 +242,37 @@ async function connect() {
   connecting.value = true
   errorMessage.value = ''
   try {
-    const api = new RouterClient(form.address)
-    await api.login(form.username, form.password)
+    const device = selectedDevice.value
+    if (!device) throw new Error('请先从设备列表选择路由器')
+    const api = new RouterClient(device.address)
+    const password = form.password
+    await api.login(device.username, password)
     client.value = api
+    sessions.set(device.id, api)
     connected.value = true
+    viewMode.value = 'detail'
+    loginDialog.value = false
+    activeTab.value = 'home'
+    deviceStatuses[device.id] = 'reachable'
     localStorage.setItem(storage.host, api.baseUrl)
-    form.address = api.baseUrl
-    form.password = '' // never keep the router password in browser storage
+    if (isNative && loginRemember.value) {
+      try {
+        await storeDevicePassword(device.id, password)
+        devices.value = saveDevices(devices.value.map(d => d.id === device.id ? { ...d, rememberPassword: true } : d))
+      } catch (e) {
+        listError.value = '登录成功，但保存加密密码失败：' + shortError(e)
+        devices.value = saveDevices(devices.value.map(d => d.id === device.id ? { ...d, rememberPassword: false } : d))
+      }
+    } else {
+      try { await deleteDevicePassword(device.id) } catch (_) {}
+      devices.value = saveDevices(devices.value.map(d => d.id === device.id ? { ...d, rememberPassword: false } : d))
+    }
+    form.password = ''
     await refreshDashboard()
   } catch (e) {
     errorMessage.value = shortError(e)
     resetConnectionOnError()
+    loginDialog.value = true
   } finally {
     connecting.value = false
   }
@@ -133,6 +299,16 @@ async function refreshDashboard() {
   errorMessage.value = ''
   try {
     snapshot.value = await readDashboard(client.value)
+    if (selectedDeviceId.value) {
+      deviceSummaries[selectedDeviceId.value] = {
+        model: snapshot.value.board.model,
+        hostname: snapshot.value.board.hostname,
+        version: snapshot.value.board.version,
+        temperature: snapshot.value.temperature,
+        uptime: snapshot.value.uptime,
+        updatedAt: Date.now()
+      }
+    }
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
   } catch (e) {
     handleRpcError(e)
@@ -223,13 +399,18 @@ onMounted(() => {
   systemDark.value = mediaQuery.matches
   systemListener = e => { systemDark.value = e.matches }
   mediaQuery.addEventListener?.('change', systemListener)
+  void refreshDeviceStatuses()
+  probeTimer = setInterval(() => {
+    if (viewMode.value === 'list') void refreshDeviceStatuses()
+  }, 30000)
   refreshTimer = setInterval(() => {
-    if (connected.value && activeTab.value === 'home' && !refreshing.value) refreshDashboard()
+    if (viewMode.value === 'detail' && connected.value && activeTab.value === 'home' && !refreshing.value) refreshDashboard()
   }, 12000)
 })
 onUnmounted(() => {
   mediaQuery?.removeEventListener?.('change', systemListener)
   if (refreshTimer) clearInterval(refreshTimer)
+  if (probeTimer) clearInterval(probeTimer)
 })
 </script>
 
