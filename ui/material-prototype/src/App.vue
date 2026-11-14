@@ -94,6 +94,16 @@ const loadSeries = [
   { key: 'l1', title: '1 分钟' }, { key: 'l5', title: '5 分钟' },
   { key: 'l15', title: '15 分钟' }
 ]
+const bandwidthSummary = computed(() => {
+  const points = bandwidthHistory.value
+  if (!points.length) return null
+  const mean = key => points.reduce((sum, p) => sum + Number(p[key] || 0), 0) / points.length
+  const peak = key => Math.max(...points.map(p => Number(p[key] || 0)))
+  return {
+    rxAverage: mean('rx').toFixed(1), txAverage: mean('tx').toFixed(1),
+    rxPeak: peak('rx').toFixed(1), txPeak: peak('tx').toFixed(1)
+  }
+})
 let samplePrevious = null
 let samplePreviousAt = 0
 let sampleBusy = false
@@ -844,6 +854,57 @@ onUnmounted(() => {
                 <v-progress-linear :model-value="item.progress" rounded height="4" color="primary" class="mt-3"/>
               </v-card>
             </div>
+
+            <v-card v-if="snapshot && activeTab === 'home'" class="mt-4 network-card storage-card" rounded="xl" elevation="1">
+              <div class="section-heading"><h2>磁盘占用</h2><v-icon icon="mdi-harddisk" color="secondary" size="22"/></div>
+              <template v-if="diskData.available && diskData.partitions.length">
+                <div class="storage-row" v-for="(partition, index) in diskData.partitions" :key="partition.device + partition.mount + index">
+                  <div class="storage-label">
+                    <div><strong>{{ partition.mount === '/overlay' ? '系统可写空间' : partition.mount === '/tmp' ? '临时空间' : partition.mount }}</strong>
+                      <small>{{ partition.device }}</small></div>
+                    <span>{{ partition.percent }}%</span>
+                  </div>
+                  <v-progress-linear :model-value="partition.percent" rounded height="5"
+                    :color="partition.percent > 90 ? 'error' : partition.temporary ? 'secondary' : 'primary'"/>
+                  <div class="muted-hint mt-1">{{ partition.usedText }} / {{ partition.totalText }}</div>
+                </div>
+              </template>
+              <v-alert v-else type="info" variant="tonal" density="compact">
+                无法读取磁盘分区信息。检查 QWRT 是否允许 file.exec 执行只读 df 命令。
+              </v-alert>
+            </v-card>
+
+            <template v-if="snapshot && activeTab === 'statistics'">
+              <v-card class="network-card mt-4" rounded="xl" elevation="1">
+                <div class="section-heading"><h2>实时带宽</h2>
+                  <v-chip color="primary" variant="tonal" size="small">3 秒采样</v-chip>
+                </div>
+                <v-select v-model="chosenInterface" label="选择网络接口" variant="outlined"
+                  density="compact" hide-details="auto" :items="availableInterfaces"
+                  item-title="title" item-value="value" class="mt-2 mb-3" :disabled="!availableInterfaces.length"/>
+                <div class="bandwidth-kpis">
+                  <div><span>接收 RX</span><strong>{{ currentRate?.rx || '--' }}</strong></div>
+                  <div><span>发送 TX</span><strong>{{ currentRate?.tx || '--' }}</strong></div>
+                </div>
+                <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
+                  :series="rxTxSeries" unit=" KB/s" title="实时网络带宽曲线"/>
+                <v-alert v-else class="mt-3" type="info" density="compact" variant="tonal">
+                  {{ telemetryError || '正在采集接口字节计数器，至少需要两个采样点才能计算速率' }}
+                </v-alert>
+                <div v-if="bandwidthSummary" class="bandwidth-summary">
+                  <span>接收平均 {{ bandwidthSummary.rxAverage }} KB/s · 峰值 {{ bandwidthSummary.rxPeak }} KB/s</span>
+                  <span>发送平均 {{ bandwidthSummary.txAverage }} KB/s · 峰值 {{ bandwidthSummary.txPeak }} KB/s</span>
+                </div>
+              </v-card>
+              <v-card class="network-card mt-4" rounded="xl" elevation="1">
+                <div class="section-heading"><h2>系统负载历史</h2>
+                  <v-chip variant="tonal" size="small">1 / 5 / 15 分钟</v-chip>
+                </div>
+                <RealtimeChart v-if="loadHistory.length" :samples="loadHistory"
+                  :series="loadSeries" title="系统负载历史曲线"/>
+                <p v-else class="muted-hint">正在采集 system.info 负载信息</p>
+              </v-card>
+            </template>
 
             <v-card v-if="snapshot && activeTab === 'statistics'" class="mt-4 network-card" rounded="xl" elevation="1">
               <h2>系统与连接</h2>
