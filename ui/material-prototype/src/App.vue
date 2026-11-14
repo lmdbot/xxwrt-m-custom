@@ -272,6 +272,7 @@ async function pollTelemetry() {
 }
 
 function resetSession() {
+  restoringNavigation = true
   clearNavigationTrail()
   const oldId = selectedDeviceId.value
   if (oldId && sessions.has(oldId)) {
@@ -302,6 +303,7 @@ function resetSession() {
   selectedDeviceId.value = ''
   loginDialog.value = false
   drawerOpen.value = false
+  restoringNavigation = false
   void refreshDeviceStatuses()
 }
 
