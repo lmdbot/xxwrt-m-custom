@@ -1,99 +1,142 @@
-# XX-WRT Material 2.0（主线版本）
+# XX-WRT Material 2.0
 
-Material UI 已成为 `main` 的默认安卓 APP 实现。使用 Vue 3、Vuetify 3、Capacitor 8 和 QWRT/OpenWrt ubus RPC。
+**面向 QWRT / OpenWrt 的 Android 路由器管理应用**。提供多设备管理、系统监控、终端与网络信息查看，以及常用路由器服务和插件的集中管理。界面基于 Material Design，支持标准与 Liquid Glass 两种底部导航样式。
 
-**版本：** 2.0.0（Android versionCode 20000）  
-**独立包名：** `com.lmdbot.xxwrt.materialpreview`  
-**Material 应用名称：** `XX-WRT Material Preview`（沿用 Material 分支的应用身份，不替换为旧 UniApp 的包名/名称/图标）  
-**主线打包：** `.github/workflows/ui-android-preview.yml`，成功后发布 `v2.0.0` 正式版本；`feature/material-ui` 继续发布独立预发布构建。
+项目当前以 **Material 2.0** 为主线，应用通过路由器的 **ubus JSON-RPC、UCI 及已授权的插件接口**获取数据和执行操作。可用功能取决于路由器固件、已安装插件和 RPC 权限。
 
-Material 主线代码：`ui/material-prototype/src`；`ui/material-prototype/capacitor.config.json` 保存应用包名和名称。对旧版 APK 的重新打包流程保留作历史档案，`.github/workflows/build-apk.yml` 仅可手动触发，不再由 `main` 自动发布旧版 1.0.6。
+## 版本信息
 
-本地验证：进入 `ui/material-prototype`，运行 `npm install`、`npm run build` 和 `npm run test:ui`。真正的服务状态、插件权限、内核 NAT 等仍需在用户 QWRT 上验证。
+| 项目 | 当前配置 |
+| --- | --- |
+| 应用版本 | **2.0.0** |
+| Android `versionCode` | `20000` |
+| 应用名称 | `XX-WRT Material Preview` |
+| Android 包名 | `com.lmdbot.xxwrt.materialpreview` |
+| 技术栈 | Vue 3 · Vite 7 · Vuetify 3 · Capacitor 8 · ECharts 5 |
+| 主线分支 | `main` |
+| 开发预览分支 | `feature/material-ui` |
 
----
+> 当前应用保留 Material 版本独立的应用名称、包名和图标，可以与此前不同包名的版本并存安装。版本信息以实际 APK 为准。
 
-## 旧版 XX-WRT M 1.0.6（历史资料）
+## 功能概览
 
+### 主要页面
 
-> 推荐创建 **Private 私有仓库**。此仓库存放来自用户提供 APK 的逆向提取编译产物；不是作者原始的 UniApp / Vue 源码工程，也不应当被误称为从源码完整编译。请确认你有权使用和分发本应用。
+| 页面 | 功能 |
+| --- | --- |
+| **设备列表** | 添加、编辑、删除和切换多台路由器；可达/离线筛选；卡片或列表布局；查看已认证设备的主要运行指标 |
+| **首页** | 系统与固件信息、CPU、内存、缓存、连接数、温度、运行时间、磁盘与临时空间、以太网接口状态及联网检测 |
+| **统计** | 通过实际接口计数器计算 RX/TX 速率并绘制趋势图；显示当前、平均和峰值流量，以及 1/5/15 分钟系统负载 |
+| **终端** | DHCPv4、DHCPv6、无线关联终端、OpenAppFilter 应用用户分类；搜索与终端信息展示；结合可用的邻居、无线及插件数据判断在线状态 |
+| **网络** | LAN/WAN/WAN6、IPv4/IPv6、IPv6-PD、网关、DNS、MTU、路由信息；以太网设备、网桥端口、收发流量及无线参数 |
 
-## 当前功能
+统计数据在连接期间持续采样；实时速率需要至少两次有效计数器采样，历史曲线不跨应用会话长期保存。部分指标依赖对应固件 RPC 或硬件传感器。
 
-- 启动页去广告（来自上一个修改版本）。
-- 登录后的首页：Internet Detector 监测实例状态与硬件温度。
-- **Internet Detector 界面优化：全部实例单独一行，不再仅显示 3 个并追加 `+N`**。
-- 设备列表温度兼容、跟随 Android 系统亮/暗色模式。
-- 移除首页底部邮箱显示和链接。
-- 继续使用同一个签名证书（SHA-256：`E7:B3:D7:9A:5C:7D:C2:8D:FF:DE:6B:0B:D9:22:63:DA:B9:49:18:DD:C3:E7:EC:60:5B:79:CE:B2:E4:5A:B9:81`）。
+### 应用与路由器管理
 
-## 目录
+| 功能模块 | 当前提供的主要能力 |
+| --- | --- |
+| **家长控制 / OpenAppFilter** | 查看运行状态，配置应用分类、时间策略、终端规则与部分高级选项 |
+| **路由表、进程、启动项** | 查询路由及系统进程、服务启动与运行信息；提供相应筛选和详情展示 |
+| **网络唤醒（WOL）** | 管理唤醒目标、查看网络邻居，向可用目标发送唤醒指令 |
+| **ShadowSocksR Plus+** | 查询服务状态、节点及组件信息，切换代理节点、探测节点、执行授权的服务操作和组件更新 |
+| **微信推送** | 管理常见通知渠道、告警及定时设置，查看设备信息、发送测试推送与编辑 DIY JSON |
+| **OpenClash** | 查看服务状态并管理开关、运行/代理模式及部分网络选项 |
+| **Internet Detector** | 读取联网检测实例与状态，并执行支持的服务操作 |
+| **Carbon 主题** | 切换 LuCI 主题，检查更新并执行支持的更新操作 |
+| **ZeroTier** | 管理服务与已配置网络，查看节点、虚拟网卡、网络连接及分配地址等可获取的信息 |
+| **防火墙** | 查看区域策略、规则、端口转发和 NAT/拥塞控制信息；支持部分规则与转发管理及重载 |
+| **设备维护** | 设备重启；恢复出厂需要明确二次确认 |
 
-- `vendor/base.apk`：在此项目开始之前已修改好的 APK，作为可复现重打包的基础镜像。**不是源工程**。
-- `src/www/`：从已编译 APK 中提取的 JavaScript、HTML、CSS、JSON 等前端产物；需要编辑首页可查 `app-service.js`。
-- `scripts/repackage.py`：把 `src/www/` 的资源覆盖到基础 APK，删除旧签名；输出未签名 APK。
-- `.github/workflows/build-apk.yml`：使用官方 Android `zipalign` / `apksigner` 构建**可安装签名 APK**，保存到 Actions Artifacts。
-- `scripts/patch_monitor_ui.py`：联网监测 UI 修改补丁（对上一版已编译 JS 的修改过程记录）。当前改动已经体现在 `src/www/app-service.js`，无需再次运行。
-- `router/XX-WRT-QWRT-telemetry-install.sh`：之前制作的 QWRT 温度接口脚本；在路由器上安装前应自行审查。
+未安装的可选插件可能不显示入口。涉及配置写入、服务重启或规则变更的功能，需要路由器开放相应权限；权限不足时会提示不可用，不会模拟执行成功。
 
-## 首次启用 GitHub Actions（需要手动设置一次密钥）
+### 界面与交互
 
-**不要把 `.p12` 私钥文件提交到 Git 历史，即使仓库是私有的。**
+- 浅色、深色及跟随系统的主题模式；标准 Material / Liquid Glass 底部导航可切换。
+- 设备列表设置侧栏按 **路由器、显示、隐私、刷新、实验室、关于** 分类。
+- 可独立隐藏设备名称和 IP/域名；显示偏好与布局偏好保存在本机。
+- 终端分类使用宫格导航，网络分类使用紧凑卡片，适配移动端触控和窄屏。
+- Android 返回操作优先关闭当前弹窗或子页面；位于底部页签根页面时返回设备列表。
 
-在新建 GitHub 私有仓库后，打开 `Settings → Secrets and variables → Actions → New repository secret`，创建：
+## 安装与连接
 
-| Secret | 内容 |
-|---|---|
-| `XXWRT_KEYSTORE_BASE64` | 稳定 `.p12` 文件的 Base64（整段单行文本） |
-| `XXWRT_KEYSTORE_PASSWORD` | `.p12` 的密码 |
+1. 前往 [Releases](https://github.com/lmdbot/xxwrt-m-custom/releases) 获取对应版本的 Android APK 并安装；也可以在 [Actions](https://github.com/lmdbot/xxwrt-m-custom/actions/workflows/ui-android-preview.yml) 的成功构建中下载 APK Artifact。
+2. 确保 Android 手机可访问目标 QWRT/OpenWrt 路由器（局域网 Wi-Fi、VPN 等）。
+3. 添加路由器，填写设备名称、地址、用户名和密码。地址支持 `http://192.168.100.1`、`http://192.168.100.1:端口` 或可信 HTTPS 域名；只填写服务根地址，不添加 `/ubus` 路径。
+4. 登录成功后，进入 **首页 / 统计 / 终端 / 网络 / 应用** 页面读取设备数据与管理功能。
 
-Windows PowerShell 获取 Base64，然后复制输出到 GitHub Secret（注意不要把输出贴在 Issue/Commit/聊天记录里）：
+应用通过路由器的 `/ubus` 接口建立会话。路由器需具备可用的 `rpcd`、相应的 ubus 对象与访问权限；不同固件及插件版本返回的数据可能不同。
 
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes(".\XX-WRT-M-stable-signing-key.p12")) | Set-Clipboard
-```
+**账号与通信安全：** 设备地址、名称及用户名等配置保存在本机；只有用户选择记住密码时，才会在 Android 上使用安全存储保存密码。HTTP 连接可能以明文传输凭据，建议仅在可信局域网中使用；远程访问优先采用 VPN 或有效证书的 HTTPS，避免将 `/ubus` 直接暴露到公网。
 
-这段命令将内容放入剪贴板，不会在终端展示私钥的 Base64 文本。第二个 Secret 填密钥密码。签名别名固定为 `xxwrt`。**以上两个 Secret 只有在你创建仓库后才能设置**。
+## 开发与构建
 
-## 构建
+### 本地运行
 
-在 GitHub 仓库的 `Actions → Build signed XX-WRT M APK → Run workflow` 手动执行，或修改 `src/**` 后推送到 `main` 自动运行。下载 Actions → 对应运行 → `Artifacts → XX-WRT-M-custom-signed-apk`。
-
-在本机可先运行：
+建议使用 **Node.js 22**。前端工程位于 `ui/material-prototype/`：
 
 ```bash
-python3 scripts/repackage.py
-# 后续使用 Android SDK build-tools zipalign + apksigner 对 build/app-unsigned.apk 进行对齐与签名
+cd ui/material-prototype
+npm install --no-audit --no-fund
+npm run dev
 ```
 
-## 将此目录上传到新仓库
-
-在 GitHub 创建空的 **Private** 仓库（不要勾选自动生成 README / .gitignore），例如 `xxwrt-m-custom`。此压缩包**已包含 `.git` 目录和初始提交**，只需在解压后的工程根目录执行：
+常用验证命令：
 
 ```bash
-git remote add origin https://github.com/lmdbot/xxwrt-m-custom.git
-git push -u origin main
+npm run build
+npx playwright install chromium
+npm run test:ui
 ```
 
-如果解压工具意外忽略了隐藏的 `.git` 文件夹，则先 `git init -b main`、`git add .`、`git commit -m "Initial import"`，再运行上述命令。
+浏览器预览用于界面开发和交互验证；Android 安全存储、原生 HTTP 行为以及实际路由器权限仍需在 Android 真机环境测试。
 
-GitHub 接口也允许向**现有仓库**提交二进制文件；但当前连接不提供“创建仓库”和“写入 Actions Secrets”能力，所以新建仓库及填写 Secrets 需要在 GitHub 界面完成。
+### Android APK 构建与发布
 
-## 自动发布 GitHub Release
+仓库通过 [XX-WRT Material Android APK](https://github.com/lmdbot/xxwrt-m-custom/actions/workflows/ui-android-preview.yml) 工作流构建 Android 安装包，流程包含前端构建、Playwright UI 测试、Capacitor Android 工程生成、Gradle Release 编译、APK 签名及校验。
 
-每次工作流成功签名并校验 APK 后，会使用 Android SDK 的 `aapt dump badging` 读取实际 APK 的 `versionName`：
+- **触发方式：** 手动运行工作流，或向 `main` / `feature/material-ui` 推送命中 `ui/material-prototype/**`、工作流文件的变更。
+- **构建环境：** Node.js 22、Java 21、Android SDK Platform 36 / Build Tools 35.0.0。
+- **Actions Artifact：** `XX-WRT-M-Material-Preview-APK`；APK 文件名为 `XX-WRT-M-Material-QWRT-v2.0.0.apk`。
+- **Release：** `main` 对应 `v2.0.0` 正式发布；`feature/material-ui` 对应 `material-wrt-v2.0.0` 预发布。成功构建时，工作流会创建或更新对应 Release 附件。
 
-- 首次遇到版本 `1.0.6` 时，创建 Release `v1.0.6`，并上传 `XX-WRT-M-custom-v1.0.6.apk`。
-- 后续构建仍是 `1.0.6` 时，不新建 Release，而是覆盖同名 APK 附件并更新 Release 说明（含最新提交和 Actions 构建链接）。
-- 当 APK 内 `versionName` 变为 `1.0.7` 等新值时，创建对应的新 Release。**仅修改前端代码或 README 不会自动改变 AndroidManifest 中的版本号**，因此仍会更新同一版本的 Release。
-- Release 使用仓库默认 `GITHUB_TOKEN`（工作流 `contents: write`）；不必额外配置个人访问令牌。P12 密钥和密码仍从 GitHub Actions Secrets 读取。
-- 为避免并发覆盖同一个版本，构建添加了串行执行约束。已发布 Git Tag 不会被强制移动，最新构建提交通过 Release 说明追溯。
+签名依赖仓库 **Settings → Secrets and variables → Actions** 中的以下 Secrets：
 
-**发布注意：** 当前仓库为 Public，GitHub Release APK 可供公众下载。请确保拥有原始应用的修改和分发权限；如仅供个人使用，可将仓库改为 Private。
+| Secret | 用途 |
+| --- | --- |
+| `XXWRT_KEYSTORE_BASE64` | PKCS#12（`.p12`）签名文件的 Base64 内容 |
+| `XXWRT_KEYSTORE_PASSWORD` | 签名文件及密钥密码 |
 
-## 限制
+工作流使用的密钥别名为 `xxwrt`。**不要将签名文件、密码或其 Base64 内容提交到仓库。** 未配置所需 Secrets 时，APK 签名步骤会失败。
 
-1. 这条工作流是**预编译资源替换 + APK 重打包 + 签名**，不是从原始 Vue / Android 工程进行完整编译；目前没有原作者源代码。
-2. Android 真机的界面表现、路由器版本兼容性需要实际测试。
-3. 初次运行 Actions 必须先完成两个 Secret 的配置；未配置时会明确报错而不会签出一个不同证书的包。
-4. 不在公共 Release 或公共仓库发布未经授权的第三方 APK 或证书私钥。
+## 项目目录
+
+```text
+.github/workflows/          # Android 构建、前端验证等 GitHub Actions
+ui/material-prototype/      # Material 2.0 主线前端与 Capacitor 配置
+  src/App.vue               # 页面、导航和主要交互
+  src/components/           # 设备卡片、终端、网络与插件管理组件
+  src/services/             # 设备管理、ubus RPC、统计及设备识别
+  tests/                    # Playwright UI 自动化用例
+docs/                       # 功能对照、版本和变更说明
+router/                     # 路由器侧辅助脚本
+src/www/                    # 早期版本的前端维护资源
+scripts/                    # 早期版本维护及辅助脚本
+vendor/                     # 早期版本构建所需资源
+```
+
+Material 2.0 的 Android 主线使用 `ui/material-prototype/` 及 `ui-android-preview.yml`。`build-apk.yml` 保留为旧版手动构建工作流，不参与 Material 主线的自动发布。
+
+## 兼容性与验证说明
+
+- 核心数据取自实际路由器响应；**“不可用”“未知”“待确认”不等同于服务故障**，也可能是缺少插件、固件接口差异或 RPC 权限不足。
+- DHCP 租约和历史设备提示不能单独证明终端在线；APP 使用可获取的网络邻居、无线关联和插件检测信息辅助判断。
+- 目前的 Playwright 测试使用模拟 ubus 响应验证主要 UI、交互和 RPC 调用路径，**不等同于所有 QWRT/OpenWrt 固件及插件已完成真机兼容测试**。
+- 部分高级功能（例如完整终端访问历史、全部插件配置能力及完整多语言内容）仍有覆盖差异，具体以当前应用界面和代码为准。
+- 修改防火墙区域策略、网络服务或恢复出厂可能中断管理连接；建议事先保留本地或其他可靠的访问方式。
+
+更多功能边界与测试范围见 [功能对照文档](docs/material-main-feature-parity.md)，界面工程说明见 [Material UI README](ui/material-prototype/README.md)。
+
+## 参与改进
+
+欢迎通过 [Issues](https://github.com/lmdbot/xxwrt-m-custom/issues) 反馈问题。建议附上 APP 版本、QWRT/OpenWrt 固件版本、插件版本、相关页面和复现步骤；请勿公开路由器密码、会话令牌及其他敏感配置。
