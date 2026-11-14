@@ -502,7 +502,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('运行模式', { exact: true }).last().first()).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开Internet Detector' }).click()
-  await expect(page.getByText('连接正常').first()).toBeVisible()
+  await expect(page.locator('.detector-row').first().getByText('正常', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开Carbon 主题设置' }).click()
   await expect(page.getByText('当前主题', { exact: true }).last()).toBeVisible()
