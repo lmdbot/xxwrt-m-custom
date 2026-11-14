@@ -100,7 +100,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the previous preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 21/; s/versionName "[^"]+"/versionName "0.5.12"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 22/; s/versionName "[^"]+"/versionName "0.5.13"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -134,20 +134,20 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.13.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.13.apk
           # Validate against the actual Gradle versionCode so future version bumps cannot leave a stale check.
           EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -n1)"
           test -n "$EXPECTED_VERSION_CODE" || { echo "::error::Cannot read Gradle versionCode"; exit 1; }
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk | grep '^package:' | grep "versionName='0.5.12'" | grep "versionCode='$EXPECTED_VERSION_CODE'"
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.13.apk | grep '^package:' | grep "versionName='0.5.13'" | grep "versionCode='$EXPECTED_VERSION_CODE'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.13.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -157,11 +157,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.12"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk"
+          TAG="material-wrt-v0.5.13"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.13.apk"
           NOTES="../../build/material-preview/release-notes.md"
           cat > "$NOTES" <<'EOF'
-          ## XX-WRT M Material UI（设置分类与卡片导航 v0.5.12）
+          ## XX-WRT M Material UI（终端状态识别修复 v0.5.13）
 
           已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。
 
@@ -181,7 +181,7 @@ jobs:
           - 应用首页改为与 main 类似的图标宫格，点击才显示进程/启动项/路由/WOL/家长控制二级页。
           - 网络页增加 IPv6-PD、MTU、网桥端口、收发流量包数及无线参数。
           - 本版 UI 优化：进程支持搜索、展开完整命令并显示 STAT 状态；启动项同时支持开机自启与运行状态筛选；路由表显示默认/网络/主机/本地等路由类型。
-          - 终端卡片增加在线/离线状态圆点，状态依据 QWRT 邻居表及无线关联信息；清空终端搜索后恢复完整列表。
+          - 修复终端在线误判：DHCP 租约和历史 HostHints IP 不再代表在线；结合可达邻居状态、受限 ARP 刷新探测及无线关联判断，支持在线/离线/未知三态；清空终端搜索后恢复完整列表。
           - 网络唤醒增加网络邻居页签，可直接向邻居表中的设备发送 WOL；网络页改为接口、设备、无线三个分类页签。
           - 网络分类页签改为紧凑三列单行卡片，保留分类名称和数量；终端页签仍保持原有 2×2 布局。
           - 首页增加以太网端口连接状态、实时 RX/TX 速率及累计收发字节；网络硬件数据同时兼容 stats/statistics 两种 RPC 字段。
@@ -213,8 +213,8 @@ jobs:
           } >> "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.12" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.13" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.12" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.13" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi
