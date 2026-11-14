@@ -407,3 +407,41 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .zt-network-card .v-list-item-title,.zt-network-card .v-list-item-subtitle{white-space:normal;overflow-wrap:anywhere}
 .ssr-probe-row{min-width:0;overflow-wrap:anywhere}
 .ssr-probe-row .v-list-item-title,.ssr-probe-row .v-list-item-subtitle{white-space:normal;overflow-wrap:anywhere}
+
+/* Firewall zones: the saved INPUT/OUTPUT/FORWARD policies stay visible even
+   while their edit controls are collapsed. */
+.firewall-policy-expansion .v-expansion-panel-title{min-width:0;padding:14px!important}
+.firewall-policy-expansion .v-expansion-panel-title__overlay{pointer-events:none}
+.firewall-policy-expansion .firewall-zone-title{width:100%;min-width:0;gap:6px}
+.firewall-policy-preview-label{color:rgb(var(--v-theme-on-surface-variant));font-size:10px;margin-top:2px}
+.firewall-policy-preview{display:flex;flex-wrap:wrap;gap:5px;min-width:0;margin:2px 0}
+.firewall-policy-preview .v-chip{font-size:10px!important;max-width:100%;font-weight:600}
+.firewall-pending-label{display:block;color:rgb(var(--v-theme-warning))!important;font-weight:650}
+
+/* Narrow-phone rule table: one compact row per rule, with labelled cells.
+   No horizontal scrolling and no truncated names, MACs or IP addresses. */
+.firewall-rule-toolbar{min-width:0}
+.firewall-rule-toolbar .muted-hint{font-size:11px}
+.firewall-rule-filter{display:flex;width:100%;min-width:0;border-radius:12px!important}
+.firewall-rule-filter .v-btn{flex:1 1 0!important;min-width:0!important;padding-inline:5px!important;font-size:11px!important;letter-spacing:0!important}
+.firewall-rule-table{display:grid;gap:10px;min-width:0}
+.firewall-rule-entry{border:1px solid rgba(125,142,163,.22);border-radius:14px;background:rgba(125,142,163,.035);min-width:0;overflow:hidden;padding:12px 13px}
+.firewall-rule-entry.is-disabled{opacity:.70}
+.firewall-rule-entry__head{display:flex;gap:8px;align-items:center;min-width:0}
+.firewall-rule-entry__name{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}
+.firewall-rule-entry__name strong{font-size:13px;font-weight:650;line-height:1.35;overflow-wrap:anywhere}
+.firewall-rule-entry__name small{font-size:10px;color:rgb(var(--v-theme-on-surface-variant));overflow-wrap:anywhere}
+.firewall-rule-entry__head>.v-chip{flex:none;max-width:90px;font-size:10px}
+.firewall-rule-entry__switch{flex:none!important;margin:0!important;min-width:42px!important}
+.firewall-rule-entry__switch .v-selection-control{min-height:30px}
+.firewall-rule-entry__fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:10px;row-gap:9px;padding:10px 0 8px;margin-top:9px;border-top:1px solid rgba(125,142,163,.14)}
+.firewall-rule-entry__fields>div{min-width:0;display:flex;flex-direction:column;gap:3px}
+.firewall-rule-entry__fields span{font-size:10px;color:rgb(var(--v-theme-on-surface-variant));line-height:1.25}
+.firewall-rule-entry__fields strong{font-size:12px;line-height:1.35;overflow-wrap:anywhere;word-break:break-word;font-weight:550}
+.firewall-rule-entry__foot{display:flex;align-items:center;min-height:18px;color:rgb(var(--v-theme-on-surface-variant));font-size:10px;overflow-wrap:anywhere}
+@media(max-width:380px){
+ .firewall-rule-entry{padding:10px}
+ .firewall-rule-entry__head{gap:5px}
+ .firewall-rule-entry__head>.v-chip{max-width:73px}
+ .firewall-rule-filter .v-btn{font-size:10px!important;padding-inline:3px!important}
+}
