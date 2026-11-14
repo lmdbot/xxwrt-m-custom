@@ -224,6 +224,8 @@ async function openDevice(device) {
   listError.value = ''
   errorMessage.value = ''
   loginRemember.value = !!device.rememberPassword
+  // Never show snapshot data from another router while switching.
+  snapshot.value = null
   const cached = sessions.get(device.id)
   if (cached?.session) {
     client.value = cached

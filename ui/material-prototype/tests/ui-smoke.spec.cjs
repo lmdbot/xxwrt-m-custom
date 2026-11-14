@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
 
-const dataFor = (object, method) => {
+const dataFor = (object, method, params = {}) => {
   if (object === 'session' && method === 'login') return { ubus_rpc_session: '0123456789abcdef0123456789abcdef' }
   if (object === 'system' && method === 'board') return {
     hostname: 'QWRT', model: 'J4125 SoftRouter', system: 'Intel Celeron J4125',
@@ -39,7 +39,8 @@ const dataFor = (object, method) => {
   if (object === 'luci.wol' && method === 'stat') return { etherwake: true }
   if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
   if (object === 'network.device' && method === 'status') return { 'br-lan': { up: true } }
-  if (object === 'uci' && method === 'get') return { values: { demo: { '.type': 'target', '.name': 'demo', name: '测试主机', mac: 'AA:BB:CC:DD:EE:FF', iface: 'br-lan' } } }
+  if (object === 'uci' && method === 'get' && params.config === 'luci-wol') return { values: { demo: { '.type': 'target', '.name': 'demo', name: '测试主机', mac: 'AA:BB:CC:DD:EE:FF', iface: 'br-lan' } } }
+  if (object === 'uci' && method === 'get' && params.config === 'network') return { values: { cfg123: { '.type': 'route', interface: 'wan', target: '10.0.0.0/24', gateway: '10.12.4.1' } } }
   if (object === 'uci' && method === 'add') return { section: 'new-wol-target' }
   if (object === 'uci' && method === 'commit') return {}
   if (object === 'uci' && method === 'revert') return {}
