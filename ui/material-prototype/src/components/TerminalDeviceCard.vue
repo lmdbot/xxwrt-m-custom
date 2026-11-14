@@ -16,6 +16,13 @@ const brandStyle = computed(() => {
   }
 })
 const typeIcon = computed(() => deviceTypeIcon(props.item.identity?.type))
+const onlineState = computed(() => {
+  if (props.item.online === true) return 'online'
+  return props.item.onlineKnown === false ? 'unknown' : 'offline'
+})
+const onlineTitle = computed(() => ({
+  online: '在线', offline: '离线', unknown: '状态未知'
+}[onlineState.value]))
 const sourceLabels = computed(() => {
   const labels = []
   if (props.item.sources?.includes('dhcp4')) labels.push('DHCPv4')
@@ -33,7 +40,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
     variant="outlined"
     class="terminal-tile"
     tabindex="0"
-    :aria-label="title"
+    :aria-label="title + '，' + onlineTitle"
     @click="emit('click')"
     @keydown.enter.prevent="emit('click')"
   >
@@ -53,7 +60,11 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
       <v-icon v-else :icon="typeIcon" size="23"/>
     </div>
     <div class="terminal-meta">
-      <div class="terminal-name">{{ item.displayName || item.name || '未知设备' }}</div>
+      <div class="terminal-name-line">
+        <span class="terminal-online-dot" :class="'is-' + onlineState"
+          :title="onlineTitle" :aria-label="onlineTitle" role="img"/>
+        <div class="terminal-name">{{ item.displayName || item.name || '未知设备' }}</div>
+      </div>
       <div v-if="item.kind" class="terminal-kind">{{ item.kind }}</div>
       <div v-if="item.ip || item.ip6" class="terminal-ip terminal-ip6">
         {{ item.ip || item.ip6 }}
