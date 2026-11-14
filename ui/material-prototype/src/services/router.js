@@ -236,6 +236,8 @@ export async function readClients(client) {
       name: item.hostname || hint.name || '',
       expires: item.expires,
       active: Number(item.expires) > 0,
+      online: Boolean(hint.ipaddrs?.length || hint.ip6addrs?.length),
+      onlineKnown: hints != null,
       source: 'dhcp4'
     }
   })
@@ -248,6 +250,8 @@ export async function readClients(client) {
       name: item.hostname || hint.name || '',
       ip: item.ip6addr || item.address || item.ip6addrs?.[0] || '--',
       ip4: hint.ipaddrs?.[0] || '',
+      online: Boolean(hint.ipaddrs?.length || hint.ip6addrs?.length),
+      onlineKnown: hints != null,
       source: 'dhcp6'
     }
   })
@@ -277,16 +281,21 @@ export async function readProcessList(client) {
     Array.isArray(result?.result) ? result.result :
     Array.isArray(result?.processes) ? result.processes :
     Array.isArray(result?.data) ? result.data : []
-  return {
-    available: result != null,
-    processes: items.map(p => ({
-      pid: String(p.pid ?? p.PID ?? '--'),
-      user: String(p.user ?? p.USER ?? '--'),
-      cpu: String(p.cpu ?? p['%CPU'] ?? p.cpu_percent ?? '--'),
-      memory: String(p.mem ?? p['%MEM'] ?? p.memory ?? '--'),
-      command: String(p.COMMAND ?? p.command ?? p.cmd ?? p.name ?? '--')
-    })).slice(0, 300)
-  }
+  const processes = items.map(p => ({
+    pid: String(p.PID ?? p.pid ?? '--'),
+    user: String(p.USER ?? p.user ?? '--'),
+    cpu: String(p['%CPU'] ?? p.cpu ?? p.cpu_percent ?? '--'),
+    // Main-branch LuCI reports VSZ in kB and %MEM separately.
+    memory: String(p.VSZ ?? p.vsz ?? p.mem ?? p.memory ?? '--'),
+    memoryPercent: String(p['%MEM'] ?? p.memory_percent ?? '--'),
+    status: String(p.STAT ?? p.stat ?? p.state ?? p.status ?? '--'),
+    parentPid: String(p.PPID ?? p.ppid ?? '--'),
+    command: String(p.COMMAND ?? p.command ?? p.cmd ?? p.name ?? '--')
+  })).sort((a, b) => {
+    const cpu = value => Number.parseFloat(String(value).replace('%', '')) || 0
+    return cpu(b.cpu) - cpu(a.cpu)
+  }).slice(0, 300)
+  return { available: result != null, processes }
 }
 
 export async function readRouteConfig(client) {
@@ -335,7 +344,9 @@ export async function readWolDevices(client) {
     mac: mac.toUpperCase(),
     ip: item?.ipaddrs?.[0] || ''
   })).filter(item => MAC_PATTERN.test(item.mac))
-  return { available, tool, targets, interfaces, known }
+  const savedMacs = new Set(targets.map(item => item.mac))
+  const neighbors = known.filter(item => !savedMacs.has(item.mac))
+  return { available, tool, targets, interfaces, known, neighbors }
 }
 
 /** Only execute the known WOL binary reported by the original LuCI plugin. */
@@ -440,21 +451,26 @@ export async function readNetworkHardware(client) {
     ['luci-rpc', 'getNetworkDevices'],
     ['luci-rpc', 'getWirelessDevices']
   ])
-  const value = data => data && typeof data === 'object' ? Object.entries(data).map(([name, v]) => ({
+  const value = data => data && typeof data === 'object' ? Object.entries(data).map(([name, v]) => {
+    // QWRT getNetworkDevices follows the main app's stats shape;
+    // network.device status may instead return statistics.
+    const stats = v?.statistics || v?.stats || {}
+    return {
     name, up: Boolean(v?.up ?? v?.link), mac: v?.macaddr || v?.mac || '--',
     type: String(v?.type || v?.device || '--'),
     mtu: v?.mtu ?? null,
     speed: v?.speed ?? v?.bitrate ?? null,
     ports: Array.isArray(v?.ports) ? v.ports : [],
-    rxBytes: v?.statistics?.rx_bytes ?? null,
-    txBytes: v?.statistics?.tx_bytes ?? null,
-    rxPackets: v?.statistics?.rx_packets ?? null,
-    txPackets: v?.statistics?.tx_packets ?? null,
+    rxBytes: stats.rx_bytes ?? stats.rxBytes ?? v?.rx_bytes ?? null,
+    txBytes: stats.tx_bytes ?? stats.txBytes ?? v?.tx_bytes ?? null,
+    rxPackets: stats.rx_packets ?? v?.rx_packets ?? null,
+    txPackets: stats.tx_packets ?? v?.tx_packets ?? null,
     ssid: v?.ssid || null, bssid: v?.bssid || null,
     channel: v?.channel ?? null, band: v?.band ?? null,
     encryption: v?.encryption?.description || v?.encryption || null,
     signal: v?.signal ?? null, mode: v?.mode || null
-  })).slice(0, 200) : []
+    }
+  }).slice(0, 200) : []
   return {
     wiredAvailable: !!wired, wirelessAvailable: !!wireless,
     wired: value(wired), wireless: value(wireless)
