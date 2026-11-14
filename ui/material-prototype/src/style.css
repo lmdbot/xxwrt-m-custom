@@ -445,3 +445,27 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
  .firewall-rule-entry__head>.v-chip{max-width:73px}
  .firewall-rule-filter .v-btn{font-size:10px!important;padding-inline:3px!important}
 }
+
+/* Network Wake > Network Neighbors: consistent mobile device cards. */
+.wol-neighbors-header{display:flex;flex-direction:column;gap:4px;margin:13px 0 12px;min-width:0}
+.wol-neighbors-header>div{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.wol-neighbors-header strong{font-size:14px;font-weight:700;line-height:1.35}
+.wol-neighbors-header>div>span{font-size:11px;color:rgb(var(--v-theme-primary));background:rgba(var(--v-theme-primary),.09);padding:3px 9px;border-radius:9px}
+.wol-neighbors-header p{font-size:11px;color:rgb(var(--v-theme-on-surface-variant));line-height:1.5}
+.wol-neighbors-search{margin-bottom:14px}
+.wol-neighbor-list{display:grid;gap:10px;min-width:0}
+.wol-neighbor-card{display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:start;gap:11px;padding:12px;min-width:0;border:1px solid rgba(125,142,163,.22);border-radius:15px;background:rgba(125,142,163,.04)}
+.wol-neighbor-card__icon{width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(var(--v-theme-primary),.10);color:rgb(var(--v-theme-primary))}
+.wol-neighbor-card__body{display:flex;flex-direction:column;gap:8px;min-width:0}
+.wol-neighbor-card__name{font-size:13px;font-weight:650;line-height:1.35;min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.wol-neighbor-card__details{display:grid;gap:5px;min-width:0}
+.wol-neighbor-card__field{display:flex;align-items:baseline;gap:7px;min-width:0;font-size:11px;line-height:1.45}
+.wol-neighbor-card__field>span:first-child{color:rgb(var(--v-theme-on-surface-variant));font-size:10px;flex:0 0 32px}
+.wol-neighbor-card__value{font-size:11px;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.wol-neighbor-card__wake{align-self:center;min-width:64px!important;flex:none}
+@media(max-width:400px){
+  .wol-neighbor-card{grid-template-columns:34px minmax(0,1fr);gap:9px;padding:10px}
+  .wol-neighbor-card__icon{width:34px;height:34px}
+  .wol-neighbor-card__wake{grid-column:2;justify-self:start;margin-top:2px}
+  .wol-neighbor-card__details{gap:4px}
+}
