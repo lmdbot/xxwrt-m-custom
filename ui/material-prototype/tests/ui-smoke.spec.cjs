@@ -39,7 +39,11 @@ const dataFor = (object, method, params = {}) => {
     return { data: 'nf_conntrack_count' === 'nf_conntrack_count' ? '2070' : '65535' }
   }
   if (object === 'luci-rpc' && method === 'getDHCPLeases') {
-    return { dhcp_leases: [\n      { macaddr: 'AA:BB:CC:DD:EE:FF', ipaddr: '192.168.100.88', hostname: 'Phone', expires: 40000 },\n      { macaddr: 'A6:83:E7:2C:91:0F', ipaddr: '192.168.100.89', hostname: 'iPhone-15-Pro', expires: 40000 },\n      { macaddr: 'F0:EE:7A:91:AA:12', ipaddr: '192.168.100.90', hostname: 'MacBook-Air', expires: 40000 }\n    ], dhcp6_leases: [{hostname:'IPv6-Phone', ip6addr:'2408::1234', duid:'123456'}] }
+    return { dhcp_leases: [
+      { macaddr: 'AA:BB:CC:DD:EE:FF', ipaddr: '192.168.100.88', hostname: 'Phone', expires: 40000 },
+      { macaddr: 'A6:83:E7:2C:91:0F', ipaddr: '192.168.100.89', hostname: 'iPhone-15-Pro', expires: 40000 },
+      { macaddr: 'F0:EE:7A:91:AA:12', ipaddr: '192.168.100.90', hostname: 'MacBook-Air', expires: 40000 }
+    ], dhcp6_leases: [{hostname:'IPv6-Phone', ip6addr:'2408::1234', duid:'123456'}] }
   }
   if (object === 'luci-rpc' && method === 'getHostHints') return { 'AA:BB:CC:DD:EE:FF': { name: 'Phone' } }
   if (object === 'rc' && method === 'list') return { network: { enabled: true, running: true }, firewall: { enabled: true, running: true } }
