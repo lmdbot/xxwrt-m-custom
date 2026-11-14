@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/material-ui
+      - main
     paths:
       - "ui/material-prototype/**"
       - ".github/workflows/ui-prototype.yml"
