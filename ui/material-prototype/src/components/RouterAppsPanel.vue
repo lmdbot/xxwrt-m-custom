@@ -988,13 +988,6 @@ defineExpose({ refresh })
           </div>
           <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">尚未配置代理节点，请先添加节点或订阅。</v-alert>
         </template>
-            </v-list-item>
-          </v-list>
-          <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">尚未配置代理节点，请先添加节点或订阅。</v-alert>
-          <div v-if="!ssrProbeUnavailable" class="ssr-probe-results">
-            <div v-for="node in ssr.nodes.filter(n => ssrProbes[n.id])" :key="'probe-'+node.id" class="muted-hint">{{ node.title }}：{{ ssrProbes[node.id]?.text }}</div>
-          </div>
-        </template>
         <template v-else-if="ssrTab === 'status'">
           <h3 class="router-app-section-title">SSR Plus+ 运行状态</h3>
           <div class="router-app-summary"><div><span>代理服务</span><strong>{{ statusText(ssr.service) }}</strong></div><div><span>当前节点</span><strong>{{ ssr.nodes.find(x => x.id === ssr.global.global_server)?.title || '未启用' }}</strong></div></div>
