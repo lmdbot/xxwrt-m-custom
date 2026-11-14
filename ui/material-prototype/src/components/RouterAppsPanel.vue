@@ -95,7 +95,7 @@ const oc = reactive({ enable: '0', en_mode: 'fake-ip', proxy_mode: 'rule', ipv6_
 const detector = ref({ available: false, instances: [], service: null })
 const carbon = ref({ available: false, section: '', current: '', themes: [], updater: null })
 const carbonMirror = ref('')
-const zt = ref({ available: false, section: '', networks: [], service: null, runtime: [], node: null, runtimeUnavailable: false })
+const zt = ref({ available: false, section: '', networks: [], service: null, runtime: [], node: null, runtimeUnavailable: false, virtualDevices: [] })
 const ztEnabled = ref(false), ztNewId = ref(''), ztDelete = ref(null), ztDeleteDialog = ref(false)
 const fw = ref({ available: false, zones: [], redirects: [], rules: [], service: null })
 const fwRuleSearch = ref('')
@@ -678,6 +678,31 @@ async function loadZeroTier() {
       }
     } catch (_) { /* Denied CLI execution is not proof that the daemon is down. */ }
   }
+  // Standard LuCI network/device RPCs can still report the ZeroTier virtual
+  // NIC even when neither the optional plugin RPC nor file.exec is permitted.
+  // Do not guess which network ID owns a NIC when several networks exist.
+  let virtualDevices = []
+  if (!runtime.length) {
+    try {
+      const [devices, dump] = await Promise.all([
+        props.client.call('luci-rpc', 'getNetworkDevices', {}, true),
+        props.client.call('network.interface', 'dump', {}, true)
+      ])
+      const interfaces = Array.isArray(dump?.interface) ? dump.interface : []
+      virtualDevices = Object.entries(devices || {}).filter(([name]) => /^zt[a-z0-9]{5,}$/i.test(name))
+        .slice(0, 24).map(([name, detail]) => {
+          const related = interfaces.filter(item => item.device === name || item.l3_device === name)
+          const addresses = related.flatMap(item => [
+            ...(item['ipv4-address'] || []), ...(item['ipv6-address'] || [])
+          ]).map(item => item.address + (item.mask == null ? '' : '/' + item.mask))
+          return {
+            name, mac: String(detail?.macaddr || detail?.mac || ''),
+            up: detail?.up === true || detail?.link === true,
+            addresses: [...new Set(addresses)].join(', ')
+          }
+        })
+    } catch (_) { /* Optional netifd details must not block the app. */ }
+  }
   // Even without a runtime RPC, show networks we can safely read from UCI,
   // with explicit unknown status rather than an alarming, misleading error.
   if (!runtime.length && networks.length) {
@@ -692,7 +717,7 @@ async function loadZeroTier() {
   }
   zt.value = {
     available: !!global, section: global?.id || '', networks,
-    service: rc?.zerotier || null, runtime, node, runtimeUnavailable, runtimeSource
+    service: rc?.zerotier || null, runtime, node, runtimeUnavailable, runtimeSource, virtualDevices
   }
   ztEnabled.value = String(global?.options.enabled || '0') === '1'
 }
@@ -1061,6 +1086,17 @@ defineExpose({ refresh })
           <div class="muted-hint">分配 IP：{{ x.addresses || '暂无' }}</div>
           <div class="muted-hint">网络类型：{{ x.type || '--' }}</div>
         </v-card>
+        <div v-if="zt.virtualDevices?.length" class="mt-3">
+          <h3 class="router-app-section-title">ZeroTier 虚拟网卡（来自系统网络接口）</h3>
+          <v-card v-for="device in zt.virtualDevices" :key="device.name" rounded="lg" variant="outlined" class="zt-network-card mb-2" style="padding:12px">
+            <div class="d-flex align-center justify-space-between ga-2">
+              <strong>{{ device.name }}</strong>
+              <v-chip size="x-small" :color="device.up ? 'success' : 'secondary'" variant="tonal">{{ device.up ? '接口已启用' : '链路未确认' }}</v-chip>
+            </div>
+            <div class="muted-hint mt-2">MAC：{{ device.mac || '--' }}</div>
+            <div class="muted-hint">地址：{{ device.addresses || '未从 netifd 获取' }}</div>
+          </v-card>
+        </div>
         <v-alert v-if="!zt.runtime.length" type="info" variant="tonal" density="compact">当前没有已配置或可读取的 ZeroTier 网络。</v-alert>
         <h3 class="router-app-section-title mt-4">加入新网络</h3><v-text-field v-model.trim="ztNewId" label="Network ID" placeholder="16 位十六进制字符" density="comfortable" variant="outlined" maxlength="16"/><v-btn color="primary" variant="tonal" :disabled="busy" @click="addZt">加入网络并重启服务</v-btn>
         <p class="muted-hint mt-2">加入后仍需在 ZeroTier Central 中授权此设备。默认启用 allowManaged，关闭 allowDefault 和 allowDNS。</p>
