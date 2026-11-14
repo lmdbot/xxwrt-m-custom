@@ -188,6 +188,7 @@ const terminalDevices = computed(() => {
       byMac.set(key, item)
     } else {
       item.name = item.name || raw.name || raw.hostname || ''
+      item.identityName = item.identityName || raw.identityName || raw.hostname || ''
       item.ip = item.ip && item.ip !== '--' ? item.ip : (raw.ip || raw.ip4 || '')
       item.ip6 = item.ip6 || raw.ip6 || raw.ip6addr || raw.address || ''
       item.expires = item.expires ?? raw.expires
@@ -215,7 +216,7 @@ const terminalDevices = computed(() => {
     }, 'wireless')
   })
   return [...byMac.values()].map(item => {
-    const identity = identifyDevice(item.name || item.hostname, item.mac)
+    const identity = identifyDevice(item.identityName || item.name || item.hostname, item.mac)
     return {
       ...item,
       identity,
