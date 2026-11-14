@@ -273,7 +273,7 @@ async function saveWechat() {
 }
 async function testWechat() {
   await run(async () => {
-    const result = await command('/bin/bash', ['/usr/share/wechatpush/wechatpush', 'test'])
+    const result = await command('/usr/share/wechatpush/wechatpush', ['test'])
     notice.value = String(result.stdout || '').trim().slice(0, 260) || '测试推送命令已执行，请检查手机是否收到消息'
   }, '', false)
 }
