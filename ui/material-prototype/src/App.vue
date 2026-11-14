@@ -287,8 +287,8 @@ const bandwidthSummary = computed(() => {
   const mean = key => points.reduce((sum, p) => sum + Number(p[key] || 0), 0) / points.length
   const peak = key => Math.max(...points.map(p => Number(p[key] || 0)))
   return {
-    rxAverage: mean('rx').toFixed(1), txAverage: mean('tx').toFixed(1),
-    rxPeak: peak('rx').toFixed(1), txPeak: peak('tx').toFixed(1)
+    rxAverage: prettyRate(mean('rx') * 1024), txAverage: prettyRate(mean('tx') * 1024),
+    rxPeak: prettyRate(peak('rx') * 1024), txPeak: prettyRate(peak('tx') * 1024)
   }
 })
 let samplePrevious = null
@@ -564,6 +564,12 @@ function resetSession() {
   toolPanel.value = ''
   toolMessage.value = ''
   serviceData.value = { services: [], available: false }
+  processData.value = { available: false, processes: [] }
+  routeData.value = { available: false, routes: [] }
+  liveRoutes.value = { available: false, lines: [] }
+  wolData.value = { available: false, tool: '', targets: [], interfaces: [], known: [], neighbors: [] }
+  wolTab.value = 'targets'
+  networkView.value = 'interfaces'
   form.password = ''
   errorMessage.value = ''
   activeTab.value = 'home'
@@ -1416,14 +1422,14 @@ onUnmounted(() => {
                   <div>
                     <span>接收 RX · 当前</span>
                     <strong>{{ currentRate?.rx || '--' }}</strong>
-                    <small>平均 {{ bandwidthSummary?.rxAverage ?? '--' }} KB/s</small>
-                    <small>峰值 {{ bandwidthSummary?.rxPeak ?? '--' }} KB/s</small>
+                    <small>平均 {{ bandwidthSummary?.rxAverage ?? '--' }}</small>
+                    <small>峰值 {{ bandwidthSummary?.rxPeak ?? '--' }}</small>
                   </div>
                   <div>
                     <span>发送 TX · 当前</span>
                     <strong>{{ currentRate?.tx || '--' }}</strong>
-                    <small>平均 {{ bandwidthSummary?.txAverage ?? '--' }} KB/s</small>
-                    <small>峰值 {{ bandwidthSummary?.txPeak ?? '--' }} KB/s</small>
+                    <small>平均 {{ bandwidthSummary?.txAverage ?? '--' }}</small>
+                    <small>峰值 {{ bandwidthSummary?.txPeak ?? '--' }}</small>
                   </div>
                 </div>
                 <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
