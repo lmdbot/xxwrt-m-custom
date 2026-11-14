@@ -95,6 +95,12 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
     return { code: 0, stdout: '200 listnetworks 1234567890abcdef home aa:bb:cc:dd:ee:ff OK PRIVATE zt0 10.10.10.2/24\n' }
   }
+  // WeChatPush ACL permits executing its script, but NOT arbitrary /bin/bash.
+  if (object === 'file' && method === 'exec' && params.command === '/bin/bash') return null
+  if (object === 'file' && method === 'exec' && params.command === '/usr/share/wechatpush/wechatpush') {
+    if (params.params?.length === 1 && params.params[0] === 'test') return { code: 0, stdout: 'test sent' }
+    return null
+  }
   if (object === 'file' && method === 'exec') return { code: 0, stdout: 'test sent' }
   if (object === 'iwinfo' && method === 'devices') return { devices: ['wlan0'] }
   if (object === 'iwinfo' && method === 'assoclist') return {
