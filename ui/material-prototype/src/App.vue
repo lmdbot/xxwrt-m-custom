@@ -262,6 +262,8 @@ const errorMessage = ref('')
 const lastUpdated = ref('')
 const snapshot = ref(null)
 const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
+const clientsPrefetching = ref(false)
+let clientFetchToken = 0
 const terminalView = ref('dhcp4')
 const wifiClientData = ref({ available: false, stations: [] })
 const appFilterUsers = ref({ available: false, users: [] })
@@ -340,8 +342,10 @@ const networkCategories = computed(() => [
   { value: 'devices', label: '设备', count: networkHardware.value.wired.length, icon: 'mdi-ethernet' },
   { value: 'wireless', label: '无线', count: networkHardware.value.wireless.length, icon: 'mdi-wifi' }
 ])
-const ethernetPorts = computed(() => networkHardware.value.wired.filter(item =>
-  /^(eth|en|ge|port)/i.test(item.name || '')))
+const ethernetPorts = computed(() => networkHardware.value.wired
+  .filter(item => /^(eth|en|ge|port)/i.test(item.name || ''))
+  .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined,
+    { numeric: true, sensitivity: 'base' })))
 const legacyTools = [
   { id: 'parental', title: '家长控制', subtitle: '应用过滤与访问规则', icon: 'mdi-shield-account-outline' },
   { id: 'routes', title: '路由表', subtitle: '静态与运行路由', icon: 'mdi-routes' },
@@ -468,7 +472,14 @@ watch([activeTab, toolPanel, viewMode, settingsOpen, settingsCategory], async ()
   requestAnimationFrame(resetPageScroll)
 }, { flush: 'sync' })
 function navigateBottomTab(tab) {
-  if (tab === activeTab.value) return
+  if (tab === activeTab.value) {
+    if (tab === 'apps' && toolPanel.value) {
+      toolPanel.value = ''
+      toolMessage.value = ''
+      resetPageScroll()
+    }
+    return
+  }
   resetPageScroll()
   activeTab.value = tab
 }
@@ -615,6 +626,8 @@ function resetSession() {
   client.value = null
   connected.value = false
   snapshot.value = null
+  clientFetchToken++
+  clientsPrefetching.value = false
   clientData.value = { data: [], ipv6: [], leasesAvailable: false }
   wifiClientData.value = { available: false, stations: [] }
   appFilterUsers.value = { available: false, users: [] }
@@ -791,6 +804,7 @@ async function openDevice(device) {
     connected.value = true
     viewMode.value = 'detail'
     activeTab.value = 'home'
+    void fetchClientsInBackground(cached)
     await Promise.all([refreshDashboard(), refreshInstalledRouterApps(cached)])
     return
   }
@@ -841,6 +855,7 @@ async function connect() {
       devices.value = saveDevices(devices.value.map(d => d.id === device.id ? { ...d, rememberPassword: false } : d))
     }
     form.password = ''
+    void fetchClientsInBackground(api)
     await Promise.all([refreshDashboard(), refreshInstalledRouterApps(api)])
   } catch (e) {
     errorMessage.value = shortError(e)
@@ -901,6 +916,32 @@ async function refreshDashboard() {
   }
 }
 
+async function fetchClientsInBackground(api = client.value) {
+  if (!api || !api.session || clientsPrefetching.value) return
+  clientsPrefetching.value = true
+  const token = ++clientFetchToken
+  try {
+    const [leases, stations, oafUsers] = await Promise.allSettled([
+      readClients(api), readWirelessStations(api),
+      api.call('appfilter', 'get_all_users', { flag: 3 }, true)
+    ])
+    if (api !== client.value || token !== clientFetchToken) return
+    if (leases.status === 'fulfilled') clientData.value = leases.value
+    if (stations.status === 'fulfilled' &&
+        (stations.value.available || !wifiClientData.value.available)) {
+      wifiClientData.value = stations.value
+    }
+    if (oafUsers.status === 'fulfilled') {
+      const list = oafUsers.value?.data?.list || oafUsers.value?.list
+      appFilterUsers.value = {
+        available: !!oafUsers.value, users: Array.isArray(list) ? list : []
+      }
+    }
+  } finally {
+    if (token === clientFetchToken) clientsPrefetching.value = false
+  }
+}
+
 async function refreshCurrent() {
   if (!client.value) return
   if (refreshing.value) {
@@ -916,25 +957,7 @@ async function refreshCurrent() {
   refreshing.value = true
   errorMessage.value = ''
   try {
-    if (activeTab.value === 'clients') {
-      const [leases, stations, oafUsers] = await Promise.allSettled([
-        readClients(client.value), readWirelessStations(client.value),
-        client.value.call('appfilter', 'get_all_users', { flag: 3 }, true)
-      ])
-      if (leases.status === 'fulfilled') clientData.value = leases.value
-      else throw leases.reason
-      if (stations.status === 'fulfilled' &&
-          (stations.value.available || !wifiClientData.value.available)) {
-        wifiClientData.value = stations.value
-      }
-      if (oafUsers.status === 'fulfilled') {
-        const rawUsers = oafUsers.value
-        const list = rawUsers?.data?.list || rawUsers?.list
-        appFilterUsers.value = {
-          available: !!rawUsers, users: Array.isArray(list) ? list : []
-        }
-      }
-    }
+    if (activeTab.value === 'clients') await fetchClientsInBackground(client.value)
     if (activeTab.value === 'apps') {
       const [servicesResult] = await Promise.all([
         readServices(client.value), refreshInstalledRouterApps(client.value)
@@ -1795,7 +1818,13 @@ onUnmounted(() => {
                         <v-icon icon="mdi-laptop" size="21"/>
                       </div>
                       <div class="wol-neighbor-card__body">
-                        <strong class="wol-neighbor-card__name">{{ neighbor.name || '未命名设备' }}</strong>
+                        <div class="wol-neighbor-card__header">
+                          <strong class="wol-neighbor-card__name">{{ neighbor.name || '未命名设备' }}</strong>
+                          <v-btn class="wol-neighbor-card__wake" size="small" color="primary" variant="tonal"
+                            prepend-icon="mdi-power" :disabled="!wolData.available || wolBusy"
+                            :loading="wolBusy" :aria-label="'唤醒 ' + (neighbor.name || neighbor.mac)"
+                            @click="sendWakePacket({ name: neighbor.name, mac: neighbor.mac })">唤醒</v-btn>
+                        </div>
                         <div class="wol-neighbor-card__details">
                           <div class="wol-neighbor-card__field">
                             <span>IPv4</span><span class="wol-neighbor-card__value">{{ neighbor.ip || '暂无地址' }}</span>
@@ -1805,10 +1834,6 @@ onUnmounted(() => {
                           </div>
                         </div>
                       </div>
-                      <v-btn class="wol-neighbor-card__wake" size="small" color="primary" variant="tonal"
-                        prepend-icon="mdi-power" :disabled="!wolData.available || wolBusy"
-                        :loading="wolBusy" :aria-label="'唤醒 ' + (neighbor.name || neighbor.mac)"
-                        @click="sendWakePacket({ name: neighbor.name, mac: neighbor.mac })">唤醒</v-btn>
                     </div>
                   </div>
                   <v-alert v-else type="info" variant="tonal" density="compact" class="mt-2">
@@ -1823,23 +1848,13 @@ onUnmounted(() => {
               </v-card>
             </template>
           </template>
-          <div v-if="connected" class="device-page-meta" data-testid="device-page-meta" aria-label="设备地址和更新时间">
-            <div class="device-page-meta-line">
-              <v-icon icon="mdi-lan-connect" size="14"/>
-              <span>{{ displayRouterAddress(client?.baseUrl) }}</span>
-            </div>
-            <div class="device-page-meta-line">
-              <v-icon icon="mdi-clock-outline" size="14"/>
-              <span>{{ lastUpdated ? '更新于 ' + lastUpdated : '已连接' }}</span>
-            </div>
-          </div>
         </template>
         <v-alert v-if="errorMessage && !connected" class="mt-4" type="error" variant="tonal">{{ errorMessage }}</v-alert>
       </v-container>
     </v-main>
 
     <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" :model-value="activeTab" @update:model-value="navigateBottomTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
-      <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable">
+      <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable" @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
