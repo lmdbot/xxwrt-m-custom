@@ -98,7 +98,7 @@ const dataFor = (object, method, params = {}) => {
   // WeChatPush ACL permits executing its script, but NOT arbitrary /bin/bash.
   if (object === 'file' && method === 'exec' && params.command === '/bin/bash') return null
   if (object === 'file' && method === 'exec' && params.command === '/usr/share/wechatpush/wechatpush') {
-    if (params.params?.length === 1 && params.params[0] === 'test') return { code: 0, stdout: 'test sent' }
+    if (params.params?.length === 1 && params.params[0] === 'test') return { code: 0, stdout: '{"url":"https://example.invalid/secret-webhook-key","content":"sensitive request payload"}' }
     return null
   }
   if (object === 'file' && method === 'exec') return { code: 0, stdout: 'test sent' }
@@ -421,7 +421,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('小米 AP 设备信息辅助')).toBeVisible()
   await page.getByRole('button', { name: '基本配置' }).click()
   await page.getByRole('button', { name: '发送测试推送' }).click()
-  await expect(page.getByText('test sent')).toBeVisible()
+  await expect(page.getByText('测试推送命令已执行，请检查接收端是否收到消息')).toBeVisible()
+  await expect(page.getByText('https://example.invalid/secret-webhook-key')).toHaveCount(0)
+  await expect(page.getByText('sensitive request payload')).toHaveCount(0)
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开OpenClash' }).click()
   await expect(page.getByText('代理模式', { exact: true }).first()).toBeVisible()
