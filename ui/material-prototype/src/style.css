@@ -511,3 +511,17 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .wechat-device-card__details span{font-size:10px;color:rgb(var(--v-theme-on-surface-variant))}
 .wechat-device-card__details strong{font-weight:550;font-size:11px;font-variant-numeric:tabular-nums;line-height:1.35;overflow-wrap:anywhere;word-break:break-word}
 @media(max-width:380px){.wechat-device-card{padding:10px}.wechat-device-card__details{column-gap:8px}}
+
+/* Shared app management device/node data table: compact, readable on narrow phones. */
+.app-compact-table{width:100%;min-width:0;border:1px solid rgba(125,142,163,.18);border-radius:13px;overflow:hidden;background:rgb(var(--v-theme-surface))}
+.app-compact-row{display:flex;align-items:flex-start;gap:10px;padding:12px 11px;min-width:0;border-bottom:1px solid rgba(125,142,163,.15)}
+.app-compact-row:last-child{border-bottom:0}
+.app-compact-body{min-width:0;flex:1}
+.app-compact-name{font-size:13px;font-weight:650;line-height:1.35;overflow-wrap:anywhere;word-break:break-word}
+.app-compact-sub{font-size:11px;line-height:1.4;color:rgb(var(--v-theme-on-surface-variant));overflow-wrap:anywhere;word-break:break-word;margin-top:3px;font-variant-numeric:tabular-nums}
+.app-compact-end{display:flex;align-items:center;gap:6px;flex:none}
+.app-compact-status{flex:none;margin-top:2px}
+.app-compact-foot{display:flex;gap:5px 12px;flex-wrap:wrap;margin-top:5px;font-size:10px;color:rgb(var(--v-theme-on-surface-variant));overflow-wrap:anywhere}
+.ssr-node-probe.is-success{color:rgb(var(--v-theme-success))}
+.router-app-floating-feedback .v-snackbar__wrapper{max-width:min(540px,calc(100vw - 28px));border-radius:13px}
+@media(max-width:380px){.app-compact-row{gap:6px;padding:10px 8px}.app-compact-end{gap:4px}}
