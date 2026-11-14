@@ -15,7 +15,7 @@ test('invalid and prerelease tags are not numeric stable versions', () => {
   assert.throws(()=>cmp('bad','2.0.0'),TypeError)
 })
 function release(tag, flags={}) {
-  const name=(flags.legacy?'XX-WRT-M-custom-':'XX-WRT-M-Material-QWRT-')+tag+'.apk'
+  const name=(flags.legacy?'XX-WRT-M-custom-':flags.oldMaterial?'XX-WRT-M-Material-QWRT-':'XX-WRT-Material-')+tag+'.apk'
   return {tag_name:tag,draft:!!flags.draft,prerelease:!!flags.prerelease,
     assets:flags.empty?[]:[{name,state:'uploaded',size:123,
       browser_download_url:'https://github.com/lmdbot/xxwrt-m-custom/releases/download/'+tag+'/'+name}]}
@@ -26,7 +26,7 @@ test('highest numeric official release is chosen irrespective of GitHub chronolo
     release('v2.3.0'),release('v2.21.0'),release('v21.0.0',{draft:true}),release('v2.9.0')
   ])
   assert.equal(r.version,'2.21.0')
-  assert.equal(r.apkName,'XX-WRT-M-Material-QWRT-v2.21.0.apk')
+  assert.equal(r.apkName,'XX-WRT-Material-v2.21.0.apk')
 })
 test('newer release without a Material APK is reported without substituting an older APK', () => {
   const r=selectLatestStableRelease([release('v3.0.0',{legacy:true}),release('v2.9.0')])
@@ -36,4 +36,16 @@ test('unsafe download URL is rejected', () => {
   const r=release('v99.0.0');r.assets[0].browser_download_url='https://example.com/bad.apk'
   assert.equal(selectLatestStableRelease([r]).apkUrl,'')
   assert.equal(selectLatestStableRelease([]),null)
+})
+
+test('new APK name wins over old migration alias, while both are valid', () => {
+  const current = release('v2.0.2')
+  const former = release('v2.0.2', { oldMaterial: true })
+  current.assets.unshift(former.assets[0])
+  const selected = selectLatestStableRelease([current])
+  assert.equal(selected.apkName, 'XX-WRT-Material-v2.0.2.apk')
+  assert.equal(
+    selectLatestStableRelease([release('v2.0.1', {oldMaterial: true})]).apkName,
+    'XX-WRT-M-Material-QWRT-v2.0.1.apk'
+  )
 })
