@@ -483,6 +483,9 @@ watch([activeTab, toolPanel, viewMode, settingsOpen, settingsCategory], async ()
   requestAnimationFrame(resetPageScroll)
 }, { flush: 'sync' })
 function navigateBottomTab(tab) {
+  // Vuetify may emit null when the already selected navigation button is
+  // tapped. Ignore deselection; a tab must always remain selected.
+  if (!pages.some(page => page.id === tab)) return
   if (tab === activeTab.value) {
     if (tab === 'apps' && toolPanel.value) {
       toolPanel.value = ''
@@ -1875,7 +1878,7 @@ onUnmounted(() => {
         <v-btn v-if="!toolWaiting" variant="text" size="small" @click="dismissToolFeedback">关闭</v-btn>
       </template>
     </v-snackbar>
-    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" :model-value="activeTab" @update:model-value="navigateBottomTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
+    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" mandatory :model-value="activeTab" @update:model-value="navigateBottomTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable" @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
