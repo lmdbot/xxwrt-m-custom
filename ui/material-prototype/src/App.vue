@@ -11,6 +11,8 @@ import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
+import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
+import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
 import {
   readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
   bandwidthSample, prettyRate, readWirelessStations
@@ -174,11 +176,61 @@ const hideIpAddresses = computed({
   set: value => { showIp.value = !value }
 })
 const clientSearch = ref('')
+const terminalDevices = computed(() => {
+  const byMac = new Map()
+  const add = (raw, source) => {
+    const mac = String(raw.mac || raw.macaddr || '').toUpperCase()
+    const key = mac || String(raw.ip || raw.ip6addr || raw.address || raw.name || Math.random())
+    let item = byMac.get(key)
+    if (!item) {
+      item = { ...raw, mac, sources: new Set(), wifi: null }
+      byMac.set(key, item)
+    } else {
+      item.name = item.name || raw.name || raw.hostname || ''
+      item.ip = item.ip && item.ip !== '--' ? item.ip : (raw.ip || raw.ip4 || '')
+      item.ip6 = item.ip6 || raw.ip6 || raw.ip6addr || raw.address || ''
+      item.expires = item.expires ?? raw.expires
+    }
+    item.sources.add(source)
+    if (source === 'wireless') item.wifi = raw
+    return item
+  }
+  clientData.value.data.forEach(item => add(item, 'dhcp4'))
+  clientData.value.ipv6.forEach(item => add({
+    ...item, ip: item.ip4 || '', ip6: item.ip || item.ip6addr || '',
+    name: item.name || item.hostname || ''
+  }, 'dhcp6'))
+  wifiClientData.value.stations.forEach(item => {
+    const hint = clientData.value.hints?.[item.mac] || clientData.value.hints?.[item.mac?.toUpperCase()] || {}
+    add({
+      ...item, name: hint.name || '', ip: hint.ipaddrs?.[0] || '',
+      ip6: hint.ip6addrs?.[0] || ''
+    }, 'wireless')
+  })
+  return [...byMac.values()].map(item => {
+    const identity = identifyDevice(item.name || item.hostname, item.mac)
+    return {
+      ...item,
+      identity,
+      kind: deviceKindLabel(identity),
+      displayName: deviceDisplayName(item.name || item.hostname, identity),
+      sources: [...item.sources],
+      active: item.sources.includes('wireless'),
+      privateMac: identity.privateMac
+    }
+  })
+})
 const filteredClients = computed(() => {
   const term = clientSearch.value.trim().toLowerCase()
-  if (!term) return clientData.value.data
-  return clientData.value.data.filter(item =>
-    [item.name, item.ip, item.mac].some(value => String(value || '').toLowerCase().includes(term)))
+  const list = terminalView.value === 'dhcp6'
+    ? terminalDevices.value.filter(item => item.sources.includes('dhcp6'))
+    : terminalView.value === 'wireless'
+      ? terminalDevices.value.filter(item => item.sources.includes('wireless'))
+      : terminalDevices.value.filter(item => item.sources.includes('dhcp4'))
+  if (!term) return list
+  return list.filter(item =>
+    [item.displayName, item.kind, item.ip, item.ip6, item.mac, item.identity.brand?.n]
+      .some(value => String(value || '').toLowerCase().includes(term)))
 })
 const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
@@ -1331,23 +1383,8 @@ onUnmounted(() => {
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
                 aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"/>
               <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="DHCP 终端设备">
-                <v-card v-for="item in filteredClients" :key="item.mac || item.ip" role="listitem"
-                  rounded="lg" variant="outlined" class="terminal-tile" tabindex="0"
-                  :aria-label="'查看终端 ' + item.name" @click="selectedClient = item"
-                  @keydown.enter.prevent="selectedClient = item">
-                  <v-avatar size="42" rounded="lg" color="primary" variant="tonal" class="terminal-icon">
-                    <v-icon icon="mdi-laptop" size="22"/>
-                  </v-avatar>
-                  <div class="terminal-meta">
-                    <div class="terminal-name">{{ item.name || '未知设备' }}</div>
-                    <div class="terminal-ip">{{ item.ip }}</div>
-                    <div class="terminal-mac">{{ item.mac || 'MAC 未知' }}</div>
-                  </div>
-                  <div class="terminal-trailing">
-                    <v-chip size="x-small" variant="tonal" color="secondary" class="terminal-lease-chip">DHCP</v-chip>
-                    <v-icon icon="mdi-chevron-right" size="19" color="secondary"/>
-                  </div>
-                </v-card>
+                <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip"
+                  :item="item" @click="selectedClient = item"/>
               </div>
               <v-empty-state v-else-if="clientData.data.length && clientSearch" icon="mdi-magnify-close"
                 title="没有匹配的终端" text="请尝试设备名称、IP 地址或 MAC 地址"/>
@@ -1356,26 +1393,14 @@ onUnmounted(() => {
                 text="确认 QWRT 的 luci-rpc.getDHCPLeases 接口具有读取权限"/>
               </template>
               <div v-if="terminalView === 'dhcp6'" class="terminal-grid">
-                <v-card v-for="(item,index) in clientData.ipv6" :key="'dhcp6-'+index" variant="outlined" rounded="lg" class="terminal-tile">
-                  <v-avatar size="42" rounded="lg" color="primary" variant="tonal"><v-icon icon="mdi-ip-network" size="22"/></v-avatar>
-                  <div class="terminal-meta">
-                    <div class="terminal-name">{{ item.hostname || item.name || 'IPv6 终端' }}</div>
-                    <div class="terminal-ip terminal-ip6">{{ item.ip6addr || item.address || item.ip6addrs?.join(', ') || '--' }}</div>
-                    <div class="terminal-mac">{{ item.duid || item.macaddr || '--' }}</div>
-                  </div>
-                </v-card>
-                <p v-if="!clientData.ipv6.length" class="muted-hint">没有 DHCPv6 租约，或 QWRT 尚未返回 IPv6 租约。</p>
+                <TerminalDeviceCard v-for="item in filteredClients" :key="'dhcp6-'+(item.mac || item.ip)"
+                  :item="item" @click="selectedClient = item"/>
+                <p v-if="!filteredClients.length" class="muted-hint">没有匹配的 DHCPv6 终端。</p>
               </div>
               <div v-if="terminalView === 'wireless'">
-                <div class="terminal-grid" v-if="wifiClientData.stations.length">
-                  <v-card v-for="(item,index) in wifiClientData.stations" :key="'wifi-'+index" variant="outlined" rounded="lg" class="terminal-tile">
-                    <v-avatar size="42" rounded="lg" color="primary" variant="tonal"><v-icon icon="mdi-wifi" size="22"/></v-avatar>
-                    <div class="terminal-meta">
-                      <div class="terminal-name">{{ item.mac }}</div>
-                      <div class="terminal-ip">{{ item.device }} · 信号 {{ item.signal ?? '--' }} dBm</div>
-                      <div class="terminal-mac">RX {{ item.rxRate ?? '--' }} · TX {{ item.txRate ?? '--' }}</div>
-                    </div>
-                  </v-card>
+                <div class="terminal-grid" v-if="filteredClients.length">
+                  <TerminalDeviceCard v-for="item in filteredClients" :key="'wifi-'+(item.mac || item.ip)"
+                    :item="item" @click="selectedClient = item"/>
                 </div>
                 <v-alert v-else type="info" variant="tonal" density="compact">
                   {{ wifiClientData.available ? '当前没有已关联的无线终端' : 'QWRT 未开放 iwinfo RPC 或当前路由器没有 Wi-Fi 射频' }}
