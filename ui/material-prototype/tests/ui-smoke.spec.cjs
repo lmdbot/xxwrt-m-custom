@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
+let networkBytes = 1024 * 1024
 
 const dataFor = (object, method, params = {}) => {
   if (object === 'session' && method === 'login') return { ubus_rpc_session: '0123456789abcdef0123456789abcdef' }
@@ -32,13 +33,32 @@ const dataFor = (object, method, params = {}) => {
     return { data: 'nf_conntrack_count' === 'nf_conntrack_count' ? '2070' : '65535' }
   }
   if (object === 'luci-rpc' && method === 'getDHCPLeases') {
-    return { dhcp_leases: [{ macaddr: 'AA:BB:CC:DD:EE:FF', ipaddr: '192.168.100.88', hostname: 'Phone', expires: 40000 }], dhcp6_leases: [] }
+    return { dhcp_leases: [{ macaddr: 'AA:BB:CC:DD:EE:FF', ipaddr: '192.168.100.88', hostname: 'Phone', expires: 40000 }], dhcp6_leases: [{hostname:'IPv6-Phone', ip6addr:'2408::1234', duid:'123456'}] }
   }
   if (object === 'luci-rpc' && method === 'getHostHints') return { 'AA:BB:CC:DD:EE:FF': { name: 'Phone' } }
   if (object === 'rc' && method === 'list') return { network: { enabled: true, running: true }, firewall: { enabled: true, running: true } }
   if (object === 'luci.wol' && method === 'stat') return { etherwake: true }
   if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
-  if (object === 'network.device' && method === 'status') return { 'br-lan': { up: true } }
+  if (object === 'file' && method === 'exec' && ['/bin/df','/usr/bin/df'].includes(params.command)) {
+    return { code: 0, stdout: 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/root 204800 102400 102400 50% /\n/dev/loop0 524288 262144 262144 50% /overlay\ntmpfs 1048576 131072 917504 13% /tmp\n' }
+  }
+  if (object === 'file' && method === 'exec' && params.command === '/sbin/ip') {
+    return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n' }
+  }
+  if (object === 'iwinfo' && method === 'devices') return { devices: ['wlan0'] }
+  if (object === 'iwinfo' && method === 'assoclist') return {
+    results: [{mac:'11:22:33:44:55:66', signal:-56, rx:{rate:144}, tx:{rate:130}, connected_time:50}]
+  }
+  if (object === 'network.device' && method === 'status') {
+    if (params.name) {
+      networkBytes += 60 * 1024
+      return { name: params.name, statistics: {
+        rx_bytes: networkBytes, tx_bytes: networkBytes / 2,
+        rx_packets: 1000, tx_packets: 900
+      }}
+    }
+    return { 'br-lan': { up: true } }
+  }
   if (object === 'uci' && method === 'get' && params.config === 'luci-wol') return { values: { demo: { '.type': 'target', '.name': 'demo', name: '测试主机', mac: 'AA:BB:CC:DD:EE:FF', iface: 'br-lan' } } }
   if (object === 'uci' && method === 'get' && params.config === 'network') return { values: { cfg123: { '.type': 'route', interface: 'wan', target: '10.0.0.0/24', gateway: '10.12.4.1' } } }
   if (object === 'uci' && method === 'add') return { section: 'new-wol-target' }
@@ -125,7 +145,18 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('3 / 4 正常')).toBeVisible()
   await expect(page.locator('.status-chip.v-chip')).toHaveCount(4)
   await expect(page.locator('.device-card.v-card')).toBeVisible()
+  await expect(page.getByText('磁盘占用')).toBeVisible()
+  await expect(page.getByText('系统可写空间')).toBeVisible()
+  await expect(page.getByText('临时空间')).toBeVisible()
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
+  await page.getByRole('button', { name: '统计' }).click()
+  await expect(page.getByText('实时带宽')).toBeVisible()
+  await expect(page.getByText('系统负载历史')).toBeVisible()
+  await expect(page.locator('.realtime-chart').first()).toBeVisible({ timeout: 12000 })
+  await page.waitForTimeout(3600)
+  await expect(page.locator('.realtime-chart')).toHaveCount(2)
+  await page.screenshot({ path: 'test-results/screenshots/actual-traffic-history.png', fullPage: true })
+  await page.getByRole('button', { name: '首页' }).click()
 
   // Test page scrolling in the actual logged-in screen.
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -139,6 +170,13 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
 
   await page.getByRole('button', { name: '终端' }).click()
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
+  await page.getByRole('tab', { name: /DHCPv6/ }).click()
+  await expect(page.getByText('IPv6-Phone')).toBeVisible()
+  await page.getByRole('tab', { name: /无线终端/ }).click()
+  await expect(page.getByText('11:22:33:44:55:66')).toBeVisible()
+  await page.getByRole('tab', { name: /应用用户/ }).click()
+  await expect(page.getByText('Phone')).toBeVisible()
+  await page.getByRole('tab', { name: /DHCPv4/ }).click()
   await expect(page.getByText('Phone')).toBeVisible()
   await expect(page.locator('.terminal-tile.v-card')).toHaveCount(1)
   await page.getByRole('textbox', { name: '搜索名称、IP 或 MAC' }).fill('NO-MATCH')
@@ -153,17 +191,24 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '网络' }).click()
   await expect(page.getByText('10.12.4.5').first()).toBeVisible()
   await page.getByRole('button', { name: '应用' }).click()
-  await expect(page.getByText('firewall')).toBeVisible()
-  await expect(page.getByText('基础版管理工具')).toBeVisible()
-  await page.getByRole('button', { name: '进程管理' }).click()
+  await expect(page.getByText('应用管理')).toBeVisible()
+  await expect(page.locator('.app-launcher-tile')).toHaveCount(7)
+  await expect(page.getByText('firewall')).toHaveCount(0)
+  await page.getByRole('button', { name: '打开进程' }).click()
   await expect(page.getByText('rpcd')).toBeVisible()
-  await page.getByRole('button', { name: '静态路由' }).click()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开启动项' }).click()
+  await expect(page.getByText('firewall')).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开路由表' }).click()
   await expect(page.getByText('10.0.0.0/24')).toBeVisible()
-  await page.getByRole('button', { name: '网络唤醒' }).click()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开网络唤醒' }).click()
   await expect(page.getByText('测试主机')).toBeVisible()
   await page.getByRole('button', { name: '唤醒', exact: true }).click()
   await expect(page.getByText(/已向 测试主机 发送网络唤醒包/)).toBeVisible()
-  await page.getByRole('button', { name: '家长控制' }).click()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开家长控制' }).click()
   await expect(page.getByText('OpenAppFilter 家长控制')).toBeVisible()
   await page.getByRole('tab', { name: '应用分类' }).click()
   await expect(page.getByText('社交', { exact: false })).toBeVisible()
@@ -172,11 +217,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('tab', { name: '高级设置' }).click()
   await page.getByRole('button', { name: '保存高级设置' }).click()
   await expect(page.getByText('高级设置：已提交')).toBeVisible()
-  await page.getByRole('button', { name: '恢复出厂' }).click()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开恢复出厂' }).click()
   await expect(page.getByText('恢复 QWRT 出厂设置')).toBeVisible()
   await expect(page.getByRole('button', { name: '确认恢复出厂' })).toBeDisabled()
   await page.getByRole('button', { name: '取消' }).click()
-  await page.getByRole('button', { name: '重启路由器' }).click()
+  await page.getByRole('button', { name: '打开重启设备' }).click()
   await expect(page.getByText('确认重启 QWRT')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()
 
