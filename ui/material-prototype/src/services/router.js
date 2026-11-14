@@ -219,45 +219,133 @@ export async function readDashboard(client) {
   return parseDashboard(result)
 }
 
+/**
+ * A DHCP lease or a getHostHints IP is historical information, not proof
+ * that the device is online. Only a REACHABLE neighbour or an associated
+ * Wi-Fi station is affirmative evidence. Missing and STALE entries are unknown.
+ */
+function parseNeighborTables(responses) {
+  const byIp = new Map()
+  const byMac = new Map()
+  let available = false
+  for (const response of responses) {
+    if (typeof response?.stdout !== 'string' || Number(response?.code ?? 0) !== 0) continue
+    available = true
+    for (const line of response.stdout.split(/\r?\n/)) {
+      const parts = line.trim().split(/\s+/)
+      if (parts.length < 3 || !parts.includes('dev')) continue
+      const state = parts[parts.length - 1]?.toUpperCase()
+      if (!['REACHABLE', 'STALE', 'DELAY', 'PROBE', 'FAILED', 'INCOMPLETE', 'PERMANENT', 'NOARP'].includes(state)) continue
+      const status = state === 'REACHABLE' ? 'online' : state === 'FAILED' ? 'offline' : 'unknown'
+      const macIndex = parts.indexOf('lladdr')
+      const mac = macIndex >= 0 ? normalizeMac(parts[macIndex + 1]).toUpperCase() : ''
+      // A FAILED entry often omits lladdr, so matching by IP is essential.
+      byIp.set(parts[0].split('%')[0].toLowerCase(), status)
+      if (mac) {
+        const prior = byMac.get(mac)
+        if (status === 'online' || !prior || (prior === 'offline' && status === 'unknown')) {
+          byMac.set(mac, status)
+        }
+      }
+    }
+  }
+  return { available, byIp, byMac }
+}
+
+function neighborStatus(table, mac, ...addresses) {
+  const states = addresses.flatMap(address => {
+    const value = table.byIp.get(String(address || '').toLowerCase())
+    return value ? [value] : []
+  })
+  const byMac = table.byMac.get(String(mac || '').toUpperCase())
+  if (byMac) states.push(byMac)
+  if (states.includes('online')) return 'online'
+  if (states.includes('unknown')) return 'unknown'
+  return states.includes('offline') ? 'offline' : 'unknown'
+}
+
+function validIPv4(address) {
+  const parts = String(address || '').split('.')
+  return parts.length === 4 && parts.every(part => /^\d{1,3}$/.test(part) && Number(part) <= 255)
+}
+
+const NEIGHBOR_REQUESTS = [
+  ['file', 'exec', { command: '/sbin/ip', params: ['-4', 'neigh', 'show'], env: null }],
+  ['file', 'exec', { command: '/sbin/ip', params: ['-6', 'neigh', 'show'], env: null }]
+]
+
 export async function readClients(client) {
-  const [leases, hints] = await client.batch([
+  const [leases, hints, ipv4Neighbors, ipv6Neighbors] = await client.batch([
     ['luci-rpc', 'getDHCPLeases'],
-    ['luci-rpc', 'getHostHints']
+    ['luci-rpc', 'getHostHints'],
+    ...NEIGHBOR_REQUESTS
   ])
+  let neighbors = parseNeighborTables([ipv4Neighbors, ipv6Neighbors])
+
+  // Refresh the kernel ARP cache using bounded router-side IPv4 probes.
+  // Never infer offline status from missing ICMP responses: devices may block
+  // ping while still answering ARP. Read the resulting neighbour states.
+  if (neighbors.available && Array.isArray(leases?.dhcp_leases)) {
+    const ips = [...new Set(leases.dhcp_leases.map(item => item.ipaddr)
+      .filter(validIPv4))]
+      .filter(ip => neighbors.byIp.get(ip) !== 'online')
+      .slice(0, 48)
+    if (ips.length) {
+      const ping = ip => client.call('file', 'exec', {
+        command: '/bin/ping', params: ['-c', '1', '-W', '1', ip], env: null
+      }, true).catch(() => null)
+      // Check command permission first rather than sending many denied calls.
+      const first = await ping(ips[0])
+      if (first != null && Number(first.code ?? 0) !== 127) {
+        let next = 1
+        await Promise.all(Array.from({ length: Math.min(6, ips.length - 1) }, async () => {
+          while (next < ips.length) await ping(ips[next++])
+        }))
+      }
+      const fresh = await client.batch(NEIGHBOR_REQUESTS).catch(() => [])
+      const refreshed = parseNeighborTables(fresh)
+      if (refreshed.available) neighbors = refreshed
+    }
+  }
+
   const names = hints || {}
   const lookupHint = mac => names[mac] || names[mac.toUpperCase()] || names[mac.toLowerCase()] || {}
   const data = (leases?.dhcp_leases || []).map(item => {
     const mac = normalizeMac(item.macaddr || item.mac).toUpperCase()
     const hint = lookupHint(mac)
+    const ip = item.ipaddr || hint.ipaddrs?.[0] || '--'
+    const ip6 = hint.ip6addrs?.[0] || ''
+    const state = neighborStatus(neighbors, mac, ip, ip6)
     return {
-      mac,
-      ip: item.ipaddr || hint.ipaddrs?.[0] || '--',
-      ip6: hint.ip6addrs?.[0] || '',
+      mac, ip, ip6,
       name: item.hostname || hint.name || '',
       expires: item.expires,
       active: Number(item.expires) > 0,
-      online: Boolean(hint.ipaddrs?.length || hint.ip6addrs?.length),
-      onlineKnown: hints != null,
+      online: state === 'online',
+      onlineKnown: state !== 'unknown',
       source: 'dhcp4'
     }
   })
   const ipv6 = (leases?.dhcp6_leases || []).map(item => {
     const mac = normalizeMac(item.macaddr || item.mac) || macFromDuid(item.duid)
     const hint = lookupHint(mac)
+    const ip = item.ip6addr || item.address || item.ip6addrs?.[0] || '--'
+    const ip4 = hint.ipaddrs?.[0] || ''
+    const state = neighborStatus(neighbors, mac, ip, ip4)
     return {
       ...item,
       mac: mac.toUpperCase(),
       name: item.hostname || hint.name || '',
-      ip: item.ip6addr || item.address || item.ip6addrs?.[0] || '--',
-      ip4: hint.ipaddrs?.[0] || '',
-      online: Boolean(hint.ipaddrs?.length || hint.ip6addrs?.length),
-      onlineKnown: hints != null,
+      ip, ip4,
+      online: state === 'online',
+      onlineKnown: state !== 'unknown',
       source: 'dhcp6'
     }
   })
   return {
     data, ipv6, hints,
     hintsAvailable: Boolean(hints),
+    neighborsAvailable: neighbors.available,
     leasesAvailable: Boolean(leases)
   }
 }
