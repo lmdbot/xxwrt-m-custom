@@ -281,6 +281,37 @@ const handler = async route => {
   })
 }
 
+test('outlined form labels do not overlap placeholders or entered text on narrow Android screens', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+
+  for (const label of ['设备名称 / 备注', 'IP / 域名 / 端口', '登录用户名']) {
+    const input = page.getByRole('textbox', { name: label })
+    const field = input.locator('xpath=ancestor::div[contains(@class, "v-field")]')
+    await expect(field).toHaveClass(/v-field--active/)
+
+    // The painted title must remain above the editable text zone both empty
+    // and filled; browser autofocus, prefilled values and placeholders must
+    // never return it to the text baseline.
+    const clearOfText = () => field.evaluate(element => {
+      const textInput = element.querySelector('input')
+      const textRect = textInput.getBoundingClientRect()
+      const visibleLabels = [...element.querySelectorAll('.v-field-label')]
+        .filter(node => {
+          const style = getComputedStyle(node)
+          return style.visibility !== 'hidden' && Number(style.opacity) > 0.5
+        })
+      return visibleLabels.length > 0 && visibleLabels.every(node =>
+        node.getBoundingClientRect().bottom < textRect.top + textRect.height * 0.6)
+    })
+    await expect.poll(clearOfText).toBe(true)
+    await input.fill('test-value')
+    await expect.poll(clearOfText).toBe(true)
+  }
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+})
+
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
   const errors = []
   page.on('pageerror', e => errors.push(e.message))
