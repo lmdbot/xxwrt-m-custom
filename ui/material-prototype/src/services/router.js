@@ -279,28 +279,46 @@ const NEIGHBOR_REQUESTS = [
  * It actively probes devices and can enrich the list using MiWiFi Mesh info.
  * Never use an old cache while the WeChatPush service is stopped.
  */
-function parseWechatPushStates(file, services) {
-  const result = new Map()
-  if (!services?.wechatpush?.running || typeof file?.data !== 'string' || file.data.length > 524288) return result
+function parseWechatPushDevices(file, services) {
+  const byMac = new Map()
+  const byIp = new Map()
+  if (!services?.wechatpush?.running || typeof file?.data !== 'string' || file.data.length > 524288) {
+    return { byMac, byIp }
+  }
   try {
     const raw = JSON.parse(file.data)
-    if (!Array.isArray(raw?.devices)) return result
+    if (!Array.isArray(raw?.devices)) return { byMac, byIp }
     for (const item of raw.devices.slice(0, 1024)) {
       const mac = normalizeMac(item.mac || '').toUpperCase()
+      const ip = String(item.ip || '').trim()
       if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) continue
-      const status = item.status
-      if (status !== 'online' && status !== 'offline') continue
-      const previous = result.get(mac)
-      if (!previous || status === 'online') result.set(mac, status)
+      const status = ['online', 'offline', 'unknown'].includes(item.status) ? item.status : ''
+      const candidateName = String(item.name || '').trim()
+      const name = candidateName && !['unknown', 'null', mac.toLowerCase(), mac].includes(candidateName.toLowerCase())
+        ? candidateName : ''
+      const entry = { mac, ip, name, status }
+      const previous = byMac.get(mac)
+      // Prefer a recent online record to a duplicate stale record.
+      if (!previous || (previous.status !== 'online' && status === 'online')) byMac.set(mac, entry)
+      if (ip && validIPv4(ip) && !byIp.has(ip)) byIp.set(ip, entry)
     }
   } catch (_) { /* Missing or partially written monitor cache is not evidence. */ }
-  return result
+  return { byMac, byIp }
 }
 
-function combineClientStates(neighbor, monitored) {
-  if (neighbor === 'online' || monitored === 'online') return 'online'
-  if (neighbor === 'offline' || monitored === 'offline') return 'offline'
-  return 'unknown'
+function monitoredClient(monitor, mac, ip) {
+  const normalized = String(mac || '').toUpperCase()
+  if (monitor.byMac.has(normalized)) return monitor.byMac.get(normalized)
+  const found = monitor.byIp.get(String(ip || ''))
+  // IP fallback is useful when a DHCPv6 DUID lacks an Ethernet MAC.
+  return found && (!normalized || !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalized)) ? found : null
+}
+
+function preferredClientStatus(monitored, neighbor) {
+  // A live monitor record is authoritative for its matched device.
+  // Only a missing or unverified monitor state falls back to ARP/NDP.
+  return monitored?.status === 'online' || monitored?.status === 'offline'
+    ? monitored.status : neighbor
 }
 
 export async function readClients(client) {
@@ -339,7 +357,7 @@ export async function readClients(client) {
     }
   }
 
-  const monitorStates = parseWechatPushStates(wechatDevices, runningServices)
+  const monitored = parseWechatPushDevices(wechatDevices, runningServices)
   const names = hints || {}
   const lookupHint = mac => names[mac] || names[mac.toUpperCase()] || names[mac.toLowerCase()] || {}
   const data = (leases?.dhcp_leases || []).map(item => {
@@ -347,10 +365,11 @@ export async function readClients(client) {
     const hint = lookupHint(mac)
     const ip = item.ipaddr || hint.ipaddrs?.[0] || '--'
     const ip6 = hint.ip6addrs?.[0] || ''
-    const state = combineClientStates(neighborStatus(neighbors, mac, ip, ip6), monitorStates.get(mac))
+    const monitorDevice = monitoredClient(monitored, mac, ip)
+    const state = preferredClientStatus(monitorDevice, neighborStatus(neighbors, mac, ip, ip6))
     return {
       mac, ip, ip6,
-      name: item.hostname || hint.name || '',
+      name: monitorDevice?.name || item.hostname || hint.name || '',
       expires: item.expires,
       active: Number(item.expires) > 0,
       online: state === 'online',
@@ -363,11 +382,12 @@ export async function readClients(client) {
     const hint = lookupHint(mac)
     const ip = item.ip6addr || item.address || item.ip6addrs?.[0] || '--'
     const ip4 = hint.ipaddrs?.[0] || ''
-    const state = combineClientStates(neighborStatus(neighbors, mac, ip, ip4), monitorStates.get(mac.toUpperCase()))
+    const monitorDevice = monitoredClient(monitored, mac, ip4)
+    const state = preferredClientStatus(monitorDevice, neighborStatus(neighbors, mac, ip, ip4))
     return {
       ...item,
       mac: mac.toUpperCase(),
-      name: item.hostname || hint.name || '',
+      name: monitorDevice?.name || item.hostname || hint.name || '',
       ip, ip4,
       online: state === 'online',
       onlineKnown: state !== 'unknown',
@@ -378,7 +398,7 @@ export async function readClients(client) {
     data, ipv6, hints,
     hintsAvailable: Boolean(hints),
     neighborsAvailable: neighbors.available,
-    monitorAvailable: monitorStates.size > 0,
+    monitorAvailable: monitored.byMac.size > 0,
     leasesAvailable: Boolean(leases)
   }
 }
