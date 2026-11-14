@@ -468,11 +468,14 @@ const MAC_PATTERN = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i
 
 /** Main branch: luci.wol.stat + uci.get(luci-wol) + host hints. */
 export async function readWolDevices(client) {
-  const [stat, config, hints, nics] = await client.batch([
+  const [stat, config, hints, nics, wechatDevices, services, wechatProcd] = await client.batch([
     ['luci.wol', 'stat'],
     ['uci', 'get', { config: 'luci-wol' }],
     ['luci-rpc', 'getHostHints'],
-    ['network.device', 'status']
+    ['network.device', 'status'],
+    ['file', 'read', { path: '/tmp/wechatpush/devices.json' }],
+    ['rc', 'list'],
+    ['service', 'list', { name: 'wechatpush' }]
   ])
   const values = config?.values || {}
   const targets = Object.entries(values)
@@ -488,11 +491,25 @@ export async function readWolDevices(client) {
   const tool = stat?.etherwake ? '/usr/bin/etherwake' : stat?.wakeonlan ? '/usr/bin/wakeonlan' : ''
   const interfaces = Array.isArray(nics) ? nics.map(n => n.name).filter(Boolean)
     : Object.keys(nics || {}).filter(n => n !== 'lo')
-  const known = Object.entries(hints || {}).map(([mac, item]) => ({
-    name: String(item?.name || '未知设备'),
-    mac: mac.toUpperCase(),
-    ip: item?.ipaddrs?.[0] || ''
-  })).filter(item => MAC_PATTERN.test(item.mac))
+  // Match by MAC, not IP, so a DHCP address change cannot attribute the
+  // wrong WeChatPush display name to another device.
+  const monitor = parseWechatPushDevices(wechatDevices, services, wechatProcd)
+  const known = Object.entries(hints || {}).map(([mac, item]) => {
+    const normalizedMac = normalizeMac(mac).toUpperCase()
+    const monitored = monitor.byMac.get(normalizedMac)
+    return {
+      name: monitored?.name || String(item?.name || '未知设备'),
+      mac: normalizedMac, ip: item?.ipaddrs?.[0] || monitored?.ip || ''
+    }
+  }).filter(item => MAC_PATTERN.test(item.mac))
+  const knownMacs = new Set(known.map(item => item.mac))
+  // Online WeChatPush devices that are not yet present in host hints can be
+  // woken from the same list; never pull stale offline records into it.
+  for (const [mac, device] of monitor.byMac) {
+    if (device.status === 'online' && !knownMacs.has(mac)) {
+      known.push({ name: device.name || '未知设备', mac, ip: device.ip || '' })
+    }
+  }
   const savedMacs = new Set(targets.map(item => item.mac))
   const neighbors = known.filter(item => !savedMacs.has(item.mac))
   return { available, tool, targets, interfaces, known, neighbors }
