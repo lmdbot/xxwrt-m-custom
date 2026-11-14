@@ -566,48 +566,79 @@ function parseZtJson(stdout) {
   } catch (_) { return [] }
 }
 async function loadZeroTier() {
-  const [cfg, rc] = await Promise.all([getUci('zerotier'), services()])
+  // Modern LuCI ZeroTier extensions expose a scoped read-only RPC. Prefer it
+  // over file.exec, which standard OpenWrt ACLs intentionally restrict.
+  const [cfg, rc, rpcNetworks, rpcStatus] = await Promise.all([
+    getUci('zerotier'), services(),
+    props.client.call('luci-zerotier', 'get_networks_peers', {}, true),
+    props.client.call('luci-zerotier', 'status', {}, true)
+  ])
   const list = sections(cfg), global = sectionOf(list, 'global', 'zerotier')
-  let runtime = [], node = null, runtimeUnavailable = false
-  const cli = async params => props.client.call('file', 'exec', {
-    command: '/usr/bin/zerotier-cli', params, env: null
-  }, true)
-  try {
-    const [networksResult, infoResult] = await Promise.all([
-      cli(['-j', 'listnetworks']), cli(['-j', 'info'])
-    ])
-    if (networksResult && Number(networksResult.code ?? 1) === 0) {
-      runtime = parseZtJson(networksResult.stdout)
-    }
-    if (infoResult && Number(infoResult.code ?? 1) === 0) {
-      try {
-        const info = JSON.parse(String(infoResult.stdout || '{}'))
-        node = {
-          address: String(info.address || info.id || ''),
-          version: String(info.version || ''),
-          online: info.online === true || String(info.status || '').toUpperCase() === 'ONLINE'
-        }
-      } catch (_) {}
-    }
-    if (!runtime.length) {
-      const plain = await cli(['listnetworks'])
-      if (plain && Number(plain.code ?? 1) === 0) runtime = parseZt(plain.stdout)
-      else runtimeUnavailable = true
-    }
-    if (!node) {
-      const plain = await cli(['info'])
-      const fields = String(plain?.stdout || '').trim().replace(/^200\s+info\s+/, '').split(/\s+/)
-      if (plain && Number(plain.code ?? 1) === 0 && /^[a-f0-9]{10}$/i.test(fields[0] || '')) {
-        node = { address: fields[0], version: fields[1] || '', online: fields[2] === 'ONLINE' }
+  const networks = list.filter(x => x.type === 'network').map(x => ({
+    section: x.id, id: String(x.options.id || ''), enabled: String(x.options.enabled ?? '1') !== '0'
+  }))
+  let runtime = [], node = null, runtimeUnavailable = false, runtimeSource = ''
+  if (rpcNetworks && Number(rpcNetworks.code ?? 0) === 0) {
+    runtime = parseZtJson(rpcNetworks.networks)
+    if (runtime.length) runtimeSource = 'luci-zerotier'
+  }
+  if (rpcStatus && typeof rpcStatus.identity === 'string' && rpcStatus.identity) {
+    node = { address: rpcStatus.identity, online: null, version: '' }
+  }
+  if (!runtime.length || !node) {
+    const cli = async params => props.client.call('file', 'exec', {
+      command: '/usr/bin/zerotier-cli', params, env: null
+    }, true)
+    try {
+      const [networkResult, infoResult] = await Promise.all([
+        !runtime.length ? cli(['-j', 'listnetworks']) : Promise.resolve(null),
+        !node ? cli(['-j', 'info']) : Promise.resolve(null)
+      ])
+      if (networkResult && Number(networkResult.code ?? 1) === 0) {
+        runtime = parseZtJson(networkResult.stdout)
+        if (runtime.length) runtimeSource = 'zerotier-cli'
       }
-    }
-  } catch (_) { runtimeUnavailable = true }
+      if (infoResult && Number(infoResult.code ?? 1) === 0) {
+        try {
+          const info = JSON.parse(String(infoResult.stdout || '{}'))
+          node = {
+            address: String(info.address || info.id || ''),
+            version: String(info.version || ''),
+            online: info.online === true || String(info.status || '').toUpperCase() === 'ONLINE'
+          }
+        } catch (_) {}
+      }
+      if (!runtime.length) {
+        const plain = await cli(['listnetworks'])
+        if (plain && Number(plain.code ?? 1) === 0) {
+          runtime = parseZt(plain.stdout)
+          if (runtime.length) runtimeSource = 'zerotier-cli'
+        }
+      }
+      if (!node) {
+        const plain = await cli(['info'])
+        const fields = String(plain?.stdout || '').trim().replace(/^200\s+info\s+/, '').split(/\s+/)
+        if (plain && Number(plain.code ?? 1) === 0 && /^[a-f0-9]{10}$/i.test(fields[0] || '')) {
+          node = { address: fields[0], version: fields[1] || '', online: fields[2] === 'ONLINE' }
+        }
+      }
+    } catch (_) { /* Denied CLI execution is not proof that the daemon is down. */ }
+  }
+  // Even without a runtime RPC, show networks we can safely read from UCI,
+  // with explicit unknown status rather than an alarming, misleading error.
+  if (!runtime.length && networks.length) {
+    runtimeUnavailable = true
+    runtimeSource = 'config'
+    runtime = networks.map(item => ({
+      id: item.id, name: '', mac: '', status: '未确认',
+      type: '', portDeviceName: '', addresses: '', enabled: item.enabled
+    }))
+  } else if (!runtime.length) {
+    runtimeUnavailable = true
+  }
   zt.value = {
-    available: !!global, section: global?.id || '',
-    networks: list.filter(x => x.type === 'network').map(x => ({
-      section: x.id, id: String(x.options.id || ''), enabled: String(x.options.enabled ?? '1') !== '0'
-    })),
-    service: rc?.zerotier || null, runtime, node, runtimeUnavailable
+    available: !!global, section: global?.id || '', networks,
+    service: rc?.zerotier || null, runtime, node, runtimeUnavailable, runtimeSource
   }
   ztEnabled.value = String(global?.options.enabled || '0') === '1'
 }
@@ -958,13 +989,14 @@ defineExpose({ refresh })
         <h3 class="router-app-section-title mt-4">当前运行网络信息</h3>
         <div v-if="zt.node" class="router-app-summary">
           <div><span>节点 ID</span><strong>{{ zt.node.address || '--' }}</strong></div>
-          <div><span>节点状态</span><strong>{{ zt.node.online ? 'ONLINE' : 'OFFLINE' }}</strong></div>
+          <div><span>节点状态</span><strong>{{ zt.node.online == null ? '未确认' : zt.node.online ? 'ONLINE' : 'OFFLINE' }}</strong></div>
           <div><span>ZeroTier 版本</span><strong>{{ zt.node.version || '--' }}</strong></div>
         </div>
-        <v-alert v-if="zt.runtimeUnavailable && !zt.runtime.length" type="info" variant="tonal" density="compact" class="mt-2">无法读取 zerotier-cli 运行状态，请检查 CLI 和 RPC 权限。</v-alert>
+        <p v-if="zt.runtimeUnavailable" class="muted-hint mt-2">当前路由器未开放实时 ZeroTier 状态读取接口；以下展示已保存的网络配置，运行状态待确认。</p>
+        <p v-else class="muted-hint mt-2">运行信息来源：{{ zt.runtimeSource === 'luci-zerotier' ? 'ZeroTier 专用 RPC' : 'ZeroTier CLI' }}</p>
         <v-card v-for="x in zt.runtime" :key="x.id" variant="outlined" rounded="lg" class="zt-network-card mt-3" style="padding:12px">
           <div class="d-flex align-center justify-space-between ga-2"><strong>{{ x.name || '未命名网络' }}</strong>
-            <v-chip size="x-small" :color="x.status === 'OK' ? 'success' : 'warning'" variant="tonal">{{ x.status || '状态未知' }}</v-chip>
+            <v-chip size="x-small" :color="x.status === 'OK' ? 'success' : x.status === '未确认' ? 'secondary' : 'warning'" variant="tonal">{{ x.status || '状态未知' }}</v-chip>
           </div>
           <div class="muted-hint mt-2">网络 ID：{{ x.id }}</div>
           <div class="muted-hint">虚拟网卡：{{ x.portDeviceName || '--' }}</div>
@@ -972,7 +1004,7 @@ defineExpose({ refresh })
           <div class="muted-hint">分配 IP：{{ x.addresses || '暂无' }}</div>
           <div class="muted-hint">网络类型：{{ x.type || '--' }}</div>
         </v-card>
-        <v-alert v-if="!zt.runtime.length && !zt.runtimeUnavailable" type="info" variant="tonal" density="compact">当前没有可显示的 ZeroTier 运行网络。</v-alert>
+        <v-alert v-if="!zt.runtime.length" type="info" variant="tonal" density="compact">当前没有已配置或可读取的 ZeroTier 网络。</v-alert>
         <h3 class="router-app-section-title mt-4">加入新网络</h3><v-text-field v-model.trim="ztNewId" label="Network ID" placeholder="16 位十六进制字符" density="comfortable" variant="outlined" maxlength="16"/><v-btn color="primary" variant="tonal" :disabled="busy" @click="addZt">加入网络并重启服务</v-btn>
         <p class="muted-hint mt-2">加入后仍需在 ZeroTier Central 中授权此设备。默认启用 allowManaged，关闭 allowDefault 和 allowDNS。</p>
       </template>
