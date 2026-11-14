@@ -18,6 +18,18 @@
 
 > 当前应用保留 Material 版本独立的应用名称、包名和图标，可以与此前不同包名的版本并存安装。版本信息以实际 APK 为准。
 
+## 界面预览
+
+以下图片来自当前 Material 2.0 的 Playwright UI 自动化测试。**路由器地址、设备名称及各项指标为测试示例数据**，截图用于展示应用界面。
+
+| 设备列表 | 系统首页 | 统计监控 |
+| :---: | :---: | :---: |
+| [<img src="docs/screenshots/devices.webp" alt="多路由器设备列表" width="245">](docs/screenshots/devices.webp) | [<img src="docs/screenshots/overview.webp" alt="系统首页" width="245">](docs/screenshots/overview.webp) | [<img src="docs/screenshots/statistics.webp" alt="流量统计" width="245">](docs/screenshots/statistics.webp) |
+| **终端设备** | **网络管理** | **防火墙** |
+| [<img src="docs/screenshots/clients.webp" alt="终端设备" width="245">](docs/screenshots/clients.webp) | [<img src="docs/screenshots/network.webp" alt="网络管理" width="245">](docs/screenshots/network.webp) | [<img src="docs/screenshots/firewall.webp" alt="防火墙" width="245">](docs/screenshots/firewall.webp) |
+
+点击图片可查看对应截图。
+
 ## 功能概览
 
 ### 主要页面
