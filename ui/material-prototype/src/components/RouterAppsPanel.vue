@@ -15,9 +15,6 @@ const floatingNoticeText = computed(() => error.value || notice.value ||
     : carbonChecking.value ? (carbonCheckText.value || '正在检查 Carbon 更新…')
     : busy.value ? '正在提交配置，请稍候…' : ''))
 const floatingNoticeColor = computed(() => error.value ? 'error' : notice.value ? 'success' : 'primary')
-watch([floatingNoticeText, operationWaiting], () => {
-  floatingNoticeOpen.value = Boolean(floatingNoticeText.value)
-})
 function dismissFloatingNotice() {
   if (operationWaiting.value) return
   floatingNoticeOpen.value = false
@@ -46,6 +43,9 @@ const ssrComponents = [
 ]
 const carbonChecking = ref(false)
 const carbonCheckText = ref('')
+watch([floatingNoticeText, operationWaiting], () => {
+  floatingNoticeOpen.value = Boolean(floatingNoticeText.value)
+})
 const ssr = ref({ available: false, section: '', global: {}, nodes: [], service: null })
 const ssrNode = ref('nil')
 const wechat = ref({ available: false, section: '', service: null })
