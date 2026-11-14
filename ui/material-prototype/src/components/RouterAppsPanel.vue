@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
+import { CapacitorHttp } from '@capacitor/core'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
@@ -8,6 +9,8 @@ const readyKind = ref('')
 const ssrTab = ref('nodes')
 const ssrProbeBusy = ref(false)
 const ssrProbes = ref({})
+const ssrProbeUnavailable = ref('')
+const ssrProbeMode = ref('')
 const ssrComponent = ref('xray')
 const ssrComponentResult = ref(null)
 const ssrComponentChecked = ref(false)
@@ -229,50 +232,101 @@ async function applySsrNode() {
     await service('ssr')
   }, '节点已切换，ShadowSocksR Plus+ 已重启')
 }
-async function probeSsrNode(node) {
-  if (!node.host || !/^\d+$/.test(node.port) || Number(node.port) < 1 || Number(node.port) > 65535) {
-    ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '不支持探测：节点地址或端口缺失' } }
-    return
-  }
-  ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'testing', text: '探测中' } }
+async function probeSsrViaLuci(node) {
+  // The upstream SSR Plus+ plugin already implements /ping with the right
+  // per-protocol logic (TCP, WebSocket and UDP), so prefer it to shell exec.
+  // The ubus session is only sent to the configured router origin.
+  const base = String(props.client?.baseUrl || '')
+  const session = String(props.client?.session || '')
+  if (!base || !session || !/^[0-9a-f]{32}$/i.test(session)) return null
+  const url = base + '/cgi-bin/luci/admin/services/shadowsocksr/ping?sid=' + encodeURIComponent(node.id)
+  try {
+    const response = await CapacitorHttp.get({
+      url, connectTimeout: 4000, readTimeout: 12000,
+      headers: {
+        Accept: 'application/json',
+        Cookie: 'sysauth=' + session + '; sysauth_http=' + session
+      }
+    })
+    if (response.status !== 200) return null
+    let data = response.data
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data) } catch (_) { return null }
+    }
+    // A redirected LuCI login page is HTML, not a probe result.
+    if (!data || typeof data !== 'object' || !Object.hasOwn(data, 'socket')) return null
+    const ping = Number(data.ping)
+    const connected = data.socket === true || data.socket === 1
+    return { status: connected ? 'ok' : 'failed',
+      text: connected
+        ? ('插件探测可用' + (Number.isFinite(ping) && ping > 0 ? ' · ' + Math.round(ping) + 'ms' : ''))
+        : '插件检测连接不可用' }
+  } catch (_) { return null }
+}
+async function probeSsrViaExec(node) {
   const start = Date.now()
   try {
-    // Bound arguments, not a shell command. A successful TCP connect indicates
-    // port reachability, NOT that proxy authentication or tunneling works.
     let result = await props.client.call('file', 'exec', {
       command: '/bin/nc', params: ['-z', '-w', '2', node.host, node.port], env: null
     }, true)
-    if (!result) {
+    if (!result || [126,127].includes(Number(result.code))) {
       result = await props.client.call('file', 'exec', {
-        command: '/usr/bin/nping', params: ['--tcp-connect', '-q', '-c', '1', '-p', node.port, node.host], env: null
+        command: '/usr/bin/nping',
+        params: ['--tcp-connect', '-q', '-c', '1', '-p', node.port, node.host], env: null
       }, true)
     }
-    if (!result) {
-      ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '路由器未开放节点 TCP 探测 RPC，或缺少 nc/nping' } }
-      return
-    }
-    const ms = Date.now() - start
+    if (!result) return null
     const output = String(result.stdout || '')
-    const npingFailure = /Successful connections:\s*0\b|Failed:\s*[1-9]\d*\b|0 connections? succeeded|0 successful|rcvd:\s*0/i.test(output)
-    const ok = Number(result.code ?? 1) === 0 && !npingFailure
-    ssrProbes.value = { ...ssrProbes.value, [node.id]: {
-      status: ok ? 'ok' : 'failed',
-      text: ok ? ('TCP 可连接 · ' + ms + 'ms（含 RPC 开销）') : '端口不可连接或检测失败'
-    } }
-  } catch (_) {
-    ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '检测不可用，请检查路由器工具及 RPC 权限' } }
+    const failed = /Successful connections:\s*0\b|Failed:\s*[1-9]\d*\b|0 connections? succeeded|0 successful|rcvd:\s*0/i.test(output)
+    const ok = Number(result.code ?? 1) === 0 && !failed
+    return { status: ok ? 'ok' : 'failed',
+      text: ok ? ('TCP 可连接 · ' + (Date.now() - start) + 'ms（含 RPC 开销）')
+        : 'TCP 端口不可连接' }
+  } catch (_) { return null }
+}
+async function probeSsrNode(node) {
+  if (!node.host || !/^\d+$/.test(node.port) || Number(node.port) < 1 || Number(node.port) > 65535) {
+    ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '该节点没有可探测的服务器端口' } }
+    return
   }
+  ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'testing', text: '探测中' } }
+  let result = null
+  if (ssrProbeMode.value !== 'exec') result = await probeSsrViaLuci(node)
+  if (result) ssrProbeMode.value = 'luci'
+  else if (ssrProbeMode.value !== 'luci') {
+    result = await probeSsrViaExec(node)
+    if (result) ssrProbeMode.value = 'exec'
+  }
+  if (!result) {
+    // One global diagnostic, not the same failure repeated 30+ times.
+    const states = { ...ssrProbes.value }
+    delete states[node.id]
+    ssrProbes.value = states
+    ssrProbeMode.value = ''
+    ssrProbeUnavailable.value = '当前 QWRT 未提供可访问的 SSR Plus+ 节点探测接口。请先确认原版 LuCI 的“节点检测”能正常使用；APP 不会要求开放任意 shell 命令。'
+    return
+  }
+  ssrProbeUnavailable.value = ''
+  ssrProbes.value = { ...ssrProbes.value, [node.id]: result }
 }
 async function probeAllSsr() {
-  if (ssrProbeBusy.value) return
+  if (ssrProbeBusy.value || !ssr.value.nodes.length) return
   ssrProbeBusy.value = true
+  ssrProbeUnavailable.value = ''
+  ssrProbes.value = {}
   try {
-    let cursor = 0
     const nodes = ssr.value.nodes.slice(0, 32)
-    await Promise.all(Array.from({ length: Math.min(nodes.length, 3) }, async () => {
+    // Capability detection first: stop early instead of filling the screen
+    // with the same RPC denied result for every configured node.
+    await probeSsrNode(nodes[0])
+    if (ssrProbeUnavailable.value) return
+    let cursor = 1
+    await Promise.all(Array.from({ length: Math.min(Math.max(nodes.length - 1, 0), 3) }, async () => {
       while (cursor < nodes.length) await probeSsrNode(nodes[cursor++])
     }))
-    if (ssr.value.nodes.length > nodes.length) notice.value = '已探测前 32 个节点，以控制路由器负载'
+    if (ssr.value.nodes.length > nodes.length && !ssrProbeUnavailable.value) {
+      notice.value = '已探测前 32 个节点，以控制路由器负载'
+    }
   } finally { ssrProbeBusy.value = false }
 }
 async function execSsrComponent(action) {
@@ -797,7 +851,8 @@ defineExpose({ refresh })
             <v-btn color="primary" variant="tonal" :disabled="busy" @click="applySsrNode">应用节点并重启</v-btn>
             <v-btn variant="outlined" :disabled="busy || ssrProbeBusy || !ssr.nodes.length" :loading="ssrProbeBusy" @click="probeAllSsr">批量探测节点</v-btn>
           </div>
-          <p class="muted-hint mt-2">TCP 探测仅检查服务器端口可达性（不代表代理出口可用）；依赖路由器的 nc/nping 及 RPC 执行权限。</p>
+          <p class="muted-hint mt-2">优先调用 SSR Plus+ 原版节点探测接口；如接口不可访问，再尝试路由器已授权的 TCP 探测工具。检测结果不等同于代理出口测试。</p>
+          <v-alert v-if="ssrProbeUnavailable" type="info" variant="tonal" density="compact" class="mt-3">{{ ssrProbeUnavailable }}</v-alert>
           <v-list v-if="ssr.nodes.length" density="compact" class="mt-3">
             <v-list-item v-for="node in ssr.nodes" :key="node.id" class="ssr-probe-row" :title="node.title" :subtitle="[node.type,node.host,node.port].filter(Boolean).join(' · ')">
               <template #append>
@@ -810,7 +865,9 @@ defineExpose({ refresh })
             </v-list-item>
           </v-list>
           <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">尚未配置代理节点，请先添加节点或订阅。</v-alert>
-          <div v-for="node in ssr.nodes.filter(n => ssrProbes[n.id])" :key="'probe-'+node.id" class="muted-hint">{{ node.title }}：{{ ssrProbes[node.id]?.text }}</div>
+          <div v-if="!ssrProbeUnavailable" class="ssr-probe-results">
+            <div v-for="node in ssr.nodes.filter(n => ssrProbes[n.id])" :key="'probe-'+node.id" class="muted-hint">{{ node.title }}：{{ ssrProbes[node.id]?.text }}</div>
+          </div>
         </template>
         <template v-else-if="ssrTab === 'status'">
           <h3 class="router-app-section-title">SSR Plus+ 运行状态</h3>
