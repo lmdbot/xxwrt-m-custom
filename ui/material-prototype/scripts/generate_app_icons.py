@@ -7,7 +7,7 @@ because Capacitor recreates android/ from its stock template.
 """
 from pathlib import Path
 from collections import deque
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageChops
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "assets" / "qwrt-material-shield.webp"
@@ -20,7 +20,12 @@ SIZES = {
     "xxxhdpi": 192,
 }
 ADAPTIVE_SIZES = {name: round(size * 108 / 48) for name, size in SIZES.items()}
-BACKGROUND = "#132C96"
+# The 108dp adaptive icon is clipped by Android to a central 66dp safe zone.
+# Foreground illustration must be smaller than that safe zone to retain margins.
+# Legacy icons are displayed without the adaptive foreground crop.
+BACKGROUND = "#122A80"
+LEGACY_ART_SCALE = 0.78
+ADAPTIVE_ART_SCALE = 0.50
 
 
 def remove_outer_black(image: Image.Image) -> Image.Image:
@@ -54,6 +59,16 @@ def write_png(image: Image.Image, path: Path):
     image.save(path, "PNG", optimize=True)
 
 
+def framed_icon(source: Image.Image, size: int, art_scale: float) -> Image.Image:
+    """Place the full artwork on a color-matched background with padding."""
+    canvas = Image.new("RGBA", (size, size), BACKGROUND)
+    illustration_size = round(size * art_scale)
+    illustration = source.resize((illustration_size, illustration_size), Image.Resampling.LANCZOS)
+    margin = (size - illustration_size) // 2
+    canvas.alpha_composite(illustration, (margin, margin))
+    return canvas
+
+
 def main():
     if not SOURCE.is_file():
         raise SystemExit(f"Selected launcher artwork missing: {SOURCE}")
@@ -63,7 +78,7 @@ def main():
     source = remove_outer_black(Image.open(SOURCE))
     for density, pixels in SIZES.items():
         target = RES / f"mipmap-{density}"
-        icon = source.resize((pixels, pixels), Image.Resampling.LANCZOS)
+        icon = framed_icon(source, pixels, LEGACY_ART_SCALE)
         write_png(icon, target / "ic_launcher.png")
 
         round_icon = icon.copy()
@@ -73,7 +88,13 @@ def main():
         write_png(round_icon, target / "ic_launcher_round.png")
 
     for density, pixels in ADAPTIVE_SIZES.items():
-        icon = source.resize((pixels, pixels), Image.Resampling.LANCZOS)
+        # Only the central 66/108 section survives the system launcher crop.
+        # 0.50 of the 108dp canvas leaves visible spacing after that crop.
+        icon = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
+        art_size = round(pixels * ADAPTIVE_ART_SCALE)
+        art = source.resize((art_size, art_size), Image.Resampling.LANCZOS)
+        origin = (pixels - art_size) // 2
+        icon.alpha_composite(art, (origin, origin))
         write_png(icon, RES / f"mipmap-{density}" / "ic_launcher_foreground.png")
 
     xml_dir = RES / "mipmap-anydpi-v26"
@@ -92,9 +113,8 @@ def main():
         '<?xml version="1.0" encoding="utf-8"?>\n'
         f'<resources><color name="qwrt_launcher_background">{BACKGROUND}</color></resources>\n'
     )
-    print("QWRT shield artwork applied to launcher, round launcher and adaptive launcher resources")
+    print("QWRT shield artwork generated with padding for legacy and adaptive icons")
 
 
 if __name__ == "__main__":
-    from PIL import ImageChops
     main()
