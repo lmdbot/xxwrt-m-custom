@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 
 const props = defineProps({
   client: { type: Object, required: true }
@@ -16,6 +16,18 @@ const busy = ref(false)
 const saving = ref(false)
 const error = ref('')
 const success = ref('')
+const manualLoad = ref(false)
+const toastOpen = ref(false)
+const toastWorking = computed(() => manualLoad.value || saving.value)
+const toastText = computed(() => error.value || success.value ||
+  (manualLoad.value ? '正在刷新家长控制配置…' : saving.value ? '正在保存配置…' : ''))
+watch([toastText, toastWorking], () => { toastOpen.value = Boolean(toastText.value) })
+async function refreshAction() {
+  if (busy.value || manualLoad.value) return
+  manualLoad.value = true
+  try { await load(); if (!error.value) success.value = '家长控制已刷新' }
+  finally { manualLoad.value = false }
+}
 const data = reactive({
   status: {}, categories: [], selected: [], time: {
     mode: 0, time_list: [], weekday_list: [], allow_time: 20,
@@ -130,16 +142,19 @@ onMounted(() => { void load() })
 
 <template>
   <v-card rounded="xl" variant="outlined" class="appfilter-panel">
+    <v-snackbar v-model="toastOpen" location="bottom" :style="{ bottom: '77px' }"
+      :timeout="toastWorking ? -1 : 5200" :color="error ? 'error' : success ? 'success' : 'primary'">
+      <div class="d-flex align-center ga-2"><v-progress-circular v-if="toastWorking" indeterminate size="17" width="2"/>{{ toastText }}</div>
+      <template #actions><v-btn v-if="!toastWorking" variant="text" @click="toastOpen=false; error=''; success=''">关闭</v-btn></template>
+    </v-snackbar>
     <div class="appfilter-title">
       <div><h3>OpenAppFilter 家长控制</h3></div>
-      <v-btn icon="mdi-refresh" color="primary" variant="tonal" size="small" aria-label="刷新家长控制" :loading="busy" @click="load"/>
+      <v-btn icon="mdi-refresh" color="primary" variant="tonal" size="small" aria-label="刷新家长控制" :loading="busy" @click="refreshAction"/>
     </div>
     <v-tabs v-model="tab" color="primary" show-arrows density="compact" class="appfilter-tabs">
       <v-tab v-for="item in tabs" :key="item.value" :value="item.value">{{ item.title }}</v-tab>
     </v-tabs>
-    <v-progress-linear v-if="busy" color="primary" indeterminate/>
-    <v-alert v-if="error" type="warning" density="compact" variant="tonal" class="mt-3">{{ error }}</v-alert>
-    <v-alert v-if="success" type="success" density="compact" variant="tonal" class="mt-3">{{ success }}</v-alert>
+    <v-progress-linear v-if="busy && !manualLoad" color="primary" indeterminate/>
 
     <v-window v-model="tab" class="appfilter-content">
       <v-window-item value="status">
