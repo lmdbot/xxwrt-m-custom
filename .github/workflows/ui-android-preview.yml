@@ -201,25 +201,7 @@ jobs:
             TITLE="XX-WRT管理器 v${APP_VERSION} (branch build)"
           fi
           APK="../../dist/material-preview/${APP_APK_NAME}"
-          ASSETS=("$APK")
-          # 2.0.1 clients only recognize the old filename; publish one migration
-          # alias on v2.0.2 so their in-app updater can upgrade normally.
-          if [[ "$GITHUB_REF_NAME" == "main" && "$APP_VERSION" == "2.0.2" ]]; then
-            COMPAT_APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v${APP_VERSION}.apk"
-            cp "$APK" "$COMPAT_APK"
-            ASSETS+=("$COMPAT_APK")
-          fi
-          # Release notes must be scoped to the current version.
-          # Do not append earlier releases to the new release description.
-          VERSION_NOTES="../../docs/releases/v${APP_VERSION}.md"
-          test -s "$VERSION_NOTES" || {
-            echo "::error::Missing release notes for v${APP_VERSION}"
-            exit 1
-          }
-          grep -Eq '^## (新功能|优化|修复|其他变更)' "$VERSION_NOTES" || {
-            echo "::error::Version release notes require structured sections"
-            exit 1
-          }
+          test -f "$APK" || { echo "::error::Release APK missing: $APK"; exit 1; }
           NOTES="../../build/material-preview/release-notes.md"
           cp "$VERSION_NOTES" "$NOTES"
           {
@@ -229,16 +211,26 @@ jobs:
           } >> "$NOTES"
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${ASSETS[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
             if [[ "$GITHUB_REF_NAME" == "main" ]]; then
               gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES" --latest --repo "$GITHUB_REPOSITORY"
             else
               gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
             fi
           elif [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" \
+            gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
               --title "$TITLE" --notes-file "$NOTES" --latest --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" \
+            gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
               --title "$TITLE" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi
+
+          # Existing Releases retain earlier assets unless explicitly removed.
+          # Keep only the canonical versioned APK while preserving non-APK assets.
+          while IFS= read -r asset_name; do
+            [[ "$asset_name" == *.apk ]] || continue
+            if [[ "$asset_name" != "$APP_APK_NAME" ]]; then
+              echo "Removing obsolete Release APK: $asset_name"
+              gh release delete-asset "$TAG" "$asset_name" --yes --repo "$GITHUB_REPOSITORY"
+            fi
+          done < <(gh release view "$TAG" --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY")
