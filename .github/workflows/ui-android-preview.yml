@@ -109,6 +109,18 @@ jobs:
       - name: Apply Android 15/16 native safe-area insets
         run: python3 scripts/patch_android_insets.py
 
+      # Capacitor generates its default app icons when Android is initialized.
+      # Always replace those after npx cap add/sync so APKs keep the chosen
+      # QWRT router + shield artwork, even in fresh GitHub Actions runners.
+      - name: Apply selected QWRT launcher icon
+        run: |
+          python3 -m pip install --quiet pillow
+          python3 scripts/generate_app_icons.py
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+          test -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+
       - name: Compile unsigned release APK
         run: |
           chmod +x android/gradlew
