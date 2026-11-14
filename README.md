@@ -4,6 +4,12 @@
 
 项目当前以 **Material 2.0** 为主线，应用通过路由器的 **ubus JSON-RPC、UCI 及已授权的插件接口**获取数据和执行操作。可用功能取决于路由器固件、已安装插件和 RPC 权限。
 
+## 项目宣传图
+
+[![XX-WRT Material 2.0 宣传海报](docs/screenshots/material-2.0-poster.webp)](docs/screenshots/material-2.0-poster-full.webp)
+
+> 由当前 Material 2.0 的六张界面截图组合制作。截图中的路由器、终端及网络指标为 UI 测试示例数据。点击海报可查看高清原图；也可在下方[界面预览](#界面预览)查看各页面截图。
+
 ## 版本信息
 
 | 项目 | 当前配置 |
