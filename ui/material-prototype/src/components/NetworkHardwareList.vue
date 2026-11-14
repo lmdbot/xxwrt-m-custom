@@ -5,6 +5,30 @@ const props = defineProps({
   wired: { type: Array, default: () => [] },
   wireless: { type: Array, default: () => [] }
 })
+// Linux ARPHRD hardware types from include/uapi/linux/if_arp.h.
+const HARDWARE_TYPES = {
+  0: '网络设备（未指定）', 1: '以太网', 2: '实验性以太网', 3: '业余无线电 AX.25',
+  6: 'IEEE 802 局域网', 7: 'ARCNET', 8: 'AppleTalk', 15: '帧中继',
+  19: 'ATM', 24: 'IEEE 1394', 27: 'EUI-64', 32: 'InfiniBand',
+  256: 'SLIP 串行链路', 257: '压缩 SLIP', 258: 'IPv6 SLIP', 259: '压缩 IPv6 SLIP',
+  264: '自适应串行链路', 270: 'ROSE', 271: 'X.25', 280: 'CAN 总线',
+  512: 'PPP 点对点链路', 513: 'Cisco HDLC', 516: 'LAPB',
+  517: 'DDCMP', 518: '原始 HDLC', 519: '原始 IP',
+  768: 'IPv4 隧道', 769: 'IPv6 隧道', 770: '帧中继接入',
+  772: '本地回环', 773: 'LocalTalk', 774: 'FDDI', 776: 'SIT IPv6-over-IPv4',
+  778: 'GRE 隧道', 779: 'PIM 注册', 780: 'HIPPI', 781: 'ASH', 782: 'Econet',
+  783: '红外网络', 800: 'Token Ring', 801: 'IEEE 802.11 无线 LAN',
+  802: 'Prism 无线 LAN', 803: 'Radiotap 无线 LAN', 804: 'IEEE 802.15.4',
+  805: 'IEEE 802.15.4 监控', 820: 'Phonet', 822: 'CAIF',
+  823: 'IPv6 GRE 隧道', 824: 'Netlink', 825: '6LoWPAN',
+  826: 'VSOCK 监控', 65534: '无硬件类型', 65535: '空设备'
+}
+function readableHardwareType(raw) {
+  const value = String(raw ?? '').trim()
+  if (!value || value === '--') return '未识别'
+  if (/^\d+$/.test(value)) return HARDWARE_TYPES[Number(value)] || '其他网络硬件（类型号 ' + value + '）'
+  return value
+}
 const upCount = computed(() => [...props.wired, ...props.wireless].filter(n => n.up).length)
 function formatBytes(raw) {
   if (raw == null || raw === '') return '--'
@@ -41,7 +65,7 @@ function formatBytes(raw) {
             </v-avatar>
             <div class="hardware-main">
               <div class="hardware-name">{{ nic.name }}</div>
-              <div class="hardware-sub">{{ nic.type && nic.type !== '--' ? nic.type + ' · ' : '' }}{{ nic.mac || '--' }}</div>
+              <div class="hardware-sub">{{ readableHardwareType(nic.type) }} · {{ nic.mac || '--' }}</div>
             </div>
             <v-chip size="x-small" variant="tonal" :color="nic.up ? 'success' : 'secondary'" class="hardware-state-chip">
               {{ nic.up ? '在线' : '未连接' }}
@@ -50,7 +74,7 @@ function formatBytes(raw) {
           <v-expansion-panel-text>
             <div class="hardware-specs">
               <div><span>MAC</span><strong>{{ nic.mac || '--' }}</strong></div>
-              <div><span>类型</span><strong>{{ nic.type || '--' }}</strong></div>
+              <div><span>类型</span><strong>{{ readableHardwareType(nic.type) }}</strong></div>
               <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
               <div v-if="nic.ports?.length"><span>网桥端口</span><strong>{{ nic.ports.join(', ') }}</strong></div>
               <div v-if="nic.rxBytes !== null"><span>累计接收</span><strong>{{ formatBytes(nic.rxBytes) }}</strong></div>
