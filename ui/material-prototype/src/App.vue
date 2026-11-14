@@ -417,38 +417,67 @@ onUnmounted(() => {
 <template>
   <v-app class="material-demo" :class="{ 'theme-is-dark': dark }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
-      <v-toolbar-title class="app-name">QWRT</v-toolbar-title>
+      <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回设备列表" @click="goToDeviceList"/>
+      <v-toolbar-title class="app-name">{{ viewMode === 'list' ? '我的 OpenWrt' : (selectedDevice?.name || 'QWRT') }}</v-toolbar-title>
       <v-spacer />
       <v-btn-toggle v-model="navStyle" density="compact" mandatory variant="outlined" divided class="style-choice" color="primary" aria-label="底栏样式">
         <v-btn value="standard" size="small" aria-label="标准底栏">标准</v-btn>
         <v-btn value="liquid" size="small" aria-label="液态底栏">液态</v-btn>
       </v-btn-toggle>
-      <v-btn v-if="connected" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
+      <v-btn v-if="viewMode === 'detail' && connected" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
 
     <v-main>
       <v-container class="main-container">
-        <template v-if="!connected">
-          <div class="eyebrow">MATERIAL UI · QWRT REAL RPC</div>
-          <div class="page-head"><h1>连接路由器</h1></div>
-          <v-card rounded="xl" elevation="1" class="login-card">
-            <div class="device-heading mb-5">
-              <v-avatar color="primary" variant="tonal" rounded="lg" size="54"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
-              <div class="device-heading-label">
-                <h2>登录 QWRT / OpenWrt</h2>
-                <p>使用路由器自身的 ubus / rpcd 认证</p>
-              </div>
+        <template v-if="viewMode === 'list'">
+          <div class="list-page-title">
+            <div><div class="eyebrow">OPENWRT DEVICES · MULTI-ROUTER</div><h1>设备列表</h1>
+              <p class="muted-hint mt-1">保存多台路由器，查看可达状态；点击设备进入管理首页。</p></div>
+            <div class="list-page-actions">
+              <v-btn icon="mdi-refresh" variant="tonal" color="primary" :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
+              <v-btn color="primary" rounded="xl" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
             </div>
-            <form @submit.prevent="connect">
-              <v-text-field v-model.trim="form.address" variant="outlined" density="comfortable" label="设备地址" placeholder="http://192.168.100.1" prepend-inner-icon="mdi-lan" autocapitalize="off" autocomplete="url" required />
-              <v-text-field v-model.trim="form.username" variant="outlined" density="comfortable" label="用户名" prepend-inner-icon="mdi-account-outline" autocomplete="username" required />
-              <v-text-field v-model="form.password" variant="outlined" density="comfortable" label="登录密码" prepend-inner-icon="mdi-lock-outline" :type="form.showPassword ? 'text' : 'password'" :append-inner-icon="form.showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'" @click:append-inner="form.showPassword = !form.showPassword" autocomplete="current-password" required />
-              <v-btn type="submit" color="primary" size="large" rounded="xl" :loading="connecting" block prepend-icon="mdi-login">连接并读取路由器</v-btn>
-            </form>
-            <p class="login-hint">地址、端口可修改。只保存路由器地址，密码不会保存到本地。HTTP 登录信息在局域网内明文传输，远程访问建议使用可信 HTTPS 或 VPN。</p>
+          </div>
+          <v-alert v-if="listError" type="warning" variant="tonal" closable density="compact" class="mb-3" @click:close="listError = ''">{{ listError }}</v-alert>
+          <v-card v-if="!devices.length" rounded="xl" elevation="1" class="empty-devices">
+            <v-avatar color="primary" variant="tonal" size="72"><v-icon icon="mdi-router-wireless" size="36"/></v-avatar>
+            <h2>还没有添加 OpenWrt 设备</h2>
+            <p>支持 IP、域名、HTTP、HTTPS 和不同端口。添加后会保留在首页。</p>
+            <v-btn rounded="xl" color="primary" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加第一个设备</v-btn>
           </v-card>
+          <div v-else class="saved-device-grid">
+            <v-card v-for="device in devices" :key="device.id" rounded="xl" elevation="1" class="saved-device-card"
+                    tabindex="0" role="button" :aria-label="'进入 ' + device.name"
+                    @click="openDevice(device)" @keydown.enter.prevent="openDevice(device)">
+              <div class="saved-device-header">
+                <v-avatar color="primary" variant="tonal" rounded="lg" size="48"><v-icon icon="mdi-router-wireless" size="27"/></v-avatar>
+                <div class="saved-device-identity"><h2>{{ device.name }}</h2><div class="muted-hint ellipsis-url">{{ device.address }}</div></div>
+                <v-icon icon="mdi-chevron-right" size="23" color="secondary"/>
+              </div>
+              <div class="saved-device-info">
+                <v-chip size="small" variant="tonal"
+                        :color="deviceStatuses[device.id] === 'reachable' ? 'success' : deviceStatuses[device.id] === 'offline' ? 'error' : 'secondary'"
+                        :prepend-icon="deviceStatuses[device.id] === 'reachable' ? 'mdi-check-circle' : deviceStatuses[device.id] === 'offline' ? 'mdi-alert-circle' : 'mdi-progress-clock'">
+                  {{ deviceStatuses[device.id] === 'reachable' ? '网络可达' : deviceStatuses[device.id] === 'offline' ? '无法连接' : '检测中' }}
+                </v-chip>
+                <span class="muted-hint">{{ deviceSummaries[device.id]?.temperature || deviceSummaries[device.id]?.hostname || '等待获取设备状态' }}</span>
+              </div>
+              <div v-if="deviceSummaries[device.id]" class="saved-device-summary">
+                {{ deviceSummaries[device.id].model }} · {{ deviceSummaries[device.id].version }} · 运行 {{ deviceSummaries[device.id].uptime }}
+              </div>
+              <div class="saved-device-footer">
+                <span class="muted-hint">用户：{{ device.username }} · {{ device.rememberPassword ? '已加密保存凭据' : '每次启动需验证' }}</span>
+                <div>
+                  <v-btn icon="mdi-pencil-outline" size="small" variant="text" :aria-label="'编辑' + device.name" @click.stop="showDeviceDialog(device)"/>
+                  <v-btn icon="mdi-delete-outline" size="small" color="error" variant="text" :aria-label="'删除' + device.name" @click.stop="askDeleteDevice(device)"/>
+                </div>
+              </div>
+            </v-card>
+          </div>
+          <div class="device-list-help">
+            <v-icon icon="mdi-shield-lock-outline" size="18"/><span>设备信息保存在本机；勾选记住密码时仅由 Android Keystore 加密保存，不会上传到第三方服务器。</span>
+          </div>
         </template>
-
         <template v-else>
           <div class="page-head">
             <div><div class="eyebrow">{{ client?.baseUrl }} · {{ lastUpdated ? '更新于 ' + lastUpdated : '已连接' }}</div><h1>{{ pageTitle }}</h1></div>
@@ -610,12 +639,12 @@ onUnmounted(() => {
       </v-container>
     </v-main>
 
-    <v-bottom-navigation v-if="connected && navStyle === 'standard'" v-model="activeTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
+    <v-bottom-navigation v-if="viewMode === 'detail' && connected && navStyle === 'standard'" v-model="activeTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
-    <div v-else-if="connected" class="liquid-bottom">
+    <div v-else-if="viewMode === 'detail' && connected" class="liquid-bottom">
       <VGlass :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" @click="activeTab = item.id">
@@ -636,6 +665,42 @@ onUnmounted(() => {
           <p class="muted-hint mt-3">租约存在并不代表设备当前在线；其他终端管理功能请使用 LuCI。</p>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="deviceDialog" max-width="430">
+      <v-card rounded="xl">
+        <v-card-title>{{ editDeviceId ? '编辑 OpenWrt 设备' : '添加 OpenWrt 设备' }}</v-card-title>
+        <v-card-text>
+          <form id="device-editor" @submit.prevent="saveDeviceEntry">
+            <v-text-field v-model.trim="deviceForm.name" label="设备名称 / 备注" variant="outlined" density="comfortable" placeholder="例如：QWRT 主路由" required/>
+            <v-text-field v-model.trim="deviceForm.address" label="IP / 域名 / 端口" variant="outlined" density="comfortable" placeholder="http://192.168.100.1" autocomplete="url" autocapitalize="off" required/>
+            <v-text-field v-model.trim="deviceForm.username" label="登录用户名" variant="outlined" density="comfortable" autocomplete="username" required/>
+            <p class="muted-hint">设备地址可以是 HTTPS 公网域名。保存后点击设备输入密码登录。</p>
+          </form>
+        </v-card-text>
+        <v-card-actions><v-spacer/><v-btn variant="text" @click="deviceDialog = false">取消</v-btn><v-btn type="submit" form="device-editor" color="primary">保存设备</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="loginDialog" max-width="430" :persistent="connecting">
+      <v-card rounded="xl">
+        <v-card-title>连接 {{ selectedDevice?.name || 'OpenWrt' }}</v-card-title>
+        <v-card-text>
+          <p class="muted-hint mb-3">{{ selectedDevice?.address }}</p>
+          <form id="router-login" @submit.prevent="connect">
+            <v-text-field v-model.trim="form.username" density="comfortable" variant="outlined" label="用户名" autocomplete="username" readonly/>
+            <v-text-field v-model="form.password" density="comfortable" variant="outlined" label="路由器密码" autocomplete="current-password" :type="form.showPassword ? 'text' : 'password'" :append-inner-icon="form.showPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="form.showPassword = !form.showPassword" required/>
+            <v-checkbox v-if="isNative" v-model="loginRemember" label="使用 Android Keystore 加密记住密码" color="primary" hide-details/>
+            <p v-else class="muted-hint">网页预览不保存密码；Android 安装版支持安全存储。</p>
+          </form>
+          <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" class="mt-2">{{ errorMessage }}</v-alert>
+        </v-card-text>
+        <v-card-actions><v-spacer/><v-btn variant="text" :disabled="connecting" @click="loginDialog = false">返回列表</v-btn><v-btn type="submit" form="router-login" color="primary" :loading="connecting">登录并进入</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="deleteDialog" max-width="360">
+      <v-card rounded="xl" title="删除路由器">
+        <v-card-text>确定从设备列表移除这台 OpenWrt 吗？本机保存的对应密码也将删除，不会对路由器执行任何命令。</v-card-text>
+        <v-card-actions><v-spacer/><v-btn @click="deleteDialog = false">取消</v-btn><v-btn color="error" @click="confirmDeleteDevice">删除</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="confirmReboot" max-width="360">
