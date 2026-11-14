@@ -1,5 +1,5 @@
 import { macFromDuid, normalizeMac } from './deviceIdentity.js'
-import { CapacitorHttp } from '@capacitor/core'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 
 const NULL_SESSION = '00000000000000000000000000000000'
 
@@ -88,7 +88,8 @@ export class RouterClient {
     // LuCI's authenticated CGI routes are separate from /ubus login.
     // Authenticate to the SAME configured router using the same credentials
     // once, in memory only. Never persist password or LuCI cookie.
-    this.luciAuthTask = this.setupLuciSession(user, password).catch(() => false)
+    this.luciAuthTask = Capacitor.isNativePlatform()
+      ? this.setupLuciSession(user, password).catch(() => false) : Promise.resolve(false)
     return data
   }
 
@@ -115,12 +116,16 @@ export class RouterClient {
   async luciGet(path, params = {}) {
     if (!this.session || !/^\/cgi-bin\/luci\/admin\/services\/shadowsocksr\/[a-z_]+$/.test(path)) return null
     if (this.luciAuthTask) await this.luciAuthTask
-    if (!this.luciCookie) return null
+    // LuCI uses rpcd session IDs for cookie authentication. A directly
+    // authenticated ubus session may work even when the separate LuCI login
+    // did not yield an inspectable Set-Cookie header.
+    const cookie = this.luciCookie ||
+      'sysauth_http=' + this.session + '; sysauth_https=' + this.session
     const query = new URLSearchParams(params).toString()
     try {
       const response = await CapacitorHttp.get({
         url: this.baseUrl + path + (query ? '?' + query : ''),
-        headers: { Accept: 'application/json', Cookie: this.luciCookie },
+        headers: { Accept: 'application/json', Cookie: cookie },
         connectTimeout: 5000, readTimeout: 20000, disableRedirects: true
       })
       if (response.status !== 200) return null
