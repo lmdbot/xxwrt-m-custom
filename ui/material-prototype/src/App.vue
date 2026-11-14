@@ -524,14 +524,14 @@ async function refreshCurrent() {
 async function showLegacyTool(toolId) {
   if (!client.value || toolLoading.value) return
   if (toolId === 'reboot') { confirmReboot.value = true; return }
-  toolPanel.value = toolId
-  toolMessage.value = ''
   if (toolId === 'reset') {
     factoryPhrase.value = ''
     factoryError.value = ''
     factoryDialog.value = true
     return
   }
+  toolPanel.value = toolId
+  toolMessage.value = ''
   if (toolId === 'parental') return
   if (toolId === 'startup') {
     if (!serviceData.value.available) {
