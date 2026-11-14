@@ -10,7 +10,9 @@ import {
 } from './services/devices.js'
 import {
   RouterClient, readDashboard, readClients, readServices,
-  readProcessList, readRouteConfig, shortError
+  readProcessList, readRouteConfig, readWolDevices, wakeWolDevice,
+  saveWolTarget, removeWolTarget, readParentalSettings, saveParentalBase,
+  readRuntimeRoutes, readNetworkHardware, shortError
 } from './services/router.js'
 
 const theme = useTheme()
@@ -72,6 +74,16 @@ const toolLoading = ref(false)
 const toolMessage = ref('')
 const processData = ref({ available: false, processes: [] })
 const routeData = ref({ available: false, routes: [] })
+const liveRoutes = ref({ available: false, lines: [] })
+const wolData = ref({ available: false, tool: '', targets: [], interfaces: [], known: [] })
+const wolForm = reactive({ name: '', mac: '', iface: '', broadcast: false })
+const wolBusy = ref(false)
+const wolDeleteDialog = ref(false)
+const wolDeleteTarget = ref(null)
+const parentalData = ref({ available: false, base: {}, status: {}, advanced: {}, selectedRules: [], users: [] })
+const parentalForm = reactive({ enable: false, record_enable: false, work_mode: 0 })
+const parentalSaving = ref(false)
+const networkHardware = ref({ wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] })
 const legacyTools = [
   { id: 'process', title: '进程管理', subtitle: '只读进程列表', icon: 'mdi-format-list-bulleted' },
   { id: 'startup', title: '启动项', subtitle: '服务及自启动状态', icon: 'mdi-power' },
@@ -340,8 +352,8 @@ async function showLegacyTool(toolId) {
   if (!client.value || toolLoading.value) return
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (['wol', 'parental', 'reset'].includes(toolId)) {
-    toolMessage.value = '此功能依赖路由器安装的 LuCI 页面和相应插件。请通过“打开 LuCI”进入原管理界面操作。'
+  if (toolId === 'reset') {
+    toolMessage.value = '恢复出厂会清空路由器配置。为确保二次确认、权限和设备版本兼容，请通过原 LuCI 页面执行。'
     return
   }
   if (toolId === 'startup') {
@@ -360,14 +372,80 @@ async function showLegacyTool(toolId) {
       if (!processData.value.available) toolMessage.value = '当前 QWRT 未开放 luci.getProcessList，使用 LuCI 进程页面查看。'
     }
     if (toolId === 'routes') {
-      routeData.value = await readRouteConfig(client.value)
-      if (!routeData.value.available) toolMessage.value = '当前账号无 UCI network 读取权限，可在 LuCI 网络页面查看路由配置。'
+      ;[routeData.value, liveRoutes.value] = await Promise.all([
+        readRouteConfig(client.value), readRuntimeRoutes(client.value)
+      ])
+      if (!routeData.value.available && !liveRoutes.value.available) toolMessage.value = '当前账号无路由表读取权限，可在 LuCI 查看。'
+    }
+    if (toolId === 'wol') {
+      wolData.value = await readWolDevices(client.value)
+      wolForm.iface = wolData.value.interfaces.includes('br-lan') ? 'br-lan' : (wolData.value.interfaces[0] || '')
+      if (!wolData.value.available) toolMessage.value = '未安装 LuCI WOL 服务，需先在路由器安装 luci-app-wol。'
+    }
+    if (toolId === 'parental') {
+      parentalData.value = await readParentalSettings(client.value)
+      Object.assign(parentalForm, {
+        enable: Number(parentalData.value.base.enable) === 1,
+        record_enable: Number(parentalData.value.base.record_enable) === 1,
+        work_mode: Number(parentalData.value.base.work_mode) === 1 ? 1 : 0
+      })
+      if (!parentalData.value.available) toolMessage.value = '尚未安装 appfilter 家长控制插件或接口没有授权。'
     }
   } catch (e) {
     toolMessage.value = shortError(e)
   } finally {
     toolLoading.value = false
   }
+}
+
+async function submitWolTarget() {
+  if (wolBusy.value || !client.value) return
+  wolBusy.value = true
+  toolMessage.value = ''
+  try {
+    await saveWolTarget(client.value, wolForm)
+    wolData.value = await readWolDevices(client.value)
+    Object.assign(wolForm, { name: '', mac: '', iface: wolForm.iface, broadcast: false })
+    toolMessage.value = '网络唤醒目标已保存'
+  } catch (e) { toolMessage.value = shortError(e) }
+  finally { wolBusy.value = false }
+}
+
+async function sendWakePacket(item) {
+  if (wolBusy.value || !client.value) return
+  wolBusy.value = true
+  toolMessage.value = ''
+  try {
+    await wakeWolDevice(client.value, item)
+    toolMessage.value = '已向 ' + item.name + ' 发送网络唤醒包（设备是否开机需另行确认）'
+  } catch (e) { toolMessage.value = shortError(e) }
+  finally { wolBusy.value = false }
+}
+
+async function confirmRemoveWol() {
+  const item = wolDeleteTarget.value
+  wolDeleteDialog.value = false
+  wolDeleteTarget.value = null
+  if (!item || wolBusy.value || !client.value) return
+  wolBusy.value = true
+  try {
+    await removeWolTarget(client.value, item.id)
+    wolData.value = await readWolDevices(client.value)
+    toolMessage.value = '已删除网络唤醒配置'
+  } catch (e) { toolMessage.value = shortError(e) }
+  finally { wolBusy.value = false }
+}
+
+async function saveParentalOptions() {
+  if (parentalSaving.value || !client.value) return
+  parentalSaving.value = true
+  toolMessage.value = ''
+  try {
+    await saveParentalBase(client.value, parentalForm)
+    parentalData.value = await readParentalSettings(client.value)
+    toolMessage.value = '家长控制基础设置已提交'
+  } catch (e) { toolMessage.value = shortError(e) }
+  finally { parentalSaving.value = false }
 }
 
 async function openRouterWeb() {
