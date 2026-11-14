@@ -91,7 +91,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the broken preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 9/; s/versionName "[^"]+"/versionName "0.5.0"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 10/; s/versionName "[^"]+"/versionName "0.5.1"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -125,17 +125,17 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk | grep '^package:' | grep "versionName='0.5.0'" | grep "versionCode='9'"
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk | grep '^package:' | grep "versionName='0.5.0'" | grep "versionCode='10'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -145,11 +145,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.0"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.0.apk"
+          TAG="material-wrt-v0.5.1"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk"
           NOTES="../../build/material-preview/release-notes.md"
           printf '%s\n' \
-            '## XX-WRT M Material UI（真实 QWRT 接口、磁盘、实时曲线与图标应用版 v0.5.0）' \
+            '## XX-WRT M Material UI（真实 QWRT 接口、原版磁盘 RPC、实时曲线及应用内返回修复版 v0.5.1）' \
             '' \
             '已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。' \
             '' \
@@ -159,8 +159,9 @@ jobs:
             '- 设备密码可以选择存入 Android Keystore；未勾选时每次重新验证。' \
             '- 本版没有硬编码演示数据，使用真实设备 RPC 返回的结果。' \
             '- 设备列表左侧菜单、底栏外观设置、可搜索 DHCPv4/v6/无线/应用过滤用户分组。' \
-            '- 首页磁盘占用和临时空间来自只读 df 命令；不虚构数据。' \
-            '- 统计页恢复真实网络接口 RX/TX 3 秒采样与 1/5/15 分钟负载历史，使用开源 ECharts。' \
+            '- 首页磁盘占用与临时空间严格复用 main 的 luci.getMountPoints RPC，无需 file.exec。' \
+            '- 统计页展示网络接口 RX/TX 采样与负载历史，使用开源 ECharts。' \
+            '- 修复 Android 手势返回：优先关闭弹窗、侧栏、应用二级页、恢复上一页及页签，仅根页面最小化应用。' \
             '- 应用首页改为与 main 类似的图标宫格，点击才显示进程/启动项/路由/WOL/家长控制二级页。' \
             '- 网络页增加 IPv6-PD、MTU、网桥端口、收发流量包数及无线参数。' \
             '- OpenAppFilter：按原版 RPC 增加应用分类、时间策略、受控终端和高级配置。' \
@@ -175,8 +176,8 @@ jobs:
             > "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.0" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.1" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.0" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.1" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi
