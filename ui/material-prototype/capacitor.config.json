@@ -1,6 +1,6 @@
 {
   "appId": "com.lmdbot.xxwrt.materialpreview",
-  "appName": "XX-WRT Material Preview",
+  "appName": "XX-WRT管理器",
   "webDir": "dist",
   "android": {
     "allowMixedContent": false,
