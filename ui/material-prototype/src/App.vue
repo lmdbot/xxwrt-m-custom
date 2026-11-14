@@ -5,6 +5,11 @@ import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 import AppFilterPanel from './components/AppFilterPanel.vue'
+import RealtimeChart from './components/RealtimeChart.vue'
+import {
+  readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
+  bandwidthSample, prettyRate, readWirelessStations
+} from './services/telemetry.js'
 import {
   loadDevices, saveDevices, newDevice, probeDevice,
   storeDevicePassword, fetchDevicePassword, deleteDevicePassword
@@ -75,6 +80,23 @@ const errorMessage = ref('')
 const lastUpdated = ref('')
 const snapshot = ref(null)
 const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
+const terminalView = ref('dhcp4')
+const wifiClientData = ref({ available: false, stations: [] })
+const diskData = ref({ available: false, partitions: [], primary: null, temporary: null })
+const chosenInterface = ref('')
+const bandwidthHistory = ref([])
+const loadHistory = ref([])
+const currentRate = ref(null)
+const telemetryError = ref('')
+const availableInterfaces = computed(() => interfaceOptions(snapshot.value?.interfaces || []))
+const rxTxSeries = [{ key: 'rx', title: '接收 RX' }, { key: 'tx', title: '发送 TX' }]
+const loadSeries = [
+  { key: 'l1', title: '1 分钟' }, { key: 'l5', title: '5 分钟' },
+  { key: 'l15', title: '15 分钟' }
+]
+let samplePrevious = null
+let samplePreviousAt = 0
+let sampleBusy = false
 const serviceData = ref({ services: [], available: false })
 const confirmReboot = ref(false)
 const factoryDialog = ref(false)
@@ -117,12 +139,64 @@ const resourceCards = computed(() => {
     { label: '连接数', value: snap.connPercent == null ? '--' : snap.connPercent + '%', detail: snap.connDetail || '--', icon: 'mdi-lan-connect', progress: snap.connPercent || 0 }
   ]
 })
-let mediaQuery, systemListener, refreshTimer, probeTimer
+let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer
 
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
 watch(dark, v => { theme.global.name.value = v ? 'dark' : 'light' }, { immediate: true })
-watch(activeTab, () => { if (connected.value) refreshCurrent() })
+watch(activeTab, (tab) => {
+  if (connected.value) refreshCurrent()
+  if (tab === 'statistics') void pollTelemetry()
+  if (tab !== 'apps') toolPanel.value = ''
+})
+watch(chosenInterface, () => {
+  samplePrevious = null
+  samplePreviousAt = 0
+  bandwidthHistory.value = []
+  currentRate.value = null
+  telemetryError.value = ''
+})
+function boundedAppend(list, value, limit = 75) {
+  return [...list.slice(Math.max(0, list.length - limit + 1)), value]
+}
+async function pollTelemetry() {
+  if (sampleBusy || !client.value || !connected.value || viewMode.value !== 'detail' ||
+      activeTab.value !== 'statistics') return
+  sampleBusy = true
+  try {
+    if (!chosenInterface.value) {
+      const options = availableInterfaces.value
+      chosenInterface.value = (options.find(x => x.logical === 'wan') || options[0])?.value || ''
+    }
+    const device = chosenInterface.value
+    const now = Date.now()
+    const [loadResult, countersResult] = await Promise.allSettled([
+      readSystemLoad(client.value),
+      device ? readInterfaceCounters(client.value, device) : Promise.resolve(null)
+    ])
+    const label = new Date(now).toLocaleTimeString('zh-CN', { hour12: false })
+    if (loadResult.status === 'fulfilled' && loadResult.value) {
+      const [l1, l5, l15] = loadResult.value
+      loadHistory.value = boundedAppend(loadHistory.value, { time: label, l1, l5, l15 })
+    }
+    const counters = countersResult.status === 'fulfilled' ? countersResult.value : null
+    if (counters) {
+      const rate = bandwidthSample(samplePrevious, counters, now - samplePreviousAt)
+      samplePrevious = counters
+      samplePreviousAt = now
+      if (rate) {
+        currentRate.value = { rx: prettyRate(rate.rxBps), tx: prettyRate(rate.txBps) }
+        bandwidthHistory.value = boundedAppend(bandwidthHistory.value, {
+          time: label, rx: +(rate.rxBps / 1024).toFixed(2),
+          tx: +(rate.txBps / 1024).toFixed(2)
+        })
+        telemetryError.value = ''
+      }
+    } else if (device) telemetryError.value = '接口未提供收发字节计数器，无法生成真实带宽曲线'
+    else telemetryError.value = '没有可采样的网络接口'
+  } catch (e) { telemetryError.value = shortError(e) }
+  finally { sampleBusy = false }
+}
 
 function resetSession() {
   const oldId = selectedDeviceId.value
@@ -135,6 +209,13 @@ function resetSession() {
   connected.value = false
   snapshot.value = null
   clientData.value = { data: [], ipv6: [], leasesAvailable: false }
+  wifiClientData.value = { available: false, stations: [] }
+  diskData.value = { available: false, partitions: [], primary: null, temporary: null }
+  bandwidthHistory.value = []
+  loadHistory.value = []
+  chosenInterface.value = ''
+  samplePrevious = null
+  samplePreviousAt = 0
   selectedClient.value = null
   toolPanel.value = ''
   toolMessage.value = ''
@@ -366,7 +447,13 @@ async function refreshDashboard() {
   refreshing.value = true
   errorMessage.value = ''
   try {
-    snapshot.value = await readDashboard(client.value)
+    const [dashboardResult, partitionsResult] = await Promise.allSettled([
+      readDashboard(client.value), readDiskUsage(client.value)
+    ])
+    if (dashboardResult.status === 'rejected') throw dashboardResult.reason
+    snapshot.value = dashboardResult.value
+    diskData.value = partitionsResult.status === 'fulfilled'
+      ? partitionsResult.value : { available: false, partitions: [], primary: null, temporary: null }
     if (selectedDeviceId.value) {
       deviceSummaries[selectedDeviceId.value] = {
         model: snapshot.value.board.model,
@@ -397,7 +484,15 @@ async function refreshCurrent() {
   refreshing.value = true
   errorMessage.value = ''
   try {
-    if (activeTab.value === 'clients') clientData.value = await readClients(client.value)
+    if (activeTab.value === 'clients') {
+      const [leases, stations] = await Promise.allSettled([
+        readClients(client.value), readWirelessStations(client.value)
+      ])
+      if (leases.status === 'fulfilled') clientData.value = leases.value
+      else throw leases.reason
+      wifiClientData.value = stations.status === 'fulfilled'
+        ? stations.value : { available: false, stations: [] }
+    }
     if (activeTab.value === 'apps') serviceData.value = await readServices(client.value)
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
   } catch (e) {
@@ -560,6 +655,7 @@ onMounted(() => {
   probeTimer = setInterval(() => {
     if (viewMode.value === 'list') void refreshDeviceStatuses()
   }, 30000)
+  telemetryTimer = setInterval(() => { void pollTelemetry() }, 3000)
   refreshTimer = setInterval(() => {
     if (viewMode.value === 'detail' && connected.value && activeTab.value === 'home' && !refreshing.value) refreshDashboard()
   }, 12000)
@@ -568,6 +664,7 @@ onUnmounted(() => {
   mediaQuery?.removeEventListener?.('change', systemListener)
   if (refreshTimer) clearInterval(refreshTimer)
   if (probeTimer) clearInterval(probeTimer)
+  if (telemetryTimer) clearInterval(telemetryTimer)
 })
 </script>
 
