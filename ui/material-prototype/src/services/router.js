@@ -422,7 +422,18 @@ export async function readNetworkHardware(client) {
   ])
   const value = data => data && typeof data === 'object' ? Object.entries(data).map(([name, v]) => ({
     name, up: Boolean(v?.up ?? v?.link), mac: v?.macaddr || v?.mac || '--',
-    type: String(v?.type || v?.device || '--')
+    type: String(v?.type || v?.device || '--'),
+    mtu: v?.mtu ?? null,
+    speed: v?.speed ?? v?.bitrate ?? null,
+    ports: Array.isArray(v?.ports) ? v.ports : [],
+    rxBytes: v?.statistics?.rx_bytes ?? null,
+    txBytes: v?.statistics?.tx_bytes ?? null,
+    rxPackets: v?.statistics?.rx_packets ?? null,
+    txPackets: v?.statistics?.tx_packets ?? null,
+    ssid: v?.ssid || null, bssid: v?.bssid || null,
+    channel: v?.channel ?? null, band: v?.band ?? null,
+    encryption: v?.encryption?.description || v?.encryption || null,
+    signal: v?.signal ?? null, mode: v?.mode || null
   })).slice(0, 200) : []
   return {
     wiredAvailable: !!wired, wirelessAvailable: !!wireless,
