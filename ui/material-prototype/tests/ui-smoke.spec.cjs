@@ -379,7 +379,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
-  await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
+  await expect(page.locator('.router-toolbar-context')).toContainText('终端')
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
   await expect(page.locator('.terminal-online-dot.is-online')).toHaveCount(2)
