@@ -52,6 +52,15 @@ const form = reactive({
   showPassword: false
 })
 const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' : 'standard')
+const drawerOpen = ref(false)
+const drawerSection = ref('appearance')
+const clientSearch = ref('')
+const filteredClients = computed(() => {
+  const term = clientSearch.value.trim().toLowerCase()
+  if (!term) return clientData.value.data
+  return clientData.value.data.filter(item =>
+    [item.name, item.ip, item.mac].some(value => String(value || '').toLowerCase().includes(term)))
+})
 const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
 const systemDark = ref(false)
@@ -131,6 +140,7 @@ function resetSession() {
   viewMode.value = 'list'
   selectedDeviceId.value = ''
   loginDialog.value = false
+  drawerOpen.value = false
   void refreshDeviceStatuses()
 }
 
@@ -248,6 +258,7 @@ async function refreshDeviceStatuses() {
 }
 
 async function goToDeviceList() {
+  drawerOpen.value = false
   viewMode.value = 'list'
   activeTab.value = 'home'
   errorMessage.value = ''
@@ -491,6 +502,14 @@ async function saveParentalOptions() {
   finally { parentalSaving.value = false }
 }
 
+async function showReleasePage() {
+  try {
+    await Browser.open({ url: 'https://github.com/lmdbot/xxwrt-m-custom/releases', windowName: '_blank' })
+  } catch (e) {
+    listError.value = '打开版本页面失败：' + shortError(e)
+  }
+}
+
 async function openRouterWeb() {
   if (!client.value) return
   try {
@@ -538,15 +557,79 @@ onUnmounted(() => {
 <template>
   <v-app class="material-demo" :class="{ 'theme-is-dark': dark }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
+      <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
       <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回设备列表" @click="goToDeviceList"/>
       <v-toolbar-title class="app-name">{{ viewMode === 'list' ? '我的 OpenWrt' : (selectedDevice?.name || 'QWRT') }}</v-toolbar-title>
       <v-spacer />
-      <v-btn-toggle v-model="navStyle" density="compact" mandatory variant="outlined" divided class="style-choice" color="primary" aria-label="底栏样式">
-        <v-btn value="standard" size="small" aria-label="标准底栏">标准</v-btn>
-        <v-btn value="liquid" size="small" aria-label="液态底栏">液态</v-btn>
-      </v-btn-toggle>
       <v-btn v-if="viewMode === 'detail' && connected" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
+
+    <v-navigation-drawer v-model="drawerOpen" temporary location="left" width="304" class="material-side-drawer" aria-label="侧栏菜单">
+      <div class="sidebar-brand">
+        <v-avatar size="44" color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-router-wireless" size="27"/></v-avatar>
+        <div><strong>XX-WRT M</strong><small>Material UI · OpenWrt</small></div>
+        <v-btn icon="mdi-close" variant="text" size="small" aria-label="关闭侧栏菜单" @click="drawerOpen = false"/>
+      </div>
+      <v-divider class="mb-2"/>
+      <v-list nav density="compact" class="sidebar-nav-list">
+        <v-list-item prepend-icon="mdi-router-network" title="设备列表"
+          :active="drawerSection === 'devices'" @click="drawerSection = 'devices'; goToDeviceList()"/>
+        <v-list-item prepend-icon="mdi-translate" title="语言设置"
+          :active="drawerSection === 'language'" @click="drawerSection = 'language'"/>
+        <v-list-item prepend-icon="mdi-palette-outline" title="外观模式"
+          :active="drawerSection === 'appearance'" @click="drawerSection = 'appearance'"/>
+        <v-list-item prepend-icon="mdi-update" title="检查更新"
+          :active="drawerSection === 'update'" @click="drawerSection = 'update'"/>
+        <v-list-item prepend-icon="mdi-help-circle-outline" title="帮助与反馈"
+          :active="drawerSection === 'help'" @click="drawerSection = 'help'"/>
+        <v-list-item prepend-icon="mdi-heart-outline" title="支持项目"
+          :active="drawerSection === 'support'" @click="drawerSection = 'support'"/>
+        <v-list-item prepend-icon="mdi-information-outline" title="关于"
+          :active="drawerSection === 'about'" @click="drawerSection = 'about'"/>
+      </v-list>
+      <v-divider class="my-3"/>
+      <div class="sidebar-panel">
+        <template v-if="drawerSection === 'appearance'">
+          <div class="sidebar-section-title"><v-icon icon="mdi-tune-variant" size="19"/> 界面设置</div>
+          <div class="sidebar-field-label">底部导航样式</div>
+          <v-btn-toggle v-model="navStyle" class="sidebar-style-switch" mandatory divided color="primary" variant="outlined" density="comfortable" aria-label="底栏样式">
+            <v-btn value="standard" aria-label="标准底栏" size="small">标准</v-btn>
+            <v-btn value="liquid" aria-label="液态底栏" size="small">液态</v-btn>
+          </v-btn-toggle>
+          <v-select v-model="colorMode" class="mt-5" density="compact" variant="outlined" label="主题颜色"
+            :items="[{title:'跟随系统',value:'system'},{title:'浅色模式',value:'light'},{title:'深色模式',value:'dark'}]"
+            item-title="title" item-value="value" hide-details/>
+          <p class="muted-hint mt-3">设置自动保存在本机，打开任意路由器时继续生效。</p>
+        </template>
+        <template v-else-if="drawerSection === 'language'">
+          <div class="sidebar-section-title">语言设置</div>
+          <p class="muted-hint">当前语言：简体中文。原版的多语言资源尚需逐页迁移，未完成前不提供无效的语言切换。</p>
+        </template>
+        <template v-else-if="drawerSection === 'update'">
+          <div class="sidebar-section-title">检查更新</div>
+          <p class="muted-hint">查看 GitHub 的最新测试版本和变更记录。</p>
+          <v-btn block color="primary" variant="tonal" prepend-icon="mdi-open-in-new" @click="showReleasePage">查看 Releases</v-btn>
+        </template>
+        <template v-else-if="drawerSection === 'help'">
+          <div class="sidebar-section-title">帮助与反馈</div>
+          <p class="muted-hint">添加设备后使用 QWRT 的 RPC 账号登录。终端页的 DHCP 租约不等于实时在线设备；插件管理依赖固件开放的对应 RPC。</p>
+          <v-btn block color="primary" variant="outlined" prepend-icon="mdi-github" @click="showReleasePage">查看项目及版本记录</v-btn>
+        </template>
+        <template v-else-if="drawerSection === 'support'">
+          <div class="sidebar-section-title">支持项目</div>
+          <p class="muted-hint">本项目是非官方 Material UI 自定义版本。上游赞助链接未直接迁移，以免展示未经核对的收款或推广信息。</p>
+        </template>
+        <template v-else-if="drawerSection === 'about'">
+          <div class="sidebar-section-title">关于</div>
+          <p class="muted-hint">XX-WRT M Material 测试版；使用 Vue、Vuetify、Capacitor 与开源液态玻璃组件。基础版仍为 v1.0.6。</p>
+          <v-btn block variant="tonal" prepend-icon="mdi-github" @click="showReleasePage">版本与源代码</v-btn>
+        </template>
+        <template v-else>
+          <div class="sidebar-section-title">设备列表</div>
+          <p class="muted-hint">选择或添加路由器后可进入管理页面。</p>
+        </template>
+      </div>
+    </v-navigation-drawer>
 
     <v-main>
       <v-container class="main-container">
@@ -662,17 +745,38 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'clients'">
-            <v-card class="network-card" rounded="xl" elevation="1">
-              <div class="section-heading"><h2>DHCP 终端租约</h2><v-chip color="primary" variant="tonal" size="small">{{ clientData.data.length }} 条</v-chip></div>
-              <p class="muted-hint">DHCP 租约不等于设备当前在线状态。此页直接读取路由器返回的终端地址与主机名。</p>
-              <v-list v-if="clientData.data.length" bg-color="transparent">
-                <v-list-item v-for="item in clientData.data" :key="item.mac || item.ip" class="client-item" prepend-icon="mdi-laptop" link @click="selectedClient = item">
-                  <v-list-item-title>{{ item.name }}</v-list-item-title>
-                  <v-list-item-subtitle>{{ item.ip }} · {{ item.mac }}</v-list-item-subtitle>
-                </v-list-item>
-              </v-list>
-              <v-empty-state v-else icon="mdi-devices" :title="clientData.leasesAvailable ? '暂无 DHCP 租约' : '无法获取 DHCP 租约'" text="确认固件包含 luci-rpc.getDHCPLeases 接口并授权访问"/>
-            </v-card>
+            <div class="terminal-screen">
+              <div class="terminal-header">
+                <div><h2>终端设备</h2><p>DHCP 租约记录，不代表当前在线</p></div>
+                <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
+              </div>
+              <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
+                hide-details clearable prepend-inner-icon="mdi-magnify" label="搜索名称、IP 或 MAC" class="terminal-search mb-4"/>
+              <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="DHCP 终端设备">
+                <v-card v-for="item in filteredClients" :key="item.mac || item.ip" role="listitem"
+                  rounded="lg" variant="outlined" class="terminal-tile" tabindex="0"
+                  :aria-label="'查看终端 ' + item.name" @click="selectedClient = item"
+                  @keydown.enter.prevent="selectedClient = item">
+                  <v-avatar size="42" rounded="lg" color="primary" variant="tonal" class="terminal-icon">
+                    <v-icon icon="mdi-laptop" size="22"/>
+                  </v-avatar>
+                  <div class="terminal-meta">
+                    <div class="terminal-name">{{ item.name || '未知设备' }}</div>
+                    <div class="terminal-ip">{{ item.ip }}</div>
+                    <div class="terminal-mac">{{ item.mac || 'MAC 未知' }}</div>
+                  </div>
+                  <div class="terminal-trailing">
+                    <v-chip size="x-small" variant="tonal" color="secondary" class="terminal-lease-chip">DHCP</v-chip>
+                    <v-icon icon="mdi-chevron-right" size="19" color="secondary"/>
+                  </div>
+                </v-card>
+              </div>
+              <v-empty-state v-else-if="clientData.data.length && clientSearch" icon="mdi-magnify-close"
+                title="没有匹配的终端" text="请尝试设备名称、IP 地址或 MAC 地址"/>
+              <v-empty-state v-else icon="mdi-devices"
+                :title="clientData.leasesAvailable ? '暂无 DHCP 租约' : '无法获取 DHCP 租约'"
+                text="确认 QWRT 的 luci-rpc.getDHCPLeases 接口具有读取权限"/>
+            </div>
           </template>
 
           <template v-if="activeTab === 'network'">
@@ -807,14 +911,9 @@ onUnmounted(() => {
           </template>
 
           <v-card rounded="xl" elevation="0" class="preferences mt-4">
-            <div class="preferences-head"><v-icon icon="mdi-cog-outline" size="20"/><strong>管理与外观</strong></div>
-            <v-btn block variant="outlined" color="primary" prepend-icon="mdi-open-in-new" @click="openRouterWeb">打开路由器 LuCI 管理页面</v-btn>
-            <v-select v-model="colorMode" class="mt-3" density="compact" variant="outlined" label="主题" :items="[
-              { title: '跟随系统', value: 'system' },
-              { title: '浅色', value: 'light' },
-              { title: '深色', value: 'dark' }
-            ]" item-title="title" item-value="value" hide-details/>
-            <p>底栏：{{ navStyle === 'liquid' ? '液态玻璃' : 'Material 标准' }} · 仅设备地址保存在本地</p>
+            <div class="preferences-head"><v-icon icon="mdi-cog-outline" size="20"/><strong>管理入口</strong></div>
+            <p>底栏样式、系统主题和其他偏好已移至左上角侧栏。</p>
+            <v-btn block variant="tonal" color="primary" prepend-icon="mdi-menu" @click="drawerSection = 'appearance'; drawerOpen = true">打开设置侧栏</v-btn>
           </v-card>
         </template>
         <v-alert v-if="errorMessage && !connected" class="mt-4" type="error" variant="tonal">{{ errorMessage }}</v-alert>
