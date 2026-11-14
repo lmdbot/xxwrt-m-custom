@@ -1,7 +1,7 @@
 {
   "name": "xxwrt-material-ui-prototype",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -17,7 +17,8 @@
     "vuetify": "3.13.7",
     "@capacitor/android": "8.0.0",
     "@capacitor/core": "8.0.0",
-    "@capacitor/browser": "8.0.0"
+    "@capacitor/browser": "8.0.0",
+    "@aparajita/capacitor-secure-storage": "8.0.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "6.0.0",
