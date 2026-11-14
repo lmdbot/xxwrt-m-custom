@@ -40,6 +40,15 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(UiChromePlugin.class);
         super.onCreate(savedInstanceState);
+        // Lock the app UI to the device's normal 1x density. Preserve scroll,
+        // touch controls, and accessibility text-size settings.
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            final android.webkit.WebSettings webSettings =
+                getBridge().getWebView().getSettings();
+            webSettings.setSupportZoom(false);
+            webSettings.setBuiltInZoomControls(false);
+            webSettings.setDisplayZoomControls(false);
+        }
         // Insets are applied exactly once at the native content root.
         final View content = findViewById(android.R.id.content);
         ViewCompat.setOnApplyWindowInsetsListener(content, (view, windowInsets) -> {
