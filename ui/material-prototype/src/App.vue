@@ -215,7 +215,7 @@ const terminalDevices = computed(() => {
       kind: deviceKindLabel(identity),
       displayName: deviceDisplayName(item.name || item.hostname, identity),
       sources: [...item.sources],
-      active: item.sources.includes('wireless'),
+      active: item.sources.has('wireless'),
       privateMac: identity.privateMac
     }
   })
