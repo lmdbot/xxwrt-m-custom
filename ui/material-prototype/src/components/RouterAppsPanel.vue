@@ -248,10 +248,11 @@ async function run(action, success, reload = true) {
 }
 
 async function loadSsr() {
-  const [cfg, rc, procd, processList] = await Promise.all([
+  const [cfg, rc, procd, processList, pluginStatus] = await Promise.all([
     getUci('shadowsocksr'), services(),
     props.client.call('service', 'list', { name: 'shadowsocksr' }, true),
-    props.client.call('luci', 'getProcessList', {}, true)
+    props.client.call('luci', 'getProcessList', {}, true),
+    props.client.luciGet('/cgi-bin/luci/admin/services/shadowsocksr/run')
   ])
   const list = sections(cfg), global = sectionOf(list, 'global', 'global')
   ssr.value = {
@@ -272,7 +273,7 @@ async function loadSsr() {
           String(process.COMMAND || process.command || process.cmd || '')))
       return {
         enabled: current?.enabled === true || String(global?.options.global_server || 'nil') !== 'nil',
-        running: current?.running === true || managed || runningProxy
+        running: pluginStatus?.running === true || current?.running === true || managed || runningProxy
       }
     })()
   }
