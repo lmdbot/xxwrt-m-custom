@@ -1467,7 +1467,7 @@ onUnmounted(() => {
         </template>
         <template v-else>
           <!-- Section title and refresh live in the fixed app toolbar. -->
-          <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" closable class="mb-4" @click:close="errorMessage = ''">{{ errorMessage }}</v-alert>
+          <!-- Connected page errors are shown in the fixed bottom snackbar. -->
 
           <template v-if="activeTab === 'home' || activeTab === 'statistics'">
             <v-card v-if="snapshot && activeTab === 'home'" rounded="xl" elevation="1" class="device-card">
@@ -1883,6 +1883,12 @@ onUnmounted(() => {
       </v-container>
     </v-main>
 
+    <v-snackbar :model-value="Boolean(errorMessage) && connected" location="bottom" :timeout="5500"
+      :style="{ bottom: '77px' }" color="error" role="alert"
+      @update:model-value="!$event && (errorMessage = '')">
+      {{ errorMessage }}
+      <template #actions><v-btn size="small" variant="text" @click="errorMessage = ''">关闭</v-btn></template>
+    </v-snackbar>
     <v-snackbar v-model="toolFeedbackOpen" location="bottom" :timeout="toolWaiting ? -1 : 5000"
       :style="{ bottom: '77px' }" color="primary" role="status" aria-live="polite"
       class="router-app-floating-feedback">
