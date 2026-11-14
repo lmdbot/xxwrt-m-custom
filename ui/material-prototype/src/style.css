@@ -464,10 +464,14 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .wol-neighbor-card__value{font-size:11px;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere;word-break:break-word}
 .wol-neighbor-card__wake{align-self:center;min-width:64px!important;flex:none}
 @media(max-width:400px){
-  .wol-neighbor-card{grid-template-columns:34px minmax(0,1fr);gap:9px;padding:10px}
-  .wol-neighbor-card__icon{width:34px;height:34px}
-  .wol-neighbor-card__wake{grid-column:2;justify-self:start;margin-top:2px}
+  .wol-neighbor-card{grid-template-columns:minmax(0,1fr) 66px;gap:8px;padding:10px}
+  .wol-neighbor-card__icon{display:none}
+  .wol-neighbor-card__wake{grid-column:2;grid-row:1;align-self:center;justify-self:end;margin-top:0;min-width:62px!important}
   .wol-neighbor-card__details{gap:4px}
+}
+@media(min-width:401px){
+  .wol-neighbor-card{grid-template-columns:34px minmax(0,1fr) auto;align-items:center}
+  .wol-neighbor-card__wake{grid-column:3;grid-row:1}
 }
 
 .firewall-rule-entry__control{display:flex;flex:none;flex-direction:column;align-items:center;gap:1px;min-width:52px}
