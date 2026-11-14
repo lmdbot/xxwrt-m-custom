@@ -676,6 +676,15 @@ async function confirmFirewallRuleToggle() {
   await run(async () => {
     await setUci('firewall', rule.section, { enabled: enabled ? '1' : '0' })
     await reloadFirewall()
+    // Confirm the new UCI value, then update the visible row immediately.
+    // This avoids a stale switch while the next full refresh is in flight.
+    const cfg = await getUci('firewall')
+    const saved = sections(cfg).find(item => item.id === rule.section)
+    if (!saved) throw new Error('规则已提交，但无法读取保存后的规则状态')
+    const actual = String(saved.options.enabled ?? '1') !== '0'
+    fw.value = { ...fw.value, rules: fw.value.rules.map(item =>
+      item.section === rule.section ? { ...item, enabled: actual } : item) }
+    if (actual !== enabled) throw new Error('规则状态与保存结果不一致，请检查路由器防火墙配置')
   }, '防火墙规则“' + (rule.name || rule.section) + '”已' + (enabled ? '启用' : '停用') + '并重载防火墙')
 }
 async function saveZone(zone) {
@@ -1013,7 +1022,7 @@ defineExpose({ refresh })
           </v-btn-toggle>
         </div>
         <div v-if="fwRulesShown.length" class="firewall-rule-table mt-3" role="list" aria-label="防火墙其他规则">
-          <div v-for="rule in fwRulesShown" :key="rule.section" class="firewall-rule-entry"
+          <div v-for="rule in fwRulesShown" :key="rule.section + ':' + rule.enabled" class="firewall-rule-entry"
             :class="{ 'is-disabled': !rule.enabled }" role="listitem">
             <div class="firewall-rule-entry__head">
               <div class="firewall-rule-entry__name">
@@ -1039,10 +1048,12 @@ defineExpose({ refresh })
               <div v-if="rule.family"><span>地址族</span><strong>{{ rule.family }}</strong></div>
             </div>
             <div class="firewall-rule-entry__foot">
-              <span v-if="rule.comment">{{ rule.comment }}</span>
-              <v-chip v-else size="x-small" variant="text" :color="rule.enabled ? 'success' : 'secondary'">
+              <v-chip size="small" variant="tonal" :color="rule.enabled ? 'success' : 'secondary'"
+                :aria-label="'规则状态：' + (rule.enabled ? '已启用' : '已停用')">
+                <v-icon start :icon="rule.enabled ? 'mdi-check-circle-outline' : 'mdi-pause-circle-outline'" size="small"/>
                 {{ rule.enabled ? '已启用' : '已停用' }}
               </v-chip>
+              <span v-if="rule.comment">{{ rule.comment }}</span>
             </div>
           </div>
         </div>
