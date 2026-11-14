@@ -1,0 +1,9 @@
+{
+  "appId": "com.lmdbot.xxwrt.materialpreview",
+  "appName": "XX-WRT Material Preview",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#F5F6FB"
+  }
+}
