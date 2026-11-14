@@ -25,7 +25,7 @@ import {
   RouterClient, readDashboard, readClients, readServices,
   readProcessList, readRouteConfig, readWolDevices, wakeWolDevice,
   saveWolTarget, removeWolTarget, readParentalSettings, saveParentalBase,
-  readRuntimeRoutes, readNetworkHardware, shortError
+  readRuntimeRoutes, readNetworkHardware, formatBytes, shortError
 } from './services/router.js'
 
 const theme = useTheme()
@@ -190,9 +190,15 @@ const terminalDevices = computed(() => {
       item.ip = item.ip && item.ip !== '--' ? item.ip : (raw.ip || raw.ip4 || '')
       item.ip6 = item.ip6 || raw.ip6 || raw.ip6addr || raw.address || ''
       item.expires = item.expires ?? raw.expires
+      item.online = item.online === true || raw.online === true
+      item.onlineKnown = item.onlineKnown === true || raw.onlineKnown === true
     }
     item.sources.add(source)
-    if (source === 'wireless') item.wifi = raw
+    if (source === 'wireless') {
+      item.wifi = raw
+      item.online = true
+      item.onlineKnown = true
+    }
     return item
   }
   clientData.value.data.forEach(item => add(item, 'dhcp4'))
@@ -204,7 +210,7 @@ const terminalDevices = computed(() => {
     const hint = clientData.value.hints?.[item.mac] || clientData.value.hints?.[item.mac?.toUpperCase()] || {}
     add({
       ...item, name: hint.name || '', ip: hint.ipaddrs?.[0] || '',
-      ip6: hint.ip6addrs?.[0] || ''
+      ip6: hint.ip6addrs?.[0] || '', online: true, onlineKnown: true
     }, 'wireless')
   })
   return [...byMac.values()].map(item => {
@@ -216,12 +222,14 @@ const terminalDevices = computed(() => {
       displayName: deviceDisplayName(item.name || item.hostname, identity),
       sources: [...item.sources],
       active: item.sources.has('wireless'),
+      online: item.online === true,
+      onlineKnown: item.onlineKnown === true,
       privateMac: identity.privateMac
     }
   })
 })
 const filteredClients = computed(() => {
-  const term = clientSearch.value.trim().toLowerCase()
+  const term = String(clientSearch.value || '').trim().toLowerCase()
   const list = terminalView.value === 'dhcp6'
     ? terminalDevices.value.filter(item => item.sources.includes('dhcp6'))
     : terminalView.value === 'wireless'
@@ -232,6 +240,13 @@ const filteredClients = computed(() => {
     [item.displayName, item.kind, item.ip, item.ip6, item.mac, item.identity.brand?.n]
       .some(value => String(value || '').toLowerCase().includes(term)))
 })
+function onlineStateForMac(mac) {
+  const normalized = String(mac || '').toUpperCase()
+  const item = terminalDevices.value.find(device => device.mac === normalized)
+  if (!item) return 'unknown'
+  if (item.online) return 'online'
+  return item.onlineKnown ? 'offline' : 'unknown'
+}
 const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
 const systemDark = ref(false)
@@ -293,8 +308,9 @@ const toolMessage = ref('')
 const processData = ref({ available: false, processes: [] })
 const routeData = ref({ available: false, routes: [] })
 const liveRoutes = ref({ available: false, lines: [] })
-const wolData = ref({ available: false, tool: '', targets: [], interfaces: [], known: [] })
+const wolData = ref({ available: false, tool: '', targets: [], interfaces: [], known: [], neighbors: [] })
 const wolForm = reactive({ name: '', mac: '', iface: '', broadcast: false })
+const wolTab = ref('targets')
 const wolBusy = ref(false)
 const wolDeleteDialog = ref(false)
 const wolDeleteTarget = ref(null)
@@ -302,6 +318,16 @@ const parentalData = ref({ available: false, base: {}, status: {}, advanced: {},
 const parentalForm = reactive({ enable: false, record_enable: false, work_mode: 0 })
 const parentalSaving = ref(false)
 const networkHardware = ref({ wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] })
+const networkView = ref('interfaces')
+const networkInterfaces = computed(() =>
+  (snapshot.value?.interfaces || []).filter(item => item.interface !== 'loopback'))
+const networkCategories = computed(() => [
+  { value: 'interfaces', label: '接口', count: networkInterfaces.value.length, icon: 'mdi-lan' },
+  { value: 'devices', label: '设备', count: networkHardware.value.wired.length, icon: 'mdi-ethernet' },
+  { value: 'wireless', label: '无线', count: networkHardware.value.wireless.length, icon: 'mdi-wifi' }
+])
+const ethernetPorts = computed(() => networkHardware.value.wired.filter(item =>
+  /^(eth|en|ge|port)/i.test(item.name || '')))
 const legacyTools = [
   { id: 'parental', title: '家长控制', subtitle: '应用过滤与访问规则', icon: 'mdi-shield-account-outline' },
   { id: 'routes', title: '路由表', subtitle: '静态与运行路由', icon: 'mdi-routes' },
@@ -322,8 +348,10 @@ const resourceCards = computed(() => {
     { label: '连接数', value: snap.connPercent == null ? '--' : snap.connPercent + '%', detail: snap.connDetail || '--', icon: 'mdi-lan-connect', progress: snap.connPercent || 0 }
   ]
 })
-let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer
+let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer, processTimer
 let refreshQueued = false
+let processRefreshBusy = false
+let hardwareSampleAt = 0
 
 function drainQueuedRefresh() {
   if (!refreshQueued) return
@@ -331,11 +359,47 @@ function drainQueuedRefresh() {
   if (connected.value && client.value) void refreshCurrent()
 }
 
+function applyNetworkHardwareRates(data) {
+  const now = Date.now()
+  const elapsed = hardwareSampleAt ? now - hardwareSampleAt : 0
+  const previous = new Map(networkHardware.value.wired.map(item => [item.name, item]))
+  const wired = data.wired.map(item => {
+    const before = previous.get(item.name)
+    const counters = item.rxBytes == null || item.txBytes == null ? null : {
+      rxBytes: Number(item.rxBytes), txBytes: Number(item.txBytes)
+    }
+    const rate = before && counters
+      ? bandwidthSample(before, counters, elapsed) : null
+    return {
+      ...item,
+      rxRateBps: rate?.rxBps ?? null,
+      txRateBps: rate?.txBps ?? null
+    }
+  })
+  hardwareSampleAt = now
+  return { ...data, wired }
+}
+
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
 watch(showIp, v => localStorage.setItem(storage.showIp, String(v)))
 watch(showHostnames, v => localStorage.setItem(storage.showHostname, String(v)))
 watch(routerListLayout, v => localStorage.setItem(storage.listLayout, v))
+watch(toolPanel, panel => {
+  if (processTimer) clearInterval(processTimer)
+  processTimer = null
+  if (panel !== 'process') return
+  processTimer = setInterval(async () => {
+    if (!client.value || toolPanel.value !== 'process' || toolLoading.value || processRefreshBusy) return
+    processRefreshBusy = true
+    try {
+      const result = await readProcessList(client.value)
+      if (result.available) processData.value = result
+    } catch (_) {
+      // Preserve the last good process snapshot during a transient RPC failure.
+    } finally { processRefreshBusy = false }
+  }, 3000)
+})
 watch(dark, v => {
   theme.global.name.value = v ? 'dark' : 'light'
   syncNativeChrome(v)
@@ -434,8 +498,7 @@ function boundedAppend(list, value, limit = 75) {
   return [...list.slice(Math.max(0, list.length - limit + 1)), value]
 }
 async function pollTelemetry() {
-  if (sampleBusy || !client.value || !connected.value || viewMode.value !== 'detail' ||
-      activeTab.value !== 'statistics') return
+  if (sampleBusy || !client.value || !connected.value || viewMode.value !== 'detail') return
   sampleBusy = true
   try {
     if (!chosenInterface.value) {
@@ -490,9 +553,13 @@ function resetSession() {
   diskData.value = { available: false, partitions: [], primary: null, temporary: null }
   bandwidthHistory.value = []
   loadHistory.value = []
+  currentRate.value = null
+  telemetryError.value = ''
   chosenInterface.value = ''
   samplePrevious = null
   samplePreviousAt = 0
+  hardwareSampleAt = 0
+  networkHardware.value = { wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] }
   selectedClient.value = null
   toolPanel.value = ''
   toolMessage.value = ''
@@ -728,11 +795,14 @@ async function refreshDashboard() {
   refreshing.value = true
   errorMessage.value = ''
   try {
-    const [dashboardResult, partitionsResult] = await Promise.allSettled([
-      readDashboard(client.value), readDiskUsage(client.value)
+    const [dashboardResult, partitionsResult, hardwareResult] = await Promise.allSettled([
+      readDashboard(client.value), readDiskUsage(client.value), readNetworkHardware(client.value)
     ])
     if (dashboardResult.status === 'rejected') throw dashboardResult.reason
     snapshot.value = dashboardResult.value
+    if (hardwareResult.status === 'fulfilled') {
+      networkHardware.value = applyNetworkHardwareRates(hardwareResult.value)
+    }
     // A one-off disk RPC failure must not collapse an already visible disk card.
     // Keep last good data; initial loading still displays the unavailable state.
     if (partitionsResult.status === 'fulfilled' &&
@@ -762,9 +832,6 @@ async function refreshCurrent() {
   }
   if (activeTab.value === 'home' || activeTab.value === 'statistics' || activeTab.value === 'network') {
     await refreshDashboard()
-    if (activeTab.value === 'network') {
-      try { networkHardware.value = await readNetworkHardware(client.value) } catch (_) {}
-    }
     return
   }
   refreshing.value = true
@@ -864,7 +931,7 @@ async function sendWakePacket(item) {
   toolMessage.value = ''
   try {
     await wakeWolDevice(client.value, item)
-    toolMessage.value = '已向 ' + item.name + ' 发送网络唤醒包（设备是否开机需另行确认）'
+    toolMessage.value = '已向 ' + (item.name || item.hostname || item.mac) + ' 发送网络唤醒包（设备是否开机需另行确认）'
   } catch (e) { toolMessage.value = shortError(e) }
   finally { wolBusy.value = false }
 }
@@ -995,6 +1062,7 @@ onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   if (probeTimer) clearInterval(probeTimer)
   if (telemetryTimer) clearInterval(telemetryTimer)
+  if (processTimer) clearInterval(processTimer)
 })
 </script>
 
@@ -1291,6 +1359,32 @@ onUnmounted(() => {
               </v-card>
             </div>
 
+            <v-card v-if="snapshot && activeTab === 'home'" class="mt-4 network-card ethernet-card" rounded="xl" elevation="1">
+              <div class="section-heading">
+                <h2>以太网接口</h2>
+                <v-chip size="small" variant="tonal" color="primary">{{ ethernetPorts.length }} 个接口</v-chip>
+              </div>
+              <div v-if="ethernetPorts.length" class="ethernet-port-list">
+                <div v-for="port in ethernetPorts" :key="port.name" class="ethernet-port-row">
+                  <div class="ethernet-port-heading">
+                    <strong>{{ port.name }}</strong>
+                    <v-chip size="x-small" variant="tonal" :color="port.up ? 'success' : 'secondary'">
+                      {{ port.up ? '已连接' : '未连接' }}
+                    </v-chip>
+                  </div>
+                  <div class="ethernet-port-traffic">
+                    <span>RX {{ port.rxRateBps == null ? '--' : prettyRate(port.rxRateBps) }}</span>
+                    <span>TX {{ port.txRateBps == null ? '--' : prettyRate(port.txRateBps) }}</span>
+                  </div>
+                  <div class="muted-hint">
+                    累计接收 {{ port.rxBytes == null ? '--' : formatBytes(port.rxBytes) }}
+                    · 累计发送 {{ port.txBytes == null ? '--' : formatBytes(port.txBytes) }}
+                  </div>
+                </div>
+              </div>
+              <v-alert v-else type="info" variant="tonal" density="compact">暂未获取到物理以太网接口状态。</v-alert>
+            </v-card>
+
             <v-card v-if="snapshot && activeTab === 'home'" class="mt-4 network-card storage-card" rounded="xl" elevation="1">
               <div class="section-heading"><h2>磁盘占用</h2><v-icon icon="mdi-harddisk" color="secondary" size="22"/></div>
               <template v-if="diskData.available && diskData.partitions.length">
@@ -1319,18 +1413,24 @@ onUnmounted(() => {
                   density="compact" hide-details="auto" :items="availableInterfaces"
                   item-title="title" item-value="value" class="mt-2 mb-3" :disabled="!availableInterfaces.length"/>
                 <div class="bandwidth-kpis">
-                  <div><span>接收 RX</span><strong>{{ currentRate?.rx || '--' }}</strong></div>
-                  <div><span>发送 TX</span><strong>{{ currentRate?.tx || '--' }}</strong></div>
+                  <div>
+                    <span>接收 RX · 当前</span>
+                    <strong>{{ currentRate?.rx || '--' }}</strong>
+                    <small>平均 {{ bandwidthSummary?.rxAverage ?? '--' }} KB/s</small>
+                    <small>峰值 {{ bandwidthSummary?.rxPeak ?? '--' }} KB/s</small>
+                  </div>
+                  <div>
+                    <span>发送 TX · 当前</span>
+                    <strong>{{ currentRate?.tx || '--' }}</strong>
+                    <small>平均 {{ bandwidthSummary?.txAverage ?? '--' }} KB/s</small>
+                    <small>峰值 {{ bandwidthSummary?.txPeak ?? '--' }} KB/s</small>
+                  </div>
                 </div>
                 <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
                   :series="rxTxSeries" unit=" KB/s" title="实时网络带宽曲线"/>
                 <v-alert v-else class="mt-3" type="info" density="compact" variant="tonal">
                   {{ telemetryError || '正在采集接口字节计数器，至少需要两个采样点才能计算速率' }}
                 </v-alert>
-                <div v-if="bandwidthSummary" class="bandwidth-summary">
-                  <span>接收平均 {{ bandwidthSummary.rxAverage }} KB/s · 峰值 {{ bandwidthSummary.rxPeak }} KB/s</span>
-                  <span>发送平均 {{ bandwidthSummary.txAverage }} KB/s · 峰值 {{ bandwidthSummary.txPeak }} KB/s</span>
-                </div>
               </v-card>
               <v-card class="network-card mt-4" rounded="xl" elevation="1">
                 <div class="section-heading"><h2>系统负载历史</h2>
@@ -1396,7 +1496,9 @@ onUnmounted(() => {
               <template v-if="terminalView === 'dhcp4'">
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
-                aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"/>
+                aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
+                @click:clear="clientSearch = ''"
+                @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
               <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="DHCP 终端设备">
                 <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip"
                   :item="item" @click="selectedClient = item"/>
@@ -1450,26 +1552,60 @@ onUnmounted(() => {
                 <div><span>DNS</span><strong>{{ snapshot.dns }}</strong></div>
               </div>
             </v-card>
-            <v-card v-if="networkHardware.wired.length || networkHardware.wireless.length"
-              rounded="xl" elevation="1" class="network-card mb-4">
-              <NetworkHardwareList :wired="networkHardware.wired" :wireless="networkHardware.wireless"/>
-            </v-card>
-            <v-card v-for="nic in snapshot?.interfaces || []" :key="nic.interface" rounded="xl" elevation="1" class="interface-card mb-3">
-              <div class="section-heading">
-                <div><strong>{{ nic.interface }}</strong><div class="muted-hint">{{ nic.proto || 'unknown' }} · {{ nic.device || nic.l3_device || '--' }}</div></div>
-                <v-chip size="small" variant="tonal" :color="nic.up ? 'success' : 'error'">{{ nic.up ? '已连接' : '未连接' }}</v-chip>
-              </div>
-              <div class="network-interface-details">
-                <div><span>IPv4</span><strong>{{ nic['ipv4-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
-                <div><span>IPv6</span><strong>{{ nic['ipv6-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
-                <div v-if="nic['ipv6-prefix']?.length"><span>IPv6-PD</span><strong>{{ nic['ipv6-prefix'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
-                <div v-if="nic['ipv6-prefix-assignment']?.length"><span>IPv6-PD 分配</span><strong>{{ nic['ipv6-prefix-assignment'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
-                <div v-if="nic['dns-server']?.length"><span>DNS</span><strong>{{ nic['dns-server'].join(' / ') }}</strong></div>
-                <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
-                <div v-if="nic.uptime !== undefined && nic.uptime !== null"><span>运行时间</span><strong>{{ formatInterfaceUptime(nic.uptime) }}</strong></div>
-                <div v-if="nic.route?.length"><span>路由</span><strong>{{ nic.route.map(x => x.target + '/' + x.mask + ' → ' + (x.nexthop || '--')).join('; ') }}</strong></div>
-              </div>
-            </v-card>
+            <div class="terminal-category-grid network-category-grid" role="group" aria-label="网络分类">
+              <v-btn v-for="category in networkCategories" :key="category.value"
+                :variant="networkView === category.value ? 'tonal' : 'outlined'"
+                :color="networkView === category.value ? 'primary' : undefined"
+                :class="{ 'is-selected': networkView === category.value }"
+                :aria-pressed="networkView === category.value"
+                :aria-label="category.label + '，' + category.count + ' 条'"
+                class="terminal-category-card" @click="networkView = category.value">
+                <div class="terminal-category-card__inner">
+                  <v-avatar size="42" rounded="lg" color="primary" variant="tonal" class="terminal-category-card__icon">
+                    <v-icon :icon="category.icon" size="22"/>
+                  </v-avatar>
+                  <div class="terminal-category-card__meta">
+                    <span class="terminal-category-card__title">{{ category.label }}</span>
+                    <v-chip size="x-small" color="primary" variant="tonal" class="terminal-category-card__count">
+                      {{ category.count }} 条
+                    </v-chip>
+                  </div>
+                  <v-icon v-if="networkView === category.value" icon="mdi-check-circle" size="20"
+                    color="primary" class="terminal-category-card__check"/>
+                </div>
+              </v-btn>
+            </div>
+            <template v-if="networkView === 'interfaces'">
+              <v-card v-for="nic in networkInterfaces" :key="nic.interface" rounded="xl" elevation="1" class="interface-card mb-3">
+                <div class="section-heading">
+                  <div><strong>{{ nic.interface }}</strong><div class="muted-hint">{{ nic.proto || 'unknown' }} · {{ nic.device || nic.l3_device || '--' }}</div></div>
+                  <v-chip size="small" variant="tonal" :color="nic.up ? 'success' : 'error'">{{ nic.up ? '已连接' : '未连接' }}</v-chip>
+                </div>
+                <div class="network-interface-details">
+                  <div><span>IPv4</span><strong>{{ nic['ipv4-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
+                  <div><span>IPv6</span><strong>{{ nic['ipv6-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
+                  <div v-if="nic['ipv6-prefix']?.length"><span>IPv6-PD</span><strong>{{ nic['ipv6-prefix'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
+                  <div v-if="nic['ipv6-prefix-assignment']?.length"><span>IPv6-PD 分配</span><strong>{{ nic['ipv6-prefix-assignment'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
+                  <div v-if="nic['dns-server']?.length"><span>DNS</span><strong>{{ nic['dns-server'].join(' / ') }}</strong></div>
+                  <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
+                  <div v-if="nic.uptime !== undefined && nic.uptime !== null"><span>运行时间</span><strong>{{ formatInterfaceUptime(nic.uptime) }}</strong></div>
+                  <div v-if="nic.route?.length"><span>路由</span><strong>{{ nic.route.map(x => x.target + '/' + x.mask + ' → ' + (x.nexthop || '--')).join('; ') }}</strong></div>
+                </div>
+              </v-card>
+              <v-alert v-if="!networkInterfaces.length" type="info" variant="tonal" density="compact">暂未获取到网络接口。</v-alert>
+            </template>
+            <template v-else-if="networkView === 'devices'">
+              <v-card rounded="xl" elevation="1" class="network-card mb-3">
+                <NetworkHardwareList :wired="networkHardware.wired" :wireless="[]"/>
+              </v-card>
+              <v-alert v-if="!networkHardware.wired.length" type="info" variant="tonal" density="compact">暂未获取到有线网络设备。</v-alert>
+            </template>
+            <template v-else>
+              <v-card rounded="xl" elevation="1" class="network-card mb-3">
+                <NetworkHardwareList :wired="[]" :wireless="networkHardware.wireless"/>
+              </v-card>
+              <v-alert v-if="!networkHardware.wireless.length" type="info" variant="tonal" density="compact">暂未获取到无线设备。</v-alert>
+            </template>
           </template>
 
           <template v-if="activeTab === 'apps'">
@@ -1513,25 +1649,45 @@ onUnmounted(() => {
               />
               <div v-if="toolPanel === 'wol'" class="mt-3">
                 <h3>网络唤醒</h3>
-                <p class="muted-hint mb-2">需要路由器安装 WOL 插件并允许访问。</p>
-                <v-list v-if="wolData.targets.length" density="compact">
-                  <v-list-item v-for="target in wolData.targets" :key="target.id" :title="target.name" :subtitle="target.mac + (target.iface ? ' · ' + target.iface : '')">
-                    <template #append>
-                      <v-btn size="small" color="primary" variant="tonal" :loading="wolBusy" @click="sendWakePacket(target)">唤醒</v-btn>
-                      <v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 WOL 目标" @click="wolDeleteTarget = target; wolDeleteDialog = true"/>
-                    </template>
-                  </v-list-item>
-                </v-list>
-                <v-alert v-if="!wolData.available" type="warning" density="compact" variant="tonal">WOL RPC 未启用，无法在 APP 内直接唤醒设备。</v-alert>
+                <p class="muted-hint mb-2">支持已保存目标和 QWRT 当前邻居表中的设备。</p>
+                <v-btn-toggle v-model="wolTab" mandatory density="compact" variant="tonal" rounded="lg" color="primary" class="wol-tabs">
+                  <v-btn value="targets" size="small">已保存目标 {{ wolData.targets.length }}</v-btn>
+                  <v-btn value="neighbors" size="small">网络邻居 {{ wolData.neighbors.length }}</v-btn>
+                </v-btn-toggle>
+                <template v-if="wolTab === 'targets'">
+                  <v-list v-if="wolData.targets.length" density="compact">
+                    <v-list-item v-for="target in wolData.targets" :key="target.id" :title="target.name" :subtitle="target.mac + (target.iface ? ' · ' + target.iface : '')">
+                      <template #append>
+                        <v-btn size="small" color="primary" variant="tonal" :loading="wolBusy" @click="sendWakePacket(target)">唤醒</v-btn>
+                        <v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 WOL 目标" @click="wolDeleteTarget = target; wolDeleteDialog = true"/>
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                  <v-alert v-else type="info" variant="tonal" density="compact" class="mt-2">暂无已保存的网络唤醒目标。</v-alert>
+                  <v-alert v-if="!wolData.available" type="warning" density="compact" variant="tonal">WOL RPC 未启用，无法在 APP 内直接唤醒设备。</v-alert>
+                  <template v-else>
+                    <h3 class="mt-4">添加网络唤醒目标</h3>
+                    <form @submit.prevent="submitWolTarget">
+                      <v-text-field v-model.trim="wolForm.name" label="名称" density="compact" variant="outlined" class="mt-2" required/>
+                      <v-text-field v-model.trim="wolForm.mac" label="MAC 地址" placeholder="AA:BB:CC:DD:EE:FF" density="compact" variant="outlined" required/>
+                      <v-select v-model="wolForm.iface" label="发送接口" density="compact" variant="outlined" :items="wolData.interfaces" clearable/>
+                      <v-checkbox v-model="wolForm.broadcast" label="广播方式" density="compact" hide-details/>
+                      <v-btn type="submit" block color="primary" variant="tonal" :loading="wolBusy" class="mt-2">保存 WOL 设备</v-btn>
+                    </form>
+                  </template>
+                </template>
                 <template v-else>
-                  <h3 class="mt-4">添加网络唤醒目标</h3>
-                  <form @submit.prevent="submitWolTarget">
-                    <v-text-field v-model.trim="wolForm.name" label="名称" density="compact" variant="outlined" class="mt-2" required/>
-                    <v-text-field v-model.trim="wolForm.mac" label="MAC 地址" placeholder="AA:BB:CC:DD:EE:FF" density="compact" variant="outlined" required/>
-                    <v-select v-model="wolForm.iface" label="发送接口" density="compact" variant="outlined" :items="wolData.interfaces" clearable/>
-                    <v-checkbox v-model="wolForm.broadcast" label="广播方式" density="compact" hide-details/>
-                    <v-btn type="submit" block color="primary" variant="tonal" :loading="wolBusy" class="mt-2">保存 WOL 设备</v-btn>
-                  </form>
+                  <v-list v-if="wolData.neighbors.length" density="compact">
+                    <v-list-item v-for="neighbor in wolData.neighbors" :key="neighbor.mac"
+                      :title="neighbor.name" :subtitle="neighbor.mac + (neighbor.ip ? ' · ' + neighbor.ip : '')">
+                      <template #append>
+                        <v-btn size="small" color="primary" variant="tonal" :disabled="!wolData.available"
+                          :loading="wolBusy" @click="sendWakePacket({ name: neighbor.name, mac: neighbor.mac })">唤醒</v-btn>
+                      </template>
+                    </v-list-item>
+                  </v-list>
+                  <v-alert v-else type="info" variant="tonal" density="compact" class="mt-2">当前邻居表中没有可识别的设备。</v-alert>
+                  <v-alert v-if="!wolData.available" type="warning" density="compact" variant="tonal">WOL RPC 未启用，仍可查看邻居，但不能发送唤醒包。</v-alert>
                 </template>
               </div>
               <AppFilterPanel v-if="toolPanel === 'parental' && client" :client="client"/>
