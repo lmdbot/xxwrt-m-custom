@@ -100,7 +100,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the previous preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 28/; s/versionName "[^"]+"/versionName "0.5.19"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 29/; s/versionName "[^"]+"/versionName "0.5.20"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -134,20 +134,20 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.19.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.20.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.19.apk
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.20.apk
           # Validate against the actual Gradle versionCode so future version bumps cannot leave a stale check.
           EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -n1)"
           test -n "$EXPECTED_VERSION_CODE" || { echo "::error::Cannot read Gradle versionCode"; exit 1; }
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.19.apk | grep '^package:' | grep "versionName='0.5.19'" | grep "versionCode='$EXPECTED_VERSION_CODE'"
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.20.apk | grep '^package:' | grep "versionName='0.5.20'" | grep "versionCode='$EXPECTED_VERSION_CODE'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.19.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.20.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -157,11 +157,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.19"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.19.apk"
+          TAG="material-wrt-v0.5.20"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.20.apk"
           NOTES="../../build/material-preview/release-notes.md"
           cat > "$NOTES" <<'EOF'
-          ## XX-WRT M Material UI（防火墙规则与网络唤醒布局优化 v0.5.19）
+          ## XX-WRT M Material UI（终端与应用交互修复 v0.5.20）
 
           已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。
 
@@ -187,6 +187,10 @@ jobs:
           - SSR Plus+ 新增代理节点 TCP 探测、运行状态以及组件本地/在线版本查询和确认升级，遵从路由器现有 RPC 授权。
           - ZeroTier 新增节点在线状态、节点 ID、版本、虚拟网卡、网络状态和分配 IP。
           - Carbon 检查更新后主动查询任务状态，刷新最新版和更新按钮；支持确认安装。
+          - 切换首页、统计、终端、网络、应用及二级页面时立即回到页面顶部，消除不同页面滚动位置串联。
+          - ZeroTier 优先读取已安装插件的专用只读 RPC，CLI 不可用时回退 UCI 配置和系统虚拟网卡信息，不再把读取受限误判为运行故障。
+          - 防火墙规则保存并重载后重新读取 UCI 核实开关值，并在每条规则始终展示“已启用/已停用”状态标签。
+          - SSR Plus+ 优先复用 LuCI 原版节点探测接口，保留 RPC TCP 探测作为已授权回退；无可用探测权限时尽早停止批量任务，只显示一次提示。
           - 防火墙区域折叠标题直接展示已保存的 INPUT、OUTPUT、FORWARD 策略，未保存的修改另行提示。
           - 防火墙其他规则优化为适配手机的规则卡片，展示来源、目标、协议、端口和动作，支持搜索、启用/停用筛选及二次确认操作。
           - 网络唤醒的网络邻居使用响应式设备卡片，清晰显示主机名、IPv4、MAC，支持搜索和一键唤醒，避免移动端横向溢出。
@@ -228,8 +232,8 @@ jobs:
           } >> "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.19" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.20" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.19" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.20" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi
