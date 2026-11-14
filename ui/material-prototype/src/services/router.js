@@ -107,6 +107,61 @@ export class RouterClient {
   }
 }
 
+/**
+ * Discover optional applications after connecting and on Apps refresh.
+ * A disabled service still counts as installed. Built-in management pages
+ * are always shown by App.vue. Unreadable configuration is not an absence
+ * signal, so preserve those entries when the RPC capability is ambiguous.
+ */
+export async function readInstalledRouterApps(client) {
+  const configs = ['shadowsocksr', 'wechatpush', 'openclash', 'zerotier',
+    'internet-detector', 'luci', 'luci-wol']
+  const entries = [
+    ...configs.map(config => ['uci', 'get', { config }]),
+    ['rc', 'list'],
+    ['luci.wol', 'stat'],
+    ['appfilter', 'get_app_filter_base'],
+    ['luci.internet-detector', 'UIPoll'],
+    ['luci.carbon_update', 'status']
+  ]
+  const [ssr, wechat, clash, zt, detector, luci, wolConfig,
+    services, wolStat, parental, detectorPoll, carbonStatus] = await client.batch(entries)
+  const readable = config => Boolean(config?.values && typeof config.values === 'object' &&
+    Object.keys(config.values).length)
+  const hasService = name => services != null && Object.hasOwn(services, name)
+  const themeOptions = Object.values(luci?.values || {})
+  const hasCarbon = themeOptions.some(item => {
+    if (!item || typeof item !== 'object') return false
+    return Object.entries(item).some(([key, value]) =>
+      /carbon/i.test(key) || /carbon/i.test(String(value || '')))
+  })
+  const map = {
+    ssr: readable(ssr) || hasService('shadowsocksr'),
+    wechatpush: readable(wechat) || hasService('wechatpush'),
+    openclash: readable(clash) || hasService('openclash'),
+    detector: readable(detector) || hasService('internet-detector') || detectorPoll != null,
+    carbon: hasCarbon || carbonStatus != null,
+    zerotier: readable(zt) || hasService('zerotier'),
+    wol: readable(wolConfig) || Boolean(wolStat?.etherwake || wolStat?.wakeonlan),
+    parental: parental != null
+  }
+  // If both the main configuration and the rc registry are inaccessible,
+  // absence cannot be established: avoid hiding a possibly installed app.
+  const uncertain = services == null
+  const installed = Object.fromEntries(Object.entries(map).map(([key, found]) =>
+    [key, found || (uncertain && (
+      key === 'ssr' && ssr == null ||
+      key === 'wechatpush' && wechat == null ||
+      key === 'openclash' && clash == null ||
+      key === 'zerotier' && zt == null ||
+      key === 'detector' && detector == null ||
+      key === 'carbon' && luci == null ||
+      key === 'wol' && wolStat == null ||
+      key === 'parental' && parental == null
+    ))]))
+  return installed
+}
+
 export const DASHBOARD_REQUESTS = [
   ['system', 'board'],
   ['system', 'info'],
