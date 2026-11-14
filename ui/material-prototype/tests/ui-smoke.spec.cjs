@@ -49,7 +49,7 @@ const dataFor = (object, method, params = {}) => {
     return { data: JSON.stringify({ devices: [
       { name: 'Phone', ip: '192.168.100.88', mac: 'AA:BB:CC:DD:EE:FF', status: 'online', interface: 'LAN', uptime: '2小时' },
       // AP monitor sees a device online although the router ARP lookup failed.
-      { name: 'iPhone-15-Pro', ip: '192.168.100.89', mac: 'A6:83:E7:2C:91:0F', status: 'online', interface: '5G', uptime: '1小时' },
+      { name: 'AP备注手机', ip: '192.168.100.89', mac: 'A6:83:E7:2C:91:0F', status: 'online', interface: '5G', uptime: '1小时' },
       { name: 'MacBook-Air', ip: '192.168.100.90', mac: 'F0:EE:7A:91:AA:12', status: 'offline', interface: '5G' }
     ] }) }
   }
@@ -93,6 +93,8 @@ const dataFor = (object, method, params = {}) => {
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n192.168.100.88 dev br-lan proto kernel scope link\n' }
   }
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
+    if (params.params?.join(' ') === '-j info') return { code: 0, stdout: JSON.stringify({ address: 'abcdef1234', version: '1.14.0', online: true }) }
+    if (params.params?.join(' ') === '-j listnetworks') return { code: 0, stdout: JSON.stringify([{ id: '1234567890abcdef', name: 'home', status: 'OK', mac: 'aa:bb:cc:dd:ee:ff', type: 'PRIVATE', portDeviceName: 'zt0', assignedAddresses: ['10.10.10.2/24'] }]) }
     return { code: 0, stdout: '200 listnetworks 1234567890abcdef home aa:bb:cc:dd:ee:ff OK PRIVATE zt0 10.10.10.2/24\n' }
   }
   // WeChatPush ACL permits executing its script, but NOT arbitrary /bin/bash.
@@ -100,6 +102,9 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'file' && method === 'exec' && params.command === '/usr/share/wechatpush/wechatpush') {
     if (params.params?.length === 1 && params.params[0] === 'test') return { code: 0, stdout: '{"url":"https://example.invalid/secret-webhook-key","content":"sensitive request payload"}' }
     return null
+  }
+  if (object === 'file' && method === 'exec' && params.command === '/usr/share/shadowsocksr/update_components.sh') {
+    return { code: 0, stdout: 'component=xray\ncurrent_version=1.2.0\nlatest_version=1.3.0\npackage_manager=apk\ncan_upgrade=1\nsuccess=1\n' }
   }
   if (object === 'file' && method === 'exec') return { code: 0, stdout: 'test sent' }
   if (object === 'iwinfo' && method === 'devices') return { devices: ['wlan0'] }
@@ -338,7 +343,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.terminal-online-dot.is-online')).toHaveCount(2)
   await expect(page.locator('.terminal-online-dot.is-offline')).toHaveCount(1)
   // A stored host IP must never turn an unreachable terminal green.
-  await expect(page.locator('.terminal-tile').filter({ hasText: 'iPhone-15-Pro' }).locator('.terminal-online-dot')).toHaveClass(/is-online/)
+  await expect(page.locator('.terminal-tile').filter({ hasText: 'AP备注手机' }).locator('.terminal-online-dot')).toHaveClass(/is-online/)
   await expect(page.locator('.terminal-tile').filter({ hasText: 'MacBook-Air' }).locator('.terminal-online-dot')).toHaveClass(/is-offline/)
   await expect(page.getByText('Apple · 手机')).toBeVisible()
   await expect(page.locator('.terminal-identity--brand')).toHaveCount(2)
@@ -407,13 +412,24 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   await expect(page.getByText('香港节点', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: '批量探测节点' }).click()
+  await expect(page.getByText(/TCP 可连接/).first()).toBeVisible()
+  await page.getByRole('button', { name: '运行状态' }).click()
+  await expect(page.getByText('SSR Plus+ 运行状态')).toBeVisible()
+  await page.getByRole('button', { name: '组件更新' }).click()
+  await expect(page.getByText('SSR Plus+ 组件更新')).toBeVisible()
+  await page.getByRole('button', { name: '检测更新' }).click()
+  await expect(page.getByText('检测到可安装更新')).toBeVisible()
+  await page.getByRole('button', { name: '安装组件更新' }).click()
+  await expect(page.getByText('确认安装 SSR Plus+ 更新？')).toBeVisible()
+  await page.getByRole('button', { name: '取消' }).click()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开微信推送' }).click()
   await expect(page.getByText('启用微信推送')).toBeVisible()
   await expect(page.getByText('PushPlus', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: '在线设备' }).click()
   await expect(page.locator('.wechat-online-row')).toHaveCount(2)
-  await expect(page.getByText('iPhone-15-Pro', { exact: true })).toBeVisible()
+  await expect(page.getByText('AP备注手机', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '推送内容' }).click()
   await expect(page.getByText('设备上线通知')).toBeVisible()
   await expect(page.getByText('CPU 负载告警')).toBeVisible()
@@ -435,10 +451,16 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '打开Carbon 主题设置' }).click()
   await expect(page.getByText('当前主题', { exact: true }).last()).toBeVisible()
   await expect(page.getByText('Carbon 主题更新')).toBeVisible()
+  await page.getByRole('button', { name: '检查更新' }).click()
+  await expect(page.getByText('检测到可安装的 Carbon 新版本')).toBeVisible()
+  await expect(page.getByRole('button', { name: '安装已验证更新' })).toBeEnabled()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开ZeroTier' }).click()
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   await expect(page.getByText('OK')).toBeVisible()
+  await expect(page.getByText('节点 ID')).toBeVisible()
+  await expect(page.getByText('abcdef1234')).toBeVisible()
+  await expect(page.getByText('10.10.10.2/24')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开防火墙' }).click()
   await expect(page.getByText('区域策略', { exact: true })).toBeVisible()
