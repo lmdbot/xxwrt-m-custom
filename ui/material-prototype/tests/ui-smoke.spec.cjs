@@ -382,7 +382,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开微信推送' }).click()
   await expect(page.getByText('启用微信推送')).toBeVisible()
-  await expect(page.getByText('PushPlus')).toBeVisible()
+  await expect(page.getByText('PushPlus', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: '发送测试推送' }).click()
   await expect(page.getByText('test sent')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
