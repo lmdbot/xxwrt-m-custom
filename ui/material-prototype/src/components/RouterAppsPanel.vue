@@ -78,6 +78,14 @@ const wechatDevicesShown = computed(() => wechatDevices.value
   .filter(item => item.status === 'online' || item.status === 'unknown')
   .sort((a, b) => String(a.ip || '').localeCompare(String(b.ip || ''), undefined, { numeric: true })))
 const wechatOnlineCount = computed(() => wechatDevicesShown.value.filter(d => d.status === 'online').length)
+const wechatDeviceSearch = ref('')
+const filteredWechatDevices = computed(() => {
+  const keyword = String(wechatDeviceSearch.value || '').trim().toLowerCase()
+  if (!keyword) return wechatDevicesShown.value
+  return wechatDevicesShown.value.filter(item => [
+    item.name, item.ip, item.mac, item.interface, item.parent
+  ].some(v => String(v || '').toLowerCase().includes(keyword)))
+})
 function multiValues(raw) {
   const values = Array.isArray(raw) ? raw : String(raw || '').split(/[\s,]+/)
   return [...new Set(values.map(value => String(value).trim()).filter(Boolean))]
@@ -1002,13 +1010,36 @@ defineExpose({ refresh })
             <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" :disabled="loading || busy" @click="loadWechatDevices">刷新列表</v-btn>
           </div>
           <v-alert v-if="wechatDevicesError" type="info" variant="tonal" density="compact">{{ wechatDevicesError }}</v-alert>
-          <v-list v-else-if="wechatDevicesShown.length" density="compact" class="wechat-online-list">
-            <v-list-item v-for="item in wechatDevicesShown" :key="item.mac + '-' + item.ip" class="wechat-online-row"
-              :title="item.name" :subtitle="[item.ip,item.mac,item.interface,item.parent && item.parent !== 'Local' ? ('接入 ' + item.parent) : '',item.uptime ? ('在线时长 ' + item.uptime) : ''].filter(Boolean).join(' · ')">
-              <template #prepend><v-icon :icon="item.status === 'online' ? 'mdi-circle' : 'mdi-help-circle-outline'" :color="item.status === 'online' ? 'success' : 'grey'" size="small" class="mr-3"/></template>
-              <template #append><v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'default'" variant="tonal">{{ item.status === 'online' ? '在线' : '待确认' }}</v-chip></template>
-            </v-list-item>
-          </v-list>
+          <template v-else-if="wechatDevicesShown.length">
+            <v-text-field v-model="wechatDeviceSearch" class="wechat-devices-search mb-3"
+              label="搜索在线设备" aria-label="搜索在线设备" placeholder="主机名、IP、MAC 或接入信息"
+              prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" hide-details clearable/>
+            <div v-if="filteredWechatDevices.length" class="wechat-device-grid" role="list" aria-label="微信推送在线设备">
+              <div v-for="item in filteredWechatDevices" :key="item.mac + '-' + item.ip"
+                class="wechat-device-card wechat-online-row" role="listitem">
+                <div class="wechat-device-card__top">
+                  <div class="wechat-device-card__identity">
+                    <v-icon icon="mdi-devices" size="19" color="primary" aria-hidden="true"/>
+                    <strong>{{ item.name || '未命名设备' }}</strong>
+                  </div>
+                  <v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'secondary'"
+                    variant="tonal" class="wechat-device-card__status">
+                    <v-icon :icon="item.status === 'online' ? 'mdi-circle' : 'mdi-help-circle-outline'" start size="9"/>
+                    {{ item.status === 'online' ? '在线' : '待确认' }}
+                  </v-chip>
+                </div>
+                <div class="wechat-device-card__details">
+                  <div><span>IPv4</span><strong>{{ item.ip || '--' }}</strong></div>
+                  <div><span>MAC</span><strong>{{ item.mac || '--' }}</strong></div>
+                  <div><span>接入</span><strong>{{ item.interface || '未知' }}{{ item.parent && item.parent !== 'Local' ? ' · ' + item.parent : '' }}</strong></div>
+                  <div v-if="item.uptime"><span>在线时长</span><strong>{{ item.uptime }}</strong></div>
+                </div>
+              </div>
+            </div>
+            <v-alert v-else type="info" variant="tonal" density="compact">
+              没有匹配的在线设备，请调整搜索条件。
+            </v-alert>
+          </template>
           <v-alert v-else-if="wechatDevicesAvailable" type="info" variant="tonal" density="compact">微信推送缓存中暂无在线或待确认的设备。</v-alert>
           <p class="muted-hint mt-3">数据来自微信推送插件的 devices.json，不使用 DHCP 租约冒充在线终端。插件主动检测可能存在延迟，关闭服务时缓存不会继续刷新。</p>
         </template>
