@@ -1,4 +1,20 @@
-# XX-WRT M 自定义版（非官方）
+# XX-WRT Material 2.0（主线版本）
+
+Material UI 已成为 `main` 的默认安卓 APP 实现。使用 Vue 3、Vuetify 3、Capacitor 8 和 QWRT/OpenWrt ubus RPC。
+
+**版本：** 2.0.0（Android versionCode 20000）  
+**独立包名：** `com.lmdbot.xxwrt.materialpreview`  
+**Material 应用名称：** `XX-WRT Material Preview`（沿用 Material 分支的应用身份，不替换为旧 UniApp 的包名/名称/图标）  
+**主线打包：** `.github/workflows/ui-android-preview.yml`，成功后发布 `v2.0.0` 正式版本；`feature/material-ui` 继续发布独立预发布构建。
+
+Material 主线代码：`ui/material-prototype/src`；`ui/material-prototype/capacitor.config.json` 保存应用包名和名称。对旧版 APK 的重新打包流程保留作历史档案，`.github/workflows/build-apk.yml` 仅可手动触发，不再由 `main` 自动发布旧版 1.0.6。
+
+本地验证：进入 `ui/material-prototype`，运行 `npm install`、`npm run build` 和 `npm run test:ui`。真正的服务状态、插件权限、内核 NAT 等仍需在用户 QWRT 上验证。
+
+---
+
+## 旧版 XX-WRT M 1.0.6（历史资料）
+
 
 > 推荐创建 **Private 私有仓库**。此仓库存放来自用户提供 APK 的逆向提取编译产物；不是作者原始的 UniApp / Vue 源码工程，也不应当被误称为从源码完整编译。请确认你有权使用和分发本应用。
 
