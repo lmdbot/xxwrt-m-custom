@@ -79,7 +79,7 @@ const dataFor = (object, method, params = {}) => {
     firewall: { enabled: true, running: true },
     dnsmasq: { enabled: false, running: true },
     shadowsocksr: { enabled: true, running: true },
-    wechatpush: { enabled: true, running: true },
+    wechatpush: { enabled: true }, // live state comes from service.list procd
     openclash: { enabled: true, running: true },
     'internet-detector': { enabled: true, running: true },
     zerotier: { enabled: true, running: true }
