@@ -121,8 +121,9 @@ const handler = async route => {
 
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
   const errors = []
-  page.on('pageerror', e => errors.push(e.message))
+  page.on('pageerror', e => { errors.push(e.message); console.error('[BROWSER PAGEERROR]', e.stack || e.message) })
   page.on('console', m => {
+    if (m.type() === 'error') console.error('[BROWSER CONSOLE ERROR]', m.text())
     if (m.type() === 'warning' && m.text().includes('Failed to resolve component')) errors.push(m.text())
   })
   await page.route('**/ubus', handler)
@@ -238,6 +239,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
+  await page.waitForTimeout(300)
+  console.log('[TERMINAL DEBUG]', await page.locator('.terminal-screen').innerText())
   await expect(page.locator('.terminal-tile')).toHaveCount(3)
   await expect(page.getByText('Apple · 手机')).toBeVisible()
   await expect(page.locator('.terminal-identity--brand')).toHaveCount(2)
