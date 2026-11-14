@@ -312,3 +312,51 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .terminal-tag--private{color:#b7791f!important;background:rgba(183,121,31,.12)!important}
 .terminal-source{font-size:10px;color:rgb(var(--v-theme-on-surface-variant));white-space:nowrap}
 .terminal-ip6{overflow-wrap:anywhere;white-space:normal}
+
+
+/* Network section tabs: keep interfaces, devices and wireless on one compact row. */
+.network-category-grid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:2px;
+}
+.network-category-grid .terminal-category-card.v-btn{
+  min-height:56px;
+  height:56px!important;
+  padding:6px 5px!important;
+  border-radius:14px!important;
+}
+.network-category-grid .terminal-category-card__inner{gap:5px}
+.network-category-grid .terminal-category-card__icon{
+  width:28px!important;
+  height:28px!important;
+  flex:0 0 28px!important;
+}
+.network-category-grid .terminal-category-card__meta{gap:2px}
+.network-category-grid .terminal-category-card__title{font-size:12px}
+.network-category-grid .terminal-category-card__count.v-chip{
+  height:17px;
+  font-size:10px;
+  padding-inline:5px;
+}
+.network-category-grid .terminal-category-card__check{display:none}
+@media(max-width:380px){
+  .network-category-grid{gap:6px}
+  .network-category-grid .terminal-category-card.v-btn{
+    min-height:50px;
+    height:50px!important;
+    padding:5px 4px!important;
+  }
+  .network-category-grid .terminal-category-card__inner{gap:4px}
+  .network-category-grid .terminal-category-card__icon{
+    width:24px!important;
+    height:24px!important;
+    flex-basis:24px!important;
+  }
+  .network-category-grid .terminal-category-card__title{font-size:11px}
+  .network-category-grid .terminal-category-card__count.v-chip{
+    height:16px;
+    font-size:9px;
+    padding-inline:4px;
+  }
+}
