@@ -1054,7 +1054,7 @@ onUnmounted(() => {
                 </div>
                 <div class="settings-switch-row">
                   <div><strong>隐藏主机名</strong><p>开启后，路由器名称和系统主机名将以占位符显示；不会修改 OpenWrt 实际主机名。</p></div>
-                  <v-switch v-model="hideHostnames" aria-label="隐藏主机名" color="primary" hide-details density="compact"/>
+                  <v-switch v-model="hideHostnames" label="隐藏主机名" aria-label="隐藏主机名" color="primary" hide-details density="compact"/>
                 </div>
               </v-card>
 
@@ -1065,7 +1065,7 @@ onUnmounted(() => {
                 </div>
                 <div class="settings-switch-row">
                   <div><strong>隐藏 IP / 域名</strong><p>开启后，设备列表和设备详情页使用掩码显示地址，仅影响本机界面。</p></div>
-                  <v-switch v-model="hideIpAddresses" aria-label="隐藏 IP / 域名" color="primary" hide-details density="compact"/>
+                  <v-switch v-model="hideIpAddresses" label="隐藏 IP / 域名" aria-label="隐藏 IP / 域名" color="primary" hide-details density="compact"/>
                 </div>
               </v-card>
               <p class="settings-footnote"><v-icon icon="mdi-shield-check-outline" size="16"/> 隐私选项保存在本机，不会修改路由器配置。</p>
