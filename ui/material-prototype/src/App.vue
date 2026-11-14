@@ -1458,7 +1458,7 @@ onUnmounted(() => {
           <template v-if="activeTab === 'clients'">
             <div class="terminal-screen">
               <div class="terminal-header">
-                <div><h2>终端设备</h2><p>DHCP 租约记录，不代表当前在线</p></div>
+                <div><h2>终端设备</h2><p>在线状态结合 QWRT 邻居表与无线关联信息判断</p></div>
                 <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
               </div>
               <div class="terminal-category-grid" role="group" aria-label="终端分类">
@@ -1528,7 +1528,11 @@ onUnmounted(() => {
                   <v-card v-for="(item,index) in appFilterUsers.users" :key="'oaf-'+index" variant="outlined" rounded="lg" class="terminal-tile">
                     <v-avatar size="42" color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-shield-account-outline" size="22"/></v-avatar>
                     <div class="terminal-meta">
-                      <div class="terminal-name">{{ item.nickname || item.hostname || item.mac || '未知用户' }}</div>
+                      <div class="terminal-name-line">
+                        <span class="terminal-online-dot" :class="'is-' + onlineStateForMac(item.mac)"
+                          :title="onlineStateForMac(item.mac) === 'online' ? '在线' : onlineStateForMac(item.mac) === 'offline' ? '离线' : '状态未知'"/>
+                        <div class="terminal-name">{{ item.nickname || item.hostname || item.mac || '未知用户' }}</div>
+                      </div>
                       <div class="terminal-ip">{{ item.ip || item.ipaddr || '--' }}</div>
                       <div class="terminal-mac">{{ item.mac || '--' }} · {{ item.appname || item.app_name || '暂无应用记录' }}</div>
                     </div>
@@ -1730,9 +1734,10 @@ onUnmounted(() => {
             <div><span>名称</span><strong>{{ selectedClient.name }}</strong></div>
             <div><span>IPv4</span><strong>{{ selectedClient.ip }}</strong></div>
             <div><span>MAC 地址</span><strong>{{ selectedClient.mac }}</strong></div>
+            <div><span>在线状态</span><strong>{{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '状态未知' }}</strong></div>
             <div><span>租约时间</span><strong>{{ selectedClient.expires ?? '--' }}</strong></div>
           </div>
-          <p class="muted-hint mt-3">DHCP 租约不代表设备当前在线。</p>
+          <p class="muted-hint mt-3">在线状态依据 QWRT 邻居表中的 IP 记录及无线关联状态判断；邻居缓存可能存在短暂滞后。</p>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
       </v-card>
