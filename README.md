@@ -1,4 +1,4 @@
-# XX-WRT Material 2.0
+# XX-WRT Material
 
 **面向 QWRT / OpenWrt 的 Android 路由器管理应用**。提供多设备管理、系统监控、终端与网络信息查看，以及常用路由器服务和插件的集中管理。界面基于 Material Design，支持标准与 Liquid Glass 两种底部导航样式。
 
