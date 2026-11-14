@@ -161,16 +161,29 @@ jobs:
           TITLE="XX-WRT M Custom v$APK_VERSION"
           NOTES="build/release-notes.md"
           mkdir -p build
-          cat > "$NOTES" <<EOF
-          基于已编译 APK 资源重打包的非官方自定义版本。
+          if [[ "$APK_VERSION" == "1.0.6" ]]; then
+            # Baseline Release notes are maintained as a complete document.
+            cp docs/releases/v1.0.6.md "$NOTES"
+            cat >> "$NOTES" <<EOF
 
-          - APK versionName：\`$APK_VERSION\`
-          - Git 提交：\`$GITHUB_SHA\`
-          - Actions 构建：[$GITHUB_RUN_NUMBER](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
-          - 使用仓库 Secrets 中的固定签名密钥。
+---
 
-          **更新规则：** 相同 APK versionName 使用同一个 Release Tag，覆盖原 APK 附件；不会强制移动已有 Git Tag。
-          EOF
+**本次自动构建信息**
+
+- APK versionName：$APK_VERSION
+- Git 提交：$GITHUB_SHA
+- GitHub Actions：[构建 #$GITHUB_RUN_NUMBER](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+EOF
+          else
+            cat > "$NOTES" <<EOF
+非官方 XX-WRT M Custom APK。
+
+- APK versionName：$APK_VERSION
+- Git 提交：$GITHUB_SHA
+- GitHub Actions：[构建 #$GITHUB_RUN_NUMBER](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+- 固定签名证书，使用 GitHub Secrets 存储密钥。
+EOF
+          fi
 
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Updating existing Release $RELEASE_TAG"
