@@ -1,8 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
-import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core'
-const TcpProbe = registerPlugin('TcpProbe')
+import { CapacitorHttp } from '@capacitor/core'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
@@ -293,20 +292,6 @@ async function probeSsrViaExec(node) {
         : 'TCP 端口不可连接' }
   } catch (_) { return null }
 }
-async function probeSsrViaNative(node) {
-  if (!Capacitor.isNativePlatform()) return null
-  const port = Number(node.port)
-  if (!Number.isInteger(port) || port < 1 || port > 65535 || !node.host) return null
-  try {
-    const result = await TcpProbe.connect({ host: node.host, port })
-    return {
-      status: result.reachable === true ? 'ok' : 'failed',
-      text: result.reachable === true
-        ? '手机侧 TCP 可连接 · ' + Math.round(Number(result.durationMs || 0)) + 'ms'
-        : '手机侧 TCP 连接失败（不代表路由器侧不可用）'
-    }
-  } catch (_) { return null }
-}
 async function probeSsrNode(node) {
   if (!node.host || !/^\d+$/.test(node.port) || Number(node.port) < 1 || Number(node.port) > 65535) {
     ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '该节点没有可探测的服务器端口' } }
@@ -316,13 +301,9 @@ async function probeSsrNode(node) {
   let result = null
   if (ssrProbeMode.value !== 'exec') result = await probeSsrViaLuci(node)
   if (result) ssrProbeMode.value = 'luci'
-  else if (ssrProbeMode.value !== 'luci' && ssrProbeMode.value !== 'native') {
+  else if (ssrProbeMode.value !== 'luci') {
     result = await probeSsrViaExec(node)
     if (result) ssrProbeMode.value = 'exec'
-  }
-  if (!result) {
-    result = await probeSsrViaNative(node)
-    if (result) ssrProbeMode.value = 'native'
   }
   if (!result) {
     // One global diagnostic, not the same failure repeated 30+ times.
@@ -330,7 +311,7 @@ async function probeSsrNode(node) {
     delete states[node.id]
     ssrProbes.value = states
     ssrProbeMode.value = ''
-    ssrProbeUnavailable.value = 'QWRT 的 SSR Plus+ 探测接口不可用；请确认原版 LuCI 的“节点检测”可用。如果在浏览器预览 APP，手机侧 TCP 探测也不可用。'
+    ssrProbeUnavailable.value = '路由器侧 SSR Plus+ 节点探测接口不可用。请确认 QWRT 原版 LuCI 的“节点检测”是否正常，并检查插件接口权限。'
     return
   }
   ssrProbeUnavailable.value = ''
@@ -916,7 +897,7 @@ defineExpose({ refresh })
             <v-btn color="primary" variant="tonal" :disabled="busy" @click="applySsrNode">应用节点并重启</v-btn>
             <v-btn variant="outlined" :disabled="busy || ssrProbeBusy || !ssr.nodes.length" :loading="ssrProbeBusy" @click="probeAllSsr">批量探测节点</v-btn>
           </div>
-          <p class="muted-hint mt-2">优先使用 SSR Plus+ 探测接口；若 QWRT 权限不允许，安卓 APP 将尝试手机侧 TCP 端口检测。连接可达不代表代理出口可用。</p>
+          <p class="muted-hint mt-2">仅从 QWRT 路由器侧进行节点探测，优先使用 SSR Plus+ 原生探测接口，必要时尝试路由器已授权的 TCP 工具；不使用手机网络检测。</p>
           <v-alert v-if="ssrProbeUnavailable" type="info" variant="tonal" density="compact" class="mt-3">{{ ssrProbeUnavailable }}</v-alert>
           <v-list v-if="ssr.nodes.length" density="compact" class="mt-3">
             <v-list-item v-for="node in ssr.nodes" :key="node.id" class="ssr-probe-row" :title="node.title" :subtitle="[node.type,node.host,node.port].filter(Boolean).join(' · ')">
