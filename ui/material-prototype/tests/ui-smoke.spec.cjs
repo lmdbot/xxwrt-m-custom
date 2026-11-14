@@ -377,7 +377,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('应用管理')).toBeVisible()
   await expect(page.locator('.app-launcher-tile')).toHaveCount(14)
   await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
-  await expect(page.getByText('代理节点')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   await expect(page.getByText('香港节点')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开微信推送' }).click()
