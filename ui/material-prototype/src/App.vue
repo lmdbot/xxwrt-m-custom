@@ -938,7 +938,7 @@ onUnmounted(() => {
       <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack"/>
       <v-toolbar-title class="app-name">{{ settingsOpen ? '设置' : viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</v-toolbar-title>
       <v-spacer />
-      <v-btn v-if="viewMode === 'detail' && connected" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
 
     <v-navigation-drawer v-model="drawerOpen" temporary location="left" width="320" class="material-side-drawer" aria-label="设置分类侧栏">
