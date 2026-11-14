@@ -474,3 +474,28 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .firewall-rule-entry__control .firewall-rule-entry__switch{margin:0!important}
 .firewall-rule-entry__state{font-size:10px;font-weight:650;white-space:nowrap;color:rgb(var(--v-theme-on-surface-variant))}
 .firewall-rule-entry__state.is-enabled{color:rgb(var(--v-theme-success))}
+
+/* Two-column physical Ethernet dashboard, optimized for 360px Android viewports. */
+.ethernet-port-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.ethernet-port-item{display:block;min-width:0;padding:10px;border-radius:13px}
+.ethernet-port-content{min-width:0}
+.ethernet-port-heading{display:flex;align-items:center;justify-content:space-between;gap:3px;min-width:0}
+.ethernet-port-heading>.v-chip{flex:none;height:20px!important;padding:0 5px!important;font-size:10px!important}
+.ethernet-port-identity{display:flex;align-items:center;gap:5px;min-width:0}
+.ethernet-port-identity strong{font-size:12px!important;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.ethernet-port-icon{width:25px;height:25px;flex:0 0 25px;border-radius:8px}
+.ethernet-port-traffic{display:flex;flex-direction:column;flex-wrap:nowrap;gap:3px;margin-top:9px;font-size:11px}
+.ethernet-port-traffic span{white-space:nowrap;gap:2px}
+.ethernet-port-traffic .v-icon{font-size:13px!important}
+.ethernet-port-counters{display:flex;flex-direction:column;flex-wrap:nowrap;gap:1px;margin-top:8px;font-size:10px;line-height:1.35}
+.ethernet-port-counters span{overflow-wrap:anywhere}
+@media(max-width:380px){
+ .ethernet-port-list{gap:7px}
+ .ethernet-port-item{padding:8px 7px}
+ .ethernet-port-heading>.v-chip{font-size:9px!important;padding:0 4px!important}
+ .ethernet-port-identity{gap:4px}
+ .ethernet-port-identity strong{font-size:12px!important}
+ .ethernet-port-icon{width:23px;height:23px;flex-basis:23px}
+ .ethernet-port-traffic{font-size:10px}
+ .ethernet-port-counters{font-size:9.5px}
+}
