@@ -17,6 +17,26 @@ permissions:
   contents: write
 
 jobs:
+  cleanup-v2-0-2-assets:
+    # The old filename was accidentally uploaded alongside the canonical
+    # v2.0.2 APK. This small job also works if the Android build later fails.
+    if: github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove redundant v2.0.2 legacy-named APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v2.0.2"
+          OBSOLETE="XX-WRT-M-Material-QWRT-v2.0.2.apk"
+          if gh release view "$TAG" --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY" | grep -Fxq "$OBSOLETE"; then
+            gh release delete-asset "$TAG" "$OBSOLETE" --yes --repo "$GITHUB_REPOSITORY"
+            echo "Deleted redundant APK from $TAG"
+          else
+            echo "No duplicate legacy APK found on $TAG"
+          fi
+
   android-preview:
     runs-on: ubuntu-latest
     timeout-minutes: 40
