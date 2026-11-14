@@ -355,8 +355,14 @@ const networkCategories = computed(() => [
 ])
 const ethernetPorts = computed(() => networkHardware.value.wired
   .filter(item => /^(eth|en|ge|port)/i.test(item.name || ''))
-  .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined,
-    { numeric: true, sensitivity: 'base' })))
+  .sort((a, b) => {
+    // Physical ports are ordered by their trailing numeric index, not the
+    // order returned by ubus (which may change after an interface restart).
+    const number = name => Number(String(name || '').match(/(\d+)$/)?.[1] ?? Number.MAX_SAFE_INTEGER)
+    const indexDiff = number(a.name) - number(b.name)
+    return indexDiff || String(a.name || '').localeCompare(String(b.name || ''), undefined,
+      { numeric: true, sensitivity: 'base' })
+  }))
 const legacyTools = [
   { id: 'parental', title: '家长控制', subtitle: '应用过滤与访问规则', icon: 'mdi-shield-account-outline' },
   { id: 'routes', title: '路由表', subtitle: '静态与运行路由', icon: 'mdi-routes' },
