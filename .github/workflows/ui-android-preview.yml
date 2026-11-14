@@ -57,6 +57,9 @@ jobs:
       - name: Install UI dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Verify stable release version comparison
+        run: npm run test:versions
+
       - name: Build Material UI
         run: npm run build
 
@@ -100,7 +103,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the previous preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 20000/; s/versionName "[^"]+"/versionName "2.0.0"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 20001/; s/versionName "[^"]+"/versionName "2.0.1"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -134,22 +137,22 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.0.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.0.apk
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk
           # Validate against the actual Gradle versionCode so future version bumps cannot leave a stale check.
           EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -n1)"
           test -n "$EXPECTED_VERSION_CODE" || { echo "::error::Cannot read Gradle versionCode"; exit 1; }
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.0.apk | grep '^package:' | grep "versionName='2.0.0'" | grep "versionCode='$EXPECTED_VERSION_CODE'" | grep "name='com.lmdbot.xxwrt.materialpreview'"
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk | grep '^package:' | grep "versionName='2.0.0'" | grep "versionCode='$EXPECTED_VERSION_CODE'" | grep "name='com.lmdbot.xxwrt.materialpreview'"
           # Safety check: never publish a legacy UniApp package as a Material APK.
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.0.apk | grep "^application-label:" | grep "XX-WRT Material Preview"
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk | grep "^application-label:" | grep "XX-WRT Material Preview"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable Material APK
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.0.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -160,16 +163,19 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            TAG="v2.0.0"
-            TITLE="XX-WRT Material v2.0.0"
+            TAG="v2.0.1"
+            TITLE="XX-WRT Material v2.0.1"
           else
-            TAG="material-wrt-v2.0.0"
-            TITLE="XX-WRT Material v2.0.0 (branch build)"
+            TAG="material-wrt-v2.0.1"
+            TITLE="XX-WRT Material v2.0.1 (branch build)"
           fi
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.0.apk"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk"
           NOTES="../../build/material-preview/release-notes.md"
           cat > "$NOTES" <<'EOF'
-          ## XX-WRT Material v2.0.0 — 主线版本
+          ## XX-WRT Material v2.0.1 — 主线版本
+
+          - 新增 GitHub 正式 Release 自动检查、手动检查与系统下载管理器 APK 下载。
+          - 各版本号按数字逐段比较，排除 Draft、Pre-release 及测试标签。
 
           主线应用升级为 Material / Liquid Glass 风格，保留 Material 分支独立包名和应用资料，不覆盖旧版 UniApp 安装包。
           - Android applicationId: com.lmdbot.xxwrt.materialpreview

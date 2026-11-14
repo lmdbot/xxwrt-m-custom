@@ -39,6 +39,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(UiChromePlugin.class);
+        registerPlugin(ApkDownloaderPlugin.class);
         super.onCreate(savedInstanceState);
         // Lock the app UI to the device's normal 1x density. Preserve scroll,
         // touch controls, and accessibility text-size settings.
@@ -108,3 +109,70 @@ public class UiChromePlugin extends Plugin {
 )
 
 print("Patched native insets and created", plugin)
+
+
+# Send APK downloads to Android's system DownloadManager, not to JavaScript memory.
+download_plugin = main.with_name("ApkDownloaderPlugin.java")
+download_plugin.write_text(
+    package + """
+import android.app.DownloadManager;
+import android.content.Context;
+import android.net.Uri;
+import android.os.Environment;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+
+@CapacitorPlugin(name = "ApkDownloader")
+public class ApkDownloaderPlugin extends Plugin {
+    @PluginMethod
+    public void download(PluginCall call) {
+        final String rawUrl = call.getString("url");
+        final String filename = call.getString("filename");
+        if (rawUrl == null || filename == null) {
+            call.reject("Missing APK download URL or filename");
+            return;
+        }
+        final Uri uri = Uri.parse(rawUrl);
+        final boolean officialSource = "https".equalsIgnoreCase(uri.getScheme())
+            && "github.com".equalsIgnoreCase(uri.getHost())
+            && uri.getPort() == -1
+            && uri.getPath() != null
+            && uri.getPath().startsWith("/lmdbot/xxwrt-m-custom/releases/download/");
+        final boolean officialApk = filename.startsWith("XX-WRT-M-Material-QWRT-v")
+            && filename.matches("[A-Za-z0-9._-]+[.]apk")
+            && uri.getLastPathSegment() != null
+            && filename.equals(uri.getLastPathSegment());
+        if (!officialSource || !officialApk) {
+            call.reject("Untrusted APK download destination");
+            return;
+        }
+        try {
+            final DownloadManager manager = (DownloadManager)
+                getContext().getSystemService(Context.DOWNLOAD_SERVICE);
+            if (manager == null) {
+                call.reject("Android DownloadManager is unavailable");
+                return;
+            }
+            final DownloadManager.Request request = new DownloadManager.Request(uri);
+            request.setTitle(filename);
+            request.setDescription("XX-WRT Material GitHub Release");
+            request.setMimeType("application/vnd.android.package-archive");
+            request.setNotificationVisibility(
+                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+            final long id = manager.enqueue(request);
+            final JSObject result = new JSObject();
+            result.put("downloadId", String.valueOf(id));
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Unable to schedule APK download", error);
+        }
+    }
+}
+""",
+    encoding="utf-8"
+)
+print("Created", download_plugin)

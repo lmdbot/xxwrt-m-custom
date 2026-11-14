@@ -6,6 +6,8 @@ import { Browser } from '@capacitor/browser'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import packageInfo from '../package.json'
+import { compareAppVersions, parseAppVersion } from './services/appReleases.js'
+import { fetchLatestStableRelease } from './services/appUpdates.js'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import RouterAppsPanel from './components/RouterAppsPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
@@ -130,6 +132,64 @@ const deleteDeviceId = ref('')
 const loginRemember = ref(true)
 const isNative = Capacitor.isNativePlatform()
 const UiChrome = registerPlugin('UiChrome')
+const ApkDownloader = registerPlugin('ApkDownloader')
+const installedVersion = ref(packageInfo.version)
+const latestRelease = shallowRef(null)
+const updateChecking = ref(false)
+const updateChecked = ref(false)
+const updateError = ref('')
+const updateNotice = ref('')
+const updateDialog = ref(false)
+const updateAvailable = computed(() => !!latestRelease.value
+  && compareAppVersions(latestRelease.value.version, installedVersion.value) > 0)
+
+async function checkAppUpdates({ automatic = false } = {}) {
+  if (updateChecking.value) return
+  updateChecking.value = true
+  updateError.value = ''
+  updateNotice.value = ''
+  try {
+    latestRelease.value = await fetchLatestStableRelease()
+    updateChecked.value = true
+    if (automatic && isNative && updateAvailable.value && latestRelease.value.apkUrl) {
+      const key = 'xxwrt_material_update_prompted_v1'
+      if (localStorage.getItem(key) !== latestRelease.value.tag) {
+        updateDialog.value = true
+        localStorage.setItem(key, latestRelease.value.tag)
+      }
+    }
+  } catch (error) {
+    updateChecked.value = false
+    if (!automatic) updateError.value = '检查更新失败：' + shortError(error)
+  } finally {
+    updateChecking.value = false
+  }
+}
+
+async function downloadLatestApk() {
+  const release = latestRelease.value
+  if (!release?.apkUrl || !updateAvailable.value) return
+  updateError.value = ''
+  try {
+    if (isNative) {
+      await ApkDownloader.download({ url: release.apkUrl, filename: release.apkName })
+      updateNotice.value = '已添加到系统下载任务，请在通知栏或“下载”中查看。'
+    } else {
+      await Browser.open({ url: release.apkUrl, windowName: '_blank' })
+      updateNotice.value = '已打开 APK 下载地址，请在浏览器中查看下载状态。'
+    }
+    updateDialog.value = false
+  } catch (error) {
+    try {
+      await Browser.open({ url: release.apkUrl, windowName: '_blank' })
+      updateNotice.value = '系统下载不可用，已在浏览器中打开 APK 下载地址。'
+      updateDialog.value = false
+    } catch (_) {
+      updateError.value = '无法启动下载：' + shortError(error)
+    }
+  }
+}
+
 function syncNativeChrome(isDark) {
   const color = isDark ? '#11141B' : '#F5F6FB'
   document.documentElement.style.backgroundColor = color
@@ -1125,6 +1185,15 @@ async function rebootRouter() {
 }
 
 onMounted(() => {
+  void (async () => {
+    if (isNative) {
+      try {
+        const appInfo = await CapacitorApp.getInfo()
+        if (parseAppVersion(appInfo.version)) installedVersion.value = appInfo.version
+      } catch (_) { /* The embedded package version is the fallback. */ }
+    }
+    await checkAppUpdates({ automatic: true })
+  })()
   if (isNative) {
     // Android can reapply its system-bar appearance after returning from a
     // settings page or another app, so restore both contrast and background.
@@ -1357,9 +1426,20 @@ onUnmounted(() => {
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-update" size="23"/></v-avatar>
-                  <div><h2>版本与更新</h2><p>当前版本 v{{ packageInfo.version }}，查看最新测试版本和变更记录。</p></div>
+                  <div><h2>版本与更新</h2><p>仅检查 GitHub 正式 Release，预发布版本不参与更新判断。</p></div>
                 </div>
-                <v-btn color="primary" variant="tonal" block prepend-icon="mdi-open-in-new" @click="showReleasePage">查看 Releases</v-btn>
+                <div class="settings-detail-row"><span>当前安装版本</span><strong>v{{ installedVersion }}</strong></div>
+                <div v-if="latestRelease" class="settings-detail-row"><span>最新正式版本</span><strong>v{{ latestRelease.version }}</strong></div>
+                <v-alert v-if="updateError" type="error" variant="tonal" density="compact" class="mb-3">{{ updateError }}</v-alert>
+                <v-alert v-else-if="updateAvailable && latestRelease?.apkUrl" type="success" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，可下载正式版 APK。</v-alert>
+                <v-alert v-else-if="updateAvailable" type="warning" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，但此 Release 暂无匹配的 Material APK。</v-alert>
+                <v-alert v-else-if="updateChecked" type="info" variant="tonal" density="compact" class="mb-3">{{ latestRelease ? '当前已是最新版' : '暂未找到有效的正式 Release' }}</v-alert>
+                <v-alert v-if="updateNotice" type="info" variant="tonal" density="compact" class="mb-3">{{ updateNotice }}</v-alert>
+                <div class="settings-actions">
+                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" :loading="updateChecking" @click="checkAppUpdates">检查更新</v-btn>
+                  <v-btn v-if="updateAvailable && latestRelease?.apkUrl" color="primary" prepend-icon="mdi-download" @click="downloadLatestApk">下载最新 APK</v-btn>
+                  <v-btn variant="outlined" prepend-icon="mdi-open-in-new" @click="showReleasePage">发布记录</v-btn>
+                </div>
               </v-card>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
@@ -1956,6 +2036,20 @@ onUnmounted(() => {
       <v-card rounded="xl" title="确认重启 QWRT">
         <v-card-text>此操作将断开所有连接并重启路由器。确定执行吗？</v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" @click="confirmReboot = false">取消</v-btn><v-btn color="error" :loading="actionBusy" @click="rebootRouter">确认重启</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="updateDialog" max-width="420">
+      <v-card rounded="xl">
+        <v-card-title class="d-flex align-center ga-2"><v-icon icon="mdi-update" color="primary"/>发现应用新版本</v-card-title>
+        <v-card-text v-if="latestRelease">
+          当前版本 v{{ installedVersion }}，GitHub 正式版已更新至 v{{ latestRelease.version }}。
+          <p class="mt-3">APK 下载后可从系统“下载”目录打开安装。不会自动安装。</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn variant="text" @click="updateDialog = false">暂不更新</v-btn>
+          <v-btn color="primary" prepend-icon="mdi-download" @click="downloadLatestApk">下载最新 APK</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </v-app>
