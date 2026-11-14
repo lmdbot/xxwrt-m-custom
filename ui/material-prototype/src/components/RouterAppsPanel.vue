@@ -1041,7 +1041,6 @@ defineExpose({ refresh })
             </v-alert>
           </template>
           <v-alert v-else-if="wechatDevicesAvailable" type="info" variant="tonal" density="compact">微信推送缓存中暂无在线或待确认的设备。</v-alert>
-          <p class="muted-hint mt-3">数据来自微信推送插件的 devices.json，不使用 DHCP 租约冒充在线终端。插件主动检测可能存在延迟，关闭服务时缓存不会继续刷新。</p>
         </template>
         <template v-else-if="wechatTab === 'advanced'">
           <h3 class="router-app-section-title">设备探测</h3>
