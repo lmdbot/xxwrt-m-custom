@@ -752,6 +752,28 @@ async function loadZeroTier() {
           ...addressList(x['ipv4-address']), ...addressList(x['ipv6-address'])
         ])
       ]
+      // ZeroTier creates its own TUN interface, so netifd often knows the
+      // device and MAC but not the assigned IPv4/IPv6 addresses. Ask iproute2
+      // on the router for that exact interface, if the RPC ACL permits it.
+      if (!addresses.length) {
+        for (const command of ['/sbin/ip', '/usr/sbin/ip']) {
+          const ipResult = await props.client.call('file', 'exec', {
+            command, params: ['-j', 'address', 'show', 'dev', name], env: null
+          }, true)
+          if (!ipResult || Number(ipResult.code ?? 1) !== 0) continue
+          try {
+            const ipData = JSON.parse(String(ipResult.stdout || '[]'))
+            for (const entry of ipData) {
+              for (const addr of entry.addr_info || []) {
+                if (addr.local && addr.family !== 'link') {
+                  addresses.push(addr.local + (addr.prefixlen == null ? '' : '/' + addr.prefixlen))
+                }
+              }
+            }
+          } catch (_) {}
+          if (addresses.length) break
+        }
+      }
       return {
         name, mac: String(detail.macaddr || detail.mac || detail.mac_address || ''),
         up: detail.up === true || detail.link === true,
