@@ -27,7 +27,8 @@ function render() {
   }))
   chart.setOption({
     animationDuration: 250,
-    grid: { top: 38, bottom: 30, left: 50, right: 14, containLabel: false },
+    // Reduce reserved y-axis space so both mobile charts can use more width.
+    grid: { top: 38, bottom: 30, left: 32, right: 12, containLabel: false },
     legend: { top: 2, icon: 'roundRect', itemWidth: 13, textStyle: { fontSize: 11 } },
     tooltip: { trigger: 'axis', confine: true, valueFormatter: n => {
       return n == null ? '--' : Number(n).toFixed(1) + props.unit
@@ -35,7 +36,7 @@ function render() {
     xAxis: { type: 'category', data: timeLabels, boundaryGap: false,
       axisLabel: { fontSize: 10, interval: 'auto' }, axisLine: { lineStyle: { color: '#a1a8b6' } } },
     yAxis: { type: 'value', min: 0, scale: true, splitNumber: 3,
-      axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: '#8795b21a' } } },
+      axisLabel: { fontSize: 10, margin: 5 }, splitLine: { lineStyle: { color: '#8795b21a' } } },
     series
   }, { replaceMerge: ['series'] })
 }
