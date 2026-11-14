@@ -770,7 +770,20 @@ async function loadFirewall() {
     service: rc?.firewall || null
   }
 }
-async function reloadFirewall() { await service('firewall', 'reload') }
+async function reloadFirewall() {
+  // OpenWrt's rc.init RPC is designed for restricted service actions and is
+  // normally granted by LuCI's system init ACL. Avoid arbitrary file.exec.
+  const viaRc = await props.client.call('rc', 'init', {
+    name: 'firewall', action: 'reload'
+  }, true)
+  if (viaRc != null) return
+  // LuCI firewall status ACL traditionally permits *restart*, not reload.
+  const viaFile = await props.client.call('file', 'exec', {
+    command: '/etc/init.d/firewall', params: ['restart'], env: null
+  }, true)
+  if (viaFile != null && Number(viaFile.code ?? 1) === 0) return
+  throw new Error('防火墙配置已保存，但路由器未授权 APP 重新加载防火墙。请在原版 LuCI「网络 → 防火墙」点击“保存并应用”，完成后返回 APP 刷新。')
+}
 function requestFirewallRuleToggle(rule, enabled) {
   if (busy.value || rule.enabled === enabled) return
   fwRulePending.value = rule
@@ -795,7 +808,7 @@ async function confirmFirewallRuleToggle() {
     fw.value = { ...fw.value, rules: fw.value.rules.map(item =>
       item.section === rule.section ? { ...item, enabled: actual } : item) }
     if (actual !== enabled) throw new Error('规则状态与保存结果不一致，请检查路由器防火墙配置')
-  }, '防火墙规则“' + (rule.name || rule.section) + '”已' + (enabled ? '启用' : '停用') + '并重载防火墙')
+  }, '防火墙规则“' + (rule.name || rule.section) + '”已保存为' + (enabled ? '启用' : '停用') + '，已向防火墙发送重载请求')
 }
 async function saveZone(zone) {
   await run(async () => {
