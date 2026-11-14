@@ -1,29 +1,39 @@
-# Material UI 与 main v1.0.6 功能覆盖核对
+# main v1.0.6 → feature/material-ui 功能迁移清单
 
-本表以 main 分支已编译 UniApp 页面的路由清单及 Material 分支 RPC 实现为依据。不得把 LuCI 外部入口称为已移植原版页面。
+基于 main 已编译 UniApp 的 app-config-service.js 页面目录、app-service.js RPC 调用逐项核对。
 
-| main 页/功能 | Material 分支状态 | 数据/操作来源 |
+Material 是独立 Android 包名，无法直接读取另一个应用在 Android 沙盒里的已添加设备资料，首次使用需要重新添加。
+
+## 已迁移
+
+| main 页面/能力 | Material 实现 | 备注 |
 | --- | --- | --- |
-| 首页（设备、CPU、内存、温度、运行时间） | 已重做，只读 | system/luci/thermal ubus RPC |
-| Internet Detector | 已重做，只读 | luci.internet-detector UIPoll |
-| 统计 | 已重做，基础指标 | system.info、luci.getCPUUsage、conntrack |
-| 终端列表 | 已重做，DHCP 租约 | luci-rpc.getDHCPLeases / getHostHints |
-| 终端详情 | 已增加租约详情 | 当前 DHCP 租约，不宣称全量主机信息 |
-| 网络 | 已重做，接口地址与基本状态 | network.interface.dump |
-| 应用 / 服务 | 已增加服务列表 | rc.list |
-| 进程列表 | 已增加只读列表，权限不足则提示 | luci.getProcessList |
-| 启动项 | 已增加服务启动状态，暂不允许直接修改 | rc.list |
-| 路由管理 | 已增加静态路由只读配置；编辑需 LuCI | uci.get network |
-| 网络唤醒 WOL | 提供 LuCI 入口，未移植原版 WOL 操作 | 外部 LuCI |
-| 家长控制（基本设置、规则、进阶、关于） | 提供 LuCI 入口，未移植四个原版子页面 | 外部 LuCI |
-| 恢复出厂 | 仅通过 LuCI 原有二次确认流程 | 外部 LuCI |
-| 重启路由器 | 已实现并要求二次确认 | system.reboot |
-| 其他 LuCI 管理页面及插件菜单 | 通过 LuCI 继续管理，未移植到 Material 原生 UI | 外部 LuCI |
+| 设备列表 | **多设备添加、编辑、删除、点击进入详情、返回列表** | 独立地址、用户名、会话及状态摘要 |
+| 在线状态 | HTTP 可达性探测、保存密码时自动登录并刷新系统摘要 | 可达不等于认证成功 |
+| 连接信息 | 设备资料本地保存，可选 Android Keystore 加密记住密码 | 不存储会话 token |
+| 首页 | CPU、内存、温度、运行时间、Internet Detector | 实时 RPC 数据 |
+| 统计 | CPU、负载、内存、连接数 | 仍缺原版历史曲线 |
+| 终端列表/详情 | DHCP 租约列表、IP/MAC/租约详情 | 原版高级图表尚未迁移 |
+| 网络 | WAN/LAN、地址、DNS、网卡和无线设备 | 根据固件 RPC 权限变化 |
+| 进程 | luci.getProcessList 原版数据格式 | 只读 |
+| 启动项 | rc.list | 只读 |
+| 路由表 | UCI 静态路由和 /sbin/ip 固定只读命令 | 只读 |
+| WOL | luci.wol.stat/exec，UCI 目标增删 | 支持目标列表、添加、删除和唤醒 |
+| 家长控制基础设置 | appfilter RPC | 版本状态、启停、日志、工作模式 |
+| 设备重启 | system.reboot | 二次确认 |
 
-## 说明
+## 仍未等价迁移
 
-- 稳定基础版 main **未修改**；上述工作只发生在 feature/material-ui。
-- 当前功能并非与 main 完全等价：主版本的 WOL、家长控制和部分专有插件控制仍未迁移；LuCI 可能要求重新登录。
-- 不猜测 QWRT 私有命令和参数，不向路由器发送任意 shell 命令，也不自动恢复出厂。
-- 设备特有 API 的兼容性（含安装状态、ACL、UI 差异）须在真实 QWRT 环境验证。
-- Android 16 状态栏遮挡改用原生 Android WindowInsetsCompat systemBars + displayCutout 处理，避免硬编码状态栏高度；与 Capacitor SystemBars 自动 padding 互斥。
+- 家长控制的分类规则、时间规则、用户规则、高级设置与关于子页面。
+- 原版统计页的历史网络速率/负载图表，终端详情高级统计。
+- 恢复出厂的原版可写操作（破坏性操作仍在 LuCI 中进行）。
+- 多语言、帮助、关于，以及其他原版特定管理交互。
+- 不同固件/插件接口版本的全部兼容性验证。
+
+这些项目不能仅因“提供 LuCI 跳转”就标为已迁移。此文档会继续跟踪功能等价进度。
+
+## 安全与限制
+
+- Android 凭据使用 MIT 开源 @aparajita/capacitor-secure-storage 8.0.1（Android Keystore），且必须经用户选择。
+- 当前自动化测试采用模拟 RPC，尚未与用户真实 QWRT 做全部端到端测试。
+- 不更改 main 的 v1.0.6 基础版；仅在 feature/material-ui 开发实验版。
