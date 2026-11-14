@@ -143,7 +143,7 @@ jobs:
           # Validate against the actual Gradle versionCode so future version bumps cannot leave a stale check.
           EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -n1)"
           test -n "$EXPECTED_VERSION_CODE" || { echo "::error::Cannot read Gradle versionCode"; exit 1; }
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk | grep '^package:' | grep "versionName='2.0.0'" | grep "versionCode='$EXPECTED_VERSION_CODE'" | grep "name='com.lmdbot.xxwrt.materialpreview'"
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk | grep '^package:' | grep "versionName='2.0.1'" | grep "versionCode='$EXPECTED_VERSION_CODE'" | grep "name='com.lmdbot.xxwrt.materialpreview'"
           # Safety check: never publish a legacy UniApp package as a Material APK.
           "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk | grep "^application-label:" | grep "XX-WRT Material Preview"
           rm -f ../../build/material-preview/private/signing.p12
