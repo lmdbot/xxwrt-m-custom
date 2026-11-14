@@ -1420,12 +1420,14 @@ onUnmounted(() => {
               </div>
               <div v-if="ethernetPorts.length" class="ethernet-port-list">
                 <div v-for="port in ethernetPorts" :key="port.name" class="ethernet-port-item">
-                  <div class="ethernet-port-icon" :class="{ 'is-up': port.up }">
-                    <v-icon icon="mdi-ethernet" size="25"/>
-                  </div>
                   <div class="ethernet-port-content">
                     <div class="ethernet-port-heading">
-                      <strong>{{ port.name }}</strong>
+                      <div class="ethernet-port-identity">
+                        <div class="ethernet-port-icon" :class="{ 'is-up': port.up }">
+                          <v-icon icon="mdi-ethernet" size="19"/>
+                        </div>
+                        <strong>{{ port.name }}</strong>
+                      </div>
                       <v-chip size="x-small" variant="tonal" :color="port.up ? 'success' : 'secondary'">
                         {{ port.up ? '已连接' : '未连接' }}
                       </v-chip>
