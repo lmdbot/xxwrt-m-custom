@@ -139,7 +139,7 @@ async function saveWechat() {
 }
 async function testWechat() {
   await run(async () => {
-    const result = await command('/bin/bash', ['/usr/share/wechatpush/wechatpush', 't1'])
+    const result = await command('/bin/bash', ['/usr/share/wechatpush/wechatpush', 'test'])
     notice.value = String(result.stdout || '').trim().slice(0, 260) || '测试推送命令已执行，请检查手机是否收到消息'
   }, '', false)
 }
@@ -210,8 +210,9 @@ async function upgradeCarbon() {
 }
 
 function parseZt(stdout) {
-  return String(stdout || '').split(/\r?\n/).filter(Boolean).slice(1).map(line => {
-    const p = line.trim().split(/\s+/)
+  return String(stdout || '').split(/\r?\n/).filter(Boolean).map(line => {
+    const normalized = line.trim().replace(/^200\s+listnetworks\s+/, '')
+    const p = normalized.split(/\s+/)
     return { id: p[0] || '', name: p[1] || '', status: p[3] || '', addresses: p.slice(6).join(' ') }
   }).filter(x => /^[a-f0-9]{16}$/i.test(x.id))
 }
@@ -335,6 +336,7 @@ defineExpose({ refresh })
       <v-alert v-if="!ssr.available" type="warning" variant="tonal">未检测到 ShadowSocksR Plus+ 配置，或当前 RPC 账号无权读取 shadowsocksr。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(ssr.service) }}</strong></div><div><span>运行模式</span><strong>{{ ssr.global.run_mode || '--' }}</strong></div><div><span>节点数量</span><strong>{{ ssr.nodes.length }}</strong></div></div>
+        <h3 class="router-app-section-title">代理节点</h3>
         <v-select v-model="ssrNode" label="当前节点" density="comfortable" variant="outlined" :items="[{title:'停用透明代理',value:'nil'}, ...ssr.nodes.map(x => ({title:x.title + (x.detail ? ' · ' + x.detail : ''),value:x.id}))]"/>
         <div class="d-flex flex-wrap ga-2">
           <v-btn color="primary" variant="tonal" :disabled="busy" @click="applySsrNode">应用节点并重启</v-btn>

@@ -75,7 +75,7 @@ const dataFor = (object, method, params = {}) => {
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n192.168.100.88 dev br-lan proto kernel scope link\n' }
   }
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
-    return { code: 0, stdout: '200 listnetworks\n200 listnetworks 1234567890abcdef home aa:bb:cc:dd:ee:ff OK PRIVATE zt0 10.10.10.2/24\n' }
+    return { code: 0, stdout: '200 listnetworks 1234567890abcdef home aa:bb:cc:dd:ee:ff OK PRIVATE zt0 10.10.10.2/24\n' }
   }
   if (object === 'file' && method === 'exec') return { code: 0, stdout: 'test sent' }
   if (object === 'iwinfo' && method === 'devices') return { devices: ['wlan0'] }
@@ -383,6 +383,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '打开微信推送' }).click()
   await expect(page.getByText('启用微信推送')).toBeVisible()
   await expect(page.getByText('PushPlus')).toBeVisible()
+  await page.getByRole('button', { name: '发送测试推送' }).click()
+  await expect(page.getByText('test sent')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开OpenClash' }).click()
   await expect(page.getByText('代理模式')).toBeVisible()
@@ -397,6 +399,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开ZeroTier' }).click()
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
+  await expect(page.getByText('OK')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开防火墙' }).click()
   await expect(page.getByText('区域策略')).toBeVisible()
