@@ -461,7 +461,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('测试主机')).toBeVisible()
   await page.getByRole('button', { name: /网络邻居/ }).click()
   await expect(page.getByText('邻居电脑')).toBeVisible()
-  await page.getByRole('button', { name: '唤醒', exact: true }).click()
+  await page.locator('.v-list-item').filter({ hasText: '邻居电脑' }).getByRole('button', { name: '唤醒', exact: true }).click()
   await expect(page.getByText(/已向 邻居电脑 发送网络唤醒包/)).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开家长控制' }).click()
