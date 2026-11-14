@@ -40,3 +40,14 @@
 - 保留原有接口数据来源、连接状态判断和流量统计逻辑，仅调整展示结构与样式。
 - 针对窄屏优化卡片间距、图标尺寸和流量文字布局。
 - 增加 Playwright 回归检查，验证网口图标、连接状态、RX/TX 与累计流量均正常显示，且旧表格行结构已移除。
+
+
+## Material UI v0.5.12（2026-11-14）
+
+- 应用页新增 ShadowSocksR Plus+、微信推送、OpenClash、Internet Detector、Carbon 主题设置、ZeroTier、防火墙七个图标入口。
+- ShadowSocksR Plus+ 支持读取已配置节点、切换当前节点及服务启停；微信推送支持常用渠道凭据、推送启停、保存配置和测试消息。
+- OpenClash 支持开关、运行模式、代理模式、IPv6/UDP/路由器自身代理配置及服务启停；Internet Detector 展示 UIPoll 实时监测状态。
+- Carbon 主题设置支持 LuCI 主题切换、Carbon 更新检查、HTTPS 下载镜像配置及官方已校验版本更新。
+- ZeroTier 支持全局启停、加入/删除网络、单网络启停、运行状态查询；防火墙支持区域策略、Masquerading、端口转发增删及重载。
+- 所有插件页面均从当前路由器读取 UCI/ubus 数据；插件未安装或 RPC ACL 不足时显示明确提示，不填充虚构数据。
+- 增加 Playwright 模拟 ubus 回归覆盖，并修正 Android APK 版本校验：versionName 0.5.12 / versionCode 21。

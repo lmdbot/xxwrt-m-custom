@@ -7,6 +7,7 @@ import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import packageInfo from '../package.json'
 import AppFilterPanel from './components/AppFilterPanel.vue'
+import RouterAppsPanel from './components/RouterAppsPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
@@ -303,6 +304,8 @@ const factoryError = ref('')
 const actionBusy = ref(false)
 const selectedClient = ref(null)
 const toolPanel = ref('')
+const routerAppsPanel = ref(null)
+const routerAppToolIds = ['ssr', 'wechatpush', 'openclash', 'detector', 'carbon', 'zerotier', 'firewall']
 const toolLoading = ref(false)
 const toolMessage = ref('')
 const processData = ref({ available: false, processes: [] })
@@ -334,6 +337,13 @@ const legacyTools = [
   { id: 'process', title: '进程', subtitle: '系统运行进程', icon: 'mdi-format-list-bulleted' },
   { id: 'startup', title: '启动项', subtitle: '开机启动服务', icon: 'mdi-power-plug-outline' },
   { id: 'wol', title: '网络唤醒', subtitle: '远程唤醒终端', icon: 'mdi-lan-connect' },
+  { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
+  { id: 'wechatpush', title: '微信推送', subtitle: '通知渠道与推送配置', icon: 'mdi-message-badge-outline' },
+  { id: 'openclash', title: 'OpenClash', subtitle: '代理模式与运行控制', icon: 'mdi-cloud-sync-outline' },
+  { id: 'detector', title: 'Internet Detector', subtitle: '联网监测状态', icon: 'mdi-web-check' },
+  { id: 'carbon', title: 'Carbon 主题设置', subtitle: 'LuCI 主题与在线更新', icon: 'mdi-palette-outline' },
+  { id: 'zerotier', title: 'ZeroTier', subtitle: '虚拟组网与网络成员', icon: 'mdi-lan-connect' },
+  { id: 'firewall', title: '防火墙', subtitle: '区域策略与端口转发', icon: 'mdi-fire' },
   { id: 'reboot', title: '重启设备', subtitle: '需要二次确认', icon: 'mdi-restart' },
   { id: 'reset', title: '恢复出厂', subtitle: '清除配置，请谨慎操作', icon: 'mdi-restore' }
 ]
@@ -883,7 +893,7 @@ async function showLegacyTool(toolId) {
   }
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (toolId === 'parental') return
+  if (toolId === 'parental' || routerAppToolIds.includes(toolId)) return
   if (toolId === 'startup') {
     if (!serviceData.value.available) {
       toolLoading.value = true
@@ -916,6 +926,14 @@ async function showLegacyTool(toolId) {
   } finally {
     toolLoading.value = false
   }
+}
+
+function refreshCurrentTool() {
+  if (routerAppToolIds.includes(toolPanel.value)) {
+    void routerAppsPanel.value?.refresh()
+    return
+  }
+  void showLegacyTool(toolPanel.value)
 }
 
 async function submitWolTarget() {
@@ -1648,7 +1666,7 @@ onUnmounted(() => {
                 <div><h2>{{ legacyTools.find(x => x.id === toolPanel)?.title || '功能详情' }}</h2>
                   <p>{{ legacyTools.find(x => x.id === toolPanel)?.subtitle }}</p></div>
                 <v-btn icon="mdi-refresh" size="small" color="primary" variant="tonal" :loading="toolLoading"
-                  aria-label="刷新当前功能" @click="showLegacyTool(toolPanel)"/>
+                  aria-label="刷新当前功能" @click="refreshCurrentTool"/>
               </div>
               <v-card rounded="xl" elevation="1" class="network-card app-subpage">
                 <v-alert v-if="toolMessage" type="info" variant="tonal" density="compact" class="mb-3">{{ toolMessage }}</v-alert>
@@ -1706,6 +1724,8 @@ onUnmounted(() => {
                 </template>
               </div>
               <AppFilterPanel v-if="toolPanel === 'parental' && client" :client="client"/>
+              <RouterAppsPanel v-if="routerAppToolIds.includes(toolPanel) && client"
+                ref="routerAppsPanel" :client="client" :kind="toolPanel"/>
               </v-card>
             </template>
           </template>

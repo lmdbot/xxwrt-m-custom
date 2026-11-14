@@ -100,7 +100,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the previous preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 20/; s/versionName "[^"]+"/versionName "0.5.11"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 21/; s/versionName "[^"]+"/versionName "0.5.12"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -134,17 +134,17 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.11.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.11.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.11.apk | grep '^package:' | grep "versionName='0.5.11'" | grep "versionCode='20'"
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk | grep '^package:' | grep "versionName='0.5.12'" | grep "versionCode='20'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.11.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -154,11 +154,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.11"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.11.apk"
+          TAG="material-wrt-v0.5.12"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk"
           NOTES="../../build/material-preview/release-notes.md"
           cat > "$NOTES" <<'EOF'
-          ## XX-WRT M Material UI（设置分类与卡片导航 v0.5.11）
+          ## XX-WRT M Material UI（设置分类与卡片导航 v0.5.12）
 
           已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。
 
@@ -186,6 +186,10 @@ jobs:
           - 统计页改为连接后后台每 3 秒持续采样，切换页面直接呈现已有历史；RX/TX 卡片显示当前、平均和峰值。
           - 联网检测状态胶囊增加水平内边距，圆点和连接状态不再贴近两侧。
           - 应用子页面仅保留当前子应用的刷新按钮，隐藏不刷新子应用数据的上层通用刷新按钮；返回应用列表后恢复。
+          - 应用页新增 ShadowSocksR Plus+、微信推送、OpenClash、Internet Detector、Carbon 主题设置、ZeroTier、防火墙七个入口。
+          - ShadowSocksR Plus+ 支持读取节点列表、切换当前节点并重启服务；微信推送支持渠道凭据、启停配置和测试推送；OpenClash 支持运行模式、代理模式、IPv6/UDP/路由器自身代理及服务控制。
+          - Internet Detector 读取真实 UIPoll 监测结果；Carbon 支持 LuCI 主题切换、更新检查、下载镜像和已验证更新；ZeroTier 支持网络成员增删、启停及服务重启。
+          - 防火墙支持区域 INPUT/OUTPUT/FORWARD 策略、Masquerading、端口转发增删和防火墙重载；所有写操作均走 UCI/RPC，不执行用户自定义 Shell 命令。
           - 设备列表参考 main：全部/可达/离线筛选、卡片/列表切换、设备状态、温度、CPU/内存、连接数、终端数和经真实网卡采样计算的上传/下载速率。
           - 修复深色模式 Android 15/16 状态栏：原生背景和前景图标随 APP 深浅色同步；回前台重新应用。
           - 后台刷新不再把已显示设备标成检测中；磁盘/无线/应用用户在可选 RPC 临时失败时保留上次有效数据。
@@ -206,8 +210,8 @@ jobs:
           } >> "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.11" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.12" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.11" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.12" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi

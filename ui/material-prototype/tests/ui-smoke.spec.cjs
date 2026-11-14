@@ -27,6 +27,16 @@ const dataFor = (object, method, params = {}) => {
       { instance: 'chatgpt', inet: 0 }, { instance: 'google', inet: 1 }
     ]
   }
+  if (object === 'luci.carbon_update' && method === 'status') return {
+    state: 'idle', current: '1.1.5-r1', latest: '1.1.6-r1', manager: 'apk',
+    can_upgrade: true, mirror: '', logo: ''
+  }
+  if (object === 'luci.carbon_update' && method === 'check') return { started: true }
+  if (object === 'luci.carbon_update' && method === 'configure') return { mirror: params.mirror || '' }
+  if (object === 'luci.carbon_update' && method === 'upgrade') return { started: true }
+  if (object === 'service' && method === 'list' && params.name === 'wechatpush') {
+    return { wechatpush: { instances: { instance1: { running: true } } } }
+  }
   if (object === 'network.interface' && method === 'dump') return {
     interface: [
       { interface: 'lan', device: 'br-lan', up: true, proto: 'static', 'ipv4-address': [{ address: '192.168.100.1' }] },
@@ -52,13 +62,22 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'rc' && method === 'list') return {
     network: { enabled: true, running: true },
     firewall: { enabled: true, running: true },
-    dnsmasq: { enabled: false, running: true }
+    dnsmasq: { enabled: false, running: true },
+    shadowsocksr: { enabled: true, running: true },
+    wechatpush: { enabled: true, running: true },
+    openclash: { enabled: true, running: true },
+    'internet-detector': { enabled: true, running: true },
+    zerotier: { enabled: true, running: true }
   }
   if (object === 'luci.wol' && method === 'stat') return { etherwake: true }
   if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
   if (object === 'file' && method === 'exec' && params.command === '/sbin/ip') {
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n192.168.100.88 dev br-lan proto kernel scope link\n' }
   }
+  if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
+    return { code: 0, stdout: '200 listnetworks\n200 listnetworks 1234567890abcdef home aa:bb:cc:dd:ee:ff OK PRIVATE zt0 10.10.10.2/24\n' }
+  }
+  if (object === 'file' && method === 'exec') return { code: 0, stdout: 'test sent' }
   if (object === 'iwinfo' && method === 'devices') return { devices: ['wlan0'] }
   if (object === 'iwinfo' && method === 'assoclist') return {
     results: [{mac:'11:22:33:44:55:66', signal:-56, rx:{rate:144}, tx:{rate:130}, connected_time:50}]
@@ -74,8 +93,33 @@ const dataFor = (object, method, params = {}) => {
     return { 'br-lan': { up: true } }
   }
   if (object === 'uci' && method === 'get' && params.config === 'luci-wol') return { values: { demo: { '.type': 'target', '.name': 'demo', name: '测试主机', mac: 'AA:BB:CC:DD:EE:FF', iface: 'br-lan' } } }
+  if (object === 'uci' && method === 'get' && params.config === 'shadowsocksr') return { values: {
+    global: { '.type': 'global', '.name': 'global', global_server: 'node1', run_mode: 'gfw' },
+    node1: { '.type': 'servers', '.name': 'node1', alias: '香港节点', type: 'ssr', server: '203.0.113.10', server_port: '8388' }
+  } }
+  if (object === 'uci' && method === 'get' && params.config === 'wechatpush') return { values: {
+    config: { '.type': 'wechatpush', '.name': 'config', enable: '1', jsonpath: '/usr/share/wechatpush/api/pushplus.json', pushplus_token: 'test-token', sleeptime: '60' }
+  } }
+  if (object === 'uci' && method === 'get' && params.config === 'openclash') return { values: {
+    config: { '.type': 'openclash', '.name': 'config', enable: '1', en_mode: 'fake-ip', proxy_mode: 'rule', ipv6_enable: '0', enable_udp_proxy: '1', router_self_proxy: '1' }
+  } }
+  if (object === 'uci' && method === 'get' && params.config === 'zerotier') return { values: {
+    global: { '.type': 'zerotier', '.name': 'global', enabled: '1' },
+    home: { '.type': 'network', '.name': 'home', id: '1234567890abcdef', enabled: '1' }
+  } }
+  if (object === 'uci' && method === 'get' && params.config === 'firewall') return { values: {
+    lan: { '.type': 'zone', '.name': 'lan', name: 'lan', input: 'ACCEPT', output: 'ACCEPT', forward: 'ACCEPT', masq: '0', network: ['lan'] },
+    wan: { '.type': 'zone', '.name': 'wan', name: 'wan', input: 'REJECT', output: 'ACCEPT', forward: 'REJECT', masq: '1', network: ['wan','wan6'] },
+    rule1: { '.type': 'rule', '.name': 'rule1', name: 'Allow-DHCP-Renew', src: 'wan', proto: 'udp', dest_port: '68', target: 'ACCEPT' },
+    redirect1: { '.type': 'redirect', '.name': 'redirect1', name: 'Web Admin', src: 'wan', dest: 'lan', proto: 'tcp', src_dport: '8080', dest_ip: '192.168.100.10', dest_port: '80', target: 'DNAT' }
+  } }
+  if (object === 'uci' && method === 'get' && params.config === 'luci') return { values: {
+    main: { '.type': 'core', '.name': 'main', mediaurlbase: '/luci-static/carbon' },
+    themes: { '.type': 'internal', '.name': 'themes', Bootstrap: '/luci-static/bootstrap', Carbon: '/luci-static/carbon' }
+  } }
   if (object === 'uci' && method === 'get' && params.config === 'network') return { values: { cfg123: { '.type': 'route', interface: 'wan', target: '10.0.0.0/24', gateway: '10.12.4.1' } } }
-  if (object === 'uci' && method === 'add') return { section: 'new-wol-target' }
+  if (object === 'uci' && method === 'add') return { section: 'new-app-section' }
+  if (object === 'uci' && method === 'set') return {}
   if (object === 'uci' && method === 'commit') return {}
   if (object === 'uci' && method === 'revert') return {}
   if (object === 'uci' && method === 'delete') return {}
@@ -331,8 +375,33 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByText('应用管理')).toBeVisible()
-  await expect(page.locator('.app-launcher-tile')).toHaveCount(7)
-  await expect(page.getByText('firewall')).toHaveCount(0)
+  await expect(page.locator('.app-launcher-tile')).toHaveCount(14)
+  await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
+  await expect(page.getByText('代理节点')).toBeVisible()
+  await expect(page.getByText('香港节点')).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开微信推送' }).click()
+  await expect(page.getByText('启用微信推送')).toBeVisible()
+  await expect(page.getByText('PushPlus')).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开OpenClash' }).click()
+  await expect(page.getByText('代理模式')).toBeVisible()
+  await expect(page.getByText('运行模式')).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开Internet Detector' }).click()
+  await expect(page.getByText('连接正常').first()).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开Carbon 主题设置' }).click()
+  await expect(page.getByText('当前主题')).toBeVisible()
+  await expect(page.getByText('Carbon 主题更新')).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开ZeroTier' }).click()
+  await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '打开防火墙' }).click()
+  await expect(page.getByText('区域策略')).toBeVisible()
+  await expect(page.getByText('Web Admin')).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开进程' }).click()
   await expect(page.getByText('rpcd')).toBeVisible()
   await expect(page.getByText('状态 S')).toBeVisible()

@@ -379,3 +379,23 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
     padding-inline:4px;
   }
 }
+
+/* Router plugin integrations: compact cards, readable status and forms. */
+.router-app-panel{display:grid;gap:12px;min-width:0}
+.router-app-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:2px 0 12px}
+.router-app-summary>div{display:flex;flex-direction:column;gap:5px;min-width:0;padding:10px;border:1px solid rgba(125,142,163,.16);border-radius:12px;background:rgba(125,142,163,.055)}
+.router-app-summary span{font-size:10px;color:#8490a0}
+.router-app-summary strong{font-size:13px;font-weight:650;overflow-wrap:anywhere}
+.router-app-section-title{font-size:14px;font-weight:650;margin:10px 0 8px}
+.router-app-panel .v-list{border-radius:12px}
+.router-app-panel .v-list-item{border-bottom:1px solid rgba(125,142,163,.1)}
+.router-app-panel .v-list-item:last-child{border-bottom:0}
+.firewall-zone-title{display:flex;flex-direction:column;gap:3px}
+.firewall-zone-title small{font-size:10px;color:#8490a0}
+.zt-runtime-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:4px 0}
+.zt-runtime-row small{grid-column:1/-1;overflow-wrap:anywhere;opacity:.8}
+@media(max-width:390px){
+  .router-app-summary{gap:5px}
+  .router-app-summary>div{padding:8px}
+  .router-app-summary strong{font-size:11px}
+}

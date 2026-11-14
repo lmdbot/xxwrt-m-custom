@@ -19,7 +19,7 @@
 | client DHCPv6 | 读取 luci-rpc.getDHCPLeases 返回的 dhcp6_leases | 新增；需核对设备返回格式 |
 | client appfilter 用户 | appfilter.get_all_users 分页显示用户及已有应用字段 | 新增；未覆盖原版全部用户管理写操作 |
 | device/client_detail | IP、MAC、名称、租约详情 | 部分；原版应用访问记录、应用时长、过滤状态、断线操作尚未迁移 |
-| device/apps 应用首页 | 7 个图标：家长控制、路由表、进程、启动项、WOL、重启、恢复出厂 | 已改为图标入口，每个功能独立二级页 |
+| device/apps 应用首页 | 14 个图标：家长控制、路由表、进程、启动项、WOL、ShadowSocksR Plus+、微信推送、OpenClash、Internet Detector、Carbon 主题、ZeroTier、防火墙、重启、恢复出厂 | 新增七个插件管理页，按当前路由器 UCI/ubus 接口读取与写入；插件未安装或 ACL 不足时显示不可用状态 |
 | apps/process/index | luci.getProcessList 只读进程 | 部分：缺部分 PPID/状态/列字段及自动刷新 |
 | apps/startup/index | rc.list 查看启动项与服务运行状态 | 部分：排序/管理操作待比对 |
 | apps/route/index | UCI 静态路由及固定只读 ip route | 部分：IPv6 多表与类型细分待补 |
@@ -49,3 +49,18 @@
 ## 未达到 100% 的部分
 
 原版 client_detail 应用历史和访问记录、断线/管控操作、进程高级字段、IPv6 路由表全量分类、英中文全量翻译、帮助/关于/支持页面，以及不同插件版本的细节，仍需继续逐项迁移。未完成部分不得标为“全量一致”。
+
+
+## 新增插件页面（Material UI v0.5.12）
+
+| 应用 | 当前实现 | 适配边界 |
+| --- | --- | --- |
+| ShadowSocksR Plus+ | 读取 shadowsocksr 全局配置和 servers 节点，切换 global_server，启停/重启服务 | 不在 APP 中编辑节点密码、订阅 URL 或复杂分流规则 |
+| 微信推送 | 读取 wechatpush UCI，支持常见推送渠道、凭据、间隔、启停、保存、测试推送 | 渠道字段按已知 luci-app-wechatpush UCI 键写入；其他高级推送内容与黑名单策略未迁移 |
+| OpenClash | 修改 enable、en_mode、proxy_mode、IPv6、UDP、路由器自身代理，控制服务 | 不编辑 YAML 配置、订阅、代理组和规则文件 |
+| Internet Detector | 读取 luci.internet-detector.UIPoll 实时实例状态，可重启服务 | 当前只做监测结果查看和服务重启，不修改监测实例定义 |
+| Carbon 主题设置 | 读取 luci.themes、切换 mediaurlbase；调用 luci.carbon_update 检查更新、设置镜像、安装已验证更新 | 自定义 Logo 文件上传未迁移；在线更新依赖 Carbon 更新器 RPC 与 ACL |
+| ZeroTier | 读取全局及 network UCI，查看 zerotier-cli listnetworks，加入/删除网络、开关成员和服务 | Network ID 加入后仍需在 ZeroTier Central 授权；运行状态依赖 zerotier-cli RPC 权限 |
+| 防火墙 | 读取 zone/rule/redirect；编辑区域策略和 Masquerading；新增/删除 DNAT 端口转发并 reload | 不提供任意规则编辑器；修改 WAN INPUT/FORWARD 策略可能中断远程管理，操作前应确保有本地或带外访问方式 |
+
+上述自动化测试通过模拟 ubus 响应验证 UI 与 RPC 参数；尚未在真实 QWRT 设备上逐项执行启停、节点切换、推送发送和防火墙规则变更。
