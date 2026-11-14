@@ -459,7 +459,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('button', { name: '刷新数据' })).toHaveCount(1)
   await page.getByRole('button', { name: '打开网络唤醒' }).click()
   await expect(page.getByText('测试主机')).toBeVisible()
-  await page.getByRole('button', { name: '网络邻居 1' }).click()
+  await page.getByRole('button', { name: /网络邻居/ }).click()
   await expect(page.getByText('邻居电脑')).toBeVisible()
   await page.getByRole('button', { name: '唤醒', exact: true }).click()
   await expect(page.getByText(/已向 邻居电脑 发送网络唤醒包/)).toBeVisible()
