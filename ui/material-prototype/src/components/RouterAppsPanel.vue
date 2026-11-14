@@ -631,7 +631,7 @@ function parseZt(stdout) {
 }
 function parseZtJson(stdout) {
   try {
-    const data = JSON.parse(String(stdout || ''))
+    const data = typeof stdout === 'string' ? JSON.parse(stdout || '[]') : stdout
     const raw = Array.isArray(data) ? data : (Array.isArray(data?.networks) ? data.networks : [])
     return raw.filter(x => /^[a-f0-9]{16}$/i.test(String(x.id || ''))).map(x => ({
       id: String(x.id), name: String(x.name || ''), status: String(x.status || ''),
@@ -701,30 +701,73 @@ async function loadZeroTier() {
       }
     } catch (_) { /* Denied CLI execution is not proof that the daemon is down. */ }
   }
-  // Standard LuCI network/device RPCs can still report the ZeroTier virtual
-  // NIC even when neither the optional plugin RPC nor file.exec is permitted.
-  // Do not guess which network ID owns a NIC when several networks exist.
+  // Find ZeroTier virtual devices in standard OpenWrt RPC structures, even
+  // when no ZeroTier-specific RPC or zerotier-cli permission is available.
+  const addressList = source => {
+    const values = Array.isArray(source) ? source : source == null ? [] : [source]
+    return values.flatMap(x => {
+      if (typeof x === 'string') return x ? [x] : []
+      if (!x || typeof x !== 'object') return []
+      const address = x.address || x.addr || x.ipaddr || x.ip
+      return address ? [String(address) + (x.mask == null ? '' : '/' + x.mask)] : []
+    })
+  }
   let virtualDevices = []
-  if (!runtime.length) {
-    try {
-      const [devices, dump] = await Promise.all([
-        props.client.call('luci-rpc', 'getNetworkDevices', {}, true),
-        props.client.call('network.interface', 'dump', {}, true)
-      ])
-      const interfaces = Array.isArray(dump?.interface) ? dump.interface : []
-      virtualDevices = Object.entries(devices || {}).filter(([name]) => /^zt[a-z0-9]{5,}$/i.test(name))
-        .slice(0, 24).map(([name, detail]) => {
-          const related = interfaces.filter(item => item.device === name || item.l3_device === name)
-          const addresses = related.flatMap(item => [
-            ...(item['ipv4-address'] || []), ...(item['ipv6-address'] || [])
-          ]).map(item => item.address + (item.mask == null ? '' : '/' + item.mask))
-          return {
-            name, mac: String(detail?.macaddr || detail?.mac || ''),
-            up: detail?.up === true || detail?.link === true,
-            addresses: [...new Set(addresses)].join(', ')
-          }
-        })
-    } catch (_) { /* Optional netifd details must not block the app. */ }
+  try {
+    const [luciDevices, status, dump] = await Promise.all([
+      props.client.call('luci-rpc', 'getNetworkDevices', {}, true),
+      props.client.call('network.device', 'status', {}, true),
+      props.client.call('network.interface', 'dump', {}, true)
+    ])
+    const interfaceList = Array.isArray(dump?.interface) ? dump.interface : []
+    const sources = [luciDevices?.devices || luciDevices, status?.devices || status]
+    const names = new Set()
+    for (const candidate of sources) {
+      if (Array.isArray(candidate)) {
+        for (const item of candidate) if (/^zt[a-z0-9]{5,}$/i.test(item?.name || '')) names.add(item.name)
+      } else if (candidate && typeof candidate === 'object') {
+        for (const key of Object.keys(candidate)) if (/^zt[a-z0-9]{5,}$/i.test(key)) names.add(key)
+      }
+    }
+    for (const iface of interfaceList) {
+      const deviceName = iface.l3_device || iface.device
+      if (/^zt[a-z0-9]{5,}$/i.test(String(deviceName || ''))) names.add(deviceName)
+    }
+    for (const net of runtime) {
+      if (/^zt[a-z0-9]{5,}$/i.test(net.portDeviceName || '')) names.add(net.portDeviceName)
+    }
+    virtualDevices = await Promise.all([...names].slice(0, 24).map(async name => {
+      const fromLuci = Array.isArray(luciDevices) ? luciDevices.find(x => x.name === name)
+        : (luciDevices?.devices || luciDevices || {})[name]
+      const fromStatus = Array.isArray(status) ? status.find(x => x.name === name)
+        : (status?.devices || status || {})[name]
+      const direct = await props.client.call('network.device', 'status', { name }, true)
+      const detail = { ...(fromLuci || {}), ...(fromStatus || {}), ...(direct || {}) }
+      const related = interfaceList.filter(x => x.device === name || x.l3_device === name)
+      const addresses = [
+        ...addressList(detail['ipv4-address']), ...addressList(detail['ipv6-address']),
+        ...addressList(detail.ipaddrs), ...addressList(detail.ip4addrs),
+        ...addressList(detail.ip6addrs), ...addressList(detail.addresses),
+        ...related.flatMap(x => [
+          ...addressList(x['ipv4-address']), ...addressList(x['ipv6-address'])
+        ])
+      ]
+      return {
+        name, mac: String(detail.macaddr || detail.mac || detail.mac_address || ''),
+        up: detail.up === true || detail.link === true,
+        addresses: [...new Set(addresses)].join(', ')
+      }
+    }))
+  } catch (_) { /* Permission denial is unknown, not proof of a missing IP. */ }
+  // If there is exactly one configured ZeroTier network and one virtual NIC,
+  // there is a safe one-to-one association for its assigned addresses.
+  if (runtime.length === 1 && virtualDevices.length === 1) {
+    const device = virtualDevices[0]
+    runtime = runtime.map(network => ({
+      ...network, portDeviceName: network.portDeviceName || device.name,
+      mac: network.mac || device.mac,
+      addresses: network.addresses || device.addresses
+    }))
   }
   // Even without a runtime RPC, show networks we can safely read from UCI,
   // with explicit unknown status rather than an alarming, misleading error.
@@ -733,7 +776,9 @@ async function loadZeroTier() {
     runtimeSource = 'config'
     runtime = networks.map(item => ({
       id: item.id, name: '', mac: '', status: '未确认',
-      type: '', portDeviceName: '', addresses: '', enabled: item.enabled
+      type: '', portDeviceName: networks.length === 1 && virtualDevices.length === 1 ? virtualDevices[0].name : '',
+      addresses: networks.length === 1 && virtualDevices.length === 1 ? virtualDevices[0].addresses : '',
+      enabled: item.enabled
     }))
   } else if (!runtime.length) {
     runtimeUnavailable = true
