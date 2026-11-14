@@ -64,6 +64,8 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
         <span class="terminal-online-dot" :class="'is-' + onlineState"
           :title="onlineTitle" :aria-label="onlineTitle" role="img"/>
         <div class="terminal-name">{{ item.displayName || item.name || '未知设备' }}</div>
+        <v-chip v-if="sourceLabels.length" size="x-small" variant="tonal" color="primary"
+          class="terminal-tag terminal-main-source">{{ sourceLabels[0] }}</v-chip>
       </div>
       <div v-if="item.kind" class="terminal-kind">{{ item.kind }}</div>
       <div v-if="item.ip || item.ip6" class="terminal-ip terminal-ip6">
@@ -72,7 +74,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
       <div v-if="item.mac" class="terminal-mac">{{ item.mac }}</div>
       <div class="terminal-tags">
         <v-chip
-          v-for="source in sourceLabels"
+          v-for="source in sourceLabels.slice(1)"
           :key="source"
           size="x-small"
           variant="tonal"
