@@ -549,9 +549,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   const wolCardsOverflow = await page.locator('.wol-neighbor-card').evaluateAll(nodes =>
     nodes.some(node => node.getBoundingClientRect().right > innerWidth + 2 || node.scrollWidth > node.clientWidth + 2))
   expect(wolCardsOverflow).toBe(false)
-  await page.getByRole('textbox', { name: '搜索网络邻居' }).fill('192.168.100.99')
+  await page.locator('.wol-neighbors-search input').fill('192.168.100.99')
   await expect(page.locator('.wol-neighbor-card')).toHaveCount(1)
-  await page.getByRole('textbox', { name: '搜索网络邻居' }).fill('')
+  await page.locator('.wol-neighbors-search input').fill('')
   await expect(page.locator('.wol-neighbor-card')).toHaveCount(3)
   await page.screenshot({ path: 'test-results/screenshots/compact-wol-neighbors.png', fullPage: true })
   await page.getByRole('button', { name: '唤醒 邻居电脑' }).click()
