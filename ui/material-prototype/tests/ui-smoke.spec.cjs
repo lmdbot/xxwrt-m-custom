@@ -387,7 +387,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('test sent')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开OpenClash' }).click()
-  await expect(page.getByText('代理模式', { exact: true })).toBeVisible()
+  await expect(page.getByText('代理模式', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('运行模式', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开Internet Detector' }).click()
