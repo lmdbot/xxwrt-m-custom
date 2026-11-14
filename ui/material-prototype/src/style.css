@@ -697,3 +697,10 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .theme-is-dark .v-field textarea::placeholder{color:rgb(var(--v-theme-on-surface))!important}
 .theme-is-dark .v-field input::placeholder,
 .theme-is-dark .v-field textarea::placeholder{opacity:.72!important}
+
+/* Keep Material field titles and content in separate visual zones on narrow screens.
+   The full title remains accessible via the input's label even if visually clipped. */
+.material-demo .v-field--variant-outlined .v-field-label{
+  min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.material-demo .v-field--variant-outlined .v-field__input{min-width:0}
