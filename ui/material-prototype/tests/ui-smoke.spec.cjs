@@ -101,7 +101,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('Phone')).toBeVisible()
   await page.getByText('Phone').click()
   await expect(page.getByText('终端详情')).toBeVisible()
-  await expect(page.getByText('AA:BB:CC:DD:EE:FF')).toBeVisible()
+  await expect(page.getByText('AA:BB:CC:DD:EE:FF', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '关闭' }).click()
   await page.getByRole('button', { name: '网络' }).click()
   await expect(page.getByText('10.12.4.5').first()).toBeVisible()
