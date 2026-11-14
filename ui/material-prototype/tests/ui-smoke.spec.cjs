@@ -243,7 +243,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
   await expect(page.getByText('Apple · 手机')).toBeVisible()
   await expect(page.locator('.terminal-identity--brand')).toHaveCount(2)
-  await expect(page.getByText('随机 MAC')).toBeVisible()
+  await expect(page.getByText('随机 MAC')).toHaveCount(2)
   await expect(page.getByText('MacBook-Air')).toBeVisible()
   await expect(page.locator('.terminal-category-card')).toHaveCount(4)
   const categoryColumns = await page.locator('.terminal-category-grid').evaluate(el =>
