@@ -254,6 +254,17 @@ const activeTab = ref('home')
 const systemDark = ref(false)
 const dark = computed(() => colorMode.value === 'dark' || (colorMode.value === 'system' && systemDark.value))
 const pageTitle = computed(() => pages.find(page => page.id === activeTab.value)?.label || '首页')
+const toolbarSection = computed(() => {
+  if (settingsOpen.value) return '设置'
+  if (viewMode.value !== 'detail' || !connected.value) return ''
+  if (activeTab.value !== 'apps' || !toolPanel.value) return pageTitle.value
+  return legacyTools.find(x => x.id === toolPanel.value)?.title || '应用详情'
+})
+function closeAppTool() {
+  toolPanel.value = ''
+  toolMessage.value = ''
+  resetPageScroll()
+}
 const client = shallowRef(null)
 const connected = ref(false)
 const connecting = ref(false)
@@ -1041,7 +1052,7 @@ async function showLegacyTool(toolId) {
 
 function refreshCurrentTool() {
   if (routerAppToolIds.includes(toolPanel.value)) {
-    void routerAppsPanel.value?.refresh()
+    void routerAppsPanel.value?.refreshAction()
     return
   }
   void showLegacyTool(toolPanel.value)
@@ -1205,9 +1216,18 @@ onUnmounted(() => {
   <v-app class="material-demo" :class="{ 'theme-is-dark': dark }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
       <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
-      <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack"/>
-      <v-toolbar-title class="app-name">{{ settingsOpen ? '设置' : viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</v-toolbar-title>
-      <v-spacer />
+      <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small"
+        :aria-label="activeTab === 'apps' && toolPanel ? '返回应用功能列表' : '返回上一页'"
+        @click="activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
+      <v-toolbar-title class="app-name">
+        <div class="router-toolbar-title">
+          <span class="router-toolbar-name">{{ settingsOpen ? '设置' : viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</span>
+          <span v-if="toolbarSection && !settingsOpen" class="router-toolbar-context" :title="toolbarSection">· {{ toolbarSection }}</span>
+        </div>
+      </v-toolbar-title>
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
+        icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
+        aria-label="刷新当前页面" @click="activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
       <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
 
@@ -1446,10 +1466,7 @@ onUnmounted(() => {
           
         </template>
         <template v-else>
-          <div class="page-head">
-            <h1>{{ pageTitle }}</h1>
-            <v-btn v-if="activeTab !== 'apps' || !toolPanel" color="primary" variant="tonal" icon="mdi-refresh" size="small" :loading="refreshing" aria-label="刷新数据" @click="refreshCurrent"/>
-          </div>
+          <!-- Section title and refresh live in the fixed app toolbar. -->
           <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" closable class="mb-4" @click:close="errorMessage = ''">{{ errorMessage }}</v-alert>
 
           <template v-if="activeTab === 'home' || activeTab === 'statistics'">
@@ -1773,14 +1790,7 @@ onUnmounted(() => {
               
             </template>
             <template v-else>
-              <div class="app-subpage-heading">
-                <v-btn icon="mdi-arrow-left" size="small" variant="text" aria-label="返回应用功能列表"
-                  @click="toolPanel = ''; toolMessage = ''"/>
-                <div><h2>{{ legacyTools.find(x => x.id === toolPanel)?.title || '功能详情' }}</h2>
-                  <p>{{ legacyTools.find(x => x.id === toolPanel)?.subtitle }}</p></div>
-                <v-btn icon="mdi-refresh" size="small" color="primary" variant="tonal" :loading="toolLoading"
-                  aria-label="刷新当前功能" @click="refreshCurrentTool"/>
-              </div>
+              <!-- Back and refresh moved into the top app toolbar. -->
               <v-card rounded="xl" elevation="1" class="network-card app-subpage">
 
                 <v-progress-linear v-if="toolLoading" indeterminate class="mb-3"/>
