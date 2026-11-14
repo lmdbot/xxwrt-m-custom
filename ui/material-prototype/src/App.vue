@@ -1319,7 +1319,7 @@ onUnmounted(() => {
         <template v-else>
           <div class="page-head">
             <h1>{{ pageTitle }}</h1>
-            <v-btn color="primary" variant="tonal" icon="mdi-refresh" size="small" :loading="refreshing" aria-label="刷新数据" @click="refreshCurrent"/>
+            <v-btn v-if="activeTab !== 'apps' || !toolPanel" color="primary" variant="tonal" icon="mdi-refresh" size="small" :loading="refreshing" aria-label="刷新数据" @click="refreshCurrent"/>
           </div>
           <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" closable class="mb-4" @click:close="errorMessage = ''">{{ errorMessage }}</v-alert>
 
