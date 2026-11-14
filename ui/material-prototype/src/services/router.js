@@ -274,11 +274,42 @@ const NEIGHBOR_REQUESTS = [
   ['file', 'exec', { command: '/sbin/ip', params: ['-6', 'neigh', 'show'], env: null }]
 ]
 
+/**
+ * Prefer the active WeChatPush monitor's online/offline evidence when present.
+ * It actively probes devices and can enrich the list using MiWiFi Mesh info.
+ * Never use an old cache while the WeChatPush service is stopped.
+ */
+function parseWechatPushStates(file, services) {
+  const result = new Map()
+  if (!services?.wechatpush?.running || typeof file?.data !== 'string' || file.data.length > 524288) return result
+  try {
+    const raw = JSON.parse(file.data)
+    if (!Array.isArray(raw?.devices)) return result
+    for (const item of raw.devices.slice(0, 1024)) {
+      const mac = normalizeMac(item.mac || '').toUpperCase()
+      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) continue
+      const status = item.status
+      if (status !== 'online' && status !== 'offline') continue
+      const previous = result.get(mac)
+      if (!previous || status === 'online') result.set(mac, status)
+    }
+  } catch (_) { /* Missing or partially written monitor cache is not evidence. */ }
+  return result
+}
+
+function combineClientStates(neighbor, monitored) {
+  if (neighbor === 'online' || monitored === 'online') return 'online'
+  if (neighbor === 'offline' || monitored === 'offline') return 'offline'
+  return 'unknown'
+}
+
 export async function readClients(client) {
-  const [leases, hints, ipv4Neighbors, ipv6Neighbors] = await client.batch([
+  const [leases, hints, ipv4Neighbors, ipv6Neighbors, wechatDevices, runningServices] = await client.batch([
     ['luci-rpc', 'getDHCPLeases'],
     ['luci-rpc', 'getHostHints'],
-    ...NEIGHBOR_REQUESTS
+    ...NEIGHBOR_REQUESTS,
+    ['file', 'read', { path: '/tmp/wechatpush/devices.json' }],
+    ['rc', 'list']
   ])
   let neighbors = parseNeighborTables([ipv4Neighbors, ipv6Neighbors])
 
@@ -308,6 +339,7 @@ export async function readClients(client) {
     }
   }
 
+  const monitorStates = parseWechatPushStates(wechatDevices, runningServices)
   const names = hints || {}
   const lookupHint = mac => names[mac] || names[mac.toUpperCase()] || names[mac.toLowerCase()] || {}
   const data = (leases?.dhcp_leases || []).map(item => {
@@ -315,7 +347,7 @@ export async function readClients(client) {
     const hint = lookupHint(mac)
     const ip = item.ipaddr || hint.ipaddrs?.[0] || '--'
     const ip6 = hint.ip6addrs?.[0] || ''
-    const state = neighborStatus(neighbors, mac, ip, ip6)
+    const state = combineClientStates(neighborStatus(neighbors, mac, ip, ip6), monitorStates.get(mac))
     return {
       mac, ip, ip6,
       name: item.hostname || hint.name || '',
@@ -331,7 +363,7 @@ export async function readClients(client) {
     const hint = lookupHint(mac)
     const ip = item.ip6addr || item.address || item.ip6addrs?.[0] || '--'
     const ip4 = hint.ipaddrs?.[0] || ''
-    const state = neighborStatus(neighbors, mac, ip, ip4)
+    const state = combineClientStates(neighborStatus(neighbors, mac, ip, ip4), monitorStates.get(mac.toUpperCase()))
     return {
       ...item,
       mac: mac.toUpperCase(),
@@ -346,6 +378,7 @@ export async function readClients(client) {
     data, ipv6, hints,
     hintsAvailable: Boolean(hints),
     neighborsAvailable: neighbors.available,
+    monitorAvailable: monitorStates.size > 0,
     leasesAvailable: Boolean(leases)
   }
 }
