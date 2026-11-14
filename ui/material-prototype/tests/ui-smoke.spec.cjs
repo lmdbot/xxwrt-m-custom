@@ -57,6 +57,9 @@ const dataFor = (object, method, params = {}) => {
   }
   if (object === 'luci-rpc' && method === 'getHostHints') return {
     'AA:BB:CC:DD:EE:FF': { name: 'Phone', ipaddrs: ['192.168.100.88'] },
+    // Historical host hints intentionally include addresses for offline clients.
+    'A6:83:E7:2C:91:0F': { name: 'iPhone-15-Pro', ipaddrs: ['192.168.100.89'] },
+    'F0:EE:7A:91:AA:12': { name: 'MacBook-Air', ipaddrs: ['192.168.100.90'] },
     'BB:CC:DD:EE:FF:00': { name: '邻居电脑', ipaddrs: ['192.168.100.99'] }
   }
   if (object === 'rc' && method === 'list') return {
@@ -72,6 +75,9 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'luci.wol' && method === 'stat') return { etherwake: true }
   if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
   if (object === 'file' && method === 'exec' && params.command === '/sbin/ip') {
+    if (params.params?.[1] === 'neigh') return { code: 0, stdout: params.params[0] === '-4'
+      ? '192.168.100.88 dev br-lan lladdr aa:bb:cc:dd:ee:ff REACHABLE\n192.168.100.89 dev br-lan FAILED\n192.168.100.90 dev br-lan FAILED\n'
+      : 'fe80::1 dev br-lan lladdr bb:cc:dd:ee:ff:00 STALE\n' }
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n192.168.100.88 dev br-lan proto kernel scope link\n' }
   }
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
@@ -313,6 +319,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
   await expect(page.locator('.terminal-online-dot.is-online')).toHaveCount(1)
   await expect(page.locator('.terminal-online-dot.is-offline')).toHaveCount(2)
+  // A stored host IP must never turn an unreachable terminal green.
+  await expect(page.locator('.terminal-tile').filter({ hasText: 'iPhone-15-Pro' }).locator('.terminal-online-dot')).toHaveClass(/is-offline/)
+  await expect(page.locator('.terminal-tile').filter({ hasText: 'MacBook-Air' }).locator('.terminal-online-dot')).toHaveClass(/is-offline/)
   await expect(page.getByText('Apple · 手机')).toBeVisible()
   await expect(page.locator('.terminal-identity--brand')).toHaveCount(2)
   await expect(page.getByText('随机 MAC')).toHaveCount(2)
@@ -324,6 +333,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('button', { name: /DHCPv4/ })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: /DHCPv6/ }).click()
   await expect(page.getByRole('button', { name: /DHCPv6/ })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('.terminal-online-dot.is-unknown')).toHaveCount(1)
   await expect(page.getByText('IPv6-Phone')).toBeVisible()
   await page.getByRole('button', { name: /无线终端/ }).click()
   await expect(page.getByText('11:22:33:44:55:66')).toBeVisible()
