@@ -94,7 +94,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
   await expect(page.getByText('Phone')).toBeVisible()
   await page.getByRole('button', { name: '网络' }).click()
-  await expect(page.getByText('10.12.4.5')).toBeVisible()
+  await expect(page.getByText('10.12.4.5').first()).toBeVisible()
   await page.getByRole('button', { name: '应用' }).click()
   await expect(page.getByText('firewall')).toBeVisible()
   await page.getByRole('button', { name: '重启路由器' }).click()
