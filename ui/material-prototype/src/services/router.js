@@ -254,6 +254,7 @@ export async function readServices(client) {
 export async function readProcessList(client) {
   const result = await client.call('luci', 'getProcessList', {}, true)
   const items = Array.isArray(result) ? result :
+    Array.isArray(result?.result) ? result.result :
     Array.isArray(result?.processes) ? result.processes :
     Array.isArray(result?.data) ? result.data : []
   return {
@@ -261,9 +262,9 @@ export async function readProcessList(client) {
     processes: items.map(p => ({
       pid: String(p.pid ?? p.PID ?? '--'),
       user: String(p.user ?? p.USER ?? '--'),
-      cpu: String(p.cpu ?? p.cpu_percent ?? '--'),
-      memory: String(p.mem ?? p.memory ?? '--'),
-      command: String(p.command ?? p.cmd ?? p.name ?? '--')
+      cpu: String(p.cpu ?? p['%CPU'] ?? p.cpu_percent ?? '--'),
+      memory: String(p.mem ?? p['%MEM'] ?? p.memory ?? '--'),
+      command: String(p.COMMAND ?? p.command ?? p.cmd ?? p.name ?? '--')
     })).slice(0, 300)
   }
 }
@@ -282,4 +283,149 @@ export async function readRouteConfig(client) {
       metric: String(v.metric ?? '--')
     })) : []
   return { available: Boolean(values), routes: entries }
+}
+
+
+const MAC_PATTERN = /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i
+
+/** Main branch: luci.wol.stat + uci.get(luci-wol) + host hints. */
+export async function readWolDevices(client) {
+  const [stat, config, hints, nics] = await client.batch([
+    ['luci.wol', 'stat'],
+    ['uci', 'get', { config: 'luci-wol' }],
+    ['luci-rpc', 'getHostHints'],
+    ['network.device', 'status']
+  ])
+  const values = config?.values || {}
+  const targets = Object.entries(values)
+    .filter(([, item]) => item && item['.type'] === 'target')
+    .map(([section, item]) => ({
+      id: String(item['.name'] || section),
+      name: String(item.name || '未命名设备'),
+      mac: String(item.mac || '').toUpperCase(),
+      iface: String(item.iface || ''),
+      broadcast: String(item.broadcast || '0') === '1'
+    }))
+  const available = Boolean(stat?.etherwake || stat?.wakeonlan)
+  const tool = stat?.etherwake ? '/usr/bin/etherwake' : stat?.wakeonlan ? '/usr/bin/wakeonlan' : ''
+  const interfaces = Array.isArray(nics) ? nics.map(n => n.name).filter(Boolean)
+    : Object.keys(nics || {}).filter(n => n !== 'lo')
+  const known = Object.entries(hints || {}).map(([mac, item]) => ({
+    name: String(item?.name || '未知设备'),
+    mac: mac.toUpperCase(),
+    ip: item?.ipaddrs?.[0] || ''
+  })).filter(item => MAC_PATTERN.test(item.mac))
+  return { available, tool, targets, interfaces, known }
+}
+
+/** Only execute the known WOL binary reported by the original LuCI plugin. */
+export async function wakeWolDevice(client, item) {
+  const mac = String(item?.mac || '').toUpperCase()
+  if (!MAC_PATTERN.test(mac)) throw new Error('MAC 地址格式不正确')
+  const data = await readWolDevices(client)
+  if (!data.available || !['/usr/bin/etherwake', '/usr/bin/wakeonlan'].includes(data.tool)) {
+    throw new Error('QWRT 尚未安装 WOL 服务或无权限')
+  }
+  const args = []
+  if (data.tool.endsWith('etherwake')) {
+    args.push('-D')
+    if (item.iface && data.interfaces.includes(item.iface)) args.push('-i', item.iface)
+    if (item.broadcast) args.push('-b')
+  }
+  args.push(mac)
+  const result = await client.call('luci.wol', 'exec', { name: data.tool, args })
+  if (Number(result?.code ?? 0) !== 0) throw new Error('WOL 命令失败：' + (result?.stderr || result?.code))
+  return result
+}
+
+export async function saveWolTarget(client, item) {
+  const mac = String(item.mac || '').trim().toUpperCase()
+  if (!MAC_PATTERN.test(mac)) throw new Error('MAC 地址格式不正确')
+  const name = String(item.name || '').trim()
+  if (!name || name.length > 64) throw new Error('请输入长度不超过 64 字的设备名称')
+  const iface = String(item.iface || '')
+  if (iface && !/^[a-zA-Z0-9_.:@-]{1,40}$/.test(iface)) throw new Error('网卡接口名无效')
+  const existing = await readWolDevices(client)
+  if (!existing.available) throw new Error('QWRT 缺少网络唤醒组件')
+  try {
+    await client.call('uci', 'add', { config: 'luci-wol', type: 'target',
+      values: { name, mac, iface, broadcast: item.broadcast ? '1' : '0' } })
+    await client.call('uci', 'commit', { config: 'luci-wol' })
+  } catch (error) {
+    await client.call('uci', 'revert', { config: 'luci-wol' }, true).catch(() => {})
+    throw error
+  }
+}
+
+export async function removeWolTarget(client, section) {
+  const data = await readWolDevices(client)
+  if (!data.targets.some(t => t.id === section)) throw new Error('唤醒设备不存在')
+  try {
+    await client.call('uci', 'delete', { config: 'luci-wol', section })
+    await client.call('uci', 'commit', { config: 'luci-wol' })
+  } catch (error) {
+    await client.call('uci', 'revert', { config: 'luci-wol' }, true).catch(() => {})
+    throw error
+  }
+}
+
+export async function readParentalSettings(client) {
+  const [base, status, advanced, rules, time, users] = await client.batch([
+    ['appfilter', 'get_app_filter_base'],
+    ['appfilter', 'get_oaf_status'],
+    ['appfilter', 'get_app_filter_adv'],
+    ['appfilter', 'get_app_filter'],
+    ['appfilter', 'get_app_filter_time'],
+    ['appfilter', 'get_all_users', { flag: 3 }]
+  ])
+  return {
+    available: Boolean(base?.data || status?.data),
+    base: base?.data || {},
+    status: status?.data || {},
+    advanced: advanced?.data || {},
+    selectedRules: Array.isArray(rules?.app_list) ? rules.app_list : [],
+    time: time?.data || {},
+    users: Array.isArray(users?.data?.list) ? users.data.list : []
+  }
+}
+
+export async function saveParentalBase(client, settings) {
+  const values = {
+    enable: settings.enable ? 1 : 0,
+    record_enable: settings.record_enable ? 1 : 0,
+    work_mode: Number(settings.work_mode)
+  }
+  if (![0, 1].includes(values.enable) || ![0, 1].includes(values.record_enable) ||
+      !Number.isInteger(values.work_mode) || values.work_mode < 0 || values.work_mode > 3) {
+    throw new Error('家长控制参数不合法')
+  }
+  return client.call('appfilter', 'set_app_filter_base', values)
+}
+
+export async function readRuntimeRoutes(client) {
+  // Matches the main branch, fixed read-only iproute2 command; no user command.
+  const response = await client.call('file', 'exec', {
+    command: '/sbin/ip',
+    params: ['-4', 'route', 'show', 'table', 'all'],
+    env: null
+  }, true)
+  return {
+    available: !!response && typeof response.stdout === 'string',
+    lines: String(response?.stdout || '').split(/\r?\n/).filter(Boolean).slice(0, 500)
+  }
+}
+
+export async function readNetworkHardware(client) {
+  const [wired, wireless] = await client.batch([
+    ['luci-rpc', 'getNetworkDevices'],
+    ['luci-rpc', 'getWirelessDevices']
+  ])
+  const value = data => data && typeof data === 'object' ? Object.entries(data).map(([name, v]) => ({
+    name, up: Boolean(v?.up ?? v?.link), mac: v?.macaddr || v?.mac || '--',
+    type: String(v?.type || v?.device || '--')
+  })).slice(0, 200) : []
+  return {
+    wiredAvailable: !!wired, wirelessAvailable: !!wireless,
+    wired: value(wired), wireless: value(wireless)
+  }
 }
