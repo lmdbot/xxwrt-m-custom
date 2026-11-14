@@ -9,7 +9,7 @@ on:
       - ".github/workflows/ui-android-preview.yml"
 
 concurrency:
-  group: material-ui-android-preview
+  group: material-ui-android-preview-terminal
   cancel-in-progress: true
 
 permissions:
