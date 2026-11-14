@@ -248,11 +248,10 @@ async function run(action, success, reload = true) {
 }
 
 async function loadSsr() {
-  const [cfg, rc, procd, processList, pluginStatus] = await Promise.all([
+  const [cfg, rc, procd, processList] = await Promise.all([
     getUci('shadowsocksr'), services(),
     props.client.call('service', 'list', { name: 'shadowsocksr' }, true),
-    props.client.call('luci', 'getProcessList', {}, true),
-    props.client.luciGet('/cgi-bin/luci/admin/services/shadowsocksr/run')
+    props.client.call('luci', 'getProcessList', {}, true)
   ])
   const list = sections(cfg), global = sectionOf(list, 'global', 'global')
   ssr.value = {
@@ -273,12 +272,22 @@ async function loadSsr() {
           String(process.COMMAND || process.command || process.cmd || '')))
       return {
         enabled: current?.enabled === true || String(global?.options.global_server || 'nil') !== 'nil',
-        running: pluginStatus?.running === true || current?.running === true || managed || runningProxy
+        running: current?.running === true || managed || runningProxy
       }
     })()
   }
   ssrStatusDetail.value = procd?.shadowsocksr || null
   ssrNode.value = String(global?.options.global_server || 'nil')
+  // The optional LuCI status CGI may be unavailable or slow on custom QWRT
+  // builds. Never hold the entire SSR page behind an optional GET timeout.
+  void props.client.luciGet('/cgi-bin/luci/admin/services/shadowsocksr/run')
+    .then(state => {
+      if (props.kind === 'ssr' && state && typeof state.running === 'boolean') {
+        ssr.value = { ...ssr.value,
+          service: { ...ssr.value.service, running: state.running }
+        }
+      }
+    }).catch(() => {})
 }
 async function applySsrNode() {
   await run(async () => {
