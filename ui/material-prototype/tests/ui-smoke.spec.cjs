@@ -375,3 +375,77 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await expect(page.getByText('连接 路由器 1')).toBeVisible()
   await expect(page.getByText('http://192.168.100.1', { exact: true })).not.toBeVisible()
 })
+
+
+test('theme survives reload and refresh keeps existing cards mounted without checking-state flash', async ({ page }) => {
+  // Native Android chrome is checked by Gradle build; browser verifies the
+  // same reactive theme state and underlying CSS/meta color.
+  await page.goto('/')
+  await page.evaluate(() => localStorage.setItem('xxwrt_material_color_mode', 'dark'))
+  await page.reload()
+  await expect(page.locator('.material-demo.theme-is-dark')).toBeVisible()
+  await expect.poll(() => page.locator('meta[name="theme-color"]').getAttribute('content'))
+    .toBe('#11141B')
+  await page.evaluate(() => localStorage.setItem('xxwrt_material_color_mode', 'light'))
+  await page.reload()
+  await expect(page.locator('.material-demo.theme-is-dark')).toHaveCount(0)
+  await expect.poll(() => page.locator('meta[name="theme-color"]').getAttribute('content'))
+    .toBe('#F5F6FB')
+
+  let holdNext = false
+  let blocked = false
+  let resumeRequest = null
+  await page.route('**/ubus', async route => {
+    if (holdNext && !blocked && route.request().method() === 'POST') {
+      blocked = true
+      await new Promise(resolve => { resumeRequest = resolve })
+    }
+    await handler(route)
+  })
+
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+  await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('QWRT')
+  await page.getByRole('textbox', { name: 'IP / 域名 / 端口' }).fill('http://192.168.100.1')
+  await page.getByRole('button', { name: '保存设备' }).click()
+  await page.getByRole('button', { name: '进入 QWRT' }).click()
+  await page.getByRole('textbox', { name: '路由器密码' }).fill('test-only')
+  await page.getByRole('button', { name: '登录并进入' }).click()
+  await expect(page.locator('.device-card.v-card')).toBeVisible()
+  await expect(page.getByText('磁盘占用')).toBeVisible()
+
+  // Delay one ubus response while the homepage is already displayed.
+  holdNext = true
+  blocked = false
+  await page.evaluate(() => { void window.__xxwrtTestRefreshDashboard() })
+  await expect.poll(() => blocked).toBe(true)
+  await expect(page.locator('.device-card.v-card')).toBeVisible()
+  await expect(page.getByText('磁盘占用')).toBeVisible()
+  await expect(page.getByText('38℃')).toBeVisible()
+  resumeRequest()
+  await expect(page.getByRole('button', { name: '刷新数据' }))
+    .not.toHaveClass(/v-btn--loading/)
+
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.locator('.router-list-card')).toBeVisible()
+  await expect(page.locator('.router-stat-block')).toBeVisible()
+  await expect(page.getByText('已登录 · 在线')).toBeVisible()
+  await expect(page.getByRole('button', { name: '刷新设备状态' }))
+    .not.toHaveClass(/v-btn--loading/)
+
+  // The old code immediately set deviceStatuses[id] = 'checking',
+  // unmounting all online-only metrics and causing visible flashing.
+  holdNext = true
+  blocked = false
+  resumeRequest = null
+  await page.evaluate(() => { void window.__xxwrtTestRefreshDevices() })
+  await expect.poll(() => blocked).toBe(true)
+  await expect(page.locator('.router-stat-block')).toBeVisible()
+  await expect(page.getByText('已登录 · 在线')).toBeVisible()
+  await expect(page.locator('.router-name')).toHaveText('QWRT')
+  await page.screenshot({ path: 'test-results/screenshots/refresh-without-flicker.png', fullPage: true })
+  resumeRequest()
+  await expect(page.getByRole('button', { name: '刷新设备状态' }))
+    .not.toHaveClass(/v-btn--loading/)
+  await expect(page.locator('.router-stat-block')).toBeVisible()
+  await expect(page.getByText('已登录 · 在线')).toBeVisible()
+})
