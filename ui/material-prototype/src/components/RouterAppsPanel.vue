@@ -1157,10 +1157,13 @@ defineExpose({ refresh })
               <v-chip :color="fwRuleActionColor(String(rule.target || '').toUpperCase())" variant="tonal" size="small">
                 {{ rule.target || '未指定动作' }}
               </v-chip>
-              <v-switch :model-value="rule.enabled" :disabled="busy" color="primary"
-                hide-details density="compact" inset class="firewall-rule-entry__switch"
-                :aria-label="'启用规则 ' + (rule.name || rule.section)"
-                @update:model-value="requestFirewallRuleToggle(rule, $event)"/>
+              <div class="firewall-rule-entry__control">
+                <v-switch :model-value="rule.enabled" :disabled="busy" color="primary"
+                  hide-details density="compact" inset class="firewall-rule-entry__switch"
+                  :aria-label="'启用规则 ' + (rule.name || rule.section)"
+                  @update:model-value="requestFirewallRuleToggle(rule, $event)"/>
+                <span class="firewall-rule-entry__state" :class="{ 'is-enabled': rule.enabled }">{{ rule.enabled ? '已启用' : '已停用' }}</span>
+              </div>
             </div>
             <div class="firewall-rule-entry__fields">
               <div><span>来源区域</span><strong>{{ rule.src || '任意' }}</strong></div>
