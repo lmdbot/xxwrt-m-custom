@@ -206,8 +206,8 @@ onMounted(() => { void load() })
       </v-window-item>
       <v-window-item value="advanced">
         <template v-if="available.advanced">
-          <v-switch v-model="data.advanced.auto_load_engine" :true-value="1" :false-value="0" color="primary" label="自动加载过滤引擎"/>
-          <v-switch v-model="data.advanced.disable_hnat" :true-value="1" :false-value="0" color="primary" label="禁用硬件 NAT"/>
+          <v-switch density="compact" inset v-model="data.advanced.auto_load_engine" :true-value="1" :false-value="0" color="primary" label="自动加载过滤引擎"/>
+          <v-switch density="compact" inset v-model="data.advanced.disable_hnat" :true-value="1" :false-value="0" color="primary" label="禁用硬件 NAT"/>
           <v-text-field v-model="data.advanced.lan_ifname" variant="outlined" label="LAN 接口名" density="compact"/>
           <v-btn block color="primary" :loading="saving" @click="saveAdvanced">保存高级设置</v-btn>
         </template>
