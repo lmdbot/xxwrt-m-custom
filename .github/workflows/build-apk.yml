@@ -67,6 +67,9 @@ jobs:
       - name: Repair UniApp Internet Detector view bindings
         run: python3 scripts/fix_internet_detector_binding.py
 
+      - name: Apply responsive status capsule UI
+        run: python3 scripts/capsule_internet_detector.py
+
       - name: Validate compiled JavaScript
         run: |
           node --check src/www/app-service.js
