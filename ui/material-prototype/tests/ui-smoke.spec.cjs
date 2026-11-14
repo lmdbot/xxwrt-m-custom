@@ -25,7 +25,7 @@ test('Material components render and both bottom bars respond to taps', async ({
   )
   expect(cardRadius).toBeGreaterThan(10)
   await page.getByRole('button', { name: '统计' }).click()
-  await expect(page.getByRole('heading', { name: '统计' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '统计', level: 1 })).toBeVisible()
   await page.getByRole('button', { name: '首页' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
 
@@ -43,7 +43,7 @@ test('Material components render and both bottom bars respond to taps', async ({
   await page.getByRole('button', { name: '液态底栏' }).click()
   await expect(page.locator('.liquid-bottom .glass-nav')).toBeVisible()
   await page.getByRole('button', { name: '网络' }).click()
-  await expect(page.getByRole('heading', { name: '网络' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '网络', level: 1 })).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/liquid.png', fullPage: true })
 
   await page.reload()
