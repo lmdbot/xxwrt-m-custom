@@ -92,5 +92,14 @@ jobs:
           git add README.md docs/screenshots/
           if ! git diff --cached --quiet; then
             git commit -m "docs: add Material 2.0 screenshots to README"
-            git push
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "Could not push README screenshots after retries"
+            exit 1
           fi
