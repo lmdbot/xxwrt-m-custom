@@ -317,9 +317,6 @@ const toolMessage = ref('')
 const toolFeedbackOpen = ref(false)
 const toolWaiting = computed(() => toolLoading.value || wolBusy.value || actionBusy.value)
 const toolFeedbackText = computed(() => toolMessage.value || (toolWaiting.value ? '正在执行操作，请稍候…' : ''))
-watch([toolFeedbackText, toolWaiting], () => {
-  toolFeedbackOpen.value = Boolean(toolFeedbackText.value)
-})
 function dismissToolFeedback() {
   if (toolWaiting.value) return
   toolFeedbackOpen.value = false
@@ -339,6 +336,9 @@ const filteredWolNeighbors = computed(() => {
     [item.name, item.ip, item.mac].some(value => String(value || '').toLowerCase().includes(term)))
 })
 const wolBusy = ref(false)
+watch([toolFeedbackText, toolWaiting], () => {
+  toolFeedbackOpen.value = Boolean(toolFeedbackText.value)
+})
 const wolDeleteDialog = ref(false)
 const wolDeleteTarget = ref(null)
 const parentalData = ref({ available: false, base: {}, status: {}, advanced: {}, selectedRules: [], users: [] })
