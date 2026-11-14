@@ -690,21 +690,82 @@ defineExpose({ refresh })
     <v-alert v-if="error" type="error" variant="tonal" density="compact" class="mb-3">{{ error }}</v-alert>
     <v-alert v-if="notice" type="success" variant="tonal" density="compact" class="mb-3">{{ notice }}</v-alert>
     <v-progress-linear v-if="loading || busy" indeterminate color="primary" class="mb-3"/>
+    <template v-if="readyKind !== kind">
+      <v-skeleton-loader aria-label="正在加载应用配置" type="article,article" class="mb-3"/>
+      <p class="muted-hint">正在读取 QWRT 应用配置与运行状态…</p>
+    </template>
+    <template v-else>
     <template v-if="kind === 'ssr'">
-      <v-alert v-if="!ssr.available" type="warning" variant="tonal">未检测到 ShadowSocksR Plus+ 配置，或当前 RPC 账号无权读取 shadowsocksr。</v-alert>
+      <v-alert v-if="!ssr.available" type="warning" variant="tonal">未检测到 ShadowSocksR Plus+ 配置，或当前 RPC 账号无权读取。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(ssr.service) }}</strong></div><div><span>运行模式</span><strong>{{ ssr.global.run_mode || '--' }}</strong></div><div><span>节点数量</span><strong>{{ ssr.nodes.length }}</strong></div></div>
-        <h3 class="router-app-section-title">代理节点</h3>
-        <v-select v-model="ssrNode" label="当前节点" density="comfortable" variant="outlined" :items="[{title:'停用透明代理',value:'nil'}, ...ssr.nodes.map(x => ({title:x.title + (x.detail ? ' · ' + x.detail : ''),value:x.id}))]"/>
-        <div class="d-flex flex-wrap ga-2">
-          <v-btn color="primary" variant="tonal" :disabled="busy" @click="applySsrNode">应用节点并重启</v-btn>
-          <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','start'),'ShadowSocksR Plus+ 已启动')">启动</v-btn>
-          <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','stop'),'ShadowSocksR Plus+ 已停止')">停止</v-btn>
-          <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','restart'),'ShadowSocksR Plus+ 已重启')">重启</v-btn>
-        </div>
-        <v-list v-if="ssr.nodes.length" density="compact" class="mt-3"><v-list-item v-for="x in ssr.nodes" :key="x.id" :title="x.title" :subtitle="x.detail || x.id"><template #append><v-chip size="x-small" variant="tonal" :color="x.id === ssr.global.global_server ? 'success' : 'default'">{{ x.id === ssr.global.global_server ? '当前节点' : '备用节点' }}</v-chip></template></v-list-item></v-list>
-        <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">尚未配置代理节点，请先添加节点或订阅。</v-alert>
+        <v-btn-toggle v-model="ssrTab" mandatory color="primary" variant="outlined" density="comfortable" class="d-flex my-4" style="width:100%">
+          <v-btn class="flex-grow-1" value="nodes">代理节点</v-btn>
+          <v-btn class="flex-grow-1" value="status">运行状态</v-btn>
+          <v-btn class="flex-grow-1" value="components">组件更新</v-btn>
+        </v-btn-toggle>
+        <template v-if="ssrTab === 'nodes'">
+          <h3 class="router-app-section-title">代理节点</h3>
+          <v-select v-model="ssrNode" label="当前节点" density="comfortable" variant="outlined" :items="[{title:'停用透明代理',value:'nil'}, ...ssr.nodes.map(x => ({title:x.title + (x.detail ? ' · ' + x.detail : ''),value:x.id}))]"/>
+          <div class="d-flex flex-wrap ga-2">
+            <v-btn color="primary" variant="tonal" :disabled="busy" @click="applySsrNode">应用节点并重启</v-btn>
+            <v-btn variant="outlined" :disabled="busy || ssrProbeBusy || !ssr.nodes.length" :loading="ssrProbeBusy" @click="probeAllSsr">批量探测节点</v-btn>
+          </div>
+          <p class="muted-hint mt-2">TCP 探测仅检查服务器端口可达性（不代表代理出口可用）；依赖路由器的 nc/nping 及 RPC 执行权限。</p>
+          <v-list v-if="ssr.nodes.length" density="compact" class="mt-3">
+            <v-list-item v-for="node in ssr.nodes" :key="node.id" class="ssr-probe-row" :title="node.title" :subtitle="[node.type,node.host,node.port].filter(Boolean).join(' · ')">
+              <template #append>
+                <div class="d-flex align-center ga-1">
+                  <v-chip v-if="ssrProbes[node.id]" size="x-small" variant="tonal" :color="ssrProbes[node.id].status === 'ok' ? 'success' : ssrProbes[node.id].status === 'failed' ? 'error' : 'default'">{{ ssrProbes[node.id].status === 'ok' ? '可连接' : ssrProbes[node.id].status === 'failed' ? '失败' : '未知' }}</v-chip>
+                  <v-chip v-if="node.id === ssr.global.global_server" size="x-small" variant="tonal" color="success">当前</v-chip>
+                  <v-btn icon="mdi-lan-check" variant="text" size="small" :disabled="busy || ssrProbeBusy" :aria-label="'探测节点 ' + node.title" @click="probeSsrNode(node)"/>
+                </div>
+              </template>
+            </v-list-item>
+          </v-list>
+          <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">尚未配置代理节点，请先添加节点或订阅。</v-alert>
+          <div v-for="node in ssr.nodes.filter(n => ssrProbes[n.id])" :key="'probe-'+node.id" class="muted-hint">{{ node.title }}：{{ ssrProbes[node.id]?.text }}</div>
+        </template>
+        <template v-else-if="ssrTab === 'status'">
+          <h3 class="router-app-section-title">SSR Plus+ 运行状态</h3>
+          <div class="router-app-summary"><div><span>代理服务</span><strong>{{ statusText(ssr.service) }}</strong></div><div><span>当前节点</span><strong>{{ ssr.nodes.find(x => x.id === ssr.global.global_server)?.title || '未启用' }}</strong></div></div>
+          <v-list density="compact" class="mt-3">
+            <v-list-item title="全局代理模式" :subtitle="String(ssr.global.run_mode || '--')"/>
+            <v-list-item title="TCP 代理配置" :subtitle="String(ssr.global.global_server || 'nil')"/>
+            <v-list-item title="UDP 代理配置" :subtitle="String(ssr.global.udp_relay_server || '--')"/>
+            <v-list-item title="DNS 工作模式" :subtitle="String(ssr.global.pdnsd_enable || '--')"/>
+            <v-list-item v-if="ssrStatusDetail?.instances" title="procd 运行实例" :subtitle="Object.keys(ssrStatusDetail.instances).join('、') || '暂无'"/>
+          </v-list>
+          <div class="d-flex flex-wrap ga-2 mt-3">
+            <v-btn color="primary" variant="tonal" :disabled="loading || busy" @click="refresh">刷新服务状态</v-btn>
+            <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','start'),'SSR Plus+ 已启动')">启动</v-btn>
+            <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','stop'),'SSR Plus+ 已停止')">停止</v-btn>
+            <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','restart'),'SSR Plus+ 已重启')">重启</v-btn>
+          </div>
+          <p class="muted-hint mt-3">此页显示 QWRT UCI、rc、procd 可读取的状态；内部 TCP/UDP 进程状态需额外开放监控接口才能细分。</p>
+        </template>
+        <template v-else-if="ssrTab === 'components'">
+          <h3 class="router-app-section-title">SSR Plus+ 组件更新</h3>
+          <v-select v-model="ssrComponent" label="选择组件" :items="ssrComponents" density="comfortable" variant="outlined"/>
+          <div class="d-flex flex-wrap ga-2 mt-2">
+            <v-btn variant="outlined" :disabled="ssrComponentBusy" :loading="ssrComponentBusy" @click="querySsrComponent(false)">查看本地版本</v-btn>
+            <v-btn color="primary" variant="tonal" :disabled="ssrComponentBusy" @click="querySsrComponent(true)">检测更新</v-btn>
+          </div>
+          <div v-if="ssrComponentResult" class="router-app-summary mt-4">
+            <div><span>当前版本</span><strong>{{ ssrComponentResult.current_version || '--' }}</strong></div>
+            <div><span>最新版本</span><strong>{{ ssrComponentResult.latest_version || '尚未检查' }}</strong></div>
+            <div><span>包管理器</span><strong>{{ ssrComponentResult.package_manager || '--' }}</strong></div>
+          </div>
+          <v-alert v-if="ssrComponentResult && ssrComponentChecked" :type="ssrComponentResult.can_upgrade === '1' ? 'success' : 'info'" variant="tonal" density="compact" class="mt-3">{{ ssrComponentResult.can_upgrade === '1' ? '检测到可安装更新' : '未检测到可安装更新' }}</v-alert>
+          <v-btn class="mt-3" color="success" variant="tonal" :disabled="ssrComponentBusy || !ssrComponentChecked || ssrComponentResult?.can_upgrade !== '1'" @click="ssrComponentDialog = true">安装组件更新</v-btn>
+          <p class="muted-hint mt-3">通过 SSR Plus+ 的 update_components.sh 获取版本及安装更新；如果 QWRT 不允许执行，会明确提示 RPC 权限限制。</p>
+        </template>
       </template>
+      <v-dialog v-model="ssrComponentDialog" max-width="420"><v-card rounded="xl">
+        <v-card-title>确认安装 SSR Plus+ 更新？</v-card-title>
+        <v-card-text>组件：{{ ssrComponents.find(x => x.value === ssrComponent)?.title }}。更新可能导致代理服务短暂中断。</v-card-text>
+        <v-card-actions><v-spacer/><v-btn variant="text" @click="ssrComponentDialog = false">取消</v-btn><v-btn color="success" @click="upgradeSsrComponent">确认安装</v-btn></v-card-actions>
+      </v-card></v-dialog>
     </template>
     <template v-else-if="kind === 'wechatpush'">
       <v-alert v-if="!wechat.available" type="warning" variant="tonal">未检测到 /etc/config/wechatpush，请先安装 luci-app-wechatpush。</v-alert>
@@ -823,7 +884,9 @@ defineExpose({ refresh })
         <div v-if="carbon.updater" class="router-app-summary"><div><span>当前版本</span><strong>{{ carbon.updater.current || '--' }}</strong></div><div><span>最新版本</span><strong>{{ carbon.updater.latest || '--' }}</strong></div><div><span>包管理器</span><strong>{{ carbon.updater.manager || '--' }}</strong></div></div>
         <v-alert v-else type="info" variant="tonal" density="compact">未检测到 Carbon 更新器 RPC。主题切换仍可用；在线更新需新版 Carbon 更新器和 ACL。</v-alert>
         <v-text-field v-model="carbonMirror" label="HTTPS 下载镜像前缀（可留空）" placeholder="https://mirror.example.com/" density="comfortable" variant="outlined"/>
-        <div class="d-flex flex-wrap ga-2"><v-btn variant="outlined" :disabled="busy || !carbon.updater" @click="saveCarbonMirror">保存镜像</v-btn><v-btn color="primary" variant="tonal" :disabled="busy || !carbon.updater" @click="checkCarbon">检查更新</v-btn><v-btn color="success" variant="tonal" :disabled="busy || !carbon.updater?.can_upgrade" @click="carbonUpgradeDialog = true">安装已验证更新</v-btn></div>
+        <div class="d-flex flex-wrap ga-2"><v-btn variant="outlined" :disabled="busy || !carbon.updater" @click="saveCarbonMirror">保存镜像</v-btn><v-btn color="primary" variant="tonal" :loading="carbonChecking" :disabled="busy || carbonChecking || !carbon.updater" @click="checkCarbon">检查更新</v-btn><v-btn color="success" variant="tonal" :disabled="busy || carbonChecking || !carbon.updater?.can_upgrade" @click="carbonUpgradeDialog = true">安装已验证更新</v-btn></div>
+        <v-alert v-if="carbonChecking" type="info" variant="tonal" density="compact" class="mt-3">{{ carbonCheckText || '正在检查 Carbon 更新状态…' }}</v-alert>
+        <v-alert v-if="carbon.updater?.can_upgrade && !carbonChecking" type="success" variant="tonal" density="compact" class="mt-3">检测到可安装版本 {{ carbon.updater.latest }}，可以点击“安装已验证更新”。</v-alert>
         <v-alert v-if="carbon.updater?.reason" type="info" variant="tonal" density="compact" class="mt-3">{{ carbon.updater.reason }}</v-alert>
         <v-alert v-if="carbon.updater?.state && carbon.updater.state !== 'idle'" type="info" variant="tonal" density="compact" class="mt-3">更新状态：{{ carbon.updater.state }} {{ carbon.updater.error || '' }}</v-alert>
       </template>
@@ -837,7 +900,24 @@ defineExpose({ refresh })
         <h3 class="router-app-section-title mt-4">已加入的网络</h3>
         <v-list v-if="zt.networks.length" density="compact"><v-list-item v-for="x in zt.networks" :key="x.section" :title="x.id" :subtitle="x.section"><template #append><v-switch :model-value="x.enabled" density="compact" color="primary" hide-details :disabled="busy" @update:model-value="toggleZt(x,$event)"/><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 ZeroTier 网络" @click="ztDelete=x;ztDeleteDialog=true"/></template></v-list-item></v-list>
         <v-alert v-else type="info" variant="tonal" density="compact">尚未配置 ZeroTier 网络。</v-alert>
-        <v-alert v-if="zt.runtime.length" type="success" variant="tonal" density="compact" class="mt-2"><div v-for="x in zt.runtime" :key="x.id" class="zt-runtime-row"><strong>{{ x.id }}</strong><span>{{ x.status }}</span><small>{{ x.addresses }}</small></div></v-alert>
+        <h3 class="router-app-section-title mt-4">当前运行网络信息</h3>
+        <div v-if="zt.node" class="router-app-summary">
+          <div><span>节点 ID</span><strong>{{ zt.node.address || '--' }}</strong></div>
+          <div><span>节点状态</span><strong>{{ zt.node.online ? 'ONLINE' : 'OFFLINE' }}</strong></div>
+          <div><span>ZeroTier 版本</span><strong>{{ zt.node.version || '--' }}</strong></div>
+        </div>
+        <v-alert v-if="zt.runtimeUnavailable && !zt.runtime.length" type="info" variant="tonal" density="compact" class="mt-2">无法读取 zerotier-cli 运行状态，请检查 CLI 和 RPC 权限。</v-alert>
+        <v-card v-for="x in zt.runtime" :key="x.id" variant="outlined" rounded="lg" class="zt-network-card mt-3" style="padding:12px">
+          <div class="d-flex align-center justify-space-between ga-2"><strong>{{ x.name || '未命名网络' }}</strong>
+            <v-chip size="x-small" :color="x.status === 'OK' ? 'success' : 'warning'" variant="tonal">{{ x.status || '状态未知' }}</v-chip>
+          </div>
+          <div class="muted-hint mt-2">网络 ID：{{ x.id }}</div>
+          <div class="muted-hint">虚拟网卡：{{ x.portDeviceName || '--' }}</div>
+          <div class="muted-hint">虚拟 MAC：{{ x.mac || '--' }}</div>
+          <div class="muted-hint">分配 IP：{{ x.addresses || '暂无' }}</div>
+          <div class="muted-hint">网络类型：{{ x.type || '--' }}</div>
+        </v-card>
+        <v-alert v-if="!zt.runtime.length && !zt.runtimeUnavailable" type="info" variant="tonal" density="compact">当前没有可显示的 ZeroTier 运行网络。</v-alert>
         <h3 class="router-app-section-title mt-4">加入新网络</h3><v-text-field v-model.trim="ztNewId" label="Network ID" placeholder="16 位十六进制字符" density="comfortable" variant="outlined" maxlength="16"/><v-btn color="primary" variant="tonal" :disabled="busy" @click="addZt">加入网络并重启服务</v-btn>
         <p class="muted-hint mt-2">加入后仍需在 ZeroTier Central 中授权此设备。默认启用 allowManaged，关闭 allowDefault 和 allowDNS。</p>
       </template>
@@ -862,6 +942,7 @@ defineExpose({ refresh })
         <v-btn class="mt-3" variant="outlined" :disabled="busy" @click="run(reloadFirewall,'防火墙已重载')">重载防火墙</v-btn><p class="muted-hint mt-2">修改区域策略或端口转发会提交 UCI 并重载防火墙。请谨慎修改 WAN 区域 INPUT / FORWARD，错误配置可能导致远程管理中断。</p>
       </template>
       <v-dialog v-model="fwDeleteDialog" max-width="400"><v-card rounded="xl"><v-card-title>删除端口转发规则？</v-card-title><v-card-text>将删除 {{ fwDelete?.name || fwDelete?.section }} 并重载防火墙。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="fwDeleteDialog=false">取消</v-btn><v-btn color="error" @click="deleteForward">删除</v-btn></v-card-actions></v-card></v-dialog>
+    </template>
     </template>
   </div>
 </template>
