@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
 let networkBytes = 1024 * 1024
+let firewallRuleEnabled = '1'
 
 const dataFor = (object, method, params = {}) => {
   if (object === 'session' && method === 'login') return { ubus_rpc_session: '0123456789abcdef0123456789abcdef' }
@@ -139,7 +140,8 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'uci' && method === 'get' && params.config === 'firewall') return { values: {
     lan: { '.type': 'zone', '.name': 'lan', name: 'lan', input: 'ACCEPT', output: 'ACCEPT', forward: 'ACCEPT', masq: '0', network: ['lan'] },
     wan: { '.type': 'zone', '.name': 'wan', name: 'wan', input: 'REJECT', output: 'ACCEPT', forward: 'REJECT', masq: '1', network: ['wan','wan6'] },
-    rule1: { '.type': 'rule', '.name': 'rule1', name: 'Allow-DHCP-Renew', src: 'wan', proto: 'udp', dest_port: '68', target: 'ACCEPT' },
+    rule1: { '.type': 'rule', '.name': 'rule1', name: 'Allow-DHCP-Renew', src: 'wan', proto: 'udp', dest_port: '68', target: 'ACCEPT', enabled: firewallRuleEnabled },
+    rule2: { '.type': 'rule', '.name': 'rule2', name: 'Block-Guest-IoT', src: 'lan', dest: 'wan', proto: 'tcp', dest_port: '445', target: 'REJECT', enabled: '0' },
     redirect1: { '.type': 'redirect', '.name': 'redirect1', name: 'Web Admin', src: 'wan', dest: 'lan', proto: 'tcp', src_dport: '8080', dest_ip: '192.168.100.10', dest_port: '80', target: 'DNAT' }
   } }
   if (object === 'uci' && method === 'get' && params.config === 'luci') return { values: {
@@ -148,6 +150,10 @@ const dataFor = (object, method, params = {}) => {
   } }
   if (object === 'uci' && method === 'get' && params.config === 'network') return { values: { cfg123: { '.type': 'route', interface: 'wan', target: '10.0.0.0/24', gateway: '10.12.4.1' } } }
   if (object === 'uci' && method === 'add') return { section: 'new-app-section' }
+  if (object === 'uci' && method === 'set' && params.config === 'firewall' && params.section === 'rule1') {
+    firewallRuleEnabled = String(params.values?.enabled ?? firewallRuleEnabled)
+    return {}
+  }
   if (object === 'uci' && method === 'set') return {}
   if (object === 'uci' && method === 'commit') return {}
   if (object === 'uci' && method === 'revert') return {}
@@ -464,7 +470,31 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开防火墙' }).click()
   await expect(page.getByText('区域策略', { exact: true })).toBeVisible()
+  await expect(page.locator('.firewall-policy-preview')).toHaveCount(2)
+  await expect(page.locator('.firewall-policy-preview').first()).toContainText('入站 ACCEPT')
+  await expect(page.locator('.firewall-policy-preview').first()).toContainText('出站 ACCEPT')
+  await expect(page.locator('.firewall-policy-preview').first()).toContainText('转发 ACCEPT')
+  await expect(page.locator('.firewall-policy-preview').last()).toContainText('入站 REJECT')
+  await expect(page.locator('.firewall-policy-preview').last()).toContainText('出站 ACCEPT')
+  await expect(page.locator('.firewall-policy-preview').last()).toContainText('转发 REJECT')
   await expect(page.getByText('Web Admin')).toBeVisible()
+  await expect(page.locator('.firewall-rule-entry')).toHaveCount(2)
+  await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' })).toContainText('目标端口')
+  await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' })).toContainText('68')
+  await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Block-Guest-IoT' })).toContainText('已停用')
+  await page.getByRole('button', { name: /已停用 1/ }).click()
+  await expect(page.locator('.firewall-rule-entry')).toHaveCount(1)
+  await expect(page.getByText('Block-Guest-IoT')).toBeVisible()
+  await page.getByRole('button', { name: /全部 2/ }).click()
+  await page.getByRole('textbox', { name: '搜索防火墙规则' }).fill('dhcp')
+  await expect(page.locator('.firewall-rule-entry')).toHaveCount(1)
+  await page.getByRole('textbox', { name: '搜索防火墙规则' }).fill('')
+  await page.screenshot({ path: 'test-results/screenshots/compact-firewall-rules.png', fullPage: true })
+  await page.getByLabel('启用规则 Allow-DHCP-Renew').click()
+  await expect(page.getByText('停用防火墙规则？')).toBeVisible()
+  await page.getByRole('button', { name: '确认应用' }).click()
+  await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' })).toContainText('已停用')
+  await expect(page.getByText('已启用 0', { exact: false }).first()).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开进程' }).click()
   await expect(page.getByText('rpcd')).toBeVisible()
