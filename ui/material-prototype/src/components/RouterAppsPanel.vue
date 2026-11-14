@@ -682,7 +682,7 @@ async function loadZeroTier() {
   ])
   const list = sections(cfg), global = sectionOf(list, 'global', 'zerotier')
   const networks = list.filter(x => x.type === 'network').map(x => ({
-    section: x.id, id: String(x.options.id || ''), enabled: String(x.options.enabled ?? '1') !== '0'
+    section: x.id, id: String(x.options.id || ''), name: String(x.options.name || x.options.network_name || x.id || ''), enabled: String(x.options.enabled ?? '1') !== '0'
   }))
   let runtime = [], node = null, runtimeUnavailable = false, runtimeSource = ''
   if (rpcNetworks && Number(rpcNetworks.code ?? 0) === 0) {
@@ -818,18 +818,24 @@ async function loadZeroTier() {
     runtime = runtime.map(network => ({
       ...network, portDeviceName: network.portDeviceName || device.name,
       mac: network.mac || device.mac,
-      addresses: network.addresses || device.addresses
+      addresses: network.addresses || device.addresses, interfaceUp: device.up
     }))
   }
+  // UCI may contain a local display name even when CLI permission is denied.
+  runtime = runtime.map(network => ({
+    ...network,
+    name: network.name || networks.find(x => x.id === network.id)?.name || network.id.slice(0, 8)
+  }))
   // Even without a runtime RPC, show networks we can safely read from UCI,
   // with explicit unknown status rather than an alarming, misleading error.
   if (!runtime.length && networks.length) {
     runtimeUnavailable = true
     runtimeSource = 'config'
     runtime = networks.map(item => ({
-      id: item.id, name: '', mac: '', status: '未确认',
+      id: item.id, name: item.name || item.id.slice(0, 8), mac: '', status: '未确认',
       type: '', portDeviceName: networks.length === 1 && virtualDevices.length === 1 ? virtualDevices[0].name : '',
       addresses: networks.length === 1 && virtualDevices.length === 1 ? virtualDevices[0].addresses : '',
+      interfaceUp: networks.length === 1 && virtualDevices.length === 1 ? virtualDevices[0].up : null,
       enabled: item.enabled
     }))
   } else if (!runtime.length) {
@@ -1261,7 +1267,7 @@ defineExpose({ refresh })
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(zt.service) }}</strong></div><div><span>全局开关</span><strong>{{ ztEnabled ? '已启用' : '未启用' }}</strong></div><div><span>网络数量</span><strong>{{ zt.networks.length }}</strong></div></div>
         <v-switch v-model="ztEnabled" label="启用 ZeroTier" color="primary" hide-details/><v-btn color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZt">保存并重启服务</v-btn>
         <h3 class="router-app-section-title mt-4">已加入的网络</h3>
-        <v-list v-if="zt.networks.length" density="compact"><v-list-item v-for="x in zt.networks" :key="x.section" :title="x.id" :subtitle="x.section"><template #append><v-switch :model-value="x.enabled" density="compact" color="primary" hide-details :disabled="busy" @update:model-value="toggleZt(x,$event)"/><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 ZeroTier 网络" @click="ztDelete=x;ztDeleteDialog=true"/></template></v-list-item></v-list>
+        <v-list v-if="zt.networks.length" density="compact"><v-list-item v-for="x in zt.networks" :key="x.section" :title="x.name || x.id" :subtitle="x.id"><template #append><v-switch :model-value="x.enabled" density="compact" color="primary" hide-details :disabled="busy" @update:model-value="toggleZt(x,$event)"/><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 ZeroTier 网络" @click="ztDelete=x;ztDeleteDialog=true"/></template></v-list-item></v-list>
         <v-alert v-else type="info" variant="tonal" density="compact">尚未配置 ZeroTier 网络。</v-alert>
         <h3 class="router-app-section-title mt-4">当前运行网络信息</h3>
         <div v-if="zt.node" class="router-app-summary">
@@ -1272,8 +1278,8 @@ defineExpose({ refresh })
         <p v-if="zt.runtimeUnavailable" class="muted-hint mt-2">当前路由器未开放实时 ZeroTier 状态读取接口；以下展示已保存的网络配置，运行状态待确认。</p>
         <p v-else class="muted-hint mt-2">运行信息来源：{{ zt.runtimeSource === 'luci-zerotier' ? 'ZeroTier 专用 RPC' : 'ZeroTier CLI' }}</p>
         <v-card v-for="x in zt.runtime" :key="x.id" variant="outlined" rounded="lg" class="zt-network-card mt-3" style="padding:12px">
-          <div class="d-flex align-center justify-space-between ga-2"><strong>{{ x.name || '未命名网络' }}</strong>
-            <v-chip size="x-small" :color="x.status === 'OK' ? 'success' : x.status === '未确认' ? 'secondary' : 'warning'" variant="tonal">{{ x.status || '状态未知' }}</v-chip>
+          <div class="d-flex align-center justify-space-between ga-2"><strong>{{ x.name || x.id.slice(0, 8) }}</strong>
+            <v-chip size="x-small" :color="x.status === 'OK' ? 'success' : x.interfaceUp ? 'info' : 'secondary'" variant="tonal">{{ x.status === 'OK' ? '网络已连接' : x.interfaceUp ? '虚拟网卡已启用' : '网络状态待确认' }}</v-chip>
           </div>
           <div class="muted-hint mt-2">网络 ID：{{ x.id }}</div>
           <div class="muted-hint">虚拟网卡：{{ x.portDeviceName || '--' }}</div>
