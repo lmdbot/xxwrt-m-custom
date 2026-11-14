@@ -3,41 +3,50 @@ import { formatBytes } from './router.js'
 const SAFE_DEVICE = /^[a-zA-Z0-9_.:@-]{1,50}$/
 
 /**
- * Exact read-only df invocation, no shell, no user supplied arguments.
- * OpenWrt BusyBox commonly exposes /bin/df. When file.exec ACL is absent
- * display an unavailable state instead of inventing storage numbers.
+ * Exact API used by main / pages/device/home:
+ *
+ * ubus call luci getMountPoints {}
+ * successful result[1].result = [{device, mount, size, free}, ...]
+ *
+ * size/free are bytes. Unlike file.exec df, luci.getMountPoints is part of
+ * the LuCI RPC contract and does not require file.exec ACL or shell access.
  */
-export async function readDiskUsage(client) {
-  let response = await client.call('file', 'exec', {
-    command: '/bin/df', params: ['-kP'], env: null
-  }, true)
-  if (!response || Number(response.code ?? 0) !== 0) {
-    response = await client.call('file', 'exec', {
-      command: '/usr/bin/df', params: ['-kP'], env: null
-    }, true)
-  }
-  if (typeof response?.stdout !== 'string' || Number(response.code ?? 0) !== 0) {
+export function parseMountPoints(raw) {
+  const mounts = Array.isArray(raw?.result) ? raw.result :
+    Array.isArray(raw) ? raw : null
+  if (!mounts) {
     return { available: false, partitions: [], primary: null, temporary: null }
   }
-  const partitions = response.stdout.split(/\r?\n/).slice(1).map(line => {
-    const m = line.trim().match(/^(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)%\s+(.+)$/)
-    if (!m) return null
-    const total = Number(m[2]) * 1024
-    const used = Number(m[3]) * 1024
+  const partitions = mounts.map(item => {
+    const total = Number(item?.size ?? 0)
+    const free = Number(item?.free ?? 0)
+    const mount = String(item?.mount || '--')
+    if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(free)) return null
+    // Equivalent to main: used = size - free; suppress invalid values.
+    const used = Math.max(0, Math.min(total, total - free))
     return {
-      device: m[1], mount: m[6], total, used,
-      percent: Number(m[5]), usedText: formatBytes(used),
+      device: String(item.device || '--'),
+      mount,
+      total,
+      used,
+      percent: Math.round(used / total * 100),
+      usedText: formatBytes(used),
       totalText: formatBytes(total),
-      temporary: m[1] === 'tmpfs' || m[1] === 'devtmpfs'
+      temporary: mount === '/tmp' || String(item.device || '').includes('tmpfs')
     }
-  }).filter(p => p && p.total > 0)
-  // Prefer writable overlay for flash storage; do not mistake tmpfs for disk.
-  const primary = partitions.find(p => p.mount === '/overlay') ||
-    partitions.find(p => p.mount === '/' && !p.temporary) ||
-    partitions.find(p => p.mount.startsWith('/mnt/') && !p.temporary) ||
-    partitions.find(p => !p.temporary) || null
-  const temporary = partitions.find(p => p.mount === '/tmp') || null
+  }).filter(item => item && item.mount !== '/' && item.mount !== '/dev')
+  // main prioritizes overlay and tmp mounts.
+  const priority = item => item.mount === '/overlay' ? 0 : item.mount === '/tmp' ? 1 : 2
+  partitions.sort((a, b) => priority(a) - priority(b))
+  const primary = partitions.find(item => item.mount === '/overlay') ||
+    partitions.find(item => !item.temporary) || null
+  const temporary = partitions.find(item => item.mount === '/tmp') || null
   return { available: partitions.length > 0, partitions, primary, temporary }
+}
+
+export async function readDiskUsage(client) {
+  const mounts = await client.call('luci', 'getMountPoints', {}, true)
+  return parseMountPoints(mounts)
 }
 
 export function interfaceOptions(interfaces = []) {
