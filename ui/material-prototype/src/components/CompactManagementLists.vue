@@ -11,6 +11,7 @@ const props = defineProps({
 })
 const search = ref('')
 const serviceFilter = ref('all')
+const serviceEnabledFilter = ref('all')
 const showAllRoutes = ref(false)
 const expandedProcess = ref(null)
 const expandedRoute = ref(null)
@@ -18,6 +19,7 @@ const expandedRoute = ref(null)
 watch(() => props.kind, () => {
   search.value = ''
   serviceFilter.value = 'all'
+  serviceEnabledFilter.value = 'all'
   showAllRoutes.value = false
   expandedProcess.value = null
   expandedRoute.value = null
@@ -32,23 +34,43 @@ const servicesFiltered = computed(() => props.services.filter(service =>
   (serviceFilter.value === 'all' ||
     (serviceFilter.value === 'running' && service.running) ||
     (serviceFilter.value === 'stopped' && !service.running)) &&
+  (serviceEnabledFilter.value === 'all' ||
+    (serviceEnabledFilter.value === 'enabled' && service.enabled) ||
+    (serviceEnabledFilter.value === 'disabled' && !service.enabled)) &&
   matches(service.name)))
 const runningCount = computed(() => props.services.filter(s => s.running).length)
+
+function classifyRoute(destination, kind = '') {
+  const target = String(destination || '').trim().toLowerCase()
+  if (target === 'default' || target === '0.0.0.0/0' || target === '::/0') return '默认路由'
+  if (kind === 'local' || target === 'local') return '本地路由'
+  if (kind === 'broadcast' || target === 'broadcast') return '广播路由'
+  if (kind === 'unreachable') return '不可达路由'
+  if (kind === 'blackhole') return '黑洞路由'
+  if (kind === 'prohibit') return '禁止路由'
+  if (kind === 'throw') return '转发路由'
+  return target.includes('/') ? '网络路由' : '主机路由'
+}
+
+function formatProcessMemory(proc) {
+  const raw = Number(proc.memory)
+  if (!Number.isFinite(raw) || raw < 0) return proc.memory || '--'
+  return (raw / 1024).toFixed(1) + ' MB' +
+    (proc.memoryPercent && proc.memoryPercent !== '--' ? ' (' + proc.memoryPercent + ')' : '')
+}
 
 function fromRuntimeLine(line, index) {
   const raw = String(line || '').trim()
   const words = raw.split(/\s+/)
-  const type = words[0] || '--'
-  const exceptional = ['local', 'broadcast', 'unreachable', 'blackhole', 'prohibit', 'throw']
-  const destination = type === 'default' ? '默认路由'
-    : exceptional.includes(type) ? (words[1] || type) : type
+  const routeKinds = ['local', 'broadcast', 'unreachable', 'blackhole', 'prohibit', 'throw']
+  const kind = routeKinds.includes(words[0]) ? words[0] : ''
+  const destination = words[0] === 'default' ? 'default' : kind ? (words[1] || kind) : (words[0] || '--')
   const attribute = name => raw.match(new RegExp('(?:^|\\s)' + name + '\\s+(\\S+)'))?.[1] || ''
   return {
     id: 'live-' + index, origin: 'live', destination,
     via: attribute('via'), dev: attribute('dev'), table: attribute('table'),
     protocol: attribute('proto'), metric: attribute('metric'),
-    type: type === 'default' ? '默认' : exceptional.includes(type) ? type : '动态',
-    raw
+    routeType: classifyRoute(destination, kind), kind, raw
   }
 }
 const routes = computed(() => [
@@ -57,7 +79,7 @@ const routes = computed(() => [
     destination: String(r.target || '--'),
     via: String(r.gateway || ''), dev: String(r.interface || ''),
     metric: String(r.metric ?? ''), protocol: '', table: '',
-    type: r.type === 'route6' ? 'IPv6' : '静态',
+    routeType: classifyRoute(r.target, r.type === 'route6' ? 'ipv6' : ''),
     raw: [r.target, r.gateway, r.interface, r.metric].filter(Boolean).join(' · ')
   })),
   ...props.liveRoutes.map(fromRuntimeLine)
@@ -94,12 +116,14 @@ const routeRemaining = computed(() => filteredRoutes.value.length - visibleRoute
             <div class="compact-entry-title command-one-line" :title="proc.command">{{ proc.command || '未知进程' }}</div>
             <div class="compact-entry-sub">PID {{ proc.pid }} · {{ proc.user }}</div>
             <div class="compact-entry-tags">
-              <span>CPU {{ proc.cpu }}</span><span>内存 {{ proc.memory }}</span>
+              <span>CPU {{ proc.cpu }}</span><span>内存 {{ formatProcessMemory(proc) }}</span><span>状态 {{ proc.status || '--' }}</span>
             </div>
             <v-expand-transition>
               <div v-if="expandedProcess === String(proc.pid)" class="compact-entry-expanded">
                 <div class="expanded-label">完整命令</div>
                 <code>{{ proc.command }}</code>
+                <div class="expanded-label mt-2">进程状态</div>
+                <code>{{ proc.status || '--' }} · PPID {{ proc.parentPid || '--' }}</code>
               </div>
             </v-expand-transition>
           </div>
@@ -113,8 +137,15 @@ const routeRemaining = computed(() => filteredRoutes.value.length - visibleRoute
 
     <template v-else-if="kind === 'startup'">
       <div class="compact-filter-row">
-        <v-btn-toggle v-model="serviceFilter" mandatory density="compact" variant="tonal" rounded="lg" color="primary">
-          <v-btn value="all" size="small">全部 {{ services.length }}</v-btn>
+        <v-btn-toggle v-model="serviceEnabledFilter" mandatory density="compact" variant="tonal" rounded="lg" color="primary">
+          <v-btn value="all" size="small">全部自启状态</v-btn>
+          <v-btn value="enabled" size="small">开机自启 {{ services.filter(s => s.enabled).length }}</v-btn>
+          <v-btn value="disabled" size="small">未自启 {{ services.length - services.filter(s => s.enabled).length }}</v-btn>
+        </v-btn-toggle>
+      </div>
+      <div class="compact-filter-row">
+        <v-btn-toggle v-model="serviceFilter" mandatory density="compact" variant="tonal" rounded="lg" color="secondary">
+          <v-btn value="all" size="small">全部状态</v-btn>
           <v-btn value="running" size="small">运行中 {{ runningCount }}</v-btn>
           <v-btn value="stopped" size="small">未运行 {{ services.length - runningCount }}</v-btn>
         </v-btn-toggle>
@@ -152,6 +183,7 @@ const routeRemaining = computed(() => filteredRoutes.value.length - visibleRoute
               <span v-if="!route.via && !route.dev">{{ route.type }}</span>
             </div>
             <div class="compact-entry-tags">
+              <span>{{ route.routeType }}</span>
               <span v-if="route.table">表 {{ route.table }}</span>
               <span v-if="route.protocol">协议 {{ route.protocol }}</span>
               <span v-if="route.metric">跃点 {{ route.metric }}</span>
