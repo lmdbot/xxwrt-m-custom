@@ -70,6 +70,9 @@ jobs:
       - name: Apply responsive status capsule UI
         run: python3 scripts/capsule_internet_detector.py
 
+      - name: Move Internet Detector below uptime
+        run: python3 scripts/move_detector_below_uptime.py
+
       - name: Validate compiled JavaScript
         run: |
           node --check src/www/app-service.js
