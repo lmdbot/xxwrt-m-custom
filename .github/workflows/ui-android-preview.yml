@@ -128,7 +128,7 @@ jobs:
             --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk \
             ../../build/material-preview/aligned.apk
           "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk | grep '^package:' | grep "versionName='0.5.0'" | grep "versionCode='10'"
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.1.apk | grep '^package:' | grep "versionName='0.5.1'" | grep "versionCode='10'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
