@@ -70,7 +70,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '连接路由器' })).toBeVisible()
   await expect(page.locator('.v-application')).toBeVisible()
   await expect(page.locator('v-app, v-card, v-btn')).toHaveCount(0)
-  await page.getByLabel('登录密码').fill('mock-only')
+  await page.getByRole('textbox', { name: '登录密码' }).fill('mock-only')
   await page.getByRole('button', { name: '连接并读取路由器' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
   await expect(page.getByText('38℃')).toBeVisible()
@@ -110,14 +110,14 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '连接路由器' })).toBeVisible()
   await expect(page.locator('.v-bottom-navigation')).toHaveCount(0)
   // Password and session must not survive a full reload.
-  await expect(page.getByLabel('登录密码')).toHaveValue('')
+  await expect(page.getByRole('textbox', { name: '登录密码' })).toHaveValue('')
   expect(errors).toEqual([])
 })
 
 test('reject invalid router addresses before attempting authentication', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('设备地址').fill('http://192.168.100.1/ubus')
-  await page.getByLabel('登录密码').fill('sample')
+  await page.getByRole('textbox', { name: '登录密码' }).fill('sample')
   await page.getByRole('button', { name: '连接并读取路由器' }).click()
   await expect(page.getByText('地址只填写 IP、域名和可选端口，不要包含路径或账号密码')).toBeVisible()
 })
