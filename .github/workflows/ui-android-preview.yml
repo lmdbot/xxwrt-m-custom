@@ -91,7 +91,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the broken preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 11/; s/versionName "[^"]+"/versionName "0.5.2"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 12/; s/versionName "[^"]+"/versionName "0.5.3"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -125,17 +125,17 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.2.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.3.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.2.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.2.apk | grep '^package:' | grep "versionName='0.5.2'" | grep "versionCode='11'"
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.3.apk
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.3.apk | grep '^package:' | grep "versionName='0.5.3'" | grep "versionCode='12'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.2.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.3.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -145,11 +145,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.2"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.2.apk"
+          TAG="material-wrt-v0.5.3"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.3.apk"
           NOTES="../../build/material-preview/release-notes.md"
           printf '%s\n' \
-            '## XX-WRT M Material UI（紧凑管理列表、网络设备卡片优化版 v0.5.2）' \
+            '## XX-WRT M Material UI（设备列表功能对齐与隐私保护版 v0.5.3）' \
             '' \
             '已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。' \
             '' \
@@ -165,6 +165,8 @@ jobs:
             '- 应用首页改为与 main 类似的图标宫格，点击才显示进程/启动项/路由/WOL/家长控制二级页。' \
             '- 网络页增加 IPv6-PD、MTU、网桥端口、收发流量包数及无线参数。' \
             '- 本版 UI 优化：进程支持搜索和展开完整命令；启动项支持运行状态筛选；路由表按网段/网关/接口展示；网络硬件接口改为紧凑可展开设备卡片。' \
+            '- 设备列表参考 main：全部/可达/离线筛选、卡片/列表切换、设备状态、温度、CPU/内存、连接数、终端数和经真实网卡采样计算的上传/下载速率。' \
+            '- 隐私：可独立隐藏路由器名称/系统主机名与 IP/域名；隐藏设置本机持久化，列表及路由器页同步遮挡，编辑配置时仍显示真实值。' \
             '- OpenAppFilter：按原版 RPC 增加应用分类、时间策略、受控终端和高级配置。' \
             '- 恢复出厂：沿用原版 file.exec 参数，必须输入确认短语后才允许执行。' \
             '- **仍有原版终端应用访问历史、断开终端、完整多语言/帮助等差异；历史曲线是进入页面后采样而非跨次持久记录。**' \
@@ -177,8 +179,8 @@ jobs:
             > "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.2" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.3" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.2" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.3" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi

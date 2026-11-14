@@ -1303,9 +1303,9 @@ onUnmounted(() => {
     </v-dialog>
     <v-dialog v-model="loginDialog" max-width="430" :persistent="connecting">
       <v-card rounded="xl">
-        <v-card-title>连接 {{ selectedDevice?.name || 'OpenWrt' }}</v-card-title>
+        <v-card-title>连接 {{ displayDeviceName(selectedDevice) }}</v-card-title>
         <v-card-text>
-          <p class="muted-hint mb-3">{{ selectedDevice?.address }}</p>
+          <p class="muted-hint mb-3">{{ displayRouterAddress(selectedDevice?.address) }}</p>
           <form id="router-login" @submit.prevent="connect">
             <v-text-field v-model.trim="form.username" density="comfortable" variant="outlined" label="用户名" autocomplete="username" readonly/>
             <v-text-field v-model="form.password" density="comfortable" variant="outlined" label="路由器密码" autocomplete="current-password" :type="form.showPassword ? 'text' : 'password'" :append-inner-icon="form.showPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="form.showPassword = !form.showPassword" required/>

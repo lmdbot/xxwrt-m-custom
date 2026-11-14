@@ -201,3 +201,16 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
  .app-subpage{padding:13px}
  .bandwidth-kpis strong{font-size:17px}
 }
+
+
+/* main device-list parity: status filters, one-tap address privacy and card/list toggle. */
+.router-list-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;margin:0 0 14px}
+.router-list-toolbar .v-btn-toggle{min-width:0;border-radius:12px!important}
+.router-list-toolbar .v-btn-toggle .v-btn{min-width:0!important;padding:0 9px!important;font-size:11px!important;letter-spacing:0!important}
+.router-list-tools{display:flex;align-items:center;gap:3px;flex:none}
+.router-list-tools .v-btn{width:33px;height:33px}
+.saved-device-grid-compact{grid-template-columns:1fr!important}
+.router-list-empty{min-height:145px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;border:1px dashed rgba(140,148,163,.28);border-radius:16px;font-size:12px;opacity:.65;margin-top:12px}
+.privacy-switch{margin-bottom:7px}
+.privacy-switch :is(.v-label,.v-selection-control__label){font-size:12px!important;line-height:1.55}
+@media(max-width:370px){.router-list-toolbar{gap:3px}.router-list-toolbar .v-btn-toggle .v-btn{padding:0 6px!important;font-size:10px!important}.router-list-tools .v-btn{width:30px;height:30px}}
