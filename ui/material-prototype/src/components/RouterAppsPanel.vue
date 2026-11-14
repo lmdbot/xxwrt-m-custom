@@ -95,6 +95,25 @@ const carbonMirror = ref('')
 const zt = ref({ available: false, section: '', networks: [], service: null, runtime: [], node: null, runtimeUnavailable: false })
 const ztEnabled = ref(false), ztNewId = ref(''), ztDelete = ref(null), ztDeleteDialog = ref(false)
 const fw = ref({ available: false, zones: [], redirects: [], rules: [], service: null })
+const fwRuleSearch = ref('')
+const fwRuleFilter = ref('all')
+const fwRuleConfirm = ref(false)
+const fwRulePending = ref(null)
+const fwRulePendingEnabled = ref(false)
+const fwRuleEnabledCount = computed(() => fw.value.rules.filter(rule => rule.enabled).length)
+const fwRulesShown = computed(() => {
+  const term = fwRuleSearch.value.trim().toLowerCase()
+  return fw.value.rules.filter(rule => {
+    if (fwRuleFilter.value === 'enabled' && !rule.enabled) return false
+    if (fwRuleFilter.value === 'disabled' && rule.enabled) return false
+    if (!term) return true
+    return [rule.name, rule.section, rule.src, rule.dest, rule.proto, rule.src_ip,
+      rule.dest_ip, rule.src_port, rule.dest_port, rule.target, rule.comment]
+      .some(value => String(value || '').toLowerCase().includes(term))
+  })
+})
+const fwRuleActionColor = action => action === 'ACCEPT' ? 'success'
+  : action === 'REJECT' || action === 'DROP' ? 'error' : 'info'
 const fwDelete = ref(null), fwDeleteDialog = ref(false)
 const pf = reactive({ name: '', srcPort: '', destIp: '', destPort: '', proto: 'tcp' })
 const carbonUpgradeDialog = ref(false)
@@ -637,11 +656,28 @@ async function loadFirewall() {
       network: Array.isArray(x.options.network) ? x.options.network.join(', ') : String(x.options.network || '')
     })),
     redirects: list.filter(x => x.type === 'redirect').map(x => ({ section: x.id, ...x.options })),
-    rules: list.filter(x => x.type === 'rule').map(x => ({ section: x.id, ...x.options })),
+    rules: list.filter(x => x.type === 'rule').map(x => ({ ...x.options, section: x.id, enabled: String(x.options.enabled ?? '1') !== '0' })),
     service: rc?.firewall || null
   }
 }
 async function reloadFirewall() { await service('firewall', 'reload') }
+function requestFirewallRuleToggle(rule, enabled) {
+  if (busy.value || rule.enabled === enabled) return
+  fwRulePending.value = rule
+  fwRulePendingEnabled.value = enabled
+  fwRuleConfirm.value = true
+}
+async function confirmFirewallRuleToggle() {
+  const rule = fwRulePending.value
+  const enabled = fwRulePendingEnabled.value
+  fwRuleConfirm.value = false
+  fwRulePending.value = null
+  if (!rule || rule.enabled === enabled) return
+  await run(async () => {
+    await setUci('firewall', rule.section, { enabled: enabled ? '1' : '0' })
+    await reloadFirewall()
+  }, '防火墙规则“' + (rule.name || rule.section) + '”已' + (enabled ? '启用' : '停用') + '并重载防火墙')
+}
 async function saveZone(zone) {
   await run(async () => {
     await setUci('firewall', zone.section, { input: zone.input, output: zone.output, forward: zone.forward, masq: zone.masq ? '1' : '0' })
@@ -944,6 +980,7 @@ defineExpose({ refresh })
               <div class="firewall-zone-title">
                 <strong>{{ zone.name }}</strong>
                 <small>{{ zone.network || '未绑定网络' }}</small>
+                <div class="firewall-policy-preview-label">当前区域策略</div>
                 <div class="firewall-policy-preview" :aria-label="'当前策略：入站 ' + zone.savedPolicy.input + '，出站 ' + zone.savedPolicy.output + '，转发 ' + zone.savedPolicy.forward">
                   <v-chip size="x-small" variant="tonal" :color="zone.savedPolicy.input === 'ACCEPT' ? 'success' : zone.savedPolicy.input === 'DROP' ? 'error' : 'warning'">入站 {{ zone.savedPolicy.input }}</v-chip>
                   <v-chip size="x-small" variant="tonal" :color="zone.savedPolicy.output === 'ACCEPT' ? 'success' : zone.savedPolicy.output === 'DROP' ? 'error' : 'warning'">出站 {{ zone.savedPolicy.output }}</v-chip>
@@ -962,9 +999,71 @@ defineExpose({ refresh })
         <v-expansion-panels variant="accordion" class="mt-3"><v-expansion-panel><v-expansion-panel-title>添加端口转发</v-expansion-panel-title><v-expansion-panel-text>
           <v-text-field v-model="pf.name" label="规则名称" density="compact" variant="outlined"/><v-text-field v-model="pf.srcPort" label="WAN 外部端口" type="number" min="1" max="65535" density="compact" variant="outlined"/><v-text-field v-model="pf.destIp" label="LAN 目标 IPv4 地址" placeholder="192.168.100.10" density="compact" variant="outlined"/><v-text-field v-model="pf.destPort" label="LAN 目标端口（留空则与外部端口相同）" type="number" min="1" max="65535" density="compact" variant="outlined"/><v-select v-model="pf.proto" label="协议" :items="[{title:'TCP',value:'tcp'},{title:'UDP',value:'udp'},{title:'TCP + UDP',value:'tcp udp'}]" density="compact" variant="outlined"/><v-btn color="primary" variant="tonal" :disabled="busy" @click="addForward">添加并应用规则</v-btn>
         </v-expansion-panel-text></v-expansion-panel></v-expansion-panels>
-        <h3 class="router-app-section-title mt-4">其他规则</h3><v-list v-if="fw.rules.length" density="compact"><v-list-item v-for="x in fw.rules" :key="x.section" :title="String(x.name || x.section)" :subtitle="[x.src,x.dest,x.proto,x.dest_port,x.target].filter(Boolean).join(' · ')"/></v-list><p v-else class="muted-hint">当前没有普通防火墙规则。</p>
+        <div class="firewall-rule-toolbar mt-4">
+          <div class="d-flex justify-space-between align-center ga-2">
+            <h3 class="router-app-section-title ma-0">其他规则</h3>
+            <span class="muted-hint">共 {{ fw.rules.length }} 条 · 已启用 {{ fwRuleEnabledCount }} 条</span>
+          </div>
+          <v-text-field v-model="fwRuleSearch" class="mt-3" label="搜索防火墙规则" aria-label="搜索防火墙规则"
+            prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" clearable hide-details/>
+          <v-btn-toggle v-model="fwRuleFilter" mandatory density="comfortable" variant="outlined" color="primary" class="firewall-rule-filter mt-3">
+            <v-btn value="all" :aria-label="'全部规则 ' + fw.rules.length">全部 {{ fw.rules.length }}</v-btn>
+            <v-btn value="enabled" :aria-label="'已启用规则 ' + fwRuleEnabledCount">已启用 {{ fwRuleEnabledCount }}</v-btn>
+            <v-btn value="disabled" :aria-label="'已停用规则 ' + (fw.rules.length - fwRuleEnabledCount)">已停用 {{ fw.rules.length - fwRuleEnabledCount }}</v-btn>
+          </v-btn-toggle>
+        </div>
+        <div v-if="fwRulesShown.length" class="firewall-rule-table mt-3" role="list" aria-label="防火墙其他规则">
+          <div v-for="rule in fwRulesShown" :key="rule.section" class="firewall-rule-entry"
+            :class="{ 'is-disabled': !rule.enabled }" role="listitem">
+            <div class="firewall-rule-entry__head">
+              <div class="firewall-rule-entry__name">
+                <strong>{{ rule.name || rule.section }}</strong>
+                <small>{{ rule.section }}</small>
+              </div>
+              <v-chip :color="fwRuleActionColor(String(rule.target || '').toUpperCase())" variant="tonal" size="small">
+                {{ rule.target || '未指定动作' }}
+              </v-chip>
+              <v-switch :model-value="rule.enabled" :disabled="busy" color="primary"
+                hide-details density="compact" inset class="firewall-rule-entry__switch"
+                :aria-label="'启用规则 ' + (rule.name || rule.section)"
+                @update:model-value="requestFirewallRuleToggle(rule, $event)"/>
+            </div>
+            <div class="firewall-rule-entry__fields">
+              <div><span>来源区域</span><strong>{{ rule.src || '任意' }}</strong></div>
+              <div><span>目标区域</span><strong>{{ rule.dest || '路由器本机' }}</strong></div>
+              <div><span>协议</span><strong>{{ rule.proto || '任意' }}</strong></div>
+              <div><span>目标端口</span><strong>{{ rule.dest_port || '不限' }}</strong></div>
+              <div v-if="rule.src_ip"><span>源地址</span><strong>{{ rule.src_ip }}</strong></div>
+              <div v-if="rule.dest_ip"><span>目标地址</span><strong>{{ rule.dest_ip }}</strong></div>
+              <div v-if="rule.src_port"><span>源端口</span><strong>{{ rule.src_port }}</strong></div>
+              <div v-if="rule.family"><span>地址族</span><strong>{{ rule.family }}</strong></div>
+            </div>
+            <div class="firewall-rule-entry__foot">
+              <span v-if="rule.comment">{{ rule.comment }}</span>
+              <v-chip v-else size="x-small" variant="text" :color="rule.enabled ? 'success' : 'secondary'">
+                {{ rule.enabled ? '已启用' : '已停用' }}
+              </v-chip>
+            </div>
+          </div>
+        </div>
+        <v-alert v-else type="info" variant="tonal" density="compact" class="mt-3">
+          {{ fw.rules.length ? '没有符合筛选条件的防火墙规则。' : '当前没有普通防火墙规则。' }}
+        </v-alert>
         <v-btn class="mt-3" variant="outlined" :disabled="busy" @click="run(reloadFirewall,'防火墙已重载')">重载防火墙</v-btn><p class="muted-hint mt-2">修改区域策略或端口转发会提交 UCI 并重载防火墙。请谨慎修改 WAN 区域 INPUT / FORWARD，错误配置可能导致远程管理中断。</p>
       </template>
+      <v-dialog v-model="fwRuleConfirm" max-width="420">
+        <v-card rounded="xl">
+          <v-card-title>{{ fwRulePendingEnabled ? '启用' : '停用' }}防火墙规则？</v-card-title>
+          <v-card-text>
+            将{{ fwRulePendingEnabled ? '启用' : '停用' }}“{{ fwRulePending?.name || fwRulePending?.section }}”并重载防火墙。
+            修改可能影响远程管理、网络访问或已有连接。
+          </v-card-text>
+          <v-card-actions><v-spacer/>
+            <v-btn variant="text" @click="fwRuleConfirm = false; fwRulePending = null">取消</v-btn>
+            <v-btn color="primary" :disabled="busy" @click="confirmFirewallRuleToggle">确认应用</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
       <v-dialog v-model="fwDeleteDialog" max-width="400"><v-card rounded="xl"><v-card-title>删除端口转发规则？</v-card-title><v-card-text>将删除 {{ fwDelete?.name || fwDelete?.section }} 并重载防火墙。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="fwDeleteDialog=false">取消</v-btn><v-btn color="error" @click="deleteForward">删除</v-btn></v-card-actions></v-card></v-dialog>
     </template>
     </template>
