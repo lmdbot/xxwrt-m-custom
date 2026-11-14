@@ -540,3 +540,69 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
  .ssr-node-row .app-compact-end .v-btn{width:32px;height:32px}
  .wechat-device-address{gap:4px}
 }
+
+/* Fixed app-bar: router name and current section share the available width.
+   Keep refresh/logout fixed; never animate or horizontally scroll headings. */
+.top-bar .v-toolbar-title{min-width:0!important;flex:1 1 0!important;margin-inline:4px!important}
+.router-toolbar-title{display:flex;align-items:baseline;min-width:0;width:100%;gap:5px;overflow:hidden;white-space:nowrap}
+.router-toolbar-name{font-size:18px;font-weight:750;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.router-toolbar-context{font-size:13px;font-weight:500;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(var(--v-theme-on-surface),.76)}
+@media(max-width:390px){
+ .top-bar .v-btn{width:34px!important;min-width:34px!important}
+ .router-toolbar-name{font-size:16px}
+ .router-toolbar-context{font-size:12px}
+}
+/* Compact category tiles and terminals on phones. */
+.terminal-category-grid{gap:7px;margin-bottom:11px}
+.terminal-category-card.v-btn{min-height:56px!important;height:56px!important;padding:6px 7px!important}
+.terminal-category-card__inner{gap:6px}
+.terminal-category-card__icon{width:29px!important;height:29px!important;flex:0 0 29px!important;border-radius:9px!important}
+.terminal-category-card__icon .v-icon{font-size:17px!important}
+.terminal-category-card__meta{flex-direction:row;align-items:center;gap:5px;min-width:0}
+.terminal-category-card__title{font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.terminal-category-card__count.v-chip{height:18px!important;font-size:10px!important;padding-inline:5px!important}
+.terminal-category-card__check{display:none}
+.network-category-grid .terminal-category-card.v-btn{min-height:52px!important;height:52px!important}
+.terminal-tile{gap:8px!important;min-height:66px!important;padding:8px 10px!important}
+.terminal-identity{width:36px!important;height:36px!important;flex-basis:36px!important;border-radius:10px!important}
+.terminal-meta{gap:2px!important}
+.terminal-name-line{gap:6px}
+.terminal-name{flex:1 1 auto;min-width:0;font-size:13px}
+.terminal-main-source{flex:0 0 auto;font-size:9px!important;height:18px!important;padding-inline:5px!important}
+.terminal-kind{font-size:10px}
+.terminal-ip{font-size:12px}
+.terminal-mac{font-size:10px}
+.terminal-tags{margin-top:1px!important}
+.terminal-tag{height:17px!important;font-size:9px!important}
+@media(max-width:380px){
+ .terminal-category-card.v-btn{height:52px!important;min-height:52px!important;padding:5px!important}
+ .terminal-category-card__icon{width:26px!important;height:26px!important;flex-basis:26px!important}
+ .terminal-category-card__meta{gap:3px}
+ .terminal-category-card__title{font-size:11px}
+ .terminal-tile{padding:7px!important;gap:7px!important}
+}
+/* Unified switch controls across settings, plugins and firewall. */
+.v-switch .v-selection-control{min-height:38px!important}
+.v-switch .v-label{font-size:13px;line-height:1.35;font-weight:550;opacity:1!important}
+.v-switch .v-switch__track{transition:background-color .16s ease,opacity .16s ease}
+.v-switch .v-selection-control--dirty .v-switch__track{opacity:.8}
+/* Readable list metadata in dark themes. */
+.theme-is-dark .app-compact-sub,.theme-is-dark .wechat-device-address,
+.theme-is-dark .wol-neighbor-card__field,.theme-is-dark .wol-neighbor-card__field>span:first-child,
+.theme-is-dark .muted-hint,.theme-is-dark .firewall-policy-preview-label,
+.theme-is-dark .hardware-sub,.theme-is-dark .app-compact-foot,
+.theme-is-dark .router-app-panel .v-list-item-subtitle{color:#bac5d6!important}
+.app-compact-sub,.wol-neighbor-card__field>span:first-child,
+.wechat-device-address>span{color:rgba(var(--v-theme-on-surface),.76)!important}
+.theme-is-dark .wechat-device-address>span{color:#c4cce1!important}
+.wechat-json-editor textarea{max-height:155px!important;overflow-y:auto!important}
+.wechat-json-editor .v-field__input{max-height:162px!important;overflow-y:auto!important}
+/* Consistent compact monitor rows, SSR configuration and firewall kernel cards. */
+.detector-list .detector-row{min-height:52px;align-items:center;padding:9px 12px}
+.detector-row .app-compact-status{font-size:11px}
+.ssr-status-grid,.firewall-kernel-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.ssr-status-grid>div,.firewall-kernel-item{display:flex;flex-direction:column;gap:5px;min-width:0;background:rgba(125,142,163,.045);border:1px solid rgba(125,142,163,.2);border-radius:12px;padding:11px}
+.ssr-status-grid span,.firewall-kernel-item span{font-size:11px;color:rgba(var(--v-theme-on-surface),.72)}
+.ssr-status-grid strong,.firewall-kernel-item strong{font-size:13px;font-weight:700;overflow-wrap:anywhere;line-height:1.4}
+.firewall-kernel-item small{font-size:10px;color:rgba(var(--v-theme-on-surface),.7);line-height:1.35}
+.theme-is-dark .ssr-status-grid span,.theme-is-dark .firewall-kernel-item span,.theme-is-dark .firewall-kernel-item small{color:#b8c5d9}
