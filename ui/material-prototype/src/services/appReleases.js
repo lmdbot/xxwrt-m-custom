@@ -15,7 +15,9 @@ export function compareAppVersions(left, right) {
 }
 function materialApk(release, asset) {
   const name = String(asset?.name || '')
-  if (!/^XX-WRT-M-Material-QWRT-v\d+(?:\.\d+){1,2}\.apk$/i.test(name)) return false
+  // Accept the former Material filename for a one-time update migration.
+  // New releases and downloads use XX-WRT-Material-vX.Y.Z.apk.
+  if (!/^(?:XX-WRT-Material|XX-WRT-M-Material-QWRT)-v\d+(?:\.\d+){1,2}\.apk$/i.test(name)) return false
   if (asset.state && asset.state !== 'uploaded') return false
   try {
     const url = new URL(asset.browser_download_url)
@@ -32,8 +34,11 @@ export function selectLatestStableRelease(releases) {
     const parsed = parseAppVersion(release.tag_name)
     if (!parsed) continue
     if (latest && compareAppVersions(parsed.version, latest.version) <= 0) continue
-    const apk = (Array.isArray(release.assets) ? release.assets : [])
-      .find(asset => materialApk(release, asset))
+    const assets = Array.isArray(release.assets) ? release.assets : []
+    const matching = assets.filter(asset => materialApk(release, asset))
+    // Prefer the canonical new artifact name over the legacy compatibility alias.
+    const apk = matching.find(asset => /^XX-WRT-Material-v/i.test(asset.name))
+      || matching[0]
     latest = {
       tag: release.tag_name, version: parsed.version,
       title: String(release.name || release.tag_name),
