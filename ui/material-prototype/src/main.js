@@ -17,11 +17,15 @@ const vuetify = createVuetify({
     themes: {
       light: {
         dark: false,
-        colors: { primary: '#4164d5', surface: '#ffffff', background: '#f5f6fb', success: '#238653', error: '#bf4049' }
+        colors: { primary: '#4164d5', surface: '#ffffff', background: '#f5f6fb',
+          'on-surface': '#1c283b', 'on-background': '#1c283b', 'on-surface-variant': '#526178',
+          success: '#238653', error: '#bf4049' }
       },
       dark: {
         dark: true,
-        colors: { primary: '#aabdfd', surface: '#1d2029', background: '#11141b', success: '#7ddca8', error: '#ff9ca4' }
+        colors: { primary: '#aabdfd', surface: '#1d2029', background: '#11141b',
+          'on-surface': '#f0f4ff', 'on-background': '#f0f4ff', 'on-surface-variant': '#c4d1e5',
+          success: '#7ddca8', error: '#ff9ca4' }
       }
     }
   }
