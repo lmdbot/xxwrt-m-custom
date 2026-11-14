@@ -1,4 +1,4 @@
-# XX-WRT Material UI 演示工程
+# XX-WRT Material UI QWRT 功能迁移工程
 
 仅在 feature/material-ui 分支进行 UI 验证；不会修改 v1.0.6 生产 APK。当前页面**全部使用演示数据**。
 
@@ -22,3 +22,12 @@
 右上角“标准 / 液态”可以切换底栏，选择保存在浏览器 localStorage；主题可选择跟随系统/浅色/深色。五个导航入口均可交互。
 
 注意：此处的切换是**Vue3 原型里的 UI 行为**，尚未接入真实 APK、UniApp 原生 tabBar 或路由器 RPC。详见 docs/ui-material-evaluation.md。
+
+
+## v0.4.0 UI 与 main 功能迁移进展
+
+- 首页设备列表增加左侧抽屉菜单，复用原版菜单名称，并把底栏“标准/液态”和主题设置移动到侧栏。
+- 终端列表改为紧凑 Material 卡片，支持设备名/IP/MAC 检索。
+- 家长控制新增独立 OpenAppFilter RPC 规则编辑组件（分类、时间、用户、高级），不以 LuCI 页面代替。
+- 恢复出厂沿用 main 的 file.exec /sbin/firstboot -r -y 参数，加入输入“恢复出厂”确认；未对实际路由器执行破坏性测试。
+- **仍不等价于 main 全部功能**：历史统计、终端高级统计、多语言完整文案、部分帮助/关于未全量迁移。参见 docs/material-main-feature-parity.md。
