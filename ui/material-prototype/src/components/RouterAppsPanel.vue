@@ -242,7 +242,7 @@ async function probeSsrViaLuci(node) {
   const url = base + '/cgi-bin/luci/admin/services/shadowsocksr/ping?sid=' + encodeURIComponent(node.id)
   try {
     const response = await CapacitorHttp.get({
-      url, connectTimeout: 4000, readTimeout: 12000,
+      url, connectTimeout: 4000, readTimeout: 12000, disableRedirects: true,
       headers: {
         Accept: 'application/json',
         Cookie: 'sysauth=' + session + '; sysauth_http=' + session
