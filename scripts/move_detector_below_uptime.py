@@ -45,6 +45,11 @@ def move(text, block, next_marker, uptime_marker):
         next_pos = text.find(next_marker, pos)
         if next_pos < 0:
             break
+        # Multiple views reuse these numeric IDs. The home status grid
+        # uniquely contains the CPU card icon immediately after node 46.
+        if "_$g(" in next_marker and '/static/cpu.png' not in text[next_pos:next_pos + 700]:
+            pos = next_pos + len(next_marker)
+            continue
         uptime_pos = text.rfind(uptime_marker, max(0, next_pos - 1100), next_pos)
         if uptime_pos >= 0:
             end_pos = call_end(text, uptime_pos)
