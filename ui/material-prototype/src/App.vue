@@ -23,7 +23,7 @@ import {
   storeDevicePassword, fetchDevicePassword, deleteDevicePassword
 } from './services/devices.js'
 import {
-  RouterClient, readDashboard, readClients, readServices,
+  RouterClient, readDashboard, readClients, readServices, readInstalledRouterApps,
   readProcessList, readRouteConfig, readWolDevices, wakeWolDevice,
   saveWolTarget, removeWolTarget, readParentalSettings, saveParentalBase,
   readRuntimeRoutes, readNetworkHardware, formatBytes, shortError
@@ -306,6 +306,9 @@ const actionBusy = ref(false)
 const selectedClient = ref(null)
 const toolPanel = ref('')
 const routerAppsPanel = ref(null)
+const installedRouterApps = ref(null)
+const installedRouterAppsLoading = ref(false)
+let installedRouterAppsRequest = 0
 const routerAppToolIds = ['ssr', 'wechatpush', 'openclash', 'detector', 'carbon', 'zerotier', 'firewall']
 const toolLoading = ref(false)
 const toolMessage = ref('')
@@ -355,6 +358,31 @@ const legacyTools = [
   { id: 'reboot', title: '重启设备', subtitle: '需要二次确认', icon: 'mdi-restart' },
   { id: 'reset', title: '恢复出厂', subtitle: '清除配置，请谨慎操作', icon: 'mdi-restore' }
 ]
+const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
+  installedRouterApps.value?.[tool.id] !== false))
+const showHomeDetector = computed(() => {
+  if (installedRouterApps.value?.detector === false) return false
+  if (installedRouterApps.value?.detector === true) return true
+  return Boolean(snapshot.value?.detectorAvailable)
+})
+async function refreshInstalledRouterApps(api = client.value) {
+  if (!api || !api.session) return
+  const request = ++installedRouterAppsRequest
+  installedRouterAppsLoading.value = true
+  try {
+    const installed = await readInstalledRouterApps(api)
+    if (request !== installedRouterAppsRequest || api !== client.value) return
+    installedRouterApps.value = installed
+    // Leave an already opened page alone until the user navigates back.
+  } catch (error) {
+    if (request === installedRouterAppsRequest && api === client.value) {
+      // A transient RPC failure is not evidence that a plugin was removed.
+      if (import.meta.env.DEV) console.warn('Router app discovery unavailable', error)
+    }
+  } finally {
+    if (request === installedRouterAppsRequest) installedRouterAppsLoading.value = false
+  }
+}
 const onlineCount = computed(() => snapshot.value?.checks.filter(check => check.state === 'up').length || 0)
 const allChecks = computed(() => snapshot.value?.checks || [])
 const resourceCards = computed(() => {
@@ -604,6 +632,8 @@ function resetSession() {
   toolPanel.value = ''
   toolMessage.value = ''
   serviceData.value = { services: [], available: false }
+  installedRouterApps.value = null
+  installedRouterAppsRequest++
   processData.value = { available: false, processes: [] }
   routeData.value = { available: false, routes: [] }
   liveRoutes.value = { available: false, lines: [] }
@@ -761,7 +791,7 @@ async function openDevice(device) {
     connected.value = true
     viewMode.value = 'detail'
     activeTab.value = 'home'
-    await refreshDashboard()
+    await Promise.all([refreshDashboard(), refreshInstalledRouterApps(cached)])
     return
   }
   if (device.rememberPassword && isNative) {
@@ -811,7 +841,7 @@ async function connect() {
       devices.value = saveDevices(devices.value.map(d => d.id === device.id ? { ...d, rememberPassword: false } : d))
     }
     form.password = ''
-    await refreshDashboard()
+    await Promise.all([refreshDashboard(), refreshInstalledRouterApps(api)])
   } catch (e) {
     errorMessage.value = shortError(e)
     resetConnectionOnError()
@@ -846,6 +876,9 @@ async function refreshDashboard() {
     ])
     if (dashboardResult.status === 'rejected') throw dashboardResult.reason
     snapshot.value = dashboardResult.value
+    if (!installedRouterApps.value && !installedRouterAppsLoading.value) {
+      void refreshInstalledRouterApps(client.value)
+    }
     if (hardwareResult.status === 'fulfilled') {
       networkHardware.value = applyNetworkHardwareRates(hardwareResult.value)
     }
@@ -902,7 +935,12 @@ async function refreshCurrent() {
         }
       }
     }
-    if (activeTab.value === 'apps') serviceData.value = await readServices(client.value)
+    if (activeTab.value === 'apps') {
+      const [servicesResult] = await Promise.all([
+        readServices(client.value), refreshInstalledRouterApps(client.value)
+      ])
+      serviceData.value = servicesResult
+    }
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
   } catch (e) {
     handleRpcError(e)
@@ -1387,7 +1425,7 @@ onUnmounted(() => {
                 <div><span>本地时间</span><strong>{{ snapshot.localtime }}</strong></div>
                 <div><span>运行时间</span><strong>{{ snapshot.uptime }}</strong></div>
               </div>
-              <section class="detector-area">
+              <section v-if="showHomeDetector" class="detector-area">
                 <div class="section-heading">
                   <h3 class="detector-title">联网检测</h3>
                   <v-chip v-if="snapshot.detectorAvailable" size="small" variant="tonal" :color="onlineCount === allChecks.length ? 'success' : 'error'">
@@ -1676,10 +1714,10 @@ onUnmounted(() => {
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
               <div class="app-launcher-heading">
-                <div><h2>应用管理</h2><p>点击图标进入相应的路由器管理功能</p></div>
+                <div><h2>应用管理</h2><p>{{ installedRouterAppsLoading ? '正在检查已安装应用…' : '点击图标进入已安装应用或内置管理功能' }}</p></div>
               </div>
               <div class="app-launcher-grid" role="group" aria-label="应用功能入口">
-                <v-card v-for="tool in legacyTools" :key="tool.id" rounded="xl" variant="flat"
+                <v-card v-for="tool in visibleLegacyTools" :key="tool.id" rounded="xl" variant="flat"
                   role="button" tabindex="0" class="app-launcher-tile" :aria-label="'打开' + tool.title"
                   @click="showLegacyTool(tool.id)" @keydown.enter.prevent="showLegacyTool(tool.id)">
                   <v-avatar rounded="lg" size="49" :color="tool.id === 'reset' ? 'error' : 'primary'" variant="tonal">
