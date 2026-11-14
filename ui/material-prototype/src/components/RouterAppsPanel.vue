@@ -4,6 +4,27 @@ import { shortError } from '../services/router.js'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
+const readyKind = ref('')
+const ssrTab = ref('nodes')
+const ssrProbeBusy = ref(false)
+const ssrProbes = ref({})
+const ssrComponent = ref('xray')
+const ssrComponentResult = ref(null)
+const ssrComponentChecked = ref(false)
+const ssrComponentBusy = ref(false)
+const ssrComponentDialog = ref(false)
+const ssrStatusDetail = ref(null)
+const ssrComponents = [
+  { title: 'SSR Plus+ 主程序', value: 'mainprogram' },
+  { title: 'Xray 核心', value: 'xray' },
+  { title: 'Mihomo 核心', value: 'mihomo' },
+  { title: 'Country MMDB', value: 'country_mmdb' },
+  { title: 'GeoSite', value: 'geosite' },
+  { title: 'V2Ray GeoIP', value: 'v2ray_geoip' },
+  { title: 'V2Ray GeoSite', value: 'v2ray_geosite' }
+]
+const carbonChecking = ref(false)
+const carbonCheckText = ref('')
 const ssr = ref({ available: false, section: '', global: {}, nodes: [], service: null })
 const ssrNode = ref('nil')
 const wechat = ref({ available: false, section: '', service: null })
@@ -71,7 +92,7 @@ const oc = reactive({ enable: '0', en_mode: 'fake-ip', proxy_mode: 'rule', ipv6_
 const detector = ref({ available: false, instances: [], service: null })
 const carbon = ref({ available: false, section: '', current: '', themes: [], updater: null })
 const carbonMirror = ref('')
-const zt = ref({ available: false, section: '', networks: [], service: null, runtime: [] })
+const zt = ref({ available: false, section: '', networks: [], service: null, runtime: [], node: null, runtimeUnavailable: false })
 const ztEnabled = ref(false), ztNewId = ref(''), ztDelete = ref(null), ztDeleteDialog = ref(false)
 const fw = ref({ available: false, zones: [], redirects: [], rules: [], service: null })
 const fwDelete = ref(null), fwDeleteDialog = ref(false)
@@ -163,16 +184,22 @@ async function run(action, success, reload = true) {
 }
 
 async function loadSsr() {
-  const [cfg, rc] = await Promise.all([getUci('shadowsocksr'), services()])
+  const [cfg, rc, procd] = await Promise.all([
+    getUci('shadowsocksr'), services(),
+    props.client.call('service', 'list', { name: 'shadowsocksr' }, true)
+  ])
   const list = sections(cfg), global = sectionOf(list, 'global', 'global')
   ssr.value = {
     available: !!cfg?.values && !!global, section: global?.id || '', global: global?.options || {},
     nodes: list.filter(x => x.type === 'servers').map(x => ({
       id: x.id, title: String(x.options.alias || x.options.remarks || x.options.server || x.id),
+      host: String(x.options.server || ''), port: String(x.options.server_port || ''),
+      type: String(x.options.type || ''),
       detail: [x.options.type, x.options.server, x.options.server_port].filter(Boolean).join(' · ')
     })),
     service: rc?.shadowsocksr || null
   }
+  ssrStatusDetail.value = procd?.shadowsocksr || null
   ssrNode.value = String(global?.options.global_server || 'nil')
 }
 async function applySsrNode() {
@@ -183,6 +210,99 @@ async function applySsrNode() {
     await service('ssr')
   }, '节点已切换，ShadowSocksR Plus+ 已重启')
 }
+async function probeSsrNode(node) {
+  if (!node.host || !/^\d+$/.test(node.port) || Number(node.port) < 1 || Number(node.port) > 65535) {
+    ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '不支持探测：节点地址或端口缺失' } }
+    return
+  }
+  ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'testing', text: '探测中' } }
+  const start = Date.now()
+  try {
+    // Bound arguments, not a shell command. A successful TCP connect indicates
+    // port reachability, NOT that proxy authentication or tunneling works.
+    let result = await props.client.call('file', 'exec', {
+      command: '/bin/nc', params: ['-z', '-w', '2', node.host, node.port], env: null
+    }, true)
+    if (!result) {
+      result = await props.client.call('file', 'exec', {
+        command: '/usr/bin/nping', params: ['--tcp-connect', '-q', '-c', '1', '-p', node.port, node.host], env: null
+      }, true)
+    }
+    if (!result) {
+      ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '路由器未开放节点 TCP 探测 RPC，或缺少 nc/nping' } }
+      return
+    }
+    const ms = Date.now() - start
+    const output = String(result.stdout || '')
+    const npingFailure = /failed|0 connections? succeeded|0 successful|rcvd:\s*0/i.test(output)
+    const ok = Number(result.code ?? 1) === 0 && !npingFailure
+    ssrProbes.value = { ...ssrProbes.value, [node.id]: {
+      status: ok ? 'ok' : 'failed',
+      text: ok ? ('TCP 可连接 · ' + ms + 'ms（含 RPC 开销）') : '端口不可连接或检测失败'
+    } }
+  } catch (_) {
+    ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'unknown', text: '检测不可用，请检查路由器工具及 RPC 权限' } }
+  }
+}
+async function probeAllSsr() {
+  if (ssrProbeBusy.value) return
+  ssrProbeBusy.value = true
+  try {
+    let cursor = 0
+    const nodes = ssr.value.nodes.slice(0, 32)
+    await Promise.all(Array.from({ length: Math.min(nodes.length, 3) }, async () => {
+      while (cursor < nodes.length) await probeSsrNode(nodes[cursor++])
+    }))
+    if (ssr.value.nodes.length > nodes.length) notice.value = '已探测前 32 个节点，以控制路由器负载'
+  } finally { ssrProbeBusy.value = false }
+}
+function parseSsrComponent(text) {
+  return Object.fromEntries(String(text || '').split(/\r?\n/)
+    .filter(line => /^[a-z_]+\s*=/.test(line))
+    .map(line => { const split = line.indexOf('='); return [line.slice(0, split), line.slice(split + 1)] }))
+}
+async function querySsrComponent(remote = false) {
+  if (ssrComponentBusy.value) return
+  ssrComponentBusy.value = true; error.value = ''; notice.value = ''
+  const component = ssrComponent.value
+  if (!ssrComponents.some(x => x.value === component)) { ssrComponentBusy.value = false; return }
+  try {
+    const r = await props.client.call('file', 'exec', {
+      command: '/usr/share/shadowsocksr/update_components.sh',
+      params: [component + (remote ? '_info' : '_local_info')], env: null
+    }, true)
+    if (!r) throw new Error('QWRT 未开放 SSR 组件更新脚本的 RPC 执行权限')
+    if (Number(r.code ?? 0) !== 0) throw new Error('SSR 组件检测脚本执行失败（退出码 ' + r.code + '）')
+    const output = parseSsrComponent(r.stdout)
+    if (output.error) throw new Error('组件检测失败：' + output.error)
+    ssrComponentResult.value = { ...output, component }
+    ssrComponentChecked.value = remote
+  } catch (e) { error.value = shortError(e) }
+  finally { ssrComponentBusy.value = false }
+}
+async function upgradeSsrComponent() {
+  ssrComponentDialog.value = false
+  if (!ssrComponentChecked.value || ssrComponentResult.value?.component !== ssrComponent.value ||
+      ssrComponentResult.value.can_upgrade !== '1') return
+  const component = ssrComponent.value
+  ssrComponentBusy.value = true; error.value = ''; notice.value = ''
+  try {
+    const r = await props.client.call('file', 'exec', {
+      command: '/usr/share/shadowsocksr/update_components.sh',
+      params: [component + '_upgrade'], env: null
+    }, true)
+    if (!r) throw new Error('QWRT 未开放 SSR 组件安装更新的 RPC 权限')
+    const result = parseSsrComponent(r.stdout)
+    if (Number(r.code ?? 0) !== 0 || result.success !== '1') {
+      throw new Error('SSR 组件更新未成功：' + (result.message || result.error || '请到 LuCI 组件更新页查看'))
+    }
+    ssrComponentResult.value = { ...result, component, can_upgrade: '0' }
+    ssrComponentChecked.value = false
+    notice.value = '组件更新命令已执行，请刷新确认已安装版本'
+  } catch (e) { error.value = shortError(e) }
+  finally { ssrComponentBusy.value = false }
+}
+watch(ssrComponent, () => { ssrComponentResult.value = null; ssrComponentChecked.value = false })
 
 async function loadWechat() {
   const [cfg, rc, detail] = await Promise.all([
@@ -343,11 +463,35 @@ async function saveCarbonTheme() {
     await setUci('luci', carbon.value.section, { mediaurlbase: carbon.value.current })
   }, 'LuCI 主题已切换，刷新 LuCI 页面后生效')
 }
+async function pollCarbonJob(kind) {
+  for (let attempt = 0; attempt < 18; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 1200))
+    const status = await props.client.call('luci.carbon_update', 'status', {}, true)
+    if (!status) throw new Error('无法读取 Carbon 更新状态')
+    carbon.value = { ...carbon.value, updater: status }
+    carbonCheckText.value = status.state === 'checking' ? '正在检查远程版本'
+      : status.state === 'downloading' ? '正在下载安装文件'
+      : status.state === 'verifying' ? '正在校验文件完整性'
+      : status.state === 'installing' ? '正在安装更新' : ''
+    if (status.state === 'failed') throw new Error('Carbon 操作失败：' + (status.error || '请查看路由器更新日志'))
+    if (status.state === 'idle' || status.state === 'success') {
+      notice.value = kind === 'check'
+        ? status.can_upgrade ? '检测到可安装的 Carbon 新版本' : 'Carbon 更新检测已完成，暂无可安装更新'
+        : 'Carbon 更新操作完成，请确认当前版本'
+      return
+    }
+  }
+  notice.value = 'Carbon 任务仍在执行，请稍后刷新更新状态'
+}
 async function checkCarbon() {
-  await run(async () => {
+  if (carbonChecking.value) return
+  carbonChecking.value = true; error.value = ''; notice.value = ''
+  try {
     const r = await props.client.call('luci.carbon_update', 'check', {}, true)
-    if (!r) throw new Error('Carbon 更新器 RPC 不可用，请检查主题版本和 ACL')
-  }, '已提交 Carbon 更新检查')
+    if (!r || r.error || r.started !== true) throw new Error(r?.error || 'Carbon 更新器未接受检测请求')
+    await pollCarbonJob('check')
+  } catch (e) { error.value = shortError(e) }
+  finally { carbonChecking.value = false; carbonCheckText.value = '' }
 }
 async function saveCarbonMirror() {
   await run(async () => {
@@ -357,32 +501,85 @@ async function saveCarbonMirror() {
 }
 async function upgradeCarbon() {
   carbonUpgradeDialog.value = false
-  await run(async () => {
+  if (carbonChecking.value) return
+  carbonChecking.value = true; error.value = ''; notice.value = ''
+  try {
     const version = String(carbon.value.updater?.latest || '')
     if (!version || !carbon.value.updater?.can_upgrade) throw new Error('当前没有可安装的已验证更新')
     const r = await props.client.call('luci.carbon_update', 'upgrade', { version }, true)
-    if (!r || r.error) throw new Error(r?.error || 'Carbon 更新请求失败')
-  }, '已启动 Carbon 更新，请等待路由器完成安装')
+    if (!r || r.error || r.started !== true) throw new Error(r?.error || 'Carbon 更新请求失败')
+    await pollCarbonJob('upgrade')
+  } catch (e) { error.value = shortError(e) }
+  finally { carbonChecking.value = false; carbonCheckText.value = '' }
 }
 
 function parseZt(stdout) {
   return String(stdout || '').split(/\r?\n/).filter(Boolean).map(line => {
     const normalized = line.trim().replace(/^200\s+listnetworks\s+/, '')
     const p = normalized.split(/\s+/)
-    return { id: p[0] || '', name: p[1] || '', status: p[3] || '', addresses: p.slice(6).join(' ') }
+    return {
+      id: p[0] || '', name: p[1] || '', mac: p[2] || '',
+      status: p[3] || '', type: p[4] || '', portDeviceName: p[5] || '',
+      addresses: p.slice(6).join(' ')
+    }
   }).filter(x => /^[a-f0-9]{16}$/i.test(x.id))
+}
+function parseZtJson(stdout) {
+  try {
+    const data = JSON.parse(String(stdout || ''))
+    const raw = Array.isArray(data) ? data : (Array.isArray(data?.networks) ? data.networks : [])
+    return raw.filter(x => /^[a-f0-9]{16}$/i.test(String(x.id || ''))).map(x => ({
+      id: String(x.id), name: String(x.name || ''), status: String(x.status || ''),
+      mac: String(x.mac || ''), type: String(x.type || ''),
+      portDeviceName: String(x.portDeviceName || ''),
+      addresses: Array.isArray(x.assignedAddresses) ? x.assignedAddresses.join(', ') : String(x.assignedAddresses || ''),
+      allowManaged: x.allowManaged, allowDefault: x.allowDefault, allowDNS: x.allowDNS
+    }))
+  } catch (_) { return [] }
 }
 async function loadZeroTier() {
   const [cfg, rc] = await Promise.all([getUci('zerotier'), services()])
   const list = sections(cfg), global = sectionOf(list, 'global', 'zerotier')
-  let runtime = []
-  try { runtime = parseZt((await command('/usr/bin/zerotier-cli', ['listnetworks'])).stdout) } catch (_) {}
+  let runtime = [], node = null, runtimeUnavailable = false
+  const cli = async params => props.client.call('file', 'exec', {
+    command: '/usr/bin/zerotier-cli', params, env: null
+  }, true)
+  try {
+    const [networksResult, infoResult] = await Promise.all([
+      cli(['-j', 'listnetworks']), cli(['-j', 'info'])
+    ])
+    if (networksResult && Number(networksResult.code ?? 1) === 0) {
+      runtime = parseZtJson(networksResult.stdout)
+    }
+    if (infoResult && Number(infoResult.code ?? 1) === 0) {
+      try {
+        const info = JSON.parse(String(infoResult.stdout || '{}'))
+        node = {
+          address: String(info.address || info.id || ''),
+          version: String(info.version || ''),
+          online: info.online === true || String(info.status || '').toUpperCase() === 'ONLINE'
+        }
+      } catch (_) {}
+    }
+    if (!runtime.length) {
+      const plain = await cli(['listnetworks'])
+      if (plain && Number(plain.code ?? 1) === 0) runtime = parseZt(plain.stdout)
+      else runtimeUnavailable = true
+    }
+    if (!node) {
+      const plain = await cli(['info'])
+      const fields = String(plain?.stdout || '').trim().replace(/^200\s+info\s+/, '').split(/\s+/)
+      if (plain && Number(plain.code ?? 1) === 0 && /^[a-f0-9]{10}$/i.test(fields[0] || '')) {
+        node = { address: fields[0], version: fields[1] || '', online: fields[2] === 'ONLINE' }
+      }
+    }
+  } catch (_) { runtimeUnavailable = true }
   zt.value = {
     available: !!global, section: global?.id || '',
     networks: list.filter(x => x.type === 'network').map(x => ({
       section: x.id, id: String(x.options.id || ''), enabled: String(x.options.enabled ?? '1') !== '0'
     })),
-    service: rc?.zerotier || null, runtime
+    service: rc?.zerotier || null, runtime, node, runtimeUnavailable
   }
   ztEnabled.value = String(global?.options.enabled || '0') === '1'
 }
@@ -465,20 +662,25 @@ async function deleteForward() {
 
 async function refresh() {
   if (!props.client || loading.value) return
+  const kind = props.kind
   loading.value = true; error.value = ''; notice.value = ''
   try {
-    if (props.kind === 'ssr') await loadSsr()
-    else if (props.kind === 'wechatpush') await loadWechat()
-    else if (props.kind === 'openclash') await loadOpenClash()
-    else if (props.kind === 'detector') await loadDetector()
-    else if (props.kind === 'carbon') await loadCarbon()
-    else if (props.kind === 'zerotier') await loadZeroTier()
-    else if (props.kind === 'firewall') await loadFirewall()
+    if (kind === 'ssr') await loadSsr()
+    else if (kind === 'wechatpush') await loadWechat()
+    else if (kind === 'openclash') await loadOpenClash()
+    else if (kind === 'detector') await loadDetector()
+    else if (kind === 'carbon') await loadCarbon()
+    else if (kind === 'zerotier') await loadZeroTier()
+    else if (kind === 'firewall') await loadFirewall()
     else throw new Error('未知应用模块')
   } catch (e) { error.value = shortError(e) }
-  finally { loading.value = false }
+  finally {
+    readyKind.value = kind
+    loading.value = false
+    if (props.kind !== kind) void refresh()
+  }
 }
-watch(() => props.kind, () => { void refresh() })
+watch(() => props.kind, () => { readyKind.value = ''; void refresh() })
 onMounted(() => { void refresh() })
 defineExpose({ refresh })
 </script>
