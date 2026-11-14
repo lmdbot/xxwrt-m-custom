@@ -994,7 +994,8 @@ defineExpose({ refresh })
             <div v-for="node in ssr.nodes" :key="node.id" role="listitem" class="app-compact-row ssr-node-row">
               <div class="app-compact-body">
                 <div class="app-compact-name">{{ node.title }}</div>
-                <div class="app-compact-sub">{{ [node.type,node.host,node.port].filter(Boolean).join(' · ') }}</div>
+                <div class="app-compact-sub ssr-node-address">{{ node.host || '未配置服务器' }}<span v-if="node.port">:{{ node.port }}</span></div>
+                <div class="app-compact-foot"><v-chip size="x-small" variant="tonal" color="secondary">{{ node.type || '未知协议' }}</v-chip></div>
                 <div v-if="ssrProbes[node.id]" class="app-compact-sub ssr-node-probe"
                   :class="{ 'is-success': ssrProbes[node.id].status === 'ok' }">
                   {{ ssrProbes[node.id].text }}
@@ -1114,8 +1115,8 @@ defineExpose({ refresh })
                 class="app-compact-row wechat-online-row" role="listitem">
                 <div class="app-compact-body">
                   <div class="app-compact-name">{{ item.name || '未命名设备' }}</div>
-                  <div class="app-compact-sub">{{ item.ip || '暂无 IP' }}</div>
-                  <div class="app-compact-sub">{{ item.mac || '暂无 MAC' }}</div>
+                  <div class="app-compact-sub wechat-device-address"><span>IP</span> {{ item.ip || '暂无 IP' }}</div>
+                  <div class="app-compact-sub wechat-device-address"><span>MAC</span> {{ item.mac || '暂无 MAC' }}</div>
                   <div v-if="item.interface || item.parent || item.uptime" class="app-compact-foot">
                     <span>{{ item.interface || '接入未知' }}{{ item.parent && item.parent !== 'Local' ? ' · ' + item.parent : '' }}</span>
                     <span v-if="item.uptime">在线 {{ item.uptime }}</span>
