@@ -30,7 +30,7 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'network.interface' && method === 'dump') return {
     interface: [
       { interface: 'lan', device: 'br-lan', up: true, proto: 'static', 'ipv4-address': [{ address: '192.168.100.1' }] },
-      { interface: 'wan', device: 'pppoe-wan', up: true, proto: 'pppoe', 'ipv4-address': [{ address: '10.12.4.5' }],
+      { interface: 'wan', device: 'pppoe-wan', up: true, proto: 'pppoe', uptime: 90061, 'ipv4-address': [{ address: '10.12.4.5' }],
         'dns-server': ['223.5.5.5'], route: [{ target: '0.0.0.0', mask: 0, nexthop: '10.12.4.1' }] }
     ]
   }
@@ -144,9 +144,33 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '登录并进入' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
   await expect(page.getByText('38℃')).toBeVisible()
+  await expect(page.getByText('联网检测', { exact: true })).toBeVisible()
+  await expect(page.getByText('联网监测', { exact: true })).toHaveCount(0)
+  const detectorColorMatches = await page.evaluate(() => {
+    const heading = document.querySelector('.detector-title')
+    const uptimeLabel = [...document.querySelectorAll('.device-card .details span')]
+      .find(element => element.textContent.trim() === '运行时间')
+    if (!heading || !uptimeLabel) return false
+    const a = getComputedStyle(heading), b = getComputedStyle(uptimeLabel)
+    return a.color === b.color && a.fontSize === b.fontSize && a.fontWeight === b.fontWeight
+  })
+  expect(detectorColorMatches).toBe(true)
   await expect(page.getByText('网易云')).toBeVisible()
   await expect(page.getByText('3 / 4 正常')).toBeVisible()
   await expect(page.locator('.status-chip.v-chip')).toHaveCount(4)
+  await expect(page.locator('.page-head')).not.toContainText('更新于')
+  await expect(page.locator('.page-head')).not.toContainText('192.168.100.1')
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.getByTestId('device-page-meta')).toContainText('更新于')
+  await expect(page.getByTestId('device-page-meta')).toContainText('192.168.100.1')
+  await expect(page.getByText('非官方 Material UI')).toHaveCount(0)
+  await expect(page.getByText('通过真实 QWRT ubus 接口读取数据')).toHaveCount(0)
+  const footerAfterCards = await page.evaluate(() => {
+    const meta = document.querySelector('[data-testid="device-page-meta"]')
+    const card = document.querySelector('.device-card')
+    return !!meta && !!card && !!(card.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+  expect(footerAfterCards).toBe(true)
   await expect(page.locator('.device-card.v-card')).toBeVisible()
   await expect(page.getByText('磁盘占用')).toBeVisible()
   await expect(page.getByText('系统可写空间')).toBeVisible()
@@ -155,6 +179,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('25%', { exact: true })).toBeVisible()
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
   await page.getByRole('button', { name: '统计' }).click()
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByText('实时带宽')).toBeVisible()
   await expect(page.getByText('系统负载历史')).toBeVisible()
   await expect(page.locator('.realtime-chart').first()).toBeVisible({ timeout: 12000 })
@@ -178,6 +204,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.screenshot({ path: 'test-results/screenshots/live-standard.png', fullPage: true })
 
   await page.getByRole('button', { name: '终端' }).click()
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
   await page.getByRole('tab', { name: /DHCPv6/ }).click()
   await expect(page.getByText('IPv6-Phone')).toBeVisible()
@@ -201,6 +229,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByText('Phone').click()
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '网络' }).click()
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.getByText('运行秒数')).toHaveCount(0)
+  await expect(page.getByText('1天 1小时 1分钟', { exact: true })).toBeVisible()
   await expect(page.getByText('10.12.4.5').first()).toBeVisible()
   await expect(page.locator('.hardware-list')).toBeVisible()
   await expect(page.locator('.hardware-panel')).toHaveCount(2)
@@ -210,6 +241,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2)).resolves.toBeTruthy()
   await page.screenshot({ path: 'test-results/screenshots/compact-network-interfaces.png', fullPage: true })
   await page.getByRole('button', { name: '应用' }).click()
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByText('应用管理')).toBeVisible()
   await expect(page.locator('.app-launcher-tile')).toHaveCount(7)
   await expect(page.getByText('firewall')).toHaveCount(0)

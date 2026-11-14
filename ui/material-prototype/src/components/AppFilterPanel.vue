@@ -131,7 +131,7 @@ onMounted(() => { void load() })
 <template>
   <v-card rounded="xl" variant="outlined" class="appfilter-panel">
     <div class="appfilter-title">
-      <div><h3>OpenAppFilter 家长控制</h3><p>使用原版 QWRT 的 appfilter RPC；不跳转 LuCI</p></div>
+      <div><h3>OpenAppFilter 家长控制</h3></div>
       <v-btn icon="mdi-refresh" color="primary" variant="tonal" size="small" aria-label="刷新家长控制" :loading="busy" @click="load"/>
     </div>
     <v-tabs v-model="tab" color="primary" show-arrows density="compact" class="appfilter-tabs">

@@ -91,7 +91,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the broken preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 13/; s/versionName "[^"]+"/versionName "0.5.4"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 14/; s/versionName "[^"]+"/versionName "0.5.5"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -125,17 +125,17 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.4.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.5.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.4.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.4.apk | grep '^package:' | grep "versionName='0.5.4'" | grep "versionCode='13'"
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.5.apk
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.5.apk | grep '^package:' | grep "versionName='0.5.5'" | grep "versionCode='14'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.4.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.5.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -145,11 +145,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.4"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.4.apk"
+          TAG="material-wrt-v0.5.5"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.5.apk"
           NOTES="../../build/material-preview/release-notes.md"
           printf '%s\n' \
-            '## XX-WRT M Material UI（深色状态栏与无闪烁后台刷新修复 v0.5.4）' \
+            '## XX-WRT M Material UI（信息移至底部、清理说明和 WAN 时间优化 v0.5.5）' \
             '' \
             '已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。' \
             '' \
@@ -168,6 +168,8 @@ jobs:
             '- 设备列表参考 main：全部/可达/离线筛选、卡片/列表切换、设备状态、温度、CPU/内存、连接数、终端数和经真实网卡采样计算的上传/下载速率。' \
             '- 修复深色模式 Android 15/16 状态栏：原生背景和前景图标随 APP 深浅色同步；回前台重新应用。' \
             '- 后台刷新不再把已显示设备标成检测中；磁盘/无线/应用用户在可选 RPC 临时失败时保留上次有效数据。' \
+            '- 设备详情所有页面将 IP/域名和刷新时间移到内容底部，移除重复宣传与开发说明。' \
+            '- WAN/WAN6 显示人类可读运行时间；首页联网监测改为联网检测，字体与运行时间标签一致。' \
             '- 隐私：可独立隐藏路由器名称/系统主机名与 IP/域名；隐藏设置本机持久化，列表及路由器页同步遮挡，编辑配置时仍显示真实值。' \
             '- OpenAppFilter：按原版 RPC 增加应用分类、时间策略、受控终端和高级配置。' \
             '- 恢复出厂：沿用原版 file.exec 参数，必须输入确认短语后才允许执行。' \
@@ -181,8 +183,8 @@ jobs:
             > "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.4" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.5" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.4" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.5" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi

@@ -5,6 +5,7 @@ import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
+import packageInfo from '../package.json'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
@@ -26,6 +27,25 @@ import {
 } from './services/router.js'
 
 const theme = useTheme()
+function formatInterfaceUptime(rawSeconds) {
+  if (rawSeconds === null || rawSeconds === undefined || rawSeconds === '') return '--'
+  const value = Number(rawSeconds)
+  if (!Number.isFinite(value) || value < 0) return '--'
+  let seconds = Math.floor(value)
+  const days = Math.floor(seconds / 86400)
+  seconds %= 86400
+  const hours = Math.floor(seconds / 3600)
+  seconds %= 3600
+  const minutes = Math.floor(seconds / 60)
+  seconds %= 60
+  const parts = []
+  if (days) parts.push(days + '天')
+  if (hours) parts.push(hours + '小时')
+  if (minutes) parts.push(minutes + '分钟')
+  if (!parts.length) parts.push(seconds + '秒')
+  return parts.join(' ')
+}
+
 const pages = [
   { id: 'home', label: '首页', icon: 'mdi-home-outline' },
   { id: 'statistics', label: '统计', icon: 'mdi-chart-box-outline' },
@@ -871,7 +891,7 @@ onUnmounted(() => {
     <v-navigation-drawer v-model="drawerOpen" temporary location="left" width="304" class="material-side-drawer" aria-label="侧栏菜单">
       <div class="sidebar-brand">
         <v-avatar size="44" color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-router-wireless" size="27"/></v-avatar>
-        <div><strong>XX-WRT M</strong><small>Material UI · OpenWrt</small></div>
+        <div><strong>XX-WRT M</strong><small>路由器管理</small></div>
         <v-btn icon="mdi-close" variant="text" size="small" aria-label="关闭侧栏菜单" @click="drawerOpen = false"/>
       </div>
       <v-divider class="mb-2"/>
@@ -914,7 +934,7 @@ onUnmounted(() => {
         </template>
         <template v-else-if="drawerSection === 'language'">
           <div class="sidebar-section-title">语言设置</div>
-          <p class="muted-hint">当前语言：简体中文。原版的多语言资源尚需逐页迁移，未完成前不提供无效的语言切换。</p>
+          <p class="muted-hint">当前仅支持简体中文。</p>
         </template>
         <template v-else-if="drawerSection === 'update'">
           <div class="sidebar-section-title">检查更新</div>
@@ -928,11 +948,11 @@ onUnmounted(() => {
         </template>
         <template v-else-if="drawerSection === 'support'">
           <div class="sidebar-section-title">支持项目</div>
-          <p class="muted-hint">本项目是非官方 Material UI 自定义版本。上游赞助链接未直接迁移，以免展示未经核对的收款或推广信息。</p>
+          <v-btn block variant="tonal" prepend-icon="mdi-github" @click="showReleasePage">查看项目</v-btn>
         </template>
         <template v-else-if="drawerSection === 'about'">
           <div class="sidebar-section-title">关于</div>
-          <p class="muted-hint">XX-WRT M Material 测试版；使用 Vue、Vuetify、Capacitor 与开源液态玻璃组件。基础版仍为 v1.0.6。</p>
+          <p class="muted-hint">版本：{{ packageInfo.version }}</p>
           <v-btn block variant="tonal" prepend-icon="mdi-github" @click="showReleasePage">版本与源代码</v-btn>
         </template>
         <template v-else>
@@ -946,8 +966,7 @@ onUnmounted(() => {
       <v-container class="main-container">
         <template v-if="viewMode === 'list'">
           <div class="list-page-title">
-            <div><div class="eyebrow">OPENWRT DEVICES · MULTI-ROUTER</div><h1>设备列表</h1>
-              <p class="muted-hint mt-1">保存多台路由器，查看可达状态；点击设备进入管理首页。</p></div>
+            <div><h1>设备列表</h1></div>
             <div class="list-page-actions">
               <v-btn icon="mdi-refresh" variant="tonal" color="primary" :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
               <v-btn color="primary" rounded="xl" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
@@ -990,13 +1009,11 @@ onUnmounted(() => {
               :layout="routerListLayout" :show-names="showHostnames" :show-address="showIp"
               @open="openDevice" @edit="showDeviceDialog" @remove="askDeleteDevice"/>
           </div>
-          <div class="device-list-help">
-            <v-icon icon="mdi-shield-lock-outline" size="18"/><span>设备信息保存在本机；勾选记住密码时仅由 Android Keystore 加密保存，不会上传到第三方服务器。</span>
-          </div>
+          
         </template>
         <template v-else>
           <div class="page-head">
-            <div><div class="eyebrow">{{ displayRouterAddress(client?.baseUrl) }} · {{ lastUpdated ? '更新于 ' + lastUpdated : '已连接' }}</div><h1>{{ pageTitle }}</h1></div>
+            <h1>{{ pageTitle }}</h1>
             <v-btn color="primary" variant="tonal" icon="mdi-refresh" size="small" :loading="refreshing" aria-label="刷新数据" @click="refreshCurrent"/>
           </div>
           <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" closable class="mb-4" @click:close="errorMessage = ''">{{ errorMessage }}</v-alert>
@@ -1019,7 +1036,7 @@ onUnmounted(() => {
               </div>
               <section class="detector-area">
                 <div class="section-heading">
-                  <h3>联网监测</h3>
+                  <h3 class="detector-title">联网检测</h3>
                   <v-chip v-if="snapshot.detectorAvailable" size="small" variant="tonal" :color="onlineCount === allChecks.length ? 'success' : 'error'">
                     {{ onlineCount }} / {{ allChecks.length }} 正常
                   </v-chip>
@@ -1219,7 +1236,7 @@ onUnmounted(() => {
                 <div v-if="nic['ipv6-prefix-assignment']?.length"><span>IPv6-PD 分配</span><strong>{{ nic['ipv6-prefix-assignment'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
                 <div v-if="nic['dns-server']?.length"><span>DNS</span><strong>{{ nic['dns-server'].join(' / ') }}</strong></div>
                 <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
-                <div v-if="nic.uptime"><span>运行秒数</span><strong>{{ nic.uptime }} s</strong></div>
+                <div v-if="nic.uptime !== undefined && nic.uptime !== null"><span>运行时间</span><strong>{{ formatInterfaceUptime(nic.uptime) }}</strong></div>
                 <div v-if="nic.route?.length"><span>路由</span><strong>{{ nic.route.map(x => x.target + '/' + x.mask + ' → ' + (x.nexthop || '--')).join('; ') }}</strong></div>
               </div>
             </v-card>
@@ -1241,7 +1258,7 @@ onUnmounted(() => {
                   <span>{{ tool.subtitle }}</span>
                 </v-card>
               </div>
-              <p class="muted-hint mt-4">本页入口与基础版应用模块对应。功能在独立二级页面展开，不直接展示进程或服务列表。</p>
+              
             </template>
             <template v-else>
               <div class="app-subpage-heading">
@@ -1266,7 +1283,7 @@ onUnmounted(() => {
               />
               <div v-if="toolPanel === 'wol'" class="mt-3">
                 <h3>网络唤醒</h3>
-                <p class="muted-hint mb-2">支持 main 相同的 LuCI WOL RPC；需要 QWRT 已安装 WOL 插件并授权。</p>
+                <p class="muted-hint mb-2">需要路由器安装 WOL 插件并允许访问。</p>
                 <v-list v-if="wolData.targets.length" density="compact">
                   <v-list-item v-for="target in wolData.targets" :key="target.id" :title="target.name" :subtitle="target.mac + (target.iface ? ' · ' + target.iface : '')">
                     <template #append>
@@ -1291,11 +1308,18 @@ onUnmounted(() => {
               </v-card>
             </template>
           </template>
-
-
+          <div v-if="connected" class="device-page-meta" data-testid="device-page-meta" aria-label="设备地址和更新时间">
+            <div class="device-page-meta-line">
+              <v-icon icon="mdi-lan-connect" size="14"/>
+              <span>{{ displayRouterAddress(client?.baseUrl) }}</span>
+            </div>
+            <div class="device-page-meta-line">
+              <v-icon icon="mdi-clock-outline" size="14"/>
+              <span>{{ lastUpdated ? '更新于 ' + lastUpdated : '已连接' }}</span>
+            </div>
+          </div>
         </template>
         <v-alert v-if="errorMessage && !connected" class="mt-4" type="error" variant="tonal">{{ errorMessage }}</v-alert>
-        <p class="demo-notice">非官方 Material UI · 通过真实 QWRT ubus 接口读取数据</p>
       </v-container>
     </v-main>
 
@@ -1322,7 +1346,7 @@ onUnmounted(() => {
             <div><span>MAC 地址</span><strong>{{ selectedClient.mac }}</strong></div>
             <div><span>租约时间</span><strong>{{ selectedClient.expires ?? '--' }}</strong></div>
           </div>
-          <p class="muted-hint mt-3">租约存在并不代表设备当前在线；其他终端扩展功能需继续按原版 RPC 接口迁移。</p>
+          <p class="muted-hint mt-3">DHCP 租约不代表设备当前在线。</p>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
       </v-card>
@@ -1375,7 +1399,6 @@ onUnmounted(() => {
         <v-card-text>
           <v-alert type="error" variant="tonal" density="comfortable" class="mb-4">
             此操作将删除路由器当前配置，影响所有连接设备，且无法撤销。
-            本功能使用 main 原版的 file.exec /sbin/firstboot -r -y 命令。
           </v-alert>
           <v-text-field v-model.trim="factoryPhrase" variant="outlined" label="请输入“恢复出厂”以确认"
             autocapitalize="off" autocomplete="off" :disabled="factoryBusy"/>
