@@ -11,6 +11,13 @@ import './style.css'
 const vuetify = createVuetify({
   components,
   directives,
+  // Keep outlined form labels above their values/placeholders on Android WebView.
+  // This also covers prefilled inputs, native time controls and compact selects.
+  defaults: {
+    VTextField: { active: true },
+    VSelect: { active: true },
+    VTextarea: { active: true }
+  },
   icons: { defaultSet: 'mdi', aliases, sets: { mdi } },
   theme: {
     defaultTheme: 'light',
