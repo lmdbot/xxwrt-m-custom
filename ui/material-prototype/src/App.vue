@@ -519,28 +519,9 @@ watch(activeTab, (tab) => {
   if (tab === 'statistics') void pollTelemetry()
   if (tab !== 'apps') toolPanel.value = ''
 })
-// Capture logical application destinations rather than raw WebView history.
-// Android edge-back invokes the same handler as the explicit top-left back arrow.
-const navigationTrail = []
-let restoringNavigation = false
+// Android Back follows the visible hierarchy, not bottom-tab visit order.
 let nativeBackSubscription = null
 let nativeResumeSubscription = null
-const logicalRouteKey = computed(() => JSON.stringify({
-  mode: viewMode.value,
-  tab: viewMode.value === 'detail' ? activeTab.value : 'home',
-  tool: viewMode.value === 'detail' && activeTab.value === 'apps' ? toolPanel.value : ''
-}))
-watch(logicalRouteKey, (next, previous) => {
-  if (restoringNavigation || !previous || next === previous) return
-  const former = JSON.parse(previous)
-  // Never restore unrelated router details after a session is discarded.
-  navigationTrail.push(former)
-  if (navigationTrail.length > 40) navigationTrail.shift()
-}, { flush: 'sync' })
-
-function clearNavigationTrail() {
-  navigationTrail.length = 0
-}
 function openSettingsCategory(categoryId) {
   if (!settingsCategories.some(category => category.id === categoryId)) return
   if (settingsOpen.value && settingsCategory.value !== categoryId) {
@@ -557,18 +538,7 @@ function closeSettingsPage() {
   }
   settingsOpen.value = false
 }
-function restoreRoute(previous) {
-  restoringNavigation = true
-  try {
-    viewMode.value = previous.mode
-    activeTab.value = previous.mode === 'detail' ? previous.tab : 'home'
-    toolPanel.value = previous.mode === 'detail' && previous.tab === 'apps' ? previous.tool : ''
-  } finally { restoringNavigation = false }
-}
-
-// Screen content > side drawer > modal > app hierarchy > Android task.
-// A configured system back gesture must not immediately send the user home
-// while the WebView is showing a detail page, tool, tab or popup.
+// Back: dialogs → drawer/settings → app subpage → router list → minimize.
 async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
   if (factoryDialog.value) { factoryDialog.value = false; return 'dialog' }
@@ -581,11 +551,8 @@ async function handleBack() {
   if (drawerOpen.value) { drawerOpen.value = false; return 'drawer' }
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
 
-  while (navigationTrail.length) {
-    const previous = navigationTrail.pop()
-    if (previous.mode === 'detail' && !connected.value) continue
-    restoreRoute(previous)
-    if (previous.mode === 'list') void refreshDeviceStatuses()
+  if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
+    closeAppTool()
     return 'page'
   }
   if (viewMode.value === 'detail') {
@@ -646,8 +613,6 @@ async function pollTelemetry() {
 }
 
 function resetSession() {
-  restoringNavigation = true
-  clearNavigationTrail()
   const oldId = selectedDeviceId.value
   if (oldId && sessions.has(oldId)) {
     sessions.get(oldId).logout()
@@ -691,7 +656,6 @@ function resetSession() {
   selectedDeviceId.value = ''
   loginDialog.value = false
   drawerOpen.value = false
-  restoringNavigation = false
   void refreshDeviceStatuses()
 }
 
@@ -805,16 +769,12 @@ async function refreshDeviceStatuses() {
 }
 
 async function goToDeviceList() {
-  restoringNavigation = true
-  try {
-    settingsOpen.value = false
-    settingsTrail.length = 0
-    drawerOpen.value = false
-    viewMode.value = 'list'
-    activeTab.value = 'home'
-    toolPanel.value = ''
-    clearNavigationTrail()
-  } finally { restoringNavigation = false }
+  settingsOpen.value = false
+  settingsTrail.length = 0
+  drawerOpen.value = false
+  viewMode.value = 'list'
+  activeTab.value = 'home'
+  toolPanel.value = ''
   errorMessage.value = ''
   await refreshDeviceStatuses()
 }
@@ -1234,7 +1194,7 @@ onUnmounted(() => {
     <v-navigation-drawer v-model="drawerOpen" temporary location="left" width="320" class="material-side-drawer" aria-label="设置分类侧栏">
       <div class="sidebar-brand">
         <v-avatar size="54" color="primary" variant="tonal" rounded="xl"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
-        <div><strong>我的 OpenWrt</strong><small>QWRT · 路由器管理</small></div>
+        <div><strong>我的 OpenWrt</strong><small>路由器管理</small></div>
         <v-btn icon="mdi-close" variant="text" size="small" aria-label="关闭侧栏菜单" @click="drawerOpen = false"/>
       </div>
       <div class="sidebar-category-list" role="group" aria-label="设置分类">
