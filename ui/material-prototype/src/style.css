@@ -525,3 +525,18 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .ssr-node-probe.is-success{color:rgb(var(--v-theme-success))}
 .router-app-floating-feedback .v-snackbar__wrapper{max-width:min(540px,calc(100vw - 28px));border-radius:13px}
 @media(max-width:380px){.app-compact-row{gap:6px;padding:10px 8px}.app-compact-end{gap:4px}}
+
+/* One consistent compact-table treatment for SSR servers and WeChatPush clients. */
+.ssr-node-row,.wechat-online-row{align-items:center}
+.ssr-node-row .app-compact-end{align-self:center}
+.ssr-node-address{overflow-wrap:anywhere;word-break:break-all;font-variant-numeric:tabular-nums}
+.ssr-node-row .app-compact-foot{margin-top:6px}
+.ssr-node-row .app-compact-foot .v-chip{font-size:10px}
+.wechat-device-address{display:flex;align-items:baseline;gap:7px;min-width:0}
+.wechat-device-address>span{flex:0 0 28px;font-size:10px;font-weight:600;color:rgb(var(--v-theme-on-surface-variant))}
+.wechat-online-row .app-compact-status{align-self:center}
+@media(max-width:380px){
+ .ssr-node-row .app-compact-end{flex-direction:column;gap:4px}
+ .ssr-node-row .app-compact-end .v-btn{width:32px;height:32px}
+ .wechat-device-address{gap:4px}
+}
