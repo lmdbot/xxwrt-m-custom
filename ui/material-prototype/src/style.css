@@ -82,3 +82,11 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
   .top-bar .app-name{font-size:20px}
   .page-head h1{font-size:24px}
 }
+
+/* Reused Material components for main-branch management shortcuts. */
+.legacy-tool-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:14px}
+.legacy-tool-button{min-width:0!important;width:100%;justify-content:flex-start!important;height:42px!important;font-size:12px!important}
+.legacy-tool-button .v-btn__content{overflow:hidden;text-overflow:ellipsis}
+.network-card h3{font-size:14px;margin:8px 0 4px;font-weight:600}
+.client-item{cursor:pointer}
+@media(max-width:350px){.legacy-tool-grid{grid-template-columns:1fr}}
