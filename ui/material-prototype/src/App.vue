@@ -175,6 +175,12 @@ const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
 const terminalView = ref('dhcp4')
 const wifiClientData = ref({ available: false, stations: [] })
 const appFilterUsers = ref({ available: false, users: [] })
+const terminalCategories = computed(() => [
+  { value: 'dhcp4', label: 'DHCPv4', count: clientData.value.data.length, icon: 'mdi-laptop' },
+  { value: 'dhcp6', label: 'DHCPv6', count: clientData.value.ipv6.length, icon: 'mdi-ip-network' },
+  { value: 'wireless', label: '无线终端', count: wifiClientData.value.stations.length, icon: 'mdi-wifi' },
+  { value: 'oaf', label: '应用用户', count: appFilterUsers.value.users.length, icon: 'mdi-account-group-outline' }
+])
 const diskData = ref({ available: false, partitions: [], primary: null, temporary: null })
 const chosenInterface = ref('')
 const bandwidthHistory = ref([])
@@ -1130,12 +1136,38 @@ onUnmounted(() => {
                 <div><h2>终端设备</h2><p>DHCP 租约记录，不代表当前在线</p></div>
                 <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
               </div>
-              <v-tabs v-model="terminalView" show-arrows color="primary" density="compact" class="terminal-type-tabs mb-3">
-                <v-tab value="dhcp4">DHCPv4 ({{ clientData.data.length }})</v-tab>
-                <v-tab value="dhcp6">DHCPv6 ({{ clientData.ipv6.length }})</v-tab>
-                <v-tab value="wireless">无线终端 ({{ wifiClientData.stations.length }})</v-tab>
-                <v-tab value="oaf">应用用户 ({{ appFilterUsers.users.length }})</v-tab>
-              </v-tabs>
+              <div class="terminal-category-grid" role="group" aria-label="终端分类">
+                <v-btn
+                  v-for="category in terminalCategories"
+                  :key="category.value"
+                  :variant="terminalView === category.value ? 'tonal' : 'outlined'"
+                  :color="terminalView === category.value ? 'primary' : undefined"
+                  :class="{ 'is-selected': terminalView === category.value }"
+                  :aria-pressed="terminalView === category.value"
+                  :aria-label="`${category.label}，${category.count} 条`"
+                  class="terminal-category-card"
+                  @click="terminalView = category.value"
+                >
+                  <div class="terminal-category-card__inner">
+                    <v-avatar size="42" rounded="lg" color="primary" variant="tonal" class="terminal-category-card__icon">
+                      <v-icon :icon="category.icon" size="22" />
+                    </v-avatar>
+                    <div class="terminal-category-card__meta">
+                      <span class="terminal-category-card__title">{{ category.label }}</span>
+                      <v-chip size="x-small" color="primary" variant="tonal" class="terminal-category-card__count">
+                        {{ category.count }} 条
+                      </v-chip>
+                    </div>
+                    <v-icon
+                      v-if="terminalView === category.value"
+                      icon="mdi-check-circle"
+                      size="20"
+                      color="primary"
+                      class="terminal-category-card__check"
+                    />
+                  </div>
+                </v-btn>
+              </div>
               <template v-if="terminalView === 'dhcp4'">
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
