@@ -39,6 +39,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(UiChromePlugin.class);
+        registerPlugin(TcpProbePlugin.class);
         super.onCreate(savedInstanceState);
         // Lock the app UI to the device's normal 1x density. Preserve scroll,
         // touch controls, and accessibility text-size settings.
@@ -101,6 +102,51 @@ public class UiChromePlugin extends Plugin {
             controller.setAppearanceLightNavigationBars(!dark);
             call.resolve();
         });
+    }
+}
+""",
+    encoding="utf-8"
+)
+
+tcp_probe = main.with_name("TcpProbePlugin.java")
+tcp_probe.write_text(
+    package + """
+
+import android.os.SystemClock;
+import com.getcapacitor.JSObject;
+import com.getcapacitor.Plugin;
+import com.getcapacitor.PluginCall;
+import com.getcapacitor.PluginMethod;
+import com.getcapacitor.annotation.CapacitorPlugin;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+
+@CapacitorPlugin(name = "TcpProbe")
+public class TcpProbePlugin extends Plugin {
+    @PluginMethod
+    public void connect(PluginCall call) {
+        String host = call.getString("host", "");
+        Integer port = call.getInt("port", 0);
+        if (host == null || host.isEmpty() || host.length() > 253
+                || port == null || port < 1 || port > 65535
+                || host.contains("/") || host.contains(" ")) {
+            call.reject("Invalid TCP target");
+            return;
+        }
+        new Thread(() -> {
+            final long start = SystemClock.elapsedRealtime();
+            boolean connected = false;
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(host, port), 2500);
+                connected = true;
+            } catch (Exception ignored) {
+                // No node credentials and no raw exception text are returned.
+            }
+            JSObject result = new JSObject();
+            result.put("reachable", connected);
+            result.put("durationMs", SystemClock.elapsedRealtime() - start);
+            call.resolve(result);
+        }, "xxwrt-tcp-probe").start();
     }
 }
 """,
