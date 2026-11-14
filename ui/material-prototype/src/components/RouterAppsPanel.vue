@@ -1059,7 +1059,6 @@ defineExpose({ refresh })
             <v-text-field v-model.trim="wechatForm.miwifi_ip" label="小米主 AP IP 地址" variant="outlined" density="comfortable" placeholder="192.168.100.x"/>
             <v-text-field v-model="wechatForm.miwifi_password" label="小米路由器管理密码" type="password" autocomplete="new-password" variant="outlined" density="comfortable"/>
           </template>
-          <p class="muted-hint">此功能调用 QWRT 已安装的微信推送插件，不会将密码上传到 GitHub。插件会以明文 UCI 配置保存小米密码，并通过局域网 HTTP 登录小米路由器；只建议在可信局域网使用。此选项用于补充设备信息，不等同于直接采集 AP 无线关联状态。</p>
           <v-btn color="primary" variant="tonal" class="mt-3" :disabled="busy" @click="saveWechat">保存高级设置并重启</v-btn>
         </template>
       </template>
