@@ -295,6 +295,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '登录并进入' }).click()
   await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
   await expect(page.getByText('38℃')).toBeVisible()
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/)
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1/);
+
   await expect(page.getByText('联网检测', { exact: true })).toBeVisible()
   await expect(page.getByText('联网监测', { exact: true })).toHaveCount(0)
   const detectorColorMatches = await page.evaluate(() => {
@@ -311,17 +314,11 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.status-chip.v-chip')).toHaveCount(4)
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.locator('.page-head')).not.toContainText('192.168.100.1')
-  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
-  await expect(page.getByTestId('device-page-meta')).toContainText('更新于')
-  await expect(page.getByTestId('device-page-meta')).toContainText('192.168.100.1')
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
+  await expect(page.locator('.device-page-meta')).toHaveCount(0)
   await expect(page.getByText('非官方 Material UI')).toHaveCount(0)
   await expect(page.getByText('通过真实 QWRT ubus 接口读取数据')).toHaveCount(0)
-  const footerAfterCards = await page.evaluate(() => {
-    const meta = document.querySelector('[data-testid="device-page-meta"]')
-    const card = document.querySelector('.device-card')
-    return !!meta && !!card && !!(card.compareDocumentPosition(meta) & Node.DOCUMENT_POSITION_FOLLOWING)
-  })
-  expect(footerAfterCards).toBe(true)
+  await expect(page.locator('.device-page-meta')).toHaveCount(0)
   await expect(page.locator('.device-card.v-card')).toBeVisible()
   await expect(page.getByText('以太网接口')).toBeVisible()
   await expect(page.getByText('eth0', { exact: true })).toBeVisible()
@@ -342,7 +339,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   // Leave the statistics screen unopened while background sampling builds history.
   await page.waitForTimeout(7200)
   await page.getByRole('button', { name: '统计' }).click()
-  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByText('实时带宽')).toBeVisible()
   await expect(page.getByText('系统负载历史')).toBeVisible()
@@ -369,7 +366,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
 
   await page.getByRole('button', { name: '终端' }).click()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
-  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
@@ -414,7 +411,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByText('Phone', { exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '网络' }).click()
-  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.getByText('运行秒数')).toHaveCount(0)
   await expect(page.getByText('1天 1小时 1分钟', { exact: true })).toBeVisible()
   await expect(page.getByText('10.12.4.5').first()).toBeVisible()
@@ -439,21 +436,26 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2)).resolves.toBeTruthy()
   await page.screenshot({ path: 'test-results/screenshots/compact-network-interfaces.png', fullPage: true })
   await page.getByRole('button', { name: '应用' }).click()
-  await expect(page.getByTestId('device-page-meta')).toHaveCount(1)
+  await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.page-head')).not.toContainText('更新于')
   await expect(page.getByText('应用管理')).toBeVisible()
   await expect(page.locator('.app-launcher-tile')).toHaveCount(14)
   await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
+  // Tapping the already selected Apps tab returns from a nested app page.
+  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect(page.getByText('应用管理')).toBeVisible()
+  await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
+  await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   await expect(page.getByText('香港节点', { exact: true }).first()).toBeVisible()
   await page.getByRole('button', { name: '批量探测节点' }).click()
-  await expect(page.getByText(/插件探测可用|TCP 可连接/).first()).toBeVisible()
-  await expect(page.locator('.ssr-probe-results > div')).toHaveCount(3)
+  await expect(page.getByText(/路由器插件检测可达|TCP 可连接/).first()).toBeVisible()
+  await expect(page.locator('.ssr-node-probe')).toHaveCount(3)
   ssrLuciAllowed = false
   ssrExecAllowed = false
   await page.getByRole('button', { name: '批量探测节点' }).click()
-  await expect(page.getByText(/当前 QWRT 未提供可访问的 SSR Plus\+ 节点探测接口/)).toBeVisible()
-  await expect(page.locator('.ssr-probe-results > div')).toHaveCount(0)
+  await expect(page.getByText(/路由器侧 SSR Plus\+ 探测接口不可用/)).toBeVisible()
+  await expect(page.locator('.ssr-node-probe')).toHaveCount(0)
   ssrLuciAllowed = true
   ssrExecAllowed = true
   await page.getByRole('button', { name: '运行状态' }).click()
@@ -595,6 +597,14 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   const wolCardsOverflow = await page.locator('.wol-neighbor-card').evaluateAll(nodes =>
     nodes.some(node => node.getBoundingClientRect().right > innerWidth + 2 || node.scrollWidth > node.clientWidth + 2))
   expect(wolCardsOverflow).toBe(false)
+  await page.locator('.wol-neighbors-search input').fill('192.168.100.89')
+  await expect(page.locator('.wol-neighbor-card')).toContainText('AP备注手机')
+  const wakeAlongsideName = await page.locator('.wol-neighbor-card').first().evaluate(node => {
+    const name = node.querySelector('.wol-neighbor-card__name')?.getBoundingClientRect()
+    const button = node.querySelector('.wol-neighbor-card__wake')?.getBoundingClientRect()
+    return !!name && !!button && Math.abs((name.top + name.height/2) - (button.top + button.height/2)) < 25
+  })
+  expect(wakeAlongsideName).toBe(true)
   await page.locator('.wol-neighbors-search input').fill('192.168.100.99')
   await expect(page.locator('.wol-neighbor-card')).toHaveCount(1)
   await page.locator('.wol-neighbors-search input').fill('')
@@ -777,6 +787,9 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await expect(page.locator('.device-card.v-card')).toBeVisible()
   await expect(page.getByText('磁盘占用')).toBeVisible()
   await expect(page.getByText('38℃')).toBeVisible()
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/)
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1/);
+
   resumeRequest()
   await expect(page.getByRole('button', { name: '刷新数据' }))
     .not.toHaveClass(/v-btn--loading/)
