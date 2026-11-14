@@ -151,7 +151,28 @@ const form = reactive({
 })
 const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' : 'standard')
 const drawerOpen = ref(false)
-const drawerSection = ref('appearance')
+const settingsOpen = ref(false)
+const settingsCategory = ref('display')
+const settingsTrail = []
+const settingsCategories = [
+  { id: 'router', title: '路由器', description: '设备管理、连接与系统信息', icon: 'mdi-router-wireless' },
+  { id: 'display', title: '显示', description: '界面主题、导航与列表布局', icon: 'mdi-monitor' },
+  { id: 'privacy', title: '隐私', description: '主机名、IP 地址与隐私显示', icon: 'mdi-shield-lock-outline' },
+  { id: 'refresh', title: '刷新', description: '设备状态与数据更新策略', icon: 'mdi-refresh' },
+  { id: 'lab', title: '实验室', description: '高级选项与实验性功能', icon: 'mdi-flask-outline' },
+  { id: 'about', title: '关于', description: '语言、帮助、反馈与版本', icon: 'mdi-information-outline' }
+]
+const settingsPage = computed(() =>
+  settingsCategories.find(category => category.id === settingsCategory.value) || settingsCategories[1]
+)
+const hideHostnames = computed({
+  get: () => !showHostnames.value,
+  set: value => { showHostnames.value = !value }
+})
+const hideIpAddresses = computed({
+  get: () => !showIp.value,
+  set: value => { showIp.value = !value }
+})
 const clientSearch = ref('')
 const filteredClients = computed(() => {
   const term = clientSearch.value.trim().toLowerCase()
@@ -287,6 +308,22 @@ watch(logicalRouteKey, (next, previous) => {
 function clearNavigationTrail() {
   navigationTrail.length = 0
 }
+function openSettingsCategory(categoryId) {
+  if (!settingsCategories.some(category => category.id === categoryId)) return
+  if (settingsOpen.value && settingsCategory.value !== categoryId) {
+    settingsTrail.push(settingsCategory.value)
+  }
+  settingsCategory.value = categoryId
+  settingsOpen.value = true
+  drawerOpen.value = false
+}
+function closeSettingsPage() {
+  if (settingsTrail.length) {
+    settingsCategory.value = settingsTrail.pop()
+    return
+  }
+  settingsOpen.value = false
+}
 function restoreRoute(previous) {
   restoringNavigation = true
   try {
@@ -309,6 +346,7 @@ async function handleBack() {
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
   if (drawerOpen.value) { drawerOpen.value = false; return 'drawer' }
+  if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
 
   while (navigationTrail.length) {
     const previous = navigationTrail.pop()
@@ -523,6 +561,8 @@ async function refreshDeviceStatuses() {
 async function goToDeviceList() {
   restoringNavigation = true
   try {
+    settingsOpen.value = false
+    settingsTrail.length = 0
     drawerOpen.value = false
     viewMode.value = 'list'
     activeTab.value = 'home'
@@ -795,6 +835,13 @@ async function showReleasePage() {
     listError.value = '打开版本页面失败：' + shortError(e)
   }
 }
+async function showProjectPage() {
+  try {
+    await Browser.open({ url: 'https://github.com/lmdbot/xxwrt-m-custom', windowName: '_blank' })
+  } catch (e) {
+    listError.value = '打开项目页面失败：' + shortError(e)
+  }
+}
 
 async function openRouterWeb() {
   // Retained as an intentionally disabled compatibility function.
@@ -889,88 +936,199 @@ onUnmounted(() => {
     <v-app-bar flat color="surface" height="64" class="top-bar">
       <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
       <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack"/>
-      <v-toolbar-title class="app-name">{{ viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</v-toolbar-title>
+      <v-toolbar-title class="app-name">{{ settingsOpen ? '设置' : viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</v-toolbar-title>
       <v-spacer />
       <v-btn v-if="viewMode === 'detail' && connected" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
 
-    <v-navigation-drawer v-model="drawerOpen" temporary location="left" width="304" class="material-side-drawer" aria-label="侧栏菜单">
+    <v-navigation-drawer v-model="drawerOpen" temporary location="left" width="320" class="material-side-drawer" aria-label="设置分类侧栏">
       <div class="sidebar-brand">
-        <v-avatar size="44" color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-router-wireless" size="27"/></v-avatar>
-        <div><strong>XX-WRT M</strong><small>路由器管理</small></div>
+        <v-avatar size="54" color="primary" variant="tonal" rounded="xl"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
+        <div><strong>我的 OpenWrt</strong><small>QWRT · 路由器管理</small></div>
         <v-btn icon="mdi-close" variant="text" size="small" aria-label="关闭侧栏菜单" @click="drawerOpen = false"/>
       </div>
-      <v-divider class="mb-2"/>
-      <v-list nav density="compact" class="sidebar-nav-list">
-        <v-list-item prepend-icon="mdi-router-network" title="设备列表"
-          :active="drawerSection === 'devices'" @click="drawerSection = 'devices'; goToDeviceList()"/>
-        <v-list-item prepend-icon="mdi-translate" title="语言设置"
-          :active="drawerSection === 'language'" @click="drawerSection = 'language'"/>
-        <v-list-item prepend-icon="mdi-palette-outline" title="外观模式"
-          :active="drawerSection === 'appearance'" @click="drawerSection = 'appearance'"/>
-        <v-list-item prepend-icon="mdi-update" title="检查更新"
-          :active="drawerSection === 'update'" @click="drawerSection = 'update'"/>
-        <v-list-item prepend-icon="mdi-help-circle-outline" title="帮助与反馈"
-          :active="drawerSection === 'help'" @click="drawerSection = 'help'"/>
-        <v-list-item prepend-icon="mdi-heart-outline" title="支持项目"
-          :active="drawerSection === 'support'" @click="drawerSection = 'support'"/>
-        <v-list-item prepend-icon="mdi-information-outline" title="关于"
-          :active="drawerSection === 'about'" @click="drawerSection = 'about'"/>
-      </v-list>
-      <v-divider class="my-3"/>
-      <div class="sidebar-panel">
-        <template v-if="drawerSection === 'appearance'">
-          <div class="sidebar-section-title"><v-icon icon="mdi-tune-variant" size="19"/> 界面设置</div>
-          <div class="sidebar-field-label">底部导航样式</div>
-          <v-btn-toggle v-model="navStyle" class="sidebar-style-switch" mandatory divided color="primary" variant="outlined" density="comfortable" aria-label="底栏样式">
-            <v-btn value="standard" aria-label="标准底栏" size="small">标准</v-btn>
-            <v-btn value="liquid" aria-label="液态底栏" size="small">液态</v-btn>
-          </v-btn-toggle>
-          <v-select v-model="colorMode" class="mt-5" density="compact" variant="outlined" label="主题颜色"
-            :items="[{title:'跟随系统',value:'system'},{title:'浅色模式',value:'light'},{title:'深色模式',value:'dark'}]"
-            item-title="title" item-value="value" hide-details/>
-          <v-divider class="my-4"/>
-          <div class="sidebar-section-title"><v-icon icon="mdi-shield-eye-outline" size="19"/> 隐私保护</div>
-          <v-switch v-model="showHostnames" label="显示路由器名称和主机名"
-            color="primary" hide-details density="compact" class="privacy-switch"/>
-          <v-switch v-model="showIp" label="显示 IP / 域名地址"
-            color="primary" hide-details density="compact" class="privacy-switch"/>
-          <p class="muted-hint mt-3">关闭后，设备列表和路由器首页使用掩码。仅影响界面显示，编辑设备时仍可查看实际配置，不会修改 OpenWrt 系统主机名。</p>
-          <p class="muted-hint mt-2">底栏、隐私和主题设置保存在本机，所有路由器共用。</p>
-        </template>
-        <template v-else-if="drawerSection === 'language'">
-          <div class="sidebar-section-title">语言设置</div>
-          <p class="muted-hint">当前仅支持简体中文。</p>
-        </template>
-        <template v-else-if="drawerSection === 'update'">
-          <div class="sidebar-section-title">检查更新</div>
-          <p class="muted-hint">查看 GitHub 的最新测试版本和变更记录。</p>
-          <v-btn block color="primary" variant="tonal" prepend-icon="mdi-open-in-new" @click="showReleasePage">查看 Releases</v-btn>
-        </template>
-        <template v-else-if="drawerSection === 'help'">
-          <div class="sidebar-section-title">帮助与反馈</div>
-          <p class="muted-hint">添加设备后使用 QWRT 的 RPC 账号登录。终端页的 DHCP 租约不等于实时在线设备；插件管理依赖固件开放的对应 RPC。</p>
-          <v-btn block color="primary" variant="outlined" prepend-icon="mdi-github" @click="showReleasePage">查看项目及版本记录</v-btn>
-        </template>
-        <template v-else-if="drawerSection === 'support'">
-          <div class="sidebar-section-title">支持项目</div>
-          <v-btn block variant="tonal" prepend-icon="mdi-github" @click="showReleasePage">查看项目</v-btn>
-        </template>
-        <template v-else-if="drawerSection === 'about'">
-          <div class="sidebar-section-title">关于</div>
-          <p class="muted-hint">版本：{{ packageInfo.version }}</p>
-          <v-btn block variant="tonal" prepend-icon="mdi-github" @click="showReleasePage">版本与源代码</v-btn>
-        </template>
-        <template v-else>
-          <div class="sidebar-section-title">设备列表</div>
-          <p class="muted-hint">选择或添加路由器后可进入管理页面。</p>
-        </template>
+      <div class="sidebar-category-list" role="group" aria-label="设置分类">
+        <v-card
+          v-for="category in settingsCategories"
+          :key="category.id"
+          role="button"
+          tabindex="0"
+          rounded="xl"
+          elevation="0"
+          class="settings-category-card"
+          :class="{ 'is-selected': settingsOpen && settingsCategory === category.id }"
+          :aria-label="'打开' + category.title + '设置'"
+          :aria-current="settingsOpen && settingsCategory === category.id ? 'page' : undefined"
+          @click="openSettingsCategory(category.id)"
+          @keydown.enter.prevent="openSettingsCategory(category.id)"
+          @keydown.space.prevent="openSettingsCategory(category.id)"
+        >
+          <v-avatar size="46" rounded="lg" color="primary" variant="tonal">
+            <v-icon :icon="category.icon" size="24"/>
+          </v-avatar>
+          <div class="settings-category-copy">
+            <strong>{{ category.title }}</strong>
+            <small>{{ category.description }}</small>
+          </div>
+          <v-icon icon="mdi-chevron-right" size="22" color="secondary"/>
+        </v-card>
+      </div>
+      <div class="sidebar-footer">
+        <v-divider class="mb-3"/>
+        <span>QWRT · OpenWrt 移动管理</span>
       </div>
     </v-navigation-drawer>
 
     <v-main>
       <v-container class="main-container">
-        <template v-if="viewMode === 'list'">
+        <template v-if="settingsOpen">
+          <section class="settings-page" :data-settings-category="settingsCategory">
+            <div class="settings-page-heading">
+              <v-btn icon="mdi-arrow-left" variant="text" size="small" aria-label="返回设置上一级" @click="closeSettingsPage"/>
+              <div>
+                <p class="eyebrow">设置 · {{ settingsPage.title }}</p>
+                <h1>{{ settingsPage.title }}</h1>
+                <p>{{ settingsPage.description }}</p>
+              </div>
+            </div>
+
+            <template v-if="settingsCategory === 'router'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-router-network" size="23"/></v-avatar>
+                  <div><h2>设备管理</h2><p>管理已保存的 OpenWrt 路由器和登录信息。</p></div>
+                </div>
+                <div class="settings-summary-grid">
+                  <div><strong>{{ devices.length }}</strong><span>已保存设备</span></div>
+                  <div><strong>{{ reachableCount }}</strong><span>可达设备</span></div>
+                  <div><strong>{{ offlineCount }}</strong><span>离线设备</span></div>
+                </div>
+                <div class="settings-actions">
+                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-router-wireless" @click="goToDeviceList">打开设备列表</v-btn>
+                  <v-btn variant="outlined" prepend-icon="mdi-plus" @click="settingsOpen = false; settingsTrail.length = 0; showDeviceDialog()">添加路由器</v-btn>
+                </div>
+              </v-card>
+            </template>
+
+            <template v-else-if="settingsCategory === 'display'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-theme-light-dark" size="23"/></v-avatar>
+                  <div><h2>主题模式</h2><p>选择应用的颜色主题，也可以跟随 Android 系统设置。</p></div>
+                </div>
+                <v-btn-toggle v-model="colorMode" mandatory divided color="primary" variant="outlined" class="settings-segmented" aria-label="主题模式">
+                  <v-btn value="light" aria-label="浅色主题"><v-icon start icon="mdi-white-balance-sunny"/>浅色</v-btn>
+                  <v-btn value="dark" aria-label="深色主题"><v-icon start icon="mdi-weather-night"/>深色</v-btn>
+                  <v-btn value="system" aria-label="跟随系统主题"><v-icon start icon="mdi-cellphone"/>跟随系统</v-btn>
+                </v-btn-toggle>
+              </v-card>
+
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-dock-window" size="23"/></v-avatar>
+                  <div><h2>底部导航样式</h2><p>在结构清晰的标准样式与液态玻璃样式之间切换。</p></div>
+                </div>
+                <v-btn-toggle v-model="navStyle" mandatory divided color="primary" variant="outlined" class="settings-segmented settings-nav-toggle" aria-label="底栏样式">
+                  <v-btn value="standard" aria-label="标准底栏"><v-icon start icon="mdi-view-agenda-outline"/>标准</v-btn>
+                  <v-btn value="liquid" aria-label="液态底栏"><v-icon start icon="mdi-waves"/>液态</v-btn>
+                </v-btn-toggle>
+              </v-card>
+
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-view-grid-outline" size="23"/></v-avatar>
+                  <div><h2>设备列表布局</h2><p>选择多台路由器在首页的展示密度。</p></div>
+                </div>
+                <v-btn-toggle v-model="routerListLayout" mandatory divided color="primary" variant="outlined" class="settings-segmented" aria-label="设备列表布局">
+                  <v-btn value="list" aria-label="列表布局"><v-icon start icon="mdi-view-list-outline"/>列表式</v-btn>
+                  <v-btn value="card" aria-label="卡片布局"><v-icon start icon="mdi-view-grid-outline"/>卡片式</v-btn>
+                </v-btn-toggle>
+              </v-card>
+            </template>
+
+            <template v-else-if="settingsCategory === 'privacy'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-router" size="23"/></v-avatar>
+                  <div><h2>主机名隐藏</h2><p>保护设备列表和路由器首页中的设备名称。</p></div>
+                </div>
+                <div class="settings-switch-row">
+                  <div><strong>隐藏主机名</strong><p>开启后，路由器名称和系统主机名将以占位符显示；不会修改 OpenWrt 实际主机名。</p></div>
+                  <v-switch v-model="hideHostnames" aria-label="隐藏主机名" color="primary" hide-details density="compact"/>
+                </div>
+              </v-card>
+
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-web" size="23"/></v-avatar>
+                  <div><h2>IP / 域名隐藏</h2><p>控制路由器地址在界面中的可见范围。</p></div>
+                </div>
+                <div class="settings-switch-row">
+                  <div><strong>隐藏 IP / 域名</strong><p>开启后，设备列表和设备详情页使用掩码显示地址，仅影响本机界面。</p></div>
+                  <v-switch v-model="hideIpAddresses" aria-label="隐藏 IP / 域名" color="primary" hide-details density="compact"/>
+                </div>
+              </v-card>
+              <p class="settings-footnote"><v-icon icon="mdi-shield-check-outline" size="16"/> 隐私选项保存在本机，不会修改路由器配置。</p>
+            </template>
+
+            <template v-else-if="settingsCategory === 'refresh'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-refresh-auto" size="23"/></v-avatar>
+                  <div><h2>当前刷新策略</h2><p>按页面状态执行自动刷新，避免无用的后台请求。</p></div>
+                </div>
+                <div class="settings-detail-row"><span>设备可达性检测</span><strong>设备列表停留期间每 15 秒</strong></div>
+                <div class="settings-detail-row"><span>路由器首页数据</span><strong>每 12 秒</strong></div>
+                <div class="settings-detail-row"><span>实时网络采样</span><strong>每 3 秒</strong></div>
+                <p class="muted-hint mt-3">当前版本使用内置刷新间隔，暂不提供自定义频率，避免误设导致路由器请求过于频繁。</p>
+                <div class="settings-actions mt-4">
+                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" :loading="probeBusy" @click="refreshDeviceStatuses">立即检测所有设备</v-btn>
+                  <v-btn v-if="connected" variant="outlined" prepend-icon="mdi-refresh" :loading="refreshing" @click="refreshCurrent">刷新当前路由器</v-btn>
+                </div>
+              </v-card>
+            </template>
+
+            <template v-else-if="settingsCategory === 'lab'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card settings-empty-state">
+                <v-avatar color="primary" variant="tonal" size="58"><v-icon icon="mdi-flask-outline" size="29"/></v-avatar>
+                <h2>暂无可配置的实验功能</h2>
+                <p>当前版本没有开放额外的实验开关。已实现的路由器管理功能仍可在应用页签中使用。</p>
+              </v-card>
+            </template>
+
+            <template v-else-if="settingsCategory === 'about'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-translate" size="23"/></v-avatar>
+                  <div><h2>语言设置</h2><p>当前版本提供简体中文界面。</p></div>
+                </div>
+                <div class="settings-detail-row"><span>当前语言</span><strong>简体中文</strong></div>
+              </v-card>
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-update" size="23"/></v-avatar>
+                  <div><h2>版本与更新</h2><p>当前版本 v{{ packageInfo.version }}，查看最新测试版本和变更记录。</p></div>
+                </div>
+                <v-btn color="primary" variant="tonal" block prepend-icon="mdi-open-in-new" @click="showReleasePage">查看 Releases</v-btn>
+              </v-card>
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-help-circle-outline" size="23"/></v-avatar>
+                  <div><h2>帮助与反馈</h2><p>查看使用说明、已知限制和项目版本记录。</p></div>
+                </div>
+                <v-btn variant="outlined" block prepend-icon="mdi-book-open-outline" @click="showReleasePage">查看项目及版本记录</v-btn>
+              </v-card>
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-heart-outline" size="23"/></v-avatar>
+                  <div><h2>支持项目</h2><p>查看源代码、提交问题或参与项目改进。</p></div>
+                </div>
+                <v-btn variant="outlined" block prepend-icon="mdi-github" @click="showProjectPage">打开 GitHub 项目</v-btn>
+              </v-card>
+            </template>
+          </section>
+        </template>
+        <template v-else-if="viewMode === 'list'">
           <div class="list-page-title">
             <div><h1>设备列表</h1></div>
             <div class="list-page-actions">
@@ -1355,12 +1513,12 @@ onUnmounted(() => {
       </v-container>
     </v-main>
 
-    <v-bottom-navigation v-if="viewMode === 'detail' && connected && navStyle === 'standard'" v-model="activeTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
+    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" v-model="activeTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
-    <div v-else-if="viewMode === 'detail' && connected" class="liquid-bottom">
+    <div v-else-if="!settingsOpen && viewMode === 'detail' && connected" class="liquid-bottom">
       <VGlass :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" @click="activeTab = item.id">

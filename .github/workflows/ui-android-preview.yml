@@ -91,7 +91,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the broken preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 15/; s/versionName "[^"]+"/versionName "0.5.6"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 16/; s/versionName "[^"]+"/versionName "0.5.7"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -125,17 +125,17 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.6.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.7.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.6.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.6.apk | grep '^package:' | grep "versionName='0.5.6'" | grep "versionCode='15'"
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.7.apk
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.7.apk | grep '^package:' | grep "versionName='0.5.7'" | grep "versionCode='15'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.6.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.7.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -145,11 +145,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.6"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.6.apk"
+          TAG="material-wrt-v0.5.7"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.7.apk"
           NOTES="../../build/material-preview/release-notes.md"
           printf '%s\n' \
-            '## XX-WRT M Material UI（终端分类宫格优化 v0.5.6）' \
+            '## XX-WRT M Material UI（设置分类与卡片导航 v0.5.7）' \
             '' \
             '已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。' \
             '' \
@@ -160,6 +160,9 @@ jobs:
             '- 本版没有硬编码演示数据，使用真实设备 RPC 返回的结果。' \
             '- 设备列表左侧菜单、底栏外观设置、可搜索 DHCPv4/v6/无线/应用过滤用户分组。' \
             '- 终端分类导航改为 2×2 宫格卡片，四类终端一屏可选，无需横向滑动；保留原有 DHCPv4/v6、无线终端和 OpenAppFilter 用户数据及切换逻辑。' \
+            '- 设置侧栏按方案 C 改为卡片分类导航：路由器、显示、隐私、刷新、实验室、关于；点击后进入独立设置页面，在对应分组内修改设置。' \
+            '- 设备列表、主题模式、标准/液态底栏、列表布局、主机名/IP 隐藏、刷新策略、语言、更新、帮助与项目入口均已归类保留。' \
+            '- 设置页面支持 Android 返回手势；刷新页展示实际内置刷新周期并提供手动刷新，实验室页明确展示当前暂无可配置项目。' \
             '- 首页磁盘占用与临时空间严格复用 main 的 luci.getMountPoints RPC，无需 file.exec。' \
             '- 统计页展示网络接口 RX/TX 采样与负载历史，使用开源 ECharts。' \
             '- 修复 Android 手势返回：优先关闭弹窗、侧栏、应用二级页、恢复上一页及页签，仅根页面最小化应用。' \
@@ -184,8 +187,8 @@ jobs:
             > "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.6" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.7" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.6" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.7" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi
