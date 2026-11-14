@@ -82,6 +82,7 @@ const snapshot = ref(null)
 const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
 const terminalView = ref('dhcp4')
 const wifiClientData = ref({ available: false, stations: [] })
+const appFilterUsers = ref({ available: false, users: [] })
 const diskData = ref({ available: false, partitions: [], primary: null, temporary: null })
 const chosenInterface = ref('')
 const bandwidthHistory = ref([])
@@ -220,6 +221,7 @@ function resetSession() {
   snapshot.value = null
   clientData.value = { data: [], ipv6: [], leasesAvailable: false }
   wifiClientData.value = { available: false, stations: [] }
+  appFilterUsers.value = { available: false, users: [] }
   diskData.value = { available: false, partitions: [], primary: null, temporary: null }
   bandwidthHistory.value = []
   loadHistory.value = []
@@ -495,13 +497,19 @@ async function refreshCurrent() {
   errorMessage.value = ''
   try {
     if (activeTab.value === 'clients') {
-      const [leases, stations] = await Promise.allSettled([
-        readClients(client.value), readWirelessStations(client.value)
+      const [leases, stations, oafUsers] = await Promise.allSettled([
+        readClients(client.value), readWirelessStations(client.value),
+        client.value.call('appfilter', 'get_all_users', { flag: 3 }, true)
       ])
       if (leases.status === 'fulfilled') clientData.value = leases.value
       else throw leases.reason
       wifiClientData.value = stations.status === 'fulfilled'
         ? stations.value : { available: false, stations: [] }
+      const rawUsers = oafUsers.status === 'fulfilled' ? oafUsers.value : null
+      const list = rawUsers?.data?.list || rawUsers?.list
+      appFilterUsers.value = {
+        available: !!rawUsers, users: Array.isArray(list) ? list : []
+      }
     }
     if (activeTab.value === 'apps') serviceData.value = await readServices(client.value)
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
@@ -925,6 +933,13 @@ onUnmounted(() => {
                 <div><h2>终端设备</h2><p>DHCP 租约记录，不代表当前在线</p></div>
                 <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
               </div>
+              <v-tabs v-model="terminalView" show-arrows color="primary" density="compact" class="terminal-type-tabs mb-3">
+                <v-tab value="dhcp4">DHCPv4 ({{ clientData.data.length }})</v-tab>
+                <v-tab value="dhcp6">DHCPv6 ({{ clientData.ipv6.length }})</v-tab>
+                <v-tab value="wireless">无线终端 ({{ wifiClientData.stations.length }})</v-tab>
+                <v-tab value="oaf">应用用户 ({{ appFilterUsers.users.length }})</v-tab>
+              </v-tabs>
+              <template v-if="terminalView === 'dhcp4'">
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
                 aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"/>
@@ -952,6 +967,48 @@ onUnmounted(() => {
               <v-empty-state v-else icon="mdi-devices"
                 :title="clientData.leasesAvailable ? '暂无 DHCP 租约' : '无法获取 DHCP 租约'"
                 text="确认 QWRT 的 luci-rpc.getDHCPLeases 接口具有读取权限"/>
+              </template>
+              <div v-if="terminalView === 'dhcp6'" class="terminal-grid">
+                <v-card v-for="(item,index) in clientData.ipv6" :key="'dhcp6-'+index" variant="outlined" rounded="lg" class="terminal-tile">
+                  <v-avatar size="42" rounded="lg" color="primary" variant="tonal"><v-icon icon="mdi-ip-network" size="22"/></v-avatar>
+                  <div class="terminal-meta">
+                    <div class="terminal-name">{{ item.hostname || item.name || 'IPv6 终端' }}</div>
+                    <div class="terminal-ip terminal-ip6">{{ item.ip6addr || item.address || item.ip6addrs?.join(', ') || '--' }}</div>
+                    <div class="terminal-mac">{{ item.duid || item.macaddr || '--' }}</div>
+                  </div>
+                </v-card>
+                <p v-if="!clientData.ipv6.length" class="muted-hint">没有 DHCPv6 租约，或 QWRT 尚未返回 IPv6 租约。</p>
+              </div>
+              <div v-if="terminalView === 'wireless'">
+                <div class="terminal-grid" v-if="wifiClientData.stations.length">
+                  <v-card v-for="(item,index) in wifiClientData.stations" :key="'wifi-'+index" variant="outlined" rounded="lg" class="terminal-tile">
+                    <v-avatar size="42" rounded="lg" color="primary" variant="tonal"><v-icon icon="mdi-wifi" size="22"/></v-avatar>
+                    <div class="terminal-meta">
+                      <div class="terminal-name">{{ item.mac }}</div>
+                      <div class="terminal-ip">{{ item.device }} · 信号 {{ item.signal ?? '--' }} dBm</div>
+                      <div class="terminal-mac">RX {{ item.rxRate ?? '--' }} · TX {{ item.txRate ?? '--' }}</div>
+                    </div>
+                  </v-card>
+                </div>
+                <v-alert v-else type="info" variant="tonal" density="compact">
+                  {{ wifiClientData.available ? '当前没有已关联的无线终端' : 'QWRT 未开放 iwinfo RPC 或当前路由器没有 Wi-Fi 射频' }}
+                </v-alert>
+              </div>
+              <div v-if="terminalView === 'oaf'">
+                <div class="terminal-grid" v-if="appFilterUsers.users.length">
+                  <v-card v-for="(item,index) in appFilterUsers.users" :key="'oaf-'+index" variant="outlined" rounded="lg" class="terminal-tile">
+                    <v-avatar size="42" color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-shield-account-outline" size="22"/></v-avatar>
+                    <div class="terminal-meta">
+                      <div class="terminal-name">{{ item.nickname || item.hostname || item.mac || '未知用户' }}</div>
+                      <div class="terminal-ip">{{ item.ip || item.ipaddr || '--' }}</div>
+                      <div class="terminal-mac">{{ item.mac || '--' }} · {{ item.appname || item.app_name || '暂无应用记录' }}</div>
+                    </div>
+                  </v-card>
+                </div>
+                <v-alert v-else type="info" variant="tonal" density="compact">
+                  {{ appFilterUsers.available ? '应用过滤用户列表为空' : '未安装 OpenAppFilter，或当前账号没有 appfilter RPC 权限' }}
+                </v-alert>
+              </div>
             </div>
           </template>
 
