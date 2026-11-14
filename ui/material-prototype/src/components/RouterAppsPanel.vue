@@ -182,7 +182,21 @@ const providerLabels = {
   pushplus_token: 'PushPlus Token', wpush_apikey: 'WPUSH API Key', tg_token: 'Telegram Bot Token', tg_chat_id: 'Telegram Chat ID'
 }
 const secretKey = key => /key|token|secret/i.test(key)
-const statusText = item => !item ? '状态未知' : item.running ? '运行中' : item.enabled ? '已启用，未运行' : '未运行'
+const statusText = item => {
+  if (!item) return '运行状态待确认'
+  if (item.running === true) return '运行中'
+  if (item.enabled === false) return '已停用'
+  return item.enabled === true ? '已启用，运行状态待确认' : '运行状态待确认'
+}
+const firewallStatusText = computed(() => {
+  if (fw.value.service?.running === true) return '规则服务运行中'
+  if (fw.value.service?.enabled === false) return '启动服务已停用'
+  if (fw.value.available) return '已配置（运行待确认）'
+  return '无法读取配置'
+})
+const firewallKernel = ref({
+  nat: '待检测', natDetail: '正在读取规则', congestion: '待检测', congestionDetail: ''
+})
 
 function sections(data) {
   return Object.entries(data?.values || {}).map(([id, options]) => ({ id: String(options?.['.name'] || id), type: String(options?.['.type'] || ''), options: options || {} }))
@@ -232,9 +246,10 @@ async function run(action, success, reload = true) {
 }
 
 async function loadSsr() {
-  const [cfg, rc, procd] = await Promise.all([
+  const [cfg, rc, procd, processList] = await Promise.all([
     getUci('shadowsocksr'), services(),
-    props.client.call('service', 'list', { name: 'shadowsocksr' }, true)
+    props.client.call('service', 'list', { name: 'shadowsocksr' }, true),
+    props.client.call('luci', 'getProcessList', {}, true)
   ])
   const list = sections(cfg), global = sectionOf(list, 'global', 'global')
   ssr.value = {
@@ -245,7 +260,19 @@ async function loadSsr() {
       type: String(x.options.type || ''),
       detail: [x.options.type, x.options.server, x.options.server_port].filter(Boolean).join(' · ')
     })),
-    service: rc?.shadowsocksr || null
+    service: (() => {
+      const current = rc?.shadowsocksr || null
+      const instances = procd?.shadowsocksr?.instances || {}
+      const managed = Object.values(instances).some(instance => instance?.running === true)
+      const processes = processList?.result || processList?.processes || []
+      const runningProxy = Array.isArray(processes) && processes.some(process =>
+        /(?:ssr-redir|ss-redir|ssr-plus|ssr-local|\/usr\/share\/shadowsocksr)/i.test(
+          String(process.COMMAND || process.command || process.cmd || '')))
+      return {
+        enabled: current?.enabled === true || String(global?.options.global_server || 'nil') !== 'nil',
+        running: current?.running === true || managed || runningProxy
+      }
+    })()
   }
   ssrStatusDetail.value = procd?.shadowsocksr || null
   ssrNode.value = String(global?.options.global_server || 'nil')
@@ -339,7 +366,7 @@ async function probeAllSsr() {
     }
   } finally { ssrProbeBusy.value = false }
 }
-const SSR_GEO_COMPONENTS = new Set(['geosite', 'v2ray_geoip', 'v2ray_geosite'])
+const SSR_GEO_COMPONENTS = new Set(['country_mmdb', 'geosite', 'v2ray_geoip', 'v2ray_geosite'])
 async function luciSsrComponent(component, action) {
   const geo = SSR_GEO_COMPONENTS.has(component)
   const name = geo
@@ -382,7 +409,10 @@ async function querySsrComponent(remote = false) {
     if (r && Number(r.code ?? 0) !== 0) throw new Error('SSR 组件检测脚本执行失败（退出码 ' + r.code + '）')
     const output = fromLuci || parseSsrComponent(r.stdout)
     if (output.error) throw new Error('组件检测失败：' + output.error)
-    ssrComponentResult.value = { ...output, component }
+    ssrComponentResult.value = {
+      ...output, component, can_upgrade: output.can_upgrade === true || output.can_upgrade === '1' ? '1' : '0',
+      installed: output.installed === true || output.installed === '1'
+    }
     ssrComponentChecked.value = remote
   } catch (e) { error.value = shortError(e) }
   finally { ssrComponentBusy.value = false }
@@ -398,7 +428,7 @@ async function upgradeSsrComponent() {
     const r = fromLuci ? null : await execSsrComponent(component + '_upgrade')
     if (!fromLuci && !r) throw new Error('无法访问 SSR Plus+ 组件安装接口，请检查 LuCI 登录会话或脚本授权')
     const result = fromLuci || parseSsrComponent(r.stdout)
-    if ((r && Number(r.code ?? 0) !== 0) || result.success !== '1') {
+    if ((r && Number(r.code ?? 0) !== 0) || !(result.success === true || result.success === '1')) {
       throw new Error('SSR 组件更新未成功：' + (result.message || result.error || '请到 LuCI 组件更新页查看'))
     }
     ssrComponentResult.value = { ...result, component, can_upgrade: '0' }
@@ -841,9 +871,40 @@ async function deleteZt() {
   await run(async () => { await delUci('zerotier', item.section); await service('zerotier') }, 'ZeroTier 网络配置已删除')
 }
 
+async function loadFirewallKernel(cfg) {
+  const next = { nat: '待确认', natDetail: '未取得运行规则', congestion: '待确认', congestionDetail: '内核参数不可读取' }
+  try {
+    const [tcp, rules] = await Promise.all([
+      props.client.call('file', 'read', { path: '/proc/sys/net/ipv4/tcp_congestion_control' }, true),
+      props.client.call('file', 'exec', {
+        command: '/usr/sbin/nft', params: ['list', 'table', 'inet', 'fw4'], env: null
+      }, true)
+    ])
+    const algorithm = String(tcp?.data || '').trim()
+    if (/^[a-z0-9_-]{2,32}$/i.test(algorithm)) {
+      next.congestion = algorithm.toUpperCase()
+      next.congestionDetail = '内核当前算法'
+    }
+    const rulesText = Number(rules?.code) === 0 ? String(rules?.stdout || '') : ''
+    if (rulesText) {
+      const hasFullcone = /\bfullcone(?:nat)?\b/i.test(rulesText)
+      const hasMasquerade = /\bmasquerade\b/i.test(rulesText)
+      next.nat = hasFullcone ? 'Full Cone NAT' : hasMasquerade ? '普通源地址转换' : '未检测到 NAT 规则'
+      next.natDetail = '内核 nftables 规则'
+    } else {
+      const values = Object.values(cfg?.values || {})
+      const configFullcone = values.some(v => String(v?.fullcone ?? v?.fullcone4 ?? '') === '1')
+      next.nat = configFullcone ? 'Full Cone NAT' : '运行状态待确认'
+      next.natDetail = configFullcone ? '防火墙配置已启用，内核未核实' : '路由器未开放规则读取'
+    }
+  } catch (_) { /* An ACL denial must never be treated as NAT being disabled. */ }
+  firewallKernel.value = next
+}
+
 async function loadFirewall() {
   const [cfg, rc] = await Promise.all([getUci('firewall'), services()])
   const list = sections(cfg)
+  await loadFirewallKernel(cfg)
   fw.value = {
     available: !!cfg?.values,
     zones: list.filter(x => x.type === 'zone').map(x => ({
