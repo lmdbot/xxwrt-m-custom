@@ -182,7 +182,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-Material-APK
-          path: dist/material-preview/${{ env.APP_APK_NAME }}
+          path: dist/material-preview/XX-WRT-Material-v*.apk
           if-no-files-found: error
           retention-days: 30
 
