@@ -513,7 +513,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开ZeroTier' }).click()
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
-  await expect(page.getByText('OK')).toBeVisible()
+  await expect(page.getByText('网络已连接')).toBeVisible()
   await expect(page.getByText('节点 ID')).toBeVisible()
   await expect(page.getByText('abcdef1234')).toBeVisible()
   await expect(page.getByText('10.10.10.2/24')).toBeVisible()
@@ -521,7 +521,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   zeroTierCliAllowed = false
   await page.getByRole('button', { name: '刷新当前页面' }).click()
   await expect(page.getByText(/未开放实时 ZeroTier 状态读取接口/)).toBeVisible()
-  await expect(page.getByText('未确认', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('网络状态待确认', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   zeroTierRpcAllowed = true
   zeroTierCliAllowed = true
