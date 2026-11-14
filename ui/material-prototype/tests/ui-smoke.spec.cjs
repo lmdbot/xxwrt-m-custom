@@ -238,6 +238,11 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     if (m.type() === 'warning' && m.text().includes('Failed to resolve component')) errors.push(m.text())
   })
   await page.route('**/ubus', handler)
+  await page.route('**/cgi-bin/luci/admin/services/shadowsocksr/component_status?**', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ component: 'xray', current_version: '1.2.0',
+        latest_version: '1.3.0', can_upgrade: '1', package_manager: 'apk' }) })
+  })
   await page.route('**/cgi-bin/luci/admin/services/shadowsocksr/ping?**', async route => {
     if (!ssrLuciAllowed) {
       await route.fulfill({ status: 403, contentType: 'text/html', body: '<h1>Access denied</h1>' })
