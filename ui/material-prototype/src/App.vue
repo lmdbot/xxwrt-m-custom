@@ -198,12 +198,50 @@ async function confirmDeleteDevice() {
 async function refreshDeviceStatuses() {
   if (probeBusy.value) return
   probeBusy.value = true
+  const entries = [...devices.value]
+  let cursor = 0
   try {
-    await Promise.all(devices.value.map(async d => {
-      deviceStatuses[d.id] = 'checking'
-      const state = await probeDevice(d.address)
-      if (devices.value.some(item => item.id === d.id)) deviceStatuses[d.id] = state
-    }))
+    // Bounded concurrency: multiple saved routers must not cause a flood
+    // of authentication/RPC traffic after the application starts.
+    const worker = async () => {
+      while (cursor < entries.length) {
+        const d = entries[cursor++]
+        deviceStatuses[d.id] = 'checking'
+        let api = sessions.get(d.id)
+        if (!api?.session && d.rememberPassword && isNative) {
+          try {
+            const secret = await fetchDevicePassword(d.id)
+            if (secret) {
+              const session = new RouterClient(d.address)
+              await session.login(d.username, secret)
+              api = session
+              sessions.set(d.id, api)
+            }
+          } catch (_) { api = null }
+        }
+        let status = 'offline'
+        if (api?.session) {
+          try {
+            const result = await readDashboard(api)
+            deviceSummaries[d.id] = {
+              model: result.board.model,
+              hostname: result.board.hostname,
+              version: result.board.version,
+              temperature: result.temperature,
+              uptime: result.uptime,
+              updatedAt: Date.now()
+            }
+            status = 'online'
+          } catch (_) {
+            api.logout()
+            sessions.delete(d.id)
+          }
+        }
+        if (status !== 'online') status = await probeDevice(d.address)
+        if (devices.value.some(x => x.id === d.id)) deviceStatuses[d.id] = status
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(4, entries.length) }, () => worker()))
   } finally {
     probeBusy.value = false
   }
@@ -539,9 +577,9 @@ onUnmounted(() => {
               </div>
               <div class="saved-device-info">
                 <v-chip size="small" variant="tonal"
-                        :color="deviceStatuses[device.id] === 'reachable' ? 'success' : deviceStatuses[device.id] === 'offline' ? 'error' : 'secondary'"
-                        :prepend-icon="deviceStatuses[device.id] === 'reachable' ? 'mdi-check-circle' : deviceStatuses[device.id] === 'offline' ? 'mdi-alert-circle' : 'mdi-progress-clock'">
-                  {{ deviceStatuses[device.id] === 'reachable' ? '网络可达' : deviceStatuses[device.id] === 'offline' ? '无法连接' : '检测中' }}
+                        :color="['reachable', 'online'].includes(deviceStatuses[device.id]) ? 'success' : deviceStatuses[device.id] === 'offline' ? 'error' : 'secondary'"
+                        :prepend-icon="['reachable', 'online'].includes(deviceStatuses[device.id]) ? 'mdi-check-circle' : deviceStatuses[device.id] === 'offline' ? 'mdi-alert-circle' : 'mdi-progress-clock'">
+                  {{ deviceStatuses[device.id] === 'online' ? '已登录 · 在线' : deviceStatuses[device.id] === 'reachable' ? '网络可达' : deviceStatuses[device.id] === 'offline' ? '无法连接' : '检测中' }}
                 </v-chip>
                 <span class="muted-hint">{{ deviceSummaries[device.id]?.temperature || deviceSummaries[device.id]?.hostname || '等待获取设备状态' }}</span>
               </div>
