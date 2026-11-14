@@ -693,6 +693,51 @@ onUnmounted(() => {
                 </v-list>
                 <p v-else class="muted-hint">暂无静态路由配置或当前固件不提供对应接口</p>
               </div>
+              <div v-if="toolPanel === 'routes' && liveRoutes.lines.length" class="mt-3">
+                <h3>当前 IPv4 路由表</h3>
+                <div class="route-table"><div v-for="(line, i) in liveRoutes.lines" :key="'route-' + i">{{ line }}</div></div>
+              </div>
+              <div v-if="toolPanel === 'wol'" class="mt-3">
+                <h3>网络唤醒</h3>
+                <p class="muted-hint mb-2">支持 main 相同的 LuCI WOL RPC；需要 QWRT 已安装 WOL 插件并授权。</p>
+                <v-list v-if="wolData.targets.length" density="compact">
+                  <v-list-item v-for="target in wolData.targets" :key="target.id" :title="target.name" :subtitle="target.mac + (target.iface ? ' · ' + target.iface : '')">
+                    <template #append>
+                      <v-btn size="small" color="primary" variant="tonal" :loading="wolBusy" @click="sendWakePacket(target)">唤醒</v-btn>
+                      <v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 WOL 目标" @click="wolDeleteTarget = target; wolDeleteDialog = true"/>
+                    </template>
+                  </v-list-item>
+                </v-list>
+                <v-alert v-if="!wolData.available" type="warning" density="compact" variant="tonal">WOL RPC 未启用，无法在 APP 内直接唤醒设备。</v-alert>
+                <template v-else>
+                  <h3 class="mt-4">添加网络唤醒目标</h3>
+                  <form @submit.prevent="submitWolTarget">
+                    <v-text-field v-model.trim="wolForm.name" label="名称" density="compact" variant="outlined" class="mt-2" required/>
+                    <v-text-field v-model.trim="wolForm.mac" label="MAC 地址" placeholder="AA:BB:CC:DD:EE:FF" density="compact" variant="outlined" required/>
+                    <v-select v-model="wolForm.iface" label="发送接口" density="compact" variant="outlined" :items="wolData.interfaces" clearable/>
+                    <v-checkbox v-model="wolForm.broadcast" label="广播方式" density="compact" hide-details/>
+                    <v-btn type="submit" block color="primary" variant="tonal" :loading="wolBusy" class="mt-2">保存 WOL 设备</v-btn>
+                  </form>
+                </template>
+              </div>
+              <div v-if="toolPanel === 'parental'" class="mt-3">
+                <h3>家长控制 / OpenAppFilter</h3>
+                <v-alert v-if="!parentalData.available" type="warning" variant="tonal" density="compact">尚未安装 appfilter 或缺少 RPC 权限。</v-alert>
+                <template v-else>
+                  <div class="details">
+                    <div><span>插件版本</span><strong>{{ parentalData.status.version || '--' }}</strong></div>
+                    <div><span>引擎版本</span><strong>{{ parentalData.status.engine_version || '--' }}</strong></div>
+                    <div><span>规则数量</span><strong>{{ parentalData.selectedRules.length }}</strong></div>
+                    <div><span>已识别终端</span><strong>{{ parentalData.users.length }}</strong></div>
+                  </div>
+                  <v-switch v-model="parentalForm.enable" color="primary" label="启用应用过滤"/>
+                  <v-switch v-model="parentalForm.record_enable" color="primary" label="记录访问日志"/>
+                  <v-select v-model.number="parentalForm.work_mode" label="工作模式" variant="outlined" density="compact"
+                    :items="[{title:'网关模式',value:0},{title:'旁路模式',value:1}]" item-title="title" item-value="value"/>
+                  <v-btn block color="primary" :loading="parentalSaving" @click="saveParentalOptions">保存家长控制基础设置</v-btn>
+                  <p class="muted-hint mt-3">应用分类、时间策略、终端规则及高级选项与插件版本强相关。此版本只操作已核对的基础设置接口，其余请在 LuCI 完整管理界面调整。</p>
+                </template>
+              </div>
               <v-btn v-if="toolPanel" block variant="outlined" color="primary" prepend-icon="mdi-open-in-new" class="mt-3" @click="openRouterWeb">打开 LuCI 完整管理页面</v-btn>
             </v-card>
             <v-card rounded="xl" elevation="1" class="network-card mt-4">
@@ -780,6 +825,12 @@ onUnmounted(() => {
       <v-card rounded="xl" title="删除路由器">
         <v-card-text>确定从设备列表移除这台 OpenWrt 吗？本机保存的对应密码也将删除，不会对路由器执行任何命令。</v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="deleteDialog = false">取消</v-btn><v-btn color="error" @click="confirmDeleteDevice">删除</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="wolDeleteDialog" max-width="360">
+      <v-card rounded="xl" title="删除网络唤醒目标">
+        <v-card-text>删除 {{ wolDeleteTarget?.name }} 的 WOL 配置？这只删除保存的唤醒目标，不会关闭当前设备。</v-card-text>
+        <v-card-actions><v-spacer/><v-btn @click="wolDeleteDialog = false">取消</v-btn><v-btn color="error" @click="confirmRemoveWol">删除目标</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="confirmReboot" max-width="360">
