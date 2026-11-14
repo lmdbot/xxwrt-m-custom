@@ -245,3 +245,41 @@ export async function readServices(client) {
     start: state?.start ?? null
   })).sort((a, b) => a.name.localeCompare(b.name)) : [] }
 }
+
+
+/**
+ * Read-only equivalents for main-branch Processes / Startup / Routes pages.
+ * Fail closed when a QWRT build does not expose the optional method.
+ */
+export async function readProcessList(client) {
+  const result = await client.call('luci', 'getProcessList', {}, true)
+  const items = Array.isArray(result) ? result :
+    Array.isArray(result?.processes) ? result.processes :
+    Array.isArray(result?.data) ? result.data : []
+  return {
+    available: result != null,
+    processes: items.map(p => ({
+      pid: String(p.pid ?? p.PID ?? '--'),
+      user: String(p.user ?? p.USER ?? '--'),
+      cpu: String(p.cpu ?? p.cpu_percent ?? '--'),
+      memory: String(p.mem ?? p.memory ?? '--'),
+      command: String(p.command ?? p.cmd ?? p.name ?? '--')
+    })).slice(0, 300)
+  }
+}
+
+export async function readRouteConfig(client) {
+  const config = await client.call('uci', 'get', { config: 'network' }, true)
+  const values = config?.values && typeof config.values === 'object' ? config.values : null
+  const entries = values ? Object.entries(values)
+    .filter(([, v]) => v && ['route', 'route6'].includes(v['.type']))
+    .map(([section, v]) => ({
+      section,
+      type: v['.type'],
+      interface: String(v.interface ?? '--'),
+      target: String(v.target ?? '--'),
+      gateway: String(v.gateway ?? '--'),
+      metric: String(v.metric ?? '--')
+    })) : []
+  return { available: Boolean(values), routes: entries }
+}
