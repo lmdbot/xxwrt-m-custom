@@ -23,9 +23,12 @@ ADAPTIVE_SIZES = {name: round(size * 108 / 48) for name, size in SIZES.items()}
 # The 108dp adaptive icon is clipped by Android to a central 66dp safe zone.
 # Foreground illustration must be smaller than that safe zone to retain margins.
 # Legacy icons are displayed without the adaptive foreground crop.
-BACKGROUND = "#122A80"
-LEGACY_ART_SCALE = 0.78
-ADAPTIVE_ART_SCALE = 0.50
+# The source already has its own blue rounded-square background. Do not
+# add a second opaque blue frame around it.
+# Legacy bitmap: 6% transparent inset on each side.
+# Adaptive: 60/108 fits within the Android 66/108 central safe zone.
+LEGACY_ART_SCALE = 0.88
+ADAPTIVE_ART_SCALE = 0.60
 
 
 def remove_outer_black(image: Image.Image) -> Image.Image:
@@ -61,7 +64,7 @@ def write_png(image: Image.Image, path: Path):
 
 def framed_icon(source: Image.Image, size: int, art_scale: float) -> Image.Image:
     """Place the full artwork on a color-matched background with padding."""
-    canvas = Image.new("RGBA", (size, size), BACKGROUND)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     illustration_size = round(size * art_scale)
     illustration = source.resize((illustration_size, illustration_size), Image.Resampling.LANCZOS)
     margin = (size - illustration_size) // 2
@@ -76,6 +79,11 @@ def main():
         raise SystemExit(f"Android resources not initialized: {RES}")
 
     source = remove_outer_black(Image.open(SOURCE))
+    # Avoid stacking any existing transparent border on top of Android padding.
+    bbox = source.getchannel("A").getbbox()
+    if bbox is None:
+        raise SystemExit("Selected launcher artwork has no visible pixels")
+    source = source.crop(bbox)
     for density, pixels in SIZES.items():
         target = RES / f"mipmap-{density}"
         icon = framed_icon(source, pixels, LEGACY_ART_SCALE)
@@ -101,19 +109,13 @@ def main():
     xml_dir.mkdir(parents=True, exist_ok=True)
     adaptive_xml = """<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/qwrt_launcher_background"/>
+    <background android:drawable="@android:color/transparent"/>
     <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
 </adaptive-icon>
 """
     for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
         (xml_dir / name).write_text(adaptive_xml)
-    color_dir = RES / "values"
-    color_dir.mkdir(parents=True, exist_ok=True)
-    (color_dir / "qwrt_launcher_colors.xml").write_text(
-        '<?xml version="1.0" encoding="utf-8"?>\n'
-        f'<resources><color name="qwrt_launcher_background">{BACKGROUND}</color></resources>\n'
-    )
-    print("QWRT shield artwork generated with padding for legacy and adaptive icons")
+    print("QWRT icon: original artwork with transparent, safe launcher margins")
 
 
 if __name__ == "__main__":
