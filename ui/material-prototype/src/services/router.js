@@ -1,3 +1,4 @@
+import { macFromDuid, normalizeMac } from './deviceIdentity.js'
 import { CapacitorHttp } from '@capacitor/core'
 
 const NULL_SESSION = '00000000000000000000000000000000'
@@ -224,18 +225,37 @@ export async function readClients(client) {
     ['luci-rpc', 'getHostHints']
   ])
   const names = hints || {}
+  const lookupHint = mac => names[mac] || names[mac.toUpperCase()] || names[mac.toLowerCase()] || {}
   const data = (leases?.dhcp_leases || []).map(item => {
-    const mac = String(item.macaddr || item.mac || '').toUpperCase()
-    const hint = names[mac] || names[mac.toLowerCase()] || {}
+    const mac = normalizeMac(item.macaddr || item.mac).toUpperCase()
+    const hint = lookupHint(mac)
     return {
       mac,
-      ip: item.ipaddr || '--',
-      name: item.hostname || hint.name || '未知设备',
+      ip: item.ipaddr || hint.ipaddrs?.[0] || '--',
+      ip6: hint.ip6addrs?.[0] || '',
+      name: item.hostname || hint.name || '',
       expires: item.expires,
-      active: Number(item.expires) >= 0
+      active: Number(item.expires) > 0,
+      source: 'dhcp4'
     }
   })
-  return { data, ipv6: leases?.dhcp6_leases || [], hintsAvailable: Boolean(hints), leasesAvailable: Boolean(leases) }
+  const ipv6 = (leases?.dhcp6_leases || []).map(item => {
+    const mac = normalizeMac(item.macaddr || item.mac) || macFromDuid(item.duid)
+    const hint = lookupHint(mac)
+    return {
+      ...item,
+      mac: mac.toUpperCase(),
+      name: item.hostname || hint.name || '',
+      ip: item.ip6addr || item.address || item.ip6addrs?.[0] || '--',
+      ip4: hint.ipaddrs?.[0] || '',
+      source: 'dhcp6'
+    }
+  })
+  return {
+    data, ipv6, hints,
+    hintsAvailable: Boolean(hints),
+    leasesAvailable: Boolean(leases)
+  }
 }
 
 export async function readServices(client) {
