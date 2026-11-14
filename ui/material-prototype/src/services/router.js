@@ -376,6 +376,7 @@ export async function readClients(client) {
     return {
       mac, ip, ip6,
       name: monitorDevice?.name || item.hostname || hint.name || '',
+      identityName: item.hostname || hint.name || '',
       expires: item.expires,
       active: Number(item.expires) > 0,
       online: state === 'online',
@@ -394,6 +395,7 @@ export async function readClients(client) {
       ...item,
       mac: mac.toUpperCase(),
       name: monitorDevice?.name || item.hostname || hint.name || '',
+      identityName: item.hostname || hint.name || '',
       ip, ip4,
       online: state === 'online',
       onlineKnown: state !== 'unknown',
