@@ -153,3 +153,51 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .terminal-lease-chip{font-size:10px!important}
 .theme-is-dark .terminal-tile{border-color:rgba(192,205,228,.18)!important}
 @media(max-width:380px){.terminal-tile{gap:9px;min-height:78px;padding:9px!important}.terminal-icon{width:38px!important;height:38px!important}.terminal-name{font-size:13px}.terminal-lease-chip{display:none!important}}
+
+
+/* Main parity: disk partition, actual sampled network/load chart panels. */
+.storage-card{margin-top:14px}
+.storage-row{padding:12px 0;border-top:1px solid rgba(125,142,163,.12)}
+.storage-row:first-of-type{border-top:0}
+.storage-label{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:8px;font-size:13px}
+.storage-label>div{display:flex;flex-direction:column;min-width:0}
+.storage-label strong{font-size:13px;font-weight:600}
+.storage-label small{font-size:11px;color:#8490a0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.storage-label>span{color:rgb(var(--v-theme-primary));font-size:13px;font-weight:650}
+.bandwidth-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
+.bandwidth-kpis>div{display:flex;flex-direction:column;border-radius:14px;background:rgba(96,129,224,.08);padding:12px 14px;gap:5px}
+.bandwidth-kpis span{font-size:12px;color:#7c879b}
+.bandwidth-kpis strong{font-size:19px;font-weight:700}
+.bandwidth-summary{display:grid;gap:5px;font-size:11px;color:#8490a0;margin-top:12px}
+.network-interface-details{display:grid;gap:10px;margin-top:10px}
+.network-interface-details>div{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;border-top:1px solid rgba(125,140,161,.12);padding-top:8px;font-size:12px}
+.network-interface-details span{color:#8793a3;flex-shrink:0}
+.network-interface-details strong{max-width:74%;word-break:break-word;text-align:right;font-weight:550}
+.network-detail-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.terminal-type-tabs{margin-bottom:12px}
+.terminal-ip6{overflow-wrap:anywhere;white-space:normal}
+
+/* Main apps grid: tools stay behind a discrete icon until opened. */
+.app-launcher-heading{margin:3px 0 16px}
+.app-launcher-heading h2{font-size:21px;font-weight:700}
+.app-launcher-heading p{font-size:12px;color:#8490a0;margin-top:6px}
+.app-launcher-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.app-launcher-tile{display:flex!important;align-items:center;justify-content:center;flex-direction:column!important;gap:9px;text-align:center;min-width:0;min-height:118px;padding:13px 7px!important;cursor:pointer;background-color:rgb(var(--v-theme-surface));border:1px solid rgba(127,143,169,.14)}
+.app-launcher-tile:focus-visible{outline:2px solid rgb(var(--v-theme-primary));outline-offset:2px}
+.app-launcher-tile:active{transform:scale(.98)}
+.app-launcher-tile strong{font-size:13px;line-height:1.25;font-weight:650;white-space:nowrap}
+.app-launcher-tile span{font-size:10px;line-height:1.3;color:#8b94a6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.app-subpage-heading{display:flex;align-items:center;gap:10px;margin-bottom:15px;min-width:0}
+.app-subpage-heading>div{flex:1;min-width:0}
+.app-subpage-heading h2{font-size:18px;font-weight:650}
+.app-subpage-heading p{font-size:11px;color:#8793a3;margin-top:3px}
+.app-subpage{padding:18px}
+.app-subpage h3{font-size:15px;font-weight:650;margin:9px 0}
+@media(max-width:380px){
+ .app-launcher-grid{gap:7px}
+ .app-launcher-tile{min-height:106px;padding:10px 5px!important}
+ .app-launcher-tile strong{font-size:12px}
+ .app-launcher-tile .v-avatar{width:43px!important;height:43px!important}
+ .app-subpage{padding:13px}
+ .bandwidth-kpis strong{font-size:17px}
+}
