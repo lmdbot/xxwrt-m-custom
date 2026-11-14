@@ -60,6 +60,22 @@ jobs:
       - name: Verify stable release version comparison
         run: npm run test:versions
 
+      - name: Set Android version and APK filename
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_VERSION="$(node -p 'require("./package.json").version')"
+          [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid stable app version"; exit 1; }
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$APP_VERSION"
+          (( 10#$MINOR < 1000 && 10#$PATCH < 1000 )) || exit 1
+          APP_VERSION_CODE=$((10#$MAJOR * 1000000 + 10#$MINOR * 1000 + 10#$PATCH))
+          (( APP_VERSION_CODE > 20001 && APP_VERSION_CODE <= 2100000000 )) || exit 1
+          APP_APK_NAME="XX-WRT-Material-v${APP_VERSION}.apk"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "APP_VERSION_CODE=$APP_VERSION_CODE" >> "$GITHUB_ENV"
+          echo "APP_APK_NAME=$APP_APK_NAME" >> "$GITHUB_ENV"
+          echo "Building $APP_APK_NAME (versionCode $APP_VERSION_CODE)"
+
       - name: Build Material UI
         run: npm run build
 
@@ -102,9 +118,11 @@ jobs:
           src = src.replace('<application', '<application android:usesCleartextTraffic="true"', 1)
           path.write_text(src)
           PY
-          # Use a higher versionCode than the previous preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 20001/; s/versionName "[^"]+"/versionName "2.0.1"/' android/app/build.gradle
+          # Generate Android versionCode from the numeric x.y.z version.
+          sed -i -E "s/versionCode [0-9]+/versionCode ${APP_VERSION_CODE}/; s/versionName \"[^\"]+\"/versionName \"${APP_VERSION}\"/" android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
+          # Capacitor must generate the requested system launcher label.
+          grep -F 'XX-WRT管理器' android/app/src/main/res/values/strings.xml
 
       - name: Apply Android 15/16 native safe-area insets
         run: python3 scripts/patch_android_insets.py
@@ -149,22 +167,22 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk \
+            --out ../../dist/material-preview/${APP_APK_NAME} \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/${APP_APK_NAME}
           # Validate against the actual Gradle versionCode so future version bumps cannot leave a stale check.
           EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -n1)"
           test -n "$EXPECTED_VERSION_CODE" || { echo "::error::Cannot read Gradle versionCode"; exit 1; }
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk | grep '^package:' | grep "versionName='2.0.1'" | grep "versionCode='$EXPECTED_VERSION_CODE'" | grep "name='com.lmdbot.xxwrt.materialpreview'"
+          "$TOOLS/aapt" dump badging "../../dist/material-preview/${APP_APK_NAME}" | grep '^package:' | grep "versionName='${APP_VERSION}'" | grep "versionCode='$EXPECTED_VERSION_CODE'" | grep "name='com.lmdbot.xxwrt.materialpreview'"
           # Safety check: never publish a legacy UniApp package as a Material APK.
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk | grep "^application-label:" | grep "XX-WRT Material Preview"
+          "$TOOLS/aapt" dump badging "../../dist/material-preview/${APP_APK_NAME}" | grep "^application-label:" | grep -F "XX-WRT管理器"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable Material APK
         uses: actions/upload-artifact@v4
         with:
-          name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk
+          name: XX-WRT-Material-APK
+          path: dist/material-preview/${{ env.APP_APK_NAME }}
           if-no-files-found: error
           retention-days: 30
 
@@ -175,16 +193,29 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            TAG="v2.0.1"
-            TITLE="XX-WRT Material v2.0.1"
+            TAG="v${APP_VERSION}"
+            TITLE="XX-WRT管理器 v${APP_VERSION}"
           else
-            TAG="material-wrt-v2.0.1"
-            TITLE="XX-WRT Material v2.0.1 (branch build)"
+            TAG="material-wrt-v${APP_VERSION}"
+            TITLE="XX-WRT管理器 v${APP_VERSION} (branch build)"
           fi
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v2.0.1.apk"
+          APK="../../dist/material-preview/${APP_APK_NAME}"
+          ASSETS=("$APK")
+          # 2.0.1 clients only recognize the old filename; publish one migration
+          # alias on v2.0.2 so their in-app updater can upgrade normally.
+          if [[ "$GITHUB_REF_NAME" == "main" && "$APP_VERSION" == "2.0.2" ]]; then
+            COMPAT_APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v${APP_VERSION}.apk"
+            cp "$APK" "$COMPAT_APK"
+            ASSETS+=("$COMPAT_APK")
+          fi
           NOTES="../../build/material-preview/release-notes.md"
           cat > "$NOTES" <<'EOF'
-          ## XX-WRT Material v2.0.1 — 主线版本
+          ## XX-WRT管理器 v2.0.2 — 主线版本
+
+          - 应用名称由 XX-WRT Material Preview 缩短为 XX-WRT管理器。
+          - 修复 Android 自适应桌面图标的居中裁切问题，四周保留安全边距。
+          - 正式 APK 文件名采用 XX-WRT-Material-vx.x.x.apk，自动读取项目版本号。
+          - v2.0.2 Release 额外保留一次旧名称兼容文件，供 v2.0.1 内置更新器平滑升级。
 
           - 新增 GitHub 正式 Release 自动检查、手动检查与系统下载管理器 APK 下载。
           - 各版本号按数字逐段比较，排除 Draft、Pre-release 及测试标签。
@@ -274,16 +305,16 @@ jobs:
             printf '%s\n' "- [Actions 构建记录](https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
           } >> "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber --repo "$GITHUB_REPOSITORY"
             if [[ "$GITHUB_REF_NAME" == "main" ]]; then
               gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES" --latest --repo "$GITHUB_REPOSITORY"
             else
               gh release edit "$TAG" --title "$TITLE" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
             fi
           elif [[ "$GITHUB_REF_NAME" == "main" ]]; then
-            gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
+            gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" \
               --title "$TITLE" --notes-file "$NOTES" --latest --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
+            gh release create "$TAG" "${ASSETS[@]}" --target "$GITHUB_SHA" \
               --title "$TITLE" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi
