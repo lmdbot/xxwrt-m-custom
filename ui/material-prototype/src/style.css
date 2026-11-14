@@ -281,7 +281,7 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .app-launcher-tile{display:flex!important;align-items:center;justify-content:center;flex-direction:column!important;gap:9px;text-align:center;min-width:0;min-height:118px;padding:13px 7px!important;cursor:pointer;background-color:rgb(var(--v-theme-surface));border:1px solid rgba(127,143,169,.14)}
 .app-launcher-tile:focus-visible{outline:2px solid rgb(var(--v-theme-primary));outline-offset:2px}
 .app-launcher-tile:active{transform:scale(.98)}
-.app-launcher-tile strong{font-size:13px;line-height:1.25;font-weight:650;white-space:nowrap}
+.app-launcher-tile strong{display:block;max-width:100%;font-size:13px;line-height:1.3;font-weight:650;white-space:normal;overflow-wrap:anywhere;word-break:break-word;hyphens:auto;text-wrap:balance}
 .app-launcher-tile span{font-size:10px;line-height:1.3;color:#8b94a6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .app-subpage-heading{display:flex;align-items:center;gap:10px;margin-bottom:15px;min-width:0}
 .app-subpage-heading>div{flex:1;min-width:0}
@@ -399,3 +399,11 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
   .router-app-summary>div{padding:8px}
   .router-app-summary strong{font-size:11px}
 }
+
+/* Keep long app names and runtime metadata inside mobile cards. */
+.app-launcher-tile .v-avatar{flex-shrink:0}
+.app-launcher-tile{overflow:hidden}
+.zt-network-card{min-width:0;overflow-wrap:anywhere}
+.zt-network-card .v-list-item-title,.zt-network-card .v-list-item-subtitle{white-space:normal;overflow-wrap:anywhere}
+.ssr-probe-row{min-width:0;overflow-wrap:anywhere}
+.ssr-probe-row .v-list-item-title,.ssr-probe-row .v-list-item-subtitle{white-space:normal;overflow-wrap:anywhere}
