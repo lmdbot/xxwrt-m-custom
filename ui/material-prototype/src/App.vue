@@ -8,6 +8,7 @@ import { Capacitor } from '@capacitor/core'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
+import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import {
   readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
@@ -35,9 +36,64 @@ const pages = [
 const storage = {
   host: 'xxwrt_material_router_url',
   nav: 'xxwrt_material_nav_style',
-  theme: 'xxwrt_material_color_mode'
+  theme: 'xxwrt_material_color_mode',
+  showIp: 'xxwrt_material_list_show_ip',
+  showHostname: 'xxwrt_material_list_show_hostname',
+  listLayout: 'xxwrt_material_device_list_layout'
 }
 const devices = ref(loadDevices())
+const showIp = ref(localStorage.getItem(storage.showIp) !== 'false')
+const showHostnames = ref(localStorage.getItem(storage.showHostname) !== 'false')
+const routerListLayout = ref(localStorage.getItem(storage.listLayout) === 'list' ? 'list' : 'card')
+const routerListFilter = ref('all')
+const isReachable = status => status === 'online' || status === 'reachable'
+const reachableCount = computed(() => devices.value.filter(d => isReachable(deviceStatuses[d.id])).length)
+const offlineCount = computed(() => devices.value.filter(d => deviceStatuses[d.id] === 'offline').length)
+const displayedDevices = computed(() => devices.value.filter(d => routerListFilter.value === 'all'
+  || (routerListFilter.value === 'online' && isReachable(deviceStatuses[d.id]))
+  || (routerListFilter.value === 'offline' && deviceStatuses[d.id] === 'offline')))
+function displayDeviceName(device) {
+  if (!device) return 'QWRT'
+  if (showHostnames.value) return device.name
+  return '路由器 ' + (Math.max(0, devices.value.findIndex(d => d.id === device.id)) + 1)
+}
+function maskHostname(host) {
+  return showHostnames.value ? (host || '--') : '••••••'
+}
+function displayRouterAddress(address) {
+  return showIp.value ? (address || '--') : '•••.•••.•••.•••'
+}
+const deviceCounterCache = new Map()
+async function makeDeviceSummary(api, info, deviceId) {
+  const summary = {
+    model: info.board.model, hostname: info.board.hostname,
+    version: info.board.version, temperature: info.temperature, uptime: info.uptime,
+    cpuPercent: info.cpuPercent, memoryPercent: info.memoryPercent,
+    memoryDetail: info.memoryDetail, connUsed: String(info.connDetail || '--').split(' / ')[0],
+    users: info.users, wanIp: info.wanIp, lanIp: info.lanIp,
+    rxBps: null, txBps: null, updatedAt: Date.now()
+  }
+  const wan = info.interfaces.find(i => i.interface === 'wan' && i.up)
+    || info.interfaces.find(i => i.interface === 'wan')
+  const nic = wan?.l3_device || wan?.device || ''
+  if (!nic) return summary
+  try {
+    const counters = await readInterfaceCounters(api, nic)
+    if (!counters) return summary
+    const now = Date.now()
+    const previous = deviceCounterCache.get(deviceId)
+    const rate = previous && previous.nic === nic
+      ? bandwidthSample(previous.counters, counters, now - previous.at) : null
+    deviceCounterCache.set(deviceId, { nic, counters, at: now })
+    if (rate) {
+      summary.rxBps = rate.rxBps
+      summary.txBps = rate.txBps
+    }
+  } catch (_) {
+    // Failed optional interface telemetry must not mark a logged-in router offline.
+  }
+  return summary
+}
 const viewMode = ref('list')
 const selectedDeviceId = ref('')
 const loginDialog = ref(false)
@@ -158,6 +214,9 @@ let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer
 
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
+watch(showIp, v => localStorage.setItem(storage.showIp, String(v)))
+watch(showHostnames, v => localStorage.setItem(storage.showHostname, String(v)))
+watch(routerListLayout, v => localStorage.setItem(storage.listLayout, v))
 watch(dark, v => { theme.global.name.value = v ? 'dark' : 'light' }, { immediate: true })
 watch(activeTab, (tab) => {
   if (connected.value) refreshCurrent()
@@ -367,6 +426,7 @@ async function confirmDeleteDevice() {
   devices.value = saveDevices(devices.value.filter(d => d.id !== id))
   delete deviceStatuses[id]
   delete deviceSummaries[id]
+  deviceCounterCache.delete(id)
   if (id === selectedDeviceId.value) resetSession()
 }
 
@@ -398,14 +458,7 @@ async function refreshDeviceStatuses() {
         if (api?.session) {
           try {
             const result = await readDashboard(api)
-            deviceSummaries[d.id] = {
-              model: result.board.model,
-              hostname: result.board.hostname,
-              version: result.board.version,
-              temperature: result.temperature,
-              uptime: result.uptime,
-              updatedAt: Date.now()
-            }
+            deviceSummaries[d.id] = await makeDeviceSummary(api, result, d.id)
             status = 'online'
           } catch (_) {
             api.logout()
@@ -539,14 +592,8 @@ async function refreshDashboard() {
     diskData.value = partitionsResult.status === 'fulfilled'
       ? partitionsResult.value : { available: false, partitions: [], primary: null, temporary: null }
     if (selectedDeviceId.value) {
-      deviceSummaries[selectedDeviceId.value] = {
-        model: snapshot.value.board.model,
-        hostname: snapshot.value.board.hostname,
-        version: snapshot.value.board.version,
-        temperature: snapshot.value.temperature,
-        uptime: snapshot.value.uptime,
-        updatedAt: Date.now()
-      }
+      deviceSummaries[selectedDeviceId.value] =
+        await makeDeviceSummary(client.value, snapshot.value, selectedDeviceId.value)
     }
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
   } catch (e) {
@@ -754,7 +801,7 @@ onMounted(() => {
   void refreshDeviceStatuses()
   probeTimer = setInterval(() => {
     if (viewMode.value === 'list') void refreshDeviceStatuses()
-  }, 30000)
+  }, 15000)
   telemetryTimer = setInterval(() => { void pollTelemetry() }, 3000)
   refreshTimer = setInterval(() => {
     if (viewMode.value === 'detail' && connected.value && activeTab.value === 'home' && !refreshing.value) refreshDashboard()
@@ -775,7 +822,7 @@ onUnmounted(() => {
     <v-app-bar flat color="surface" height="64" class="top-bar">
       <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
       <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack"/>
-      <v-toolbar-title class="app-name">{{ viewMode === 'list' ? '我的 OpenWrt' : (selectedDevice?.name || 'QWRT') }}</v-toolbar-title>
+      <v-toolbar-title class="app-name">{{ viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</v-toolbar-title>
       <v-spacer />
       <v-btn v-if="viewMode === 'detail' && connected" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
@@ -815,7 +862,14 @@ onUnmounted(() => {
           <v-select v-model="colorMode" class="mt-5" density="compact" variant="outlined" label="主题颜色"
             :items="[{title:'跟随系统',value:'system'},{title:'浅色模式',value:'light'},{title:'深色模式',value:'dark'}]"
             item-title="title" item-value="value" hide-details/>
-          <p class="muted-hint mt-3">设置自动保存在本机，打开任意路由器时继续生效。</p>
+          <v-divider class="my-4"/>
+          <div class="sidebar-section-title"><v-icon icon="mdi-shield-eye-outline" size="19"/> 隐私保护</div>
+          <v-switch v-model="showHostnames" label="显示路由器名称和主机名"
+            color="primary" hide-details density="compact" class="privacy-switch"/>
+          <v-switch v-model="showIp" label="显示 IP / 域名地址"
+            color="primary" hide-details density="compact" class="privacy-switch"/>
+          <p class="muted-hint mt-3">关闭后，设备列表和路由器首页使用掩码。仅影响界面显示，编辑设备时仍可查看实际配置，不会修改 OpenWrt 系统主机名。</p>
+          <p class="muted-hint mt-2">底栏、隐私和主题设置保存在本机，所有路由器共用。</p>
         </template>
         <template v-else-if="drawerSection === 'language'">
           <div class="sidebar-section-title">语言设置</div>
@@ -858,6 +912,24 @@ onUnmounted(() => {
               <v-btn color="primary" rounded="xl" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
             </div>
           </div>
+          <div class="router-list-toolbar">
+            <v-btn-toggle v-model="routerListFilter" mandatory density="compact"
+              rounded="lg" variant="tonal" color="primary" aria-label="设备在线状态筛选">
+              <v-btn value="all" size="small">全部 {{ devices.length }}</v-btn>
+              <v-btn value="online" size="small">可达 {{ reachableCount }}</v-btn>
+              <v-btn value="offline" size="small">离线 {{ offlineCount }}</v-btn>
+            </v-btn-toggle>
+            <div class="router-list-tools">
+              <v-btn size="small" variant="text"
+                :icon="showIp ? 'mdi-eye-outline' : 'mdi-eye-off-outline'"
+                :aria-label="showIp ? '隐藏路由器地址' : '显示路由器地址'"
+                @click="showIp = !showIp"/>
+              <v-btn size="small" variant="text"
+                :icon="routerListLayout === 'card' ? 'mdi-view-list-outline' : 'mdi-view-grid-outline'"
+                :aria-label="routerListLayout === 'card' ? '切换到列表模式' : '切换到卡片模式'"
+                @click="routerListLayout = routerListLayout === 'card' ? 'list' : 'card'"/>
+            </div>
+          </div>
           <v-alert v-if="listError && !deviceDialog" type="warning" variant="tonal" closable density="compact" class="mb-3" @click:close="listError = ''">{{ listError }}</v-alert>
           <v-card v-if="!devices.length" rounded="xl" elevation="1" class="empty-devices">
             <v-avatar color="primary" variant="tonal" size="72"><v-icon icon="mdi-router-wireless" size="36"/></v-avatar>
@@ -865,34 +937,17 @@ onUnmounted(() => {
             <p>支持 IP、域名、HTTP、HTTPS 和不同端口。添加后会保留在首页。</p>
             <v-btn rounded="xl" color="primary" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加第一个设备</v-btn>
           </v-card>
-          <div v-else class="saved-device-grid">
-            <v-card v-for="device in devices" :key="device.id" rounded="xl" elevation="1" class="saved-device-card"
-                    tabindex="0" role="button" :aria-label="'进入 ' + device.name"
-                    @click="openDevice(device)" @keydown.enter.prevent="openDevice(device)">
-              <div class="saved-device-header">
-                <v-avatar color="primary" variant="tonal" rounded="lg" size="48"><v-icon icon="mdi-router-wireless" size="27"/></v-avatar>
-                <div class="saved-device-identity"><h2>{{ device.name }}</h2><div class="muted-hint ellipsis-url">{{ device.address }}</div></div>
-                <v-icon icon="mdi-chevron-right" size="23" color="secondary"/>
-              </div>
-              <div class="saved-device-info">
-                <v-chip size="small" variant="tonal"
-                        :color="['reachable', 'online'].includes(deviceStatuses[device.id]) ? 'success' : deviceStatuses[device.id] === 'offline' ? 'error' : 'secondary'"
-                        :prepend-icon="['reachable', 'online'].includes(deviceStatuses[device.id]) ? 'mdi-check-circle' : deviceStatuses[device.id] === 'offline' ? 'mdi-alert-circle' : 'mdi-progress-clock'">
-                  {{ deviceStatuses[device.id] === 'online' ? '已登录 · 在线' : deviceStatuses[device.id] === 'reachable' ? '网络可达' : deviceStatuses[device.id] === 'offline' ? '无法连接' : '检测中' }}
-                </v-chip>
-                <span class="muted-hint">{{ deviceSummaries[device.id]?.temperature || deviceSummaries[device.id]?.hostname || '等待获取设备状态' }}</span>
-              </div>
-              <div v-if="deviceSummaries[device.id]" class="saved-device-summary">
-                {{ deviceSummaries[device.id].model }} · {{ deviceSummaries[device.id].version }} · 运行 {{ deviceSummaries[device.id].uptime }}
-              </div>
-              <div class="saved-device-footer">
-                <span class="muted-hint">用户：{{ device.username }} · {{ device.rememberPassword ? '已加密保存凭据' : '每次启动需验证' }}</span>
-                <div>
-                  <v-btn icon="mdi-pencil-outline" size="small" variant="text" :aria-label="'编辑' + device.name" @click.stop="showDeviceDialog(device)"/>
-                  <v-btn icon="mdi-delete-outline" size="small" color="error" variant="text" :aria-label="'删除' + device.name" @click.stop="askDeleteDevice(device)"/>
-                </div>
-              </div>
-            </v-card>
+          <div v-else-if="!displayedDevices.length" class="router-list-empty">
+            <v-icon icon="mdi-router-network" size="30" color="secondary"/>
+            <span>此筛选条件下暂无设备</span>
+          </div>
+          <div v-else class="saved-device-grid" :class="{ 'saved-device-grid-compact': routerListLayout === 'list' }">
+            <SavedRouterCard v-for="device in displayedDevices" :key="device.id"
+              :device="device" :index="devices.findIndex(d => d.id === device.id)"
+              :summary="deviceSummaries[device.id] || null"
+              :status="deviceStatuses[device.id] || 'checking'"
+              :layout="routerListLayout" :show-names="showHostnames" :show-address="showIp"
+              @open="openDevice" @edit="showDeviceDialog" @remove="askDeleteDevice"/>
           </div>
           <div class="device-list-help">
             <v-icon icon="mdi-shield-lock-outline" size="18"/><span>设备信息保存在本机；勾选记住密码时仅由 Android Keystore 加密保存，不会上传到第三方服务器。</span>
@@ -900,7 +955,7 @@ onUnmounted(() => {
         </template>
         <template v-else>
           <div class="page-head">
-            <div><div class="eyebrow">{{ client?.baseUrl }} · {{ lastUpdated ? '更新于 ' + lastUpdated : '已连接' }}</div><h1>{{ pageTitle }}</h1></div>
+            <div><div class="eyebrow">{{ displayRouterAddress(client?.baseUrl) }} · {{ lastUpdated ? '更新于 ' + lastUpdated : '已连接' }}</div><h1>{{ pageTitle }}</h1></div>
             <v-btn color="primary" variant="tonal" icon="mdi-refresh" size="small" :loading="refreshing" aria-label="刷新数据" @click="refreshCurrent"/>
           </div>
           <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" closable class="mb-4" @click:close="errorMessage = ''">{{ errorMessage }}</v-alert>
@@ -914,7 +969,7 @@ onUnmounted(() => {
               </div>
               <v-divider class="my-3"/>
               <div class="details">
-                <div><span>主机名</span><strong>{{ snapshot.board.hostname }}</strong></div>
+                <div><span>主机名</span><strong>{{ maskHostname(snapshot.board.hostname) }}</strong></div>
                 <div><span>处理器</span><strong>{{ snapshot.board.system }}</strong></div>
                 <div><span>内核版本</span><strong>{{ snapshot.board.kernel }}</strong></div>
                 <div><span>温度</span><strong>{{ snapshot.temperature }}</strong></div>
