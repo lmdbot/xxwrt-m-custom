@@ -323,6 +323,13 @@ const resourceCards = computed(() => {
   ]
 })
 let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer
+let refreshQueued = false
+
+function drainQueuedRefresh() {
+  if (!refreshQueued) return
+  refreshQueued = false
+  if (connected.value && client.value) void refreshCurrent()
+}
 
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
@@ -741,11 +748,18 @@ async function refreshDashboard() {
     handleRpcError(e)
   } finally {
     refreshing.value = false
+    drainQueuedRefresh()
   }
 }
 
 async function refreshCurrent() {
-  if (!client.value || refreshing.value) return
+  if (!client.value) return
+  if (refreshing.value) {
+    // A tab change during an in-flight refresh must not lose the new page's
+    // data request. Run one refresh for the latest active tab when idle.
+    refreshQueued = true
+    return
+  }
   if (activeTab.value === 'home' || activeTab.value === 'statistics' || activeTab.value === 'network') {
     await refreshDashboard()
     if (activeTab.value === 'network') {
@@ -781,6 +795,7 @@ async function refreshCurrent() {
     handleRpcError(e)
   } finally {
     refreshing.value = false
+    drainQueuedRefresh()
   }
 }
 
