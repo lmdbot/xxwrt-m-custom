@@ -314,6 +314,17 @@ let installedRouterAppsRequest = 0
 const routerAppToolIds = ['ssr', 'wechatpush', 'openclash', 'detector', 'carbon', 'zerotier', 'firewall']
 const toolLoading = ref(false)
 const toolMessage = ref('')
+const toolFeedbackOpen = ref(false)
+const toolWaiting = computed(() => toolLoading.value || wolBusy.value || actionBusy.value)
+const toolFeedbackText = computed(() => toolMessage.value || (toolWaiting.value ? '正在执行操作，请稍候…' : ''))
+watch([toolFeedbackText, toolWaiting], () => {
+  toolFeedbackOpen.value = Boolean(toolFeedbackText.value)
+})
+function dismissToolFeedback() {
+  if (toolWaiting.value) return
+  toolFeedbackOpen.value = false
+  toolMessage.value = ''
+}
 const processData = ref({ available: false, processes: [] })
 const routeData = ref({ available: false, routes: [] })
 const liveRoutes = ref({ available: false, lines: [] })
@@ -1762,7 +1773,7 @@ onUnmounted(() => {
                   aria-label="刷新当前功能" @click="refreshCurrentTool"/>
               </div>
               <v-card rounded="xl" elevation="1" class="network-card app-subpage">
-                <v-alert v-if="toolMessage" type="info" variant="tonal" density="compact" class="mb-3">{{ toolMessage }}</v-alert>
+
                 <v-progress-linear v-if="toolLoading" indeterminate class="mb-3"/>
                 <CompactManagementLists
                 v-if="['process','startup','routes'].includes(toolPanel)"
@@ -1853,6 +1864,17 @@ onUnmounted(() => {
       </v-container>
     </v-main>
 
+    <v-snackbar v-model="toolFeedbackOpen" location="bottom" :timeout="toolWaiting ? -1 : 5000"
+      :style="{ bottom: '77px' }" color="primary" role="status" aria-live="polite"
+      class="router-app-floating-feedback">
+      <div class="d-flex align-center ga-3">
+        <v-progress-circular v-if="toolWaiting" indeterminate size="18" width="2"/>
+        <span>{{ toolFeedbackText }}</span>
+      </div>
+      <template #actions>
+        <v-btn v-if="!toolWaiting" variant="text" size="small" @click="dismissToolFeedback">关闭</v-btn>
+      </template>
+    </v-snackbar>
     <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" :model-value="activeTab" @update:model-value="navigateBottomTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable" @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
