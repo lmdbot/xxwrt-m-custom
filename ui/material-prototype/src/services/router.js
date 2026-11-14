@@ -41,6 +41,8 @@ export class RouterClient {
     this.session = ''
     this.username = ''
     this.requestId = 1
+    this.luciCookie = ''
+    this.luciAuthTask = null
   }
 
   async request(data) {
@@ -83,7 +85,51 @@ export class RouterClient {
     if (!data.ubus_rpc_session) throw new Error('路由器未返回登录会话，请确认账号、密码及 rpcd 设置')
     this.session = data.ubus_rpc_session
     this.username = user
+    // LuCI's authenticated CGI routes are separate from /ubus login.
+    // Authenticate to the SAME configured router using the same credentials
+    // once, in memory only. Never persist password or LuCI cookie.
+    this.luciAuthTask = this.setupLuciSession(user, password).catch(() => false)
     return data
+  }
+
+  async setupLuciSession(username, password) {
+    try {
+      const response = await CapacitorHttp.post({
+        url: this.baseUrl + '/cgi-bin/luci/',
+        data: 'luci_username=' + encodeURIComponent(username) +
+          '&luci_password=' + encodeURIComponent(password),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        connectTimeout: 2500, readTimeout: 5000, disableRedirects: true
+      })
+      const header = Object.entries(response.headers || {}).find(([name]) =>
+        name.toLowerCase() === 'set-cookie')?.[1]
+      const match = String(header || '').match(/(?:^|[,\s])((?:sysauth_http|sysauth_https|sysauth)=[a-f0-9]{32})/i)
+      if (match) this.luciCookie = match[1]
+      return [200, 301, 302, 303].includes(response.status) && Boolean(this.luciCookie)
+    } catch (_) {
+      return false
+    }
+  }
+
+  /** Scoped LuCI CGI request, with a real LuCI cookie, never a forged ubus ID. */
+  async luciGet(path, params = {}) {
+    if (!this.session || !/^\/cgi-bin\/luci\/admin\/services\/shadowsocksr\/[a-z_]+$/.test(path)) return null
+    if (this.luciAuthTask) await this.luciAuthTask
+    if (!this.luciCookie) return null
+    const query = new URLSearchParams(params).toString()
+    try {
+      const response = await CapacitorHttp.get({
+        url: this.baseUrl + path + (query ? '?' + query : ''),
+        headers: { Accept: 'application/json', Cookie: this.luciCookie },
+        connectTimeout: 5000, readTimeout: 20000, disableRedirects: true
+      })
+      if (response.status !== 200) return null
+      const content = typeof response.data === 'string'
+        ? JSON.parse(response.data) : response.data
+      return content && typeof content === 'object' && !Array.isArray(content) ? content : null
+    } catch (_) {
+      return null
+    }
   }
 
   async call(object, method, args = {}, optional = false) {
@@ -104,6 +150,8 @@ export class RouterClient {
   logout() {
     this.session = ''
     this.username = ''
+    this.luciCookie = ''
+    this.luciAuthTask = null
   }
 }
 
