@@ -6,11 +6,13 @@ import { CapacitorHttp } from '@capacitor/core'
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
 const readyKind = ref('')
+const manualRefreshing = ref(false)
 const floatingNoticeOpen = ref(false)
 const operationWaiting = computed(() => busy.value || ssrProbeBusy.value ||
-  ssrComponentBusy.value || carbonChecking.value)
+  ssrComponentBusy.value || carbonChecking.value || manualRefreshing.value)
 const floatingNoticeText = computed(() => error.value || notice.value ||
-  (ssrProbeBusy.value ? '正在通过 QWRT 探测节点…'
+  (manualRefreshing.value ? '正在刷新路由器数据…'
+    : ssrProbeBusy.value ? '正在通过 QWRT 探测节点…'
     : ssrComponentBusy.value ? '正在读取 SSR 组件版本或执行更新…'
     : carbonChecking.value ? (carbonCheckText.value || '正在检查 Carbon 更新…')
     : busy.value ? '正在提交配置，请稍候…' : ''))
@@ -1017,7 +1019,17 @@ async function refresh() {
 }
 watch(() => props.kind, () => { readyKind.value = ''; void refresh() })
 onMounted(() => { void refresh() })
-defineExpose({ refresh })
+async function refreshAction() {
+  if (manualRefreshing.value || loading.value) return
+  manualRefreshing.value = true
+  try {
+    await refresh()
+    if (!error.value) notice.value = '最新状态已刷新'
+  } finally {
+    manualRefreshing.value = false
+  }
+}
+defineExpose({ refresh, refreshAction })
 </script>
 
 <template>
@@ -1033,7 +1045,7 @@ defineExpose({ refresh })
         <v-btn v-if="!operationWaiting" variant="text" size="small" @click="dismissFloatingNotice">关闭</v-btn>
       </template>
     </v-snackbar>
-    <v-progress-linear v-if="loading || busy" indeterminate color="primary" class="mb-3"/>
+    <v-progress-linear v-if="loading && readyKind !== kind" indeterminate color="primary" class="mb-3"/>
     <template v-if="readyKind !== kind">
       <v-skeleton-loader aria-label="正在加载应用配置" type="article,article" class="mb-3"/>
       <p class="muted-hint">正在读取 QWRT 应用配置与运行状态…</p>
@@ -1081,15 +1093,15 @@ defineExpose({ refresh })
         <template v-else-if="ssrTab === 'status'">
           <h3 class="router-app-section-title">SSR Plus+ 运行状态</h3>
           <div class="router-app-summary"><div><span>代理服务</span><strong>{{ statusText(ssr.service) }}</strong></div><div><span>当前节点</span><strong>{{ ssr.nodes.find(x => x.id === ssr.global.global_server)?.title || '未启用' }}</strong></div></div>
-          <v-list density="compact" class="mt-3">
-            <v-list-item title="全局代理模式" :subtitle="String(ssr.global.run_mode || '--')"/>
-            <v-list-item title="TCP 代理配置" :subtitle="String(ssr.global.global_server || 'nil')"/>
-            <v-list-item title="UDP 代理配置" :subtitle="String(ssr.global.udp_relay_server || '--')"/>
-            <v-list-item title="DNS 工作模式" :subtitle="String(ssr.global.pdnsd_enable || '--')"/>
-            <v-list-item v-if="ssrStatusDetail?.instances" title="procd 运行实例" :subtitle="Object.keys(ssrStatusDetail.instances).join('、') || '暂无'"/>
-          </v-list>
+          <div class="ssr-status-grid mt-3">
+            <div><span>全局代理模式</span><strong>{{ ssr.global.run_mode || '--' }}</strong></div>
+            <div><span>TCP 代理节点</span><strong>{{ ssr.nodes.find(x => x.id === ssr.global.global_server)?.title || '未指定' }}</strong></div>
+            <div><span>UDP 代理节点</span><strong>{{ ssr.nodes.find(x => x.id === ssr.global.udp_relay_server)?.title || (ssr.global.udp_relay_server === 'same' ? '与 TCP 相同' : '未指定') }}</strong></div>
+            <div><span>DNS 代理配置</span><strong>{{ String(ssr.global.pdnsd_enable ?? '--') === '1' ? '启用' : String(ssr.global.pdnsd_enable ?? '--') === '0' ? '停用' : '未确认' }}</strong></div>
+            <div v-if="ssrStatusDetail?.instances"><span>procd 实例</span><strong>{{ Object.keys(ssrStatusDetail.instances).join('、') || '暂无' }}</strong></div>
+          </div>
           <div class="d-flex flex-wrap ga-2 mt-3">
-            <v-btn color="primary" variant="tonal" :disabled="loading || busy" @click="refresh">刷新服务状态</v-btn>
+            <v-btn color="primary" variant="tonal" :disabled="loading || busy" @click="refreshAction">刷新服务状态</v-btn>
             <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','start'),'SSR Plus+ 已启动')">启动</v-btn>
             <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','stop'),'SSR Plus+ 已停止')">停止</v-btn>
             <v-btn variant="outlined" :disabled="busy" @click="run(() => service('ssr','restart'),'SSR Plus+ 已重启')">重启</v-btn>
@@ -1139,7 +1151,7 @@ defineExpose({ refresh })
             <h3 class="router-app-section-title mt-3">DIY 推送 JSON 文件内容</h3>
             <p class="muted-hint">直接编辑 {{ DIY_FILE }}，不是输入文件路径。保存前会校验 JSON 格式。</p>
             <v-alert v-if="wechatDiyError" type="warning" variant="tonal" density="compact" class="my-2">{{ wechatDiyError }}</v-alert>
-            <v-textarea v-model="wechatDiy" label="DIY JSON 内容" aria-label="DIY JSON 内容" variant="outlined" auto-grow rows="10" :disabled="!wechatDiyLoaded" spellcheck="false"/>
+            <v-textarea v-model="wechatDiy" label="DIY JSON 内容" aria-label="DIY JSON 内容" variant="outlined" rows="4" class="wechat-json-editor" :disabled="!wechatDiyLoaded" spellcheck="false"/>
             <div class="d-flex flex-wrap ga-2 mb-3">
               <v-btn color="primary" variant="tonal" :disabled="busy || !wechatDiyLoaded || !wechatDiyDirty" @click="saveWechatDiy">保存 DIY 文件内容</v-btn>
               <v-btn variant="text" :disabled="busy" @click="loadWechatDiy">重新读取文件</v-btn>
@@ -1239,8 +1251,19 @@ defineExpose({ refresh })
     <template v-else-if="kind === 'detector'">
       <div class="router-app-summary"><div><span>监测接口</span><strong>{{ detector.available ? '可用' : '不可用' }}</strong></div><div><span>监测项目</span><strong>{{ detector.instances.length }}</strong></div><div><span>服务状态</span><strong>{{ statusText(detector.service) }}</strong></div></div>
       <v-alert v-if="!detector.available" type="warning" variant="tonal">无法读取 luci.internet-detector.UIPoll，请检查插件和 RPC 权限。</v-alert>
-      <v-list v-else density="compact"><v-list-item v-for="x in detector.instances" :key="x.id" :title="x.name" :subtitle="x.id"><template #append><v-chip size="small" variant="tonal" :color="x.state === 'up' ? 'success' : x.state === 'pending' ? 'warning' : 'error'">{{ x.state === 'up' ? '连接正常' : x.state === 'pending' ? '检测中' : '连接异常' }}</v-chip></template></v-list-item></v-list>
-      <div class="d-flex flex-wrap ga-2 mt-3"><v-btn color="primary" variant="tonal" :disabled="loading" @click="refresh">刷新监测结果</v-btn><v-btn v-if="detector.service" variant="outlined" :disabled="busy" @click="run(() => service('detector'),'Internet Detector 已重启')">重启监测服务</v-btn></div>
+      <div v-else class="app-compact-table detector-list" role="list" aria-label="联网检测列表">
+        <div v-for="x in detector.instances" :key="x.id" class="app-compact-row detector-row" role="listitem">
+          <div class="app-compact-body">
+            <div class="app-compact-name">{{ x.name }}</div>
+            <div v-if="x.id !== x.name" class="app-compact-sub">{{ x.id }}</div>
+          </div>
+          <v-chip size="small" variant="tonal" class="app-compact-status" :color="x.state === 'up' ? 'success' : x.state === 'pending' ? 'warning' : 'error'">
+            <v-icon :icon="x.state === 'up' ? 'mdi-check-circle' : x.state === 'pending' ? 'mdi-timer-sand' : 'mdi-alert-circle'" start size="14"/>
+            {{ x.state === 'up' ? '正常' : x.state === 'pending' ? '检测中' : '异常' }}
+          </v-chip>
+        </div>
+      </div>
+      <div class="d-flex flex-wrap ga-2 mt-3"><v-btn color="primary" variant="tonal" :disabled="loading" @click="refreshAction">刷新监测结果</v-btn><v-btn v-if="detector.service" variant="outlined" :disabled="busy" @click="run(() => service('detector'),'Internet Detector 已重启')">重启监测服务</v-btn></div>
       <p class="muted-hint mt-2">监测结果直接读取 QWRT 的 Internet Detector ubus 接口；此页不修改现有监测实例。</p>
     </template>
     <template v-else-if="kind === 'carbon'">
@@ -1307,7 +1330,11 @@ defineExpose({ refresh })
     <template v-else-if="kind === 'firewall'">
       <v-alert v-if="!fw.available" type="warning" variant="tonal">无法读取 /etc/config/firewall，请检查 UCI 读取权限。</v-alert>
       <template v-else>
-        <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(fw.service) }}</strong></div><div><span>防火墙区域</span><strong>{{ fw.zones.length }}</strong></div><div><span>端口转发</span><strong>{{ fw.redirects.length }}</strong></div></div>
+        <div class="router-app-summary"><div><span>防火墙状态</span><strong>{{ firewallStatusText }}</strong></div><div><span>防火墙区域</span><strong>{{ fw.zones.length }}</strong></div><div><span>端口转发</span><strong>{{ fw.redirects.length }}</strong></div></div>
+        <div class="firewall-kernel-cards mt-3" aria-label="防火墙内核信息">
+          <div class="firewall-kernel-item"><span>NAT 模式</span><strong>{{ firewallKernel.nat }}</strong><small>{{ firewallKernel.natDetail }}</small></div>
+          <div class="firewall-kernel-item"><span>TCP 拥塞控制</span><strong>{{ firewallKernel.congestion }}</strong><small>{{ firewallKernel.congestionDetail }}</small></div>
+        </div>
         <h3 class="router-app-section-title">区域策略</h3>
         <v-expansion-panels variant="accordion" class="firewall-policy-expansion">
           <v-expansion-panel v-for="zone in fw.zones" :key="zone.section">
