@@ -1879,7 +1879,9 @@ onUnmounted(() => {
       </template>
     </v-snackbar>
     <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" mandatory :model-value="activeTab" @update:model-value="navigateBottomTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
-      <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable" @click="navigateBottomTab(item.id)">
+      <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
+        @pointerdown.capture="item.id === 'apps' && activeTab === 'apps' && toolPanel ? navigateBottomTab('apps') : null"
+        @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
