@@ -279,10 +279,15 @@ const NEIGHBOR_REQUESTS = [
  * It actively probes devices and can enrich the list using MiWiFi Mesh info.
  * Never use an old cache while the WeChatPush service is stopped.
  */
-function parseWechatPushDevices(file, services) {
+function parseWechatPushDevices(file, services, procd) {
   const byMac = new Map()
   const byIp = new Map()
-  if (!services?.wechatpush?.running || typeof file?.data !== 'string' || file.data.length > 524288) {
+  // rc.list often reports autostart but not live process status. Prefer the
+  // named procd instance status, and do not reuse a cache from a stopped service.
+  const instances = procd?.wechatpush?.instances || {}
+  const procdRunning = Object.values(instances).some(x => x?.running === true)
+  const rcRunning = services?.wechatpush?.running === true
+  if ((!procdRunning && !rcRunning) || typeof file?.data !== 'string' || file.data.length > 524288) {
     return { byMac, byIp }
   }
   try {
@@ -322,12 +327,13 @@ function preferredClientStatus(monitored, neighbor) {
 }
 
 export async function readClients(client) {
-  const [leases, hints, ipv4Neighbors, ipv6Neighbors, wechatDevices, runningServices] = await client.batch([
+  const [leases, hints, ipv4Neighbors, ipv6Neighbors, wechatDevices, runningServices, wechatProcd] = await client.batch([
     ['luci-rpc', 'getDHCPLeases'],
     ['luci-rpc', 'getHostHints'],
     ...NEIGHBOR_REQUESTS,
     ['file', 'read', { path: '/tmp/wechatpush/devices.json' }],
-    ['rc', 'list']
+    ['rc', 'list'],
+    ['service', 'list', { name: 'wechatpush' }]
   ])
   let neighbors = parseNeighborTables([ipv4Neighbors, ipv6Neighbors])
 
@@ -357,7 +363,7 @@ export async function readClients(client) {
     }
   }
 
-  const monitored = parseWechatPushDevices(wechatDevices, runningServices)
+  const monitored = parseWechatPushDevices(wechatDevices, runningServices, wechatProcd)
   const names = hints || {}
   const lookupHint = mac => names[mac] || names[mac.toUpperCase()] || names[mac.toLowerCase()] || {}
   const data = (leases?.dhcp_leases || []).map(item => {
