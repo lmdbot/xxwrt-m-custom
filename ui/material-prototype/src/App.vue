@@ -424,11 +424,26 @@ watch(dark, v => {
 }, { immediate: true })
 // Tab and subpage destinations must not inherit the scroll offset of a
 // previously visited screen. The WebView scrolls the document, not each tab.
+function resetPageScroll() {
+  // Android WebView may use documentElement, body or the application root as
+  // the actual scrolling element. Reset before tab change and after rendering.
+  for (const node of [document.scrollingElement, document.documentElement, document.body,
+    document.querySelector('.v-application'), document.querySelector('.v-main')]) {
+    if (node && node.scrollTop) node.scrollTop = 0
+  }
+  window.scrollTo(0, 0)
+}
 watch([activeTab, toolPanel, viewMode, settingsOpen, settingsCategory], async () => {
+  resetPageScroll()
   await nextTick()
-  window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-  if (document.scrollingElement) document.scrollingElement.scrollTop = 0
-}, { flush: 'post' })
+  resetPageScroll()
+  requestAnimationFrame(resetPageScroll)
+}, { flush: 'sync' })
+function navigateBottomTab(tab) {
+  if (tab === activeTab.value) return
+  resetPageScroll()
+  activeTab.value = tab
+}
 watch(activeTab, (tab) => {
   if (connected.value) refreshCurrent()
   if (tab === 'statistics') void pollTelemetry()
@@ -1783,7 +1798,7 @@ onUnmounted(() => {
       </v-container>
     </v-main>
 
-    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" v-model="activeTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
+    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" :model-value="activeTab" @update:model-value="navigateBottomTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
@@ -1791,7 +1806,7 @@ onUnmounted(() => {
     <div v-else-if="!settingsOpen && viewMode === 'detail' && connected" class="liquid-bottom">
       <VGlass :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
-          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" @click="activeTab = item.id">
+          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{ item.label }}</span>
           </v-btn>
         </div>
