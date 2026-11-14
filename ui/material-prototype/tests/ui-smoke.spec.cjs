@@ -206,7 +206,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.hardware-panel')).toHaveCount(2)
   await expect(page.locator('.hardware-panel').first().getByText('eth0')).toBeVisible()
   await page.locator('.hardware-panel').first().locator('.v-expansion-panel-title').click()
-  await expect(page.locator('.hardware-panel').first().getByText('00:11:22:33:44:55')).toBeVisible()
+  await expect(page.locator('.hardware-panel').first().getByText('00:11:22:33:44:55').last()).toBeVisible()
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2)).resolves.toBeTruthy()
   await page.screenshot({ path: 'test-results/screenshots/compact-network-interfaces.png', fullPage: true })
   await page.getByRole('button', { name: '应用' }).click()
