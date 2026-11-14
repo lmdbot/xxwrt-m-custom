@@ -49,7 +49,18 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'appfilter' && method === 'get_oaf_status') return { data: { version: '2.0', engine_version: '2.1' } }
   if (object === 'appfilter' && method === 'set_app_filter_base') return {}
   if (object === 'appfilter' && method === 'get_app_filter') return { app_list: [1,2] }
-  if (object === 'appfilter' && method === 'get_all_users') return { data: { list: [] } }
+  if (object === 'appfilter' && method === 'get_all_users') return { data: { list: [{mac:'AA:BB:CC:DD:EE:FF',nickname:'Phone'}] } }
+  if (object === 'appfilter' && method === 'class_list') return {
+    class_list: [{name:'社交',app_list:['1,ChatApp,11','2,MessageApp,12']}]
+  }
+  if (object === 'appfilter' && method === 'get_app_filter_time') return {
+    data: {mode:0,time_list:[{start:'08:00',end:'22:00'}],weekday_list:[1,2,3,4,5],allow_time:20,deny_time:60}
+  }
+  if (object === 'appfilter' && method === 'get_app_filter_user') return {data:{mode:0,list:[]}}
+  if (object === 'appfilter' && method === 'get_app_filter_adv') return {
+    data:{auto_load_engine:1,lan_ifname:'br-lan',disable_hnat:1}
+  }
+  if (object === 'appfilter' && ['set_app_filter','set_app_filter_time','set_app_filter_user','set_app_filter_adv','add_app_filter_user','del_app_filter_user'].includes(method)) return {}
   if (object === 'luci-rpc' && method === 'getNetworkDevices') return { eth0: { up: true, macaddr: '00:11:22:33:44:55' } }
   if (object === 'luci-rpc' && method === 'getWirelessDevices') return { radio0: { up: true } }
   if (object === 'luci' && method === 'getProcessList') return {
@@ -153,9 +164,18 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '唤醒', exact: true }).click()
   await expect(page.getByText(/已向 测试主机 发送网络唤醒包/)).toBeVisible()
   await page.getByRole('button', { name: '家长控制' }).click()
-  await expect(page.getByText('家长控制 / OpenAppFilter')).toBeVisible()
-  await page.getByRole('button', { name: '保存家长控制基础设置' }).click()
-  await expect(page.getByText('家长控制基础设置已提交')).toBeVisible()
+  await expect(page.getByText('OpenAppFilter 家长控制')).toBeVisible()
+  await page.getByRole('tab', { name: '应用分类' }).click()
+  await expect(page.getByText('社交', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '保存应用过滤规则' }).click()
+  await expect(page.getByText('应用分类规则：已提交')).toBeVisible()
+  await page.getByRole('tab', { name: '高级设置' }).click()
+  await page.getByRole('button', { name: '保存高级设置' }).click()
+  await expect(page.getByText('高级设置：已提交')).toBeVisible()
+  await page.getByRole('button', { name: '恢复出厂' }).click()
+  await expect(page.getByText('恢复 QWRT 出厂设置')).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认恢复出厂' })).toBeDisabled()
+  await page.getByRole('button', { name: '取消' }).click()
   await page.getByRole('button', { name: '重启路由器' }).click()
   await expect(page.getByText('确认重启 QWRT')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()
