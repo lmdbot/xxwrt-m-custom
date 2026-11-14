@@ -1487,7 +1487,7 @@ onUnmounted(() => {
           <template v-if="activeTab === 'clients'">
             <div class="terminal-screen">
               <div class="terminal-header">
-                <div><h2>终端设备</h2><p>在线状态结合 QWRT 邻居表与无线关联信息判断</p></div>
+                <div><h2>终端设备</h2><p>在线状态按 QWRT 邻居可达性和无线关联判断；灰色表示未确认</p></div>
                 <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
               </div>
               <div class="terminal-category-grid" role="group" aria-label="终端分类">
@@ -1768,7 +1768,7 @@ onUnmounted(() => {
             <div><span>在线状态</span><strong>{{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '状态未知' }}</strong></div>
             <div><span>租约时间</span><strong>{{ selectedClient.expires ?? '--' }}</strong></div>
           </div>
-          <p class="muted-hint mt-3">在线状态依据 QWRT 邻居表中的 IP 记录及无线关联状态判断；邻居缓存可能存在短暂滞后。</p>
+          <p class="muted-hint mt-3">在线状态依据 QWRT 邻居表可达性与无线关联判断，不再仅凭 DHCP 租约或历史 IP 判定在线。红色为邻居解析失败，灰色为状态未确认；部分设备休眠或禁止探测时可能无法确认。</p>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
       </v-card>
