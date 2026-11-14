@@ -1,0 +1,22 @@
+name: Inspect baseline device list fields
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/material-ui
+    paths:
+      - scripts/inspect_main_device_list.py
+      - .github/workflows/inspect-main-device-list.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect main compiled UniApp source
+        run: python3 scripts/inspect_main_device_list.py
