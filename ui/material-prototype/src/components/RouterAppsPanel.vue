@@ -234,7 +234,7 @@ async function probeSsrNode(node) {
     }
     const ms = Date.now() - start
     const output = String(result.stdout || '')
-    const npingFailure = /failed|0 connections? succeeded|0 successful|rcvd:\s*0/i.test(output)
+    const npingFailure = /Successful connections:\s*0\b|Failed:\s*[1-9]\d*\b|0 connections? succeeded|0 successful|rcvd:\s*0/i.test(output)
     const ok = Number(result.code ?? 1) === 0 && !npingFailure
     ssrProbes.value = { ...ssrProbes.value, [node.id]: {
       status: ok ? 'ok' : 'failed',
@@ -256,6 +256,21 @@ async function probeAllSsr() {
     if (ssr.value.nodes.length > nodes.length) notice.value = '已探测前 32 个节点，以控制路由器负载'
   } finally { ssrProbeBusy.value = false }
 }
+async function execSsrComponent(action) {
+  const script = '/usr/share/shadowsocksr/update_components.sh'
+  let result = await props.client.call('file', 'exec', {
+    command: script, params: [action], env: null
+  }, true)
+  // Upstream packages may install this helper with mode 0644. In that case
+  // run its explicit fixed-argument script via /bin/sh, only when authorized.
+  if (!result || [126, 127].includes(Number(result.code))) {
+    const fallback = await props.client.call('file', 'exec', {
+      command: '/bin/sh', params: [script, action], env: null
+    }, true)
+    if (fallback) result = fallback
+  }
+  return result
+}
 function parseSsrComponent(text) {
   return Object.fromEntries(String(text || '').split(/\r?\n/)
     .filter(line => /^[a-z_]+\s*=/.test(line))
@@ -267,10 +282,7 @@ async function querySsrComponent(remote = false) {
   const component = ssrComponent.value
   if (!ssrComponents.some(x => x.value === component)) { ssrComponentBusy.value = false; return }
   try {
-    const r = await props.client.call('file', 'exec', {
-      command: '/usr/share/shadowsocksr/update_components.sh',
-      params: [component + (remote ? '_info' : '_local_info')], env: null
-    }, true)
+    const r = await execSsrComponent(component + (remote ? '_info' : '_local_info'))
     if (!r) throw new Error('QWRT 未开放 SSR 组件更新脚本的 RPC 执行权限')
     if (Number(r.code ?? 0) !== 0) throw new Error('SSR 组件检测脚本执行失败（退出码 ' + r.code + '）')
     const output = parseSsrComponent(r.stdout)
@@ -287,10 +299,7 @@ async function upgradeSsrComponent() {
   const component = ssrComponent.value
   ssrComponentBusy.value = true; error.value = ''; notice.value = ''
   try {
-    const r = await props.client.call('file', 'exec', {
-      command: '/usr/share/shadowsocksr/update_components.sh',
-      params: [component + '_upgrade'], env: null
-    }, true)
+    const r = await execSsrComponent(component + '_upgrade')
     if (!r) throw new Error('QWRT 未开放 SSR 组件安装更新的 RPC 权限')
     const result = parseSsrComponent(r.stdout)
     if (Number(r.code ?? 0) !== 0 || result.success !== '1') {
