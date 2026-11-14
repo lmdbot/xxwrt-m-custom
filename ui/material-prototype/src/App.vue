@@ -1371,20 +1371,25 @@ onUnmounted(() => {
                 <v-chip size="small" variant="tonal" color="primary">{{ ethernetPorts.length }} 个接口</v-chip>
               </div>
               <div v-if="ethernetPorts.length" class="ethernet-port-list">
-                <div v-for="port in ethernetPorts" :key="port.name" class="ethernet-port-row">
-                  <div class="ethernet-port-heading">
-                    <strong>{{ port.name }}</strong>
-                    <v-chip size="x-small" variant="tonal" :color="port.up ? 'success' : 'secondary'">
-                      {{ port.up ? '已连接' : '未连接' }}
-                    </v-chip>
+                <div v-for="port in ethernetPorts" :key="port.name" class="ethernet-port-item">
+                  <div class="ethernet-port-icon" :class="{ 'is-up': port.up }">
+                    <v-icon icon="mdi-ethernet" size="25"/>
                   </div>
-                  <div class="ethernet-port-traffic">
-                    <span>RX {{ port.rxRateBps == null ? '--' : prettyRate(port.rxRateBps) }}</span>
-                    <span>TX {{ port.txRateBps == null ? '--' : prettyRate(port.txRateBps) }}</span>
-                  </div>
-                  <div class="muted-hint">
-                    累计接收 {{ port.rxBytes == null ? '--' : formatBytes(port.rxBytes) }}
-                    · 累计发送 {{ port.txBytes == null ? '--' : formatBytes(port.txBytes) }}
+                  <div class="ethernet-port-content">
+                    <div class="ethernet-port-heading">
+                      <strong>{{ port.name }}</strong>
+                      <v-chip size="x-small" variant="tonal" :color="port.up ? 'success' : 'secondary'">
+                        {{ port.up ? '已连接' : '未连接' }}
+                      </v-chip>
+                    </div>
+                    <div class="ethernet-port-traffic">
+                      <span class="ethernet-rx"><v-icon icon="mdi-arrow-down" size="14"/> RX {{ port.rxRateBps == null ? '--' : prettyRate(port.rxRateBps) }}</span>
+                      <span class="ethernet-tx"><v-icon icon="mdi-arrow-up" size="14"/> TX {{ port.txRateBps == null ? '--' : prettyRate(port.txRateBps) }}</span>
+                    </div>
+                    <div class="ethernet-port-counters">
+                      <span>累计接收 <strong>{{ port.rxBytes == null ? '--' : formatBytes(port.rxBytes) }}</strong></span>
+                      <span>累计发送 <strong>{{ port.txBytes == null ? '--' : formatBytes(port.txBytes) }}</strong></span>
+                    </div>
                   </div>
                 </div>
               </div>
