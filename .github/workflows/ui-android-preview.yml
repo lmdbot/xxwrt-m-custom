@@ -100,7 +100,7 @@ jobs:
           path.write_text(src)
           PY
           # Use a higher versionCode than the previous preview to permit updates.
-          sed -i -E 's/versionCode [0-9]+/versionCode 31/; s/versionName "[^"]+"/versionName "0.5.22"/' android/app/build.gradle
+          sed -i -E 's/versionCode [0-9]+/versionCode 32/; s/versionName "[^"]+"/versionName "0.5.23"/' android/app/build.gradle
           grep -E 'versionCode|versionName' android/app/build.gradle
 
       - name: Apply Android 15/16 native safe-area insets
@@ -134,20 +134,20 @@ jobs:
             --ks-type PKCS12 --ks-key-alias xxwrt \
             --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
             --v1-signing-enabled true --v2-signing-enabled true \
-            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.22.apk \
+            --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.23.apk \
             ../../build/material-preview/aligned.apk
-          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.22.apk
+          "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.23.apk
           # Validate against the actual Gradle versionCode so future version bumps cannot leave a stale check.
           EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -n1)"
           test -n "$EXPECTED_VERSION_CODE" || { echo "::error::Cannot read Gradle versionCode"; exit 1; }
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.22.apk | grep '^package:' | grep "versionName='0.5.22'" | grep "versionCode='$EXPECTED_VERSION_CODE'"
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.23.apk | grep '^package:' | grep "versionName='0.5.23'" | grep "versionCode='$EXPECTED_VERSION_CODE'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
         uses: actions/upload-artifact@v4
         with:
           name: XX-WRT-M-Material-Preview-APK
-          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.22.apk
+          path: dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.23.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -157,11 +157,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="material-wrt-v0.5.22"
-          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.22.apk"
+          TAG="material-wrt-v0.5.23"
+          APK="../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.23.apk"
           NOTES="../../build/material-preview/release-notes.md"
           cat > "$NOTES" <<'EOF'
-          ## XX-WRT M Material UI（布局与路由器插件增强 v0.5.22）
+          ## XX-WRT M Material UI（布局与路由器插件增强 v0.5.23）
 
           已修复 Vuetify 组件注册、页面交互和 Android 安全区的 Material / Liquid Glass 外观试用版。
 
@@ -182,6 +182,14 @@ jobs:
           - 网络页增加 IPv6-PD、MTU、网桥端口、收发流量包数及无线参数。
           - 本版 UI 优化：进程支持搜索、展开完整命令并显示 STAT 状态；启动项同时支持开机自启与运行状态筛选；路由表显示默认/网络/主机/本地等路由类型。
           - 在线终端状态支持从 procd 运行实例确认微信推送正在运行，即使 rc.list 不返回 running 字段仍可优先使用监控数据。
+          - 修复 SSR 误显示未运行和防火墙状态未知：优先使用 SSR 原版 LuCI 运行状态，防火墙展示配置/规则状态，避免以常驻进程误判。
+          - 防火墙增加 NAT 模式与 TCP 拥塞控制信息卡：读取 nftables 实际规则及内核拥塞算法；无法读取时明确标注配置值或待确认，不写死 Full Cone NAT/BBR。
+          - ZeroTier 网络名称使用 UCI 本地名称补全；区分虚拟网卡启用与 ZeroTier 网络正式连接。
+          - Internet Detector 改为紧凑监测状态列表；SSR 运行状态改为清晰的配置网格。
+          - 顶部标题栏合并路由器名、当前页签/应用名称及刷新操作，长标题截断；减少单独页面标题占用。
+          - 终端分类与设备卡片压缩高度，将 DHCP 来源标签移至主机名同行；网卡硬件类型编号映射为人类可读名称。
+          - 统一所有设置开关的样式，改善微信推送及网络唤醒深色模式标签对比度；DIY JSON 输入框缩小并支持内部滚动。
+          - 手动刷新应用状态改为底部悬浮进度/结果反馈；SSR Country MMDB 改为官方 geo_status/geo_upgrade 接口并兼容布尔状态。
           - 首页网口按自然序号排序；登录立即后台读取终端，不再等打开终端页。
           - 移除每页底部地址及更新时间；网络唤醒按钮与主机名同行，优先读取微信推送主机名。
           - 再次点击“应用”底栏可返回应用管理主页面；未安装应用隐藏入口，未安装 Internet Detector 则隐藏首页联网检测。
@@ -239,8 +247,8 @@ jobs:
           } >> "$NOTES"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --title "Material QWRT RPC v0.5.22" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+            gh release edit "$TAG" --title "Material QWRT RPC v0.5.23" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
-              --title "Material QWRT RPC v0.5.22" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
+              --title "Material QWRT RPC v0.5.23" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
           fi
