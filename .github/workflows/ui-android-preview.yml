@@ -137,7 +137,10 @@ jobs:
             --out ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk \
             ../../build/material-preview/aligned.apk
           "$TOOLS/apksigner" verify --verbose --print-certs ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk
-          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk | grep '^package:' | grep "versionName='0.5.12'" | grep "versionCode='20'"
+          # Validate against the actual Gradle versionCode so future version bumps cannot leave a stale check.
+          EXPECTED_VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -n1)"
+          test -n "$EXPECTED_VERSION_CODE" || { echo "::error::Cannot read Gradle versionCode"; exit 1; }
+          "$TOOLS/aapt" dump badging ../../dist/material-preview/XX-WRT-M-Material-QWRT-v0.5.12.apk | grep '^package:' | grep "versionName='0.5.12'" | grep "versionCode='$EXPECTED_VERSION_CODE'"
           rm -f ../../build/material-preview/private/signing.p12
 
       - name: Upload installable preview
