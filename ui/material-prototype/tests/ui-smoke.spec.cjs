@@ -288,7 +288,7 @@ test('outlined form labels do not overlap placeholders or entered text on narrow
 
   for (const label of ['设备名称 / 备注', 'IP / 域名 / 端口', '登录用户名']) {
     const input = page.getByRole('textbox', { name: label })
-    const field = input.locator('xpath=ancestor::div[contains(@class, "v-field")]')
+    const field = input.locator('xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " v-field ")][1]')
     await expect(field).toHaveClass(/v-field--active/)
 
     // The painted title must remain above the editable text zone both empty
