@@ -768,7 +768,8 @@ onUnmounted(() => {
                 <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
               </div>
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
-                hide-details clearable prepend-inner-icon="mdi-magnify" label="搜索名称、IP 或 MAC" class="terminal-search mb-4"/>
+                hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
+                aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"/>
               <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="DHCP 终端设备">
                 <v-card v-for="item in filteredClients" :key="item.mac || item.ip" role="listitem"
                   rounded="lg" variant="outlined" class="terminal-tile" tabindex="0"
@@ -910,11 +911,7 @@ onUnmounted(() => {
             </v-card>
           </template>
 
-          <v-card rounded="xl" elevation="0" class="preferences mt-4">
-            <div class="preferences-head"><v-icon icon="mdi-cog-outline" size="20"/><strong>管理入口</strong></div>
-            <p>底栏样式、系统主题和其他偏好已移至左上角侧栏。</p>
-            <v-btn block variant="tonal" color="primary" prepend-icon="mdi-menu" @click="drawerSection = 'appearance'; drawerOpen = true">打开设置侧栏</v-btn>
-          </v-card>
+
         </template>
         <v-alert v-if="errorMessage && !connected" class="mt-4" type="error" variant="tonal">{{ errorMessage }}</v-alert>
         <p class="demo-notice">非官方 Material UI · 通过真实 QWRT ubus 接口读取数据</p>
