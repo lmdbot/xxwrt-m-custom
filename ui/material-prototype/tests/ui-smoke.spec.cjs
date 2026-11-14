@@ -36,6 +36,12 @@ const dataFor = (object, method) => {
   }
   if (object === 'luci-rpc' && method === 'getHostHints') return { 'AA:BB:CC:DD:EE:FF': { name: 'Phone' } }
   if (object === 'rc' && method === 'list') return { network: { enabled: true, running: true }, firewall: { enabled: true, running: true } }
+  if (object === 'luci' && method === 'getProcessList') return {
+    processes: [{ pid: 123, user: 'root', cpu: '0.3', mem: '1.2', command: 'rpcd' }]
+  }
+  if (object === 'uci' && method === 'get') return {
+    values: { cfg123: { '.type': 'route', interface: 'wan', target: '10.0.0.0/24', gateway: '10.12.4.1' } }
+  }
   return null
 }
 
@@ -93,10 +99,21 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '终端' }).click()
   await expect(page.getByRole('heading', { name: '终端', level: 1 })).toBeVisible()
   await expect(page.getByText('Phone')).toBeVisible()
+  await page.getByText('Phone').click()
+  await expect(page.getByText('终端详情')).toBeVisible()
+  await expect(page.getByText('AA:BB:CC:DD:EE:FF')).toBeVisible()
+  await page.getByRole('button', { name: '关闭' }).click()
   await page.getByRole('button', { name: '网络' }).click()
   await expect(page.getByText('10.12.4.5').first()).toBeVisible()
   await page.getByRole('button', { name: '应用' }).click()
   await expect(page.getByText('firewall')).toBeVisible()
+  await expect(page.getByText('基础版管理工具')).toBeVisible()
+  await page.getByRole('button', { name: '进程管理' }).click()
+  await expect(page.getByText('rpcd')).toBeVisible()
+  await page.getByRole('button', { name: '静态路由' }).click()
+  await expect(page.getByText('10.0.0.0/24')).toBeVisible()
+  await page.getByRole('button', { name: '家长控制' }).click()
+  await expect(page.getByText(/此功能依赖路由器安装的 LuCI 页面/)).toBeVisible()
   await page.getByRole('button', { name: '重启路由器' }).click()
   await expect(page.getByText('确认重启 QWRT')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()
