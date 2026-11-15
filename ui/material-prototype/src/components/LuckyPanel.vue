@@ -161,6 +161,7 @@ watch(tab, next => {
   }
 })
 onMounted(() => { void refresh() })
+defineExpose({ refresh, refreshAction: refresh })
 </script>
 
 <template>
