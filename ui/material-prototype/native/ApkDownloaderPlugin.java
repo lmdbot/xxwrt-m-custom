@@ -60,7 +60,7 @@ public class ApkDownloaderPlugin extends Plugin {
 
     private static boolean trustedRedirect(URL url, boolean fromMirror) {
         if (!"https".equalsIgnoreCase(url.getProtocol()) || url.getPort() != -1
-                || !url.getUserInfo().isEmpty()) return false;
+                || url.getUserInfo() != null) return false;
         final String host = url.getHost().toLowerCase(Locale.ROOT);
         if (fromMirror) return "update.12130812.xyz".equals(host);
         // GitHub Release assets are served through GitHub's signed CDN URLs.
@@ -200,12 +200,24 @@ public class ApkDownloaderPlugin extends Plugin {
                 if (received != expectedSize) throw new IOException("安装包大小校验失败");
                 if (checksum != null && !checksum.equals(hex(digest.digest())))
                     throw new IOException("安装包 SHA-256 校验失败");
-                verifyPackage(temporary, validVersion(filename));
                 final File target = new File(directory, filename);
                 if (target.exists() && !target.delete()) throw new IOException("无法替换旧版缓存");
                 if (!temporary.renameTo(target)) throw new IOException("无法保存已验证安装包");
                 temporary = null;
+                try {
+                    verifyPackage(target, validVersion(filename));
+                } catch (IOException invalidPackage) {
+                    target.delete();
+                    throw invalidPackage;
+                }
                 completedApk = target;
+                final File[] leftovers = directory.listFiles();
+                if (leftovers != null) {
+                    for (File leftover : leftovers) {
+                        if (!leftover.equals(target) && APK_NAME.matcher(leftover.getName()).matches()
+                                && leftover.isFile()) leftover.delete();
+                    }
+                }
                 progress(received, expectedSize);
                 downloading.set(false);
                 getActivity().runOnUiThread(() -> {
