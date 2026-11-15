@@ -1,4 +1,5 @@
 import { macFromDuid, normalizeMac } from './deviceIdentity.js'
+import { extractLuciCookie, describeLuciHttpFailure } from './luciHttp.js'
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 
 const NULL_SESSION = '00000000000000000000000000000000'
@@ -43,6 +44,7 @@ export class RouterClient {
     this.requestId = 1
     this.luciCookie = ''
     this.luciAuthTask = null
+    this.luciLoginStatus = ''
   }
 
   async request(data) {
@@ -94,47 +96,75 @@ export class RouterClient {
   }
 
   async setupLuciSession(username, password) {
+    this.luciCookie = ''
+    this.luciLoginStatus = ''
     try {
+      // The LuCI admin route is protected by the login dispatcher. Posting
+      // to /cgi-bin/luci/ can redirect before issuing a session cookie.
       const response = await CapacitorHttp.post({
-        url: this.baseUrl + '/cgi-bin/luci/',
+        url: this.baseUrl + '/cgi-bin/luci/admin',
         data: 'luci_username=' + encodeURIComponent(username) +
           '&luci_password=' + encodeURIComponent(password),
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        connectTimeout: 2500, readTimeout: 5000, disableRedirects: true
+        connectTimeout: 3500, readTimeout: 7000, disableRedirects: true
       })
-      const header = Object.entries(response.headers || {}).find(([name]) =>
-        name.toLowerCase() === 'set-cookie')?.[1]
-      const match = String(header || '').match(/(?:^|[,\s])((?:sysauth_http|sysauth_https|sysauth)=[a-f0-9]{32})/i)
-      if (match) this.luciCookie = match[1]
-      return [200, 301, 302, 303].includes(response.status) && Boolean(this.luciCookie)
-    } catch (_) {
+      this.luciCookie = extractLuciCookie(response.headers)
+      if (this.luciCookie) return true
+      // Some native stacks retain HTTP cookies without exposing Set-Cookie;
+      // allow the subsequent request to use that cookie jar, if available.
+      this.luciLoginStatus = 'LuCI 登录未返回可读取的会话 Cookie（HTTP ' + response.status + '）'
+      return false
+    } catch (error) {
+      this.luciLoginStatus = 'LuCI 登录连接失败：' + shortError(error)
       return false
     }
   }
 
-  /** Scoped LuCI CGI request, with a real LuCI cookie, never a forged ubus ID. */
-  async luciGet(path, params = {}) {
-    if (!this.session || !/^\/cgi-bin\/luci\/admin\/services\/shadowsocksr\/[a-z_]+$/.test(path)) return null
+  /**
+   * Report concrete failure modes rather than turning every HTTP/HTML/error
+   * response into null. Cookies come only from a real LuCI authentication;
+   * never impersonate LuCI by manufacturing a cookie from the ubus session.
+   */
+  async luciGetDetailed(path, params = {}) {
+    if (!this.session) return { data: null, reason: '尚未登录路由器' }
+    if (!/^\/cgi-bin\/luci\/admin\/services\/shadowsocksr\/[a-z_]+$/.test(path))
+      return { data: null, reason: '不允许访问此 LuCI 接口' }
     if (this.luciAuthTask) await this.luciAuthTask
-    // LuCI uses rpcd session IDs for cookie authentication. A directly
-    // authenticated ubus session may work even when the separate LuCI login
-    // did not yield an inspectable Set-Cookie header.
-    const cookie = this.luciCookie ||
-      'sysauth_http=' + this.session + '; sysauth_https=' + this.session
     const query = new URLSearchParams(params).toString()
     try {
+      const headers = { Accept: 'application/json' }
+      // A native HTTP cookie jar may already have the LuCI session cookie.
+      if (this.luciCookie) headers.Cookie = this.luciCookie
       const response = await CapacitorHttp.get({
         url: this.baseUrl + path + (query ? '?' + query : ''),
-        headers: { Accept: 'application/json', Cookie: cookie },
+        headers,
         connectTimeout: 5000, readTimeout: 20000, disableRedirects: true
       })
-      if (response.status !== 200) return null
-      const content = typeof response.data === 'string'
-        ? JSON.parse(response.data) : response.data
-      return content && typeof content === 'object' && !Array.isArray(content) ? content : null
-    } catch (_) {
-      return null
+      if (response.status !== 200) {
+        const note = this.luciLoginStatus && [401, 403, 301, 302, 303].includes(response.status)
+          ? '；' + this.luciLoginStatus : ''
+        return { data: null, status: response.status,
+          reason: describeLuciHttpFailure(response.status, path) + note }
+      }
+      let content = response.data
+      if (typeof content === 'string') {
+        try { content = JSON.parse(content) }
+        catch (_) {
+          return { data: null, status: 200,
+            reason: 'LuCI 返回 HTML/非 JSON 内容，可能是登录页面或插件接口不兼容' }
+        }
+      }
+      if (!content || typeof content !== 'object' || Array.isArray(content))
+        return { data: null, status: 200, reason: 'LuCI 返回的数据格式不正确' }
+      return { data: content, status: 200, reason: '' }
+    } catch (error) {
+      return { data: null, reason: 'LuCI 请求连接失败：' + shortError(error) }
     }
+  }
+
+  async luciGet(path, params = {}) {
+    const response = await this.luciGetDetailed(path, params)
+    return response.data
   }
 
   async call(object, method, args = {}, optional = false) {

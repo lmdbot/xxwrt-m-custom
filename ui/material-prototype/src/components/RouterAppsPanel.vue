@@ -298,19 +298,24 @@ async function applySsrNode() {
   }, '节点已切换，ShadowSocksR Plus+ 已重启')
 }
 async function probeSsrViaLuci(node) {
-  // Authenticate via the same QWRT LuCI session established at app login.
-  // The plugin's native handler performs protocol-specific tests on ROUTER.
-  const data = await props.client.luciGet(
-    '/cgi-bin/luci/admin/services/shadowsocksr/ping', { sid: node.id })
-  if (!data || !Object.hasOwn(data, 'socket')) return null
+  // New SSR Plus+ supports sid; older versions rely on domain/port/type.
+  // Both paths perform the actual probe on QWRT, never on the phone.
+  const response = await props.client.luciGetDetailed(
+    '/cgi-bin/luci/admin/services/shadowsocksr/ping', {
+      sid: node.id, domain: node.host, port: node.port, type: node.type || ''
+    })
+  const data = response.data
+  if (!data) return { result: null, reason: response.reason || 'SSR Plus+ 探测接口无响应' }
+  if (!Object.hasOwn(data, 'socket'))
+    return { result: null, reason: 'SSR Plus+ 探测接口未返回 socket 状态（插件接口版本不兼容）' }
   const ping = Number(data.ping)
-  const connected = data.socket === true || data.socket === 1
-  return {
+  const connected = data.socket === true || data.socket === 1 || data.socket === '1'
+  return { result: {
     status: connected ? 'ok' : 'failed',
     text: connected
       ? ('路由器插件检测可达' + (Number.isFinite(ping) && ping > 0 ? ' · ' + Math.round(ping) + 'ms' : ''))
       : '路由器插件检测不可连接'
-  }
+  }, reason: '' }
 }
 async function probeSsrViaExec(node) {
   const start = Date.now()
@@ -318,20 +323,22 @@ async function probeSsrViaExec(node) {
     let result = await props.client.call('file', 'exec', {
       command: '/bin/nc', params: ['-z', '-w', '2', node.host, node.port], env: null
     }, true)
-    if (!result || [126,127].includes(Number(result.code))) {
+    if (!result || [126, 127].includes(Number(result.code))) {
       result = await props.client.call('file', 'exec', {
         command: '/usr/bin/nping',
         params: ['--tcp-connect', '-q', '-c', '1', '-p', node.port, node.host], env: null
       }, true)
     }
-    if (!result) return null
+    if (!result) return { result: null, reason: '路由器未授权 nc/nping 探测命令，或命令不存在' }
     const output = String(result.stdout || '')
     const failed = /Successful connections:\s*0\b|Failed:\s*[1-9]\d*\b|0 connections? succeeded|0 successful|rcvd:\s*0/i.test(output)
     const ok = Number(result.code ?? 1) === 0 && !failed
-    return { status: ok ? 'ok' : 'failed',
+    return { result: { status: ok ? 'ok' : 'failed',
       text: ok ? ('TCP 可连接 · ' + (Date.now() - start) + 'ms（含 RPC 开销）')
-        : 'TCP 端口不可连接' }
-  } catch (_) { return null }
+        : 'TCP 端口不可连接' }, reason: '' }
+  } catch (error) {
+    return { result: null, reason: '备用 TCP 探测失败：' + shortError(error) }
+  }
 }
 async function probeSsrNode(node) {
   if (!node.host || !/^\d+$/.test(node.port) || Number(node.port) < 1 || Number(node.port) > 65535) {
@@ -339,24 +346,34 @@ async function probeSsrNode(node) {
     return
   }
   ssrProbes.value = { ...ssrProbes.value, [node.id]: { status: 'testing', text: '探测中' } }
-  let result = null
-  if (ssrProbeMode.value !== 'exec') result = await probeSsrViaLuci(node)
-  if (result) ssrProbeMode.value = 'luci'
-  else if (ssrProbeMode.value !== 'luci') {
-    result = await probeSsrViaExec(node)
-    if (result) ssrProbeMode.value = 'exec'
+  let probe = { result: null, reason: '' }
+  let luciReason = ''
+  if (ssrProbeMode.value !== 'exec') {
+    probe = await probeSsrViaLuci(node)
+    luciReason = probe.reason
   }
-  if (!result) {
-    // One global diagnostic, not the same failure repeated 30+ times.
+  if (probe.result) ssrProbeMode.value = 'luci'
+  else if (ssrProbeMode.value !== 'luci') {
+    const fallback = await probeSsrViaExec(node)
+    if (fallback.result) {
+      probe = fallback
+      ssrProbeMode.value = 'exec'
+    } else {
+      probe = { result: null, reason: [luciReason, fallback.reason].filter(Boolean).join('；') }
+    }
+  }
+  if (!probe.result) {
+    // One actionable diagnostic, not the same error repeated 30 times.
     const states = { ...ssrProbes.value }
     delete states[node.id]
     ssrProbes.value = states
     ssrProbeMode.value = ''
-    ssrProbeUnavailable.value = '路由器侧 SSR Plus+ 探测接口不可用。请检查原版 LuCI 节点检测、LuCI 登录认证和插件 RPC 授权。'
+    ssrProbeUnavailable.value = '路由器侧 SSR Plus+ 探测接口不可用：' +
+      (probe.reason || '当前插件未返回有效探测结果') + '。请先确认原版 LuCI 节点检测能否正常使用。'
     return
   }
   ssrProbeUnavailable.value = ''
-  ssrProbes.value = { ...ssrProbes.value, [node.id]: result }
+  ssrProbes.value = { ...ssrProbes.value, [node.id]: probe.result }
 }
 async function probeAllSsr() {
   if (ssrProbeBusy.value || !ssr.value.nodes.length) return
@@ -384,10 +401,13 @@ async function luciSsrComponent(component, action) {
   const name = geo
     ? { local: 'geo_local_status', info: 'geo_status', upgrade: 'geo_upgrade' }[action]
     : { local: 'component_local_status', info: 'component_status', upgrade: 'component_upgrade' }[action]
-  if (!name) return null
-  const data = await props.client.luciGet('/cgi-bin/luci/admin/services/shadowsocksr/' + name, { component })
-  return data && (Object.hasOwn(data, 'component') || Object.hasOwn(data, 'current_version') ||
-    Object.hasOwn(data, 'error')) ? data : null
+  if (!name) return { data: null, reason: '不支持的组件操作' }
+  const response = await props.client.luciGetDetailed(
+    '/cgi-bin/luci/admin/services/shadowsocksr/' + name, { component })
+  const data = response.data
+  if (data && (Object.hasOwn(data, 'component') || Object.hasOwn(data, 'current_version') ||
+    Object.hasOwn(data, 'error'))) return { data, reason: '' }
+  return { data: null, reason: response.reason || 'SSR Plus+ 接口未返回有效组件信息' }
 }
 async function execSsrComponent(action) {
   const script = '/usr/share/shadowsocksr/update_components.sh'
@@ -412,15 +432,29 @@ function parseSsrComponent(text) {
 async function querySsrComponent(remote = false) {
   if (ssrComponentBusy.value) return
   ssrComponentBusy.value = true; error.value = ''; notice.value = ''
+  ssrComponentChecked.value = false
+  ssrComponentResult.value = null
   const component = ssrComponent.value
   if (!ssrComponents.some(x => x.value === component)) { ssrComponentBusy.value = false; return }
   try {
-    const fromLuci = await luciSsrComponent(component, remote ? 'info' : 'local')
-    const r = fromLuci ? null : await execSsrComponent(component + (remote ? '_info' : '_local_info'))
-    if (!fromLuci && !r) throw new Error('无法访问 SSR Plus+ 组件检测接口；请检查 LuCI 登录会话或插件授权，而非开放任意 Shell')
-    if (r && Number(r.code ?? 0) !== 0) throw new Error('SSR 组件检测脚本执行失败（退出码 ' + r.code + '）')
-    const output = fromLuci || parseSsrComponent(r.stdout)
-    if (output.error) throw new Error('组件检测失败：' + output.error)
+    const api = await luciSsrComponent(component, remote ? 'info' : 'local')
+    let script = null
+    let scriptReason = ''
+    if (!api.data) {
+      try { script = await execSsrComponent(component + (remote ? '_info' : '_local_info')) }
+      catch (e) { scriptReason = shortError(e) }
+    }
+    if (!api.data && !script) {
+      throw new Error('无法检查 SSR Plus+ 组件。LuCI：' + api.reason +
+        '；备用脚本：' + (scriptReason || '无 RPC 授权或更新脚本不存在') +
+        '。可在 QWRT 原版 LuCI 的组件更新页验证。')
+    }
+    if (script && Number(script.code ?? 0) !== 0)
+      throw new Error('SSR 组件脚本执行失败（退出码 ' + script.code + '）')
+    const output = api.data || parseSsrComponent(script.stdout)
+    if (!output || !Object.keys(output).length)
+      throw new Error('SSR 组件检测未返回版本数据，请检查路由器所安装的 SSR Plus+ 插件及更新脚本版本')
+    if (output.error) throw new Error('SSR 组件检查失败：' + output.error)
     ssrComponentResult.value = {
       ...output, component, can_upgrade: output.can_upgrade === true || output.can_upgrade === '1' ? '1' : '0',
       installed: output.installed === true || output.installed === '1'
@@ -436,10 +470,10 @@ async function upgradeSsrComponent() {
   const component = ssrComponent.value
   ssrComponentBusy.value = true; error.value = ''; notice.value = ''
   try {
-    const fromLuci = await luciSsrComponent(component, 'upgrade')
-    const r = fromLuci ? null : await execSsrComponent(component + '_upgrade')
-    if (!fromLuci && !r) throw new Error('无法访问 SSR Plus+ 组件安装接口，请检查 LuCI 登录会话或脚本授权')
-    const result = fromLuci || parseSsrComponent(r.stdout)
+    const api = await luciSsrComponent(component, 'upgrade')
+    const r = api.data ? null : await execSsrComponent(component + '_upgrade')
+    if (!api.data && !r) throw new Error('无法访问 SSR Plus+ 组件安装接口：' + api.reason)
+    const result = api.data || parseSsrComponent(r.stdout)
     if ((r && Number(r.code ?? 0) !== 0) || !(result.success === true || result.success === '1')) {
       throw new Error('SSR 组件更新未成功：' + (result.message || result.error || '请到 LuCI 组件更新页查看'))
     }
@@ -1153,7 +1187,7 @@ defineExpose({ refresh, refreshAction })
           </div>
           <v-alert v-if="ssrComponentResult && ssrComponentChecked" :type="ssrComponentResult.can_upgrade === '1' ? 'success' : 'info'" variant="tonal" density="compact" class="mt-3">{{ ssrComponentResult.can_upgrade === '1' ? '检测到可安装更新' : '未检测到可安装更新' }}</v-alert>
           <v-btn class="mt-3" color="success" variant="tonal" :disabled="ssrComponentBusy || !ssrComponentChecked || ssrComponentResult?.can_upgrade !== '1'" @click="ssrComponentDialog = true">安装组件更新</v-btn>
-          <p class="muted-hint mt-3">通过 SSR Plus+ 的 update_components.sh 获取版本及安装更新；如果 QWRT 不允许执行，会明确提示 RPC 权限限制。</p>
+          <p class="muted-hint mt-3">优先使用 SSR Plus+ 原版 LuCI 组件接口；只有在路由器已授权时才尝试固定更新脚本。检查失败会显示 HTTP 状态或 RPC 权限原因。</p>
         </template>
       </template>
       <v-dialog v-model="ssrComponentDialog" max-width="420"><v-card rounded="xl">
