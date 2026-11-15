@@ -1,0 +1,43 @@
+name: XX-WRT Release Webhook smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-webhook-smoke-test.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  webhook-smoke-test:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'ci(test): verify release webhook endpoint [smoke]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Send test Markdown notification via GitHub Secret
+        shell: bash
+        env:
+          WEBHOOK_URL: ${{ secrets.XXWRT_RELEASE_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$WEBHOOK_URL" ]]; then
+            echo "::error::Missing XXWRT_RELEASE_WEBHOOK_URL repository secret"
+            exit 1
+          fi
+          BODY="$(jq -cn \
+            --arg title 'XX-WRT Release Webhook 通知测试' \
+            --arg content '# XX-WRT 通知测试\n\n**此消息为连通性测试，不代表发布了新版本。**\n\n- 测试来源：GitHub Actions\n- 触发分支：main\n- 测试目标：确认 Markdown 消息可发送到 MagicPush' \
+            '{title:$title,content:$content,type:"markdown"}')"
+          STATUS="$(curl --silent --show-error --location --retry 2 --retry-delay 1 \
+            --connect-timeout 10 --max-time 30 \
+            --output /tmp/release-webhook-test-response.json --write-out '%{http_code}' \
+            --header 'Content-Type: application/json' \
+            --data-binary "$BODY" "$WEBHOOK_URL")"
+          echo "Webhook response status: HTTP $STATUS"
+          if [[ ! "$STATUS" =~ ^2[0-9][0-9]$ ]]; then
+            echo "::error::Webhook endpoint returned non-success HTTP status"
+            exit 1
+          fi
+          echo "Test Markdown notification accepted by webhook endpoint."
