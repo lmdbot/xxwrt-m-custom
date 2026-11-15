@@ -207,7 +207,13 @@ async function installDownloadedApk() {
 async function continueInstallAfterPermission() {
   if (!installPermissionPending.value || !downloadedApkReady.value || downloadBusy.value) return
   installPermissionPending.value = false
-  await installDownloadedApk()
+  try {
+    const permission = await ApkDownloader.checkInstallPermission()
+    if (permission?.granted) await installDownloadedApk()
+    else updateNotice.value = '尚未允许 APP 安装更新包，可点击“重新打开安装”再次授权。'
+  } catch (error) {
+    updateError.value = '安装权限检查失败：' + shortError(error)
+  }
 }
 
 async function cancelApkDownload() {
