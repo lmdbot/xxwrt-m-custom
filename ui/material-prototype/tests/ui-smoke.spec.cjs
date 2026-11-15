@@ -431,8 +431,26 @@ async function swipeDrawerGesture(page, startX, startY, endX, endY) {
 }
 
 test('device list supports left-edge swipe to open settings drawer without a login', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  const topBar = page.locator('.top-bar')
+  await expect(topBar.getByRole('heading', { name: '设备列表', level: 1 })).toBeVisible()
+  await expect(topBar.getByRole('button', { name: '刷新设备状态' })).toBeVisible()
+  await expect(topBar.getByRole('button', { name: '添加', exact: true })).toBeVisible()
+  await expect(page.locator('.list-page-title')).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '设备列表' })).toHaveCount(1)
+  // On narrow phones, the title and both actions share the same top toolbar.
+  const geometry = await topBar.evaluate(el => {
+    const heading = el.querySelector('.router-list-toolbar-heading').getBoundingClientRect()
+    const refresh = el.querySelector('[aria-label="刷新设备状态"]').getBoundingClientRect()
+    const add = el.querySelector('.router-list-add-topbar').getBoundingClientRect()
+    return {
+      aligned: Math.abs(heading.top + heading.height / 2 - add.top - add.height / 2) < 12,
+      ordered: heading.right < refresh.left && refresh.right < add.left,
+      visible: add.right <= window.innerWidth + 1
+    }
+  })
+  expect(geometry).toEqual({ aligned: true, ordered: true, visible: true })
   await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
 
   // Center-screen movement, ordinary vertical scrolling and taps must not open it.
