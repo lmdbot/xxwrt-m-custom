@@ -2150,7 +2150,9 @@ onUnmounted(() => {
             </div>
             <template v-if="networkView === 'interfaces'">
               <NetworkInterfacesPanel v-if="client" ref="networkInterfacesPanel"
-                :client="client" :interfaces="networkInterfaces" @refresh="refreshDashboard"/>
+                :client="client" :interfaces="networkInterfaces"
+                :format-uptime="formatInterfaceUptime" :valid-seconds="ipv6ValidSeconds"
+                @refresh="refreshDashboard"/>
             </template>
             <template v-else-if="networkView === 'devices'">
               <v-card rounded="xl" elevation="1" class="network-card mb-3">
