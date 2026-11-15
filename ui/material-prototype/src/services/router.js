@@ -1,7 +1,8 @@
 import { macFromDuid, normalizeMac } from './deviceIdentity.js'
 import { formatRouterUptime } from './routerUptime.js'
 import { extractLuciCookie, describeLuciHttpFailure, isSsrUpgradeEndpoint, ssrLuciReadTimeout } from './luciHttp.js'
-import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core'
+const RouterTlsHttp = registerPlugin('RouterTlsHttp')
 
 const NULL_SESSION = '00000000000000000000000000000000'
 
@@ -38,8 +39,9 @@ function parseResponse(payload) {
 }
 
 export class RouterClient {
-  constructor(address) {
+  constructor(address, { ignoreTlsErrors = false } = {}) {
     this.baseUrl = normalizeRouterAddress(address)
+    this.ignoreTlsErrors = Boolean(ignoreTlsErrors && this.baseUrl.startsWith('https://'))
     this.session = ''
     this.username = ''
     this.requestId = 1
@@ -48,10 +50,18 @@ export class RouterClient {
     this.luciLoginStatus = ''
   }
 
+  async httpRequest(method, options) {
+    if (this.ignoreTlsErrors && Capacitor.isNativePlatform()) {
+      // Per-request opt-in: never change the global Android TLS trust store.
+      return RouterTlsHttp.request({ ...options, method })
+    }
+    return method === 'GET' ? CapacitorHttp.get(options) : CapacitorHttp.post(options)
+  }
+
   async request(data) {
     let response
     try {
-      response = await CapacitorHttp.post({
+      response = await this.httpRequest('POST', {
         url: this.baseUrl + '/ubus',
         data,
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -102,7 +112,7 @@ export class RouterClient {
     try {
       // The LuCI admin route is protected by the login dispatcher. Posting
       // to /cgi-bin/luci/ can redirect before issuing a session cookie.
-      const response = await CapacitorHttp.post({
+      const response = await this.httpRequest('POST', {
         url: this.baseUrl + '/cgi-bin/luci/admin',
         data: 'luci_username=' + encodeURIComponent(username) +
           '&luci_password=' + encodeURIComponent(password),
@@ -136,7 +146,7 @@ export class RouterClient {
       const headers = { Accept: 'application/json' }
       // A native HTTP cookie jar may already have the LuCI session cookie.
       if (this.luciCookie) headers.Cookie = this.luciCookie
-      const response = await CapacitorHttp.get({
+      const response = await this.httpRequest('GET', {
         url: this.baseUrl + path + (query ? '?' + query : ''),
         headers,
         connectTimeout: 5000, readTimeout: ssrLuciReadTimeout(path), disableRedirects: true
@@ -208,7 +218,7 @@ export class RouterClient {
  */
 export async function readInstalledRouterApps(client) {
   const configs = ['shadowsocksr', 'wechatpush', 'openclash', 'zerotier',
-    'internet-detector', 'luci', 'luci-wol', 'lucky']
+    'internet-detector', 'luci', 'luci-wol', 'lucky', 'vlmcsd']
   const entries = [
     ...configs.map(config => ['uci', 'get', { config }]),
     ['rc', 'list'],
@@ -217,7 +227,7 @@ export async function readInstalledRouterApps(client) {
     ['luci.internet-detector', 'UIPoll'],
     ['luci.carbon_update', 'status']
   ]
-  const [ssr, wechat, clash, zt, detector, luci, wolConfig, lucky,
+  const [ssr, wechat, clash, zt, detector, luci, wolConfig, lucky, vlmcsd,
     services, wolStat, parental, detectorPoll, carbonStatus] = await client.batch(entries)
   const readable = config => Boolean(config?.values && typeof config.values === 'object' &&
     Object.keys(config.values).length)
@@ -231,6 +241,7 @@ export async function readInstalledRouterApps(client) {
   const map = {
     ssr: readable(ssr) || hasService('shadowsocksr'),
     lucky: readable(lucky) || hasService('lucky'),
+    vlmcsd: readable(vlmcsd) || hasService('vlmcsd'),
     wechatpush: readable(wechat) || hasService('wechatpush'),
     openclash: readable(clash) || hasService('openclash'),
     detector: readable(detector) || hasService('internet-detector') || detectorPoll != null,
@@ -246,6 +257,7 @@ export async function readInstalledRouterApps(client) {
     [key, found || (uncertain && (
       key === 'ssr' && ssr == null ||
       key === 'lucky' && lucky == null ||
+      key === 'vlmcsd' && vlmcsd == null ||
       key === 'wechatpush' && wechat == null ||
       key === 'openclash' && clash == null ||
       key === 'zerotier' && zt == null ||
@@ -317,6 +329,11 @@ export function parseDashboard(results) {
   const wan = interfaces.find(item => item.interface === 'wan') || {}
   const wan6 = interfaces.find(item => ['wan6', 'wan_6'].includes(item.interface)) || {}
   const lan = interfaces.find(item => item.interface === 'lan') || {}
+  // netifd reports the remaining valid lifetime in seconds. An IPv6-PD
+  // prefix is preferred; fall back to the upstream address if PD is missing.
+  const lifetime = [...(wan6['ipv6-prefix'] || []), ...(wan6['ipv6-address'] || [])]
+    .map(item => Number(item?.valid))
+    .find(value => Number.isFinite(value) && value >= 0 && value < 4294967295)
   const instances = Array.isArray(detector?.instances) ? detector.instances : []
   const checks = instances.map((item, index) => ({
     id: String(item.instance || ('check-' + index)),
@@ -354,6 +371,7 @@ export function parseDashboard(results) {
     interfaces,
     wanIp: ipv4(wan),
     wan6Ip: ipv6(wan6),
+    wan6ValidSeconds: lifetime ?? null,
     lanIp: ipv4(lan),
     gateway: wan.route?.find(route => route.target === '0.0.0.0' && route.mask === 0)?.nexthop || '--',
     dns: (wan['dns-server'] || []).join(', ') || '--'
