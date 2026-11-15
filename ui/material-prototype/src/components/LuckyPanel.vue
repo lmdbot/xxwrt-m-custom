@@ -5,7 +5,7 @@ import { Capacitor } from '@capacitor/core'
 import { shortError } from '../services/router.js'
 import {
   luckyArch, luckyCore, luckyStatus, luckyService, luckyWatchdog,
-  luckyRulesOpen, luckyRulesSave, luckyArchive,
+  luckyRulesOpen, luckyRulesSave, luckyArchive, luckyDiagnostics,
   luckyVersionAtLeast, luckyRuleBytes, LUCKY_RULE_LIMIT, LUCKY_DEFAULT_LOCALIPS
 } from '../services/luckyRpc.js'
 
@@ -13,6 +13,7 @@ const props = defineProps({ client: { type: Object, required: true } })
 const tab = ref('overview')
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
 const core = ref(null), running = ref(null), arch = ref(''), watchdog = ref(null)
+const diagnostics = ref(null), diagnosticsLoading = ref(false), diagnosticsError = ref('')
 const ruleEditors = reactive({
   allowlist: { loaded: false, loading: false, token: '', name: 'ip-allowlist.txt', directory: '', text: '', original: '', error: '' },
   localips: { loaded: false, loading: false, token: '', name: 'localips', directory: '', text: '', original: '', error: '' }
@@ -139,6 +140,26 @@ async function saveRule(type) {
   } finally { editor.loading = false }
 }
 
+async function readDiagnostics() {
+  if (diagnosticsLoading.value || working.value) return
+  diagnosticsLoading.value = true; diagnosticsError.value = ''
+  try { diagnostics.value = await luckyDiagnostics(props.client) }
+  catch (e) { diagnostics.value = null; diagnosticsError.value = shortError(e) }
+  finally { diagnosticsLoading.value = false }
+}
+const diagnosticText = computed(() => {
+  const data = diagnostics.value
+  if (!data) return ''
+  const kinds = { oom: '内存不足终止', crash: '崩溃证据', restart_loop: '反复退出 / 重启限制', exit: '退出记录（原因待确认）' }
+  const text = data.sources.map(item => item.name + ': ' + item.status + (item.truncated ? '（日志已截断）' : ''))
+  text.push('', data.events?.length ? '相关异常记录：' + data.events.length : '未发现匹配记录（不代表一定没有异常退出）')
+  for (const event of data.events || []) {
+    text.push('', '[' + String(event.source || '') + ' · ' + (kinds[event.kind] || '退出记录') + ']',
+      String(event.text || ''))
+  }
+  return text.join('\\n')
+})
+
 async function openLuci() {
   const address = props.client?.baseUrl
   if (!address) return
@@ -254,6 +275,18 @@ defineExpose({ refresh, refreshAction: refresh })
         <v-divider class="my-4"/>
         <v-btn variant="text" prepend-icon="mdi-open-in-new" @click="openLuci">在 LuCI 中查看配置目录与清空配置</v-btn>
       </v-card>
+      <v-expansion-panels variant="accordion" class="mb-3">
+        <v-expansion-panel title="最近异常退出日志" rounded="xl">
+          <v-expansion-panel-text>
+            <p class="text-body-2 text-medium-emphasis mb-3">仅从 QWRT 的 logread / dmesg 提取近期与 Lucky 异常退出有关的日志摘要，不读取完整系统日志。</p>
+            <v-btn color="primary" variant="tonal" :loading="diagnosticsLoading" :disabled="working"
+              prepend-icon="mdi-text-search" @click="readDiagnostics">读取异常日志</v-btn>
+            <v-alert v-if="diagnosticsError" type="warning" variant="tonal" density="compact" class="mt-3">{{ diagnosticsError }}</v-alert>
+            <v-textarea v-if="diagnostics" :model-value="diagnosticText" label="日志摘要" variant="outlined"
+              readonly auto-grow rows="5" spellcheck="false" class="mt-3"/>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
       <v-alert type="info" variant="tonal" density="compact">大文件备份、整目录还原、内核上传及危险清空操作由官方 LuCI 完成，以复用其权限检查、文件校验和操作期间的服务恢复机制。</v-alert>
     </template>
   </section>
