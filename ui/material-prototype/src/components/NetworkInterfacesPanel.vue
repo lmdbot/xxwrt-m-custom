@@ -10,7 +10,9 @@ import {
 
 const props = defineProps({
   client: { type: Object, required: true },
-  interfaces: { type: Array, default: () => [] }
+  interfaces: { type: Array, default: () => [] },
+  formatUptime: { type: Function, required: true },
+  validSeconds: { type: Function, required: true }
 })
 const emit = defineEmits(['refresh'])
 const networkConfig = ref(null)
@@ -166,6 +168,7 @@ function closeEditor() {
 }
 watch(() => props.client, () => {
   loadToken++
+  loading.value = false
   networkConfig.value = null
   dhcpConfig.value = null
   editorOpen.value = false
@@ -212,11 +215,11 @@ defineExpose({ refreshAction })
         <div><span>IPv4</span><strong>{{ nic['ipv4-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
         <div><span>IPv6</span><strong>{{ nic['ipv6-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
         <div v-if="nic['ipv6-prefix']?.length"><span>IPv6-PD</span><strong>{{ nic['ipv6-prefix'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
-        <div v-if="['wan6','wan_6'].includes(nic.interface) && nic['ipv6-address']?.length"><span>IPv6 有效期</span><strong>{{ nic['ipv6-address'][0].valid ?? '--' }} 秒</strong></div>
+        <div v-if="['wan6','wan_6'].includes(nic.interface) && validSeconds(nic) !== null"><span>剩余有效期</span><strong>{{ formatUptime(validSeconds(nic)) }}</strong></div>
         <div v-if="nic['ipv6-prefix-assignment']?.length"><span>IPv6-PD 分配</span><strong>{{ nic['ipv6-prefix-assignment'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
         <div v-if="nic['dns-server']?.length"><span>DNS</span><strong>{{ nic['dns-server'].join(' / ') }}</strong></div>
         <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
-        <div v-if="nic.uptime !== undefined && nic.uptime !== null"><span>运行时间</span><strong>{{ Math.floor(nic.uptime / 3600) }}小时 {{ Math.floor(nic.uptime % 3600 / 60) }}分钟</strong></div>
+        <div v-if="nic.uptime !== undefined && nic.uptime !== null"><span>运行时间</span><strong>{{ formatUptime(nic.uptime) }}</strong></div>
         <div v-if="nic.route?.length"><span>路由</span><strong>{{ nic.route.map(x => x.target + '/' + x.mask + ' → ' + (x.nexthop || '--')).join('; ') }}</strong></div>
       </div>
       <div class="d-flex flex-wrap ga-2 mt-3">
@@ -325,7 +328,7 @@ defineExpose({ refreshAction })
                 :items="optionItems(modeOptions)" variant="outlined" density="comfortable"/>
               <v-select v-model="editor.raMode" label="IPv6 RA 通告模式"
                 :items="optionItems(modeOptions)" variant="outlined" density="comfortable"/>
-              <p class="text-caption text-medium-emphasis">DHCP 地址池校验按常见的 /24 网段进行；复杂网段建议使用 LuCI 进行设置。</p>
+              <p class="text-caption text-medium-emphasis">地址池起始偏移与数量会按本接口的 IPv4 掩码验证；VLAN、桥接、DHCP 高级选项请到 LuCI 配置。</p>
             </template>
           </template>
           <v-alert type="warning" variant="tonal" density="compact" class="mt-3">
