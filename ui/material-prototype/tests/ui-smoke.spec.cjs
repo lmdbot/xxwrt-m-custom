@@ -47,6 +47,7 @@ async function auditDarkTextContrast(page, selectors) {
 let networkBytes = 1024 * 1024
 let firewallRuleEnabled = '1'
 let zeroTierRpcAllowed = true
+let zeroTierInterfaceVisible = false
 let zeroTierCliAllowed = true
 let ssrExecAllowed = true
 let ssrLuciAllowed = true
@@ -86,6 +87,7 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'luci.carbon_update' && method === 'check') return { started: true }
   if (object === 'luci.carbon_update' && method === 'configure') return { mirror: params.mirror || '' }
   if (object === 'luci.carbon_update' && method === 'upgrade') return { started: true }
+  if (object === 'luci-zerotier') zeroTierInterfaceVisible = true
   if (object === 'luci-zerotier' && zeroTierRpcAllowed && method === 'status') return { running: true, identity: 'abcdef1234' }
   if (object === 'luci-zerotier' && zeroTierRpcAllowed && method === 'get_networks_peers') return {
     code: 0,
@@ -197,7 +199,8 @@ const dataFor = (object, method, params = {}) => {
         rx_packets: 1000, tx_packets: 900
       }}
     }
-    return { 'br-lan': { up: true }, ztsjsdnpbo: { name: 'ztsjsdnpbo', up: true } }
+    return { 'br-lan': { up: true },
+      ...(zeroTierInterfaceVisible ? { ztsjsdnpbo: { name: 'ztsjsdnpbo', up: true } } : {}) }
   }
   if (object === 'uci' && method === 'get' && params.config === 'dhcp') return {
     values: terminalDhcpHost ? { terminal_static: terminalDhcpHost } : {}
@@ -287,10 +290,10 @@ const dataFor = (object, method, params = {}) => {
     eth0: { up: true, type: 1, macaddr: '00:11:22:33:44:55', stats: {
       rx_bytes: 10485760, tx_bytes: 5242880, rx_packets: 1000, tx_packets: 500
     }},
-    ztsjsdnpbo: { name: 'ztsjsdnpbo', up: true, mtu: 2800,
+    ...(zeroTierInterfaceVisible ? { ztsjsdnpbo: { name: 'ztsjsdnpbo', up: true, mtu: 2800,
       ipaddrs: [{ address: '10.10.10.2', netmask: '255.255.255.0' }],
       ip6addrs: [{ address: 'fe80::b48e:88ff:fe62:c0c0' }],
-      stats: { rx_bytes: 755610, tx_bytes: 5347738 } }
+      stats: { rx_bytes: 755610, tx_bytes: 5347738 } } } : {})
   }
   if (object === 'luci-rpc' && method === 'getWirelessDevices') return { radio0: { up: true } }
   if (object === 'luci' && method === 'getProcessList') return {

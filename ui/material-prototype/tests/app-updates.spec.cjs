@@ -45,5 +45,5 @@ test('about opens MIT and third-party licensing information offline', async ({ p
   await expect(dialog.getByText('Copyright (c) 2026 lmdbot')).toBeVisible()
   await dialog.getByRole('button', { name: '关闭开源许可证' }).click()
   await expect(dialog).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: '关于', level: 1 })).toBeVisible()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('关于')
 })
