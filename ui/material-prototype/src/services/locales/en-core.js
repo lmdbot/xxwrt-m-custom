@@ -1,6 +1,8 @@
 // English translations for core navigation, settings, device management, and monitoring.
 // Keys are the source Simplified Chinese UI strings.
 export default {
+  "使用路由器 DHCP 固定租约，不修改终端系统的网卡配置。主机名只支持英文、数字和连字符，可留空自动生成；生效后可能需要终端重新连接网络。": "This reserves a DHCP address on the router without changing the client’s network settings. Hostnames accept letters, numbers and hyphens, or can be left blank. Reconnect if needed.",
+  "DHCP 主机名只能包含英文、数字和连字符，且长度不超过 63 个字符": "DHCP hostname must contain only letters, numbers and hyphens (up to 63 characters)",
   "终端管理": "Client management",
   "静态 IPv4 绑定": "Static IPv4 reservation",
   "终端网速限制": "Client speed limits",
