@@ -202,7 +202,7 @@ defineExpose({ refresh, refreshAction: refresh })
       <div><h2 class="text-h6 font-weight-bold">Lucky</h2><p class="text-body-2 text-medium-emphasis">服务状态与后台管理</p></div>
       <v-btn prepend-icon="mdi-refresh" variant="tonal" :loading="loading" :disabled="busy" @click="refresh">刷新</v-btn>
     </div>
-    <v-tabs v-model="tab" color="primary" grow density="comfortable" class="mb-4">
+    <v-tabs v-model="tab" color="primary" show-arrows density="comfortable" class="localized-scroll-tabs mb-4">
       <v-tab value="overview">概览</v-tab><v-tab value="rules">访问规则</v-tab><v-tab value="maintenance">维护</v-tab>
     </v-tabs>
     <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3"/>
