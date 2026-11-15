@@ -8,7 +8,7 @@
 - Material 应用名称：`XX-WRT Material Preview`
 - 版本：`2.0.0`（Gradle versionCode `20000`）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
-- 保留 Material 分支的应用信息、Capacitor 构建流程和原有 Material 图标资源。
+- Android 启动器图标已更换为蓝色二次元 Q 版 OpenWrt 路由器形象；CI 从 `assets/launcher-chibi/` 的五个二进制分片恢复并校验图像，生成五档分辨率、圆形、自适应及单色图标。
 - `main` 提供正式发布渠道；`feature/material-ui` 提供预发布测试包。
 
 ## 功能与权限

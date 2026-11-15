@@ -84,10 +84,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Prepare Python image tooling
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install launcher icon renderer
+        run: python3 -m pip install --disable-pip-version-check Pillow==11.3.0
+
       - name: Generate native Capacitor app
         run: |
           npx cap add android
           npx cap sync android
+          python3 scripts/update_android_launcher.py
           # HTTP is used only when the user selects an HTTP router endpoint.
           # Android 9+ blocks plain HTTP by default without an explicit policy.
           python3 - <<'PY'
