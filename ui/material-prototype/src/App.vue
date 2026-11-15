@@ -7,6 +7,11 @@ import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import packageInfo from '../package.json'
 import { compareAppVersions, parseAppVersion } from './services/appReleases.js'
+import {
+  APP_FAVORITES_LIMIT, DEFAULT_APP_FAVORITES, readAppFavorites,
+  writeAppFavorites, groupVisibleApps, searchAppTools,
+  sortFavoriteTools, toggleAppFavorite, moveAppFavorite, isDangerousApp
+} from './services/appLauncher.js'
 import { formatLeaseDuration } from './services/leaseTime.js'
 import { fetchLatestStableRelease } from './services/appUpdates.js'
 import AppFilterPanel from './components/AppFilterPanel.vue'
@@ -554,6 +559,56 @@ const legacyTools = [
 ]
 const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
   installedRouterApps.value?.[tool.id] !== false))
+const appSearch = ref('')
+const expandedAppCategories = ref([])
+const favoriteEditorOpen = ref(false)
+const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
+const appCategories = computed(() => groupVisibleApps(visibleLegacyTools.value))
+const appSearchResults = computed(() => searchAppTools(visibleLegacyTools.value, appSearch.value))
+const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
+const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
+const favoriteCandidates = computed(() => visibleLegacyTools.value.filter(tool => !isDangerousApp(tool.id)))
+const favoriteEditorTools = computed(() => [
+  ...favoriteTools.value,
+  ...favoriteCandidates.value.filter(tool => !activeFavoriteIds.value.includes(tool.id))
+])
+
+// Device IDs remain stable if the router's name or IP changes. Preferences
+// stay local to this device; router-side UCI and installed packages are untouched.
+watch(() => selectedDevice.value?.id, id => {
+  appFavoriteIds.value = readAppFavorites(localStorage, id)
+  favoriteEditorOpen.value = false
+  appSearch.value = ''
+  expandedAppCategories.value = []
+}, { immediate: true })
+
+function updateFavorite(toolId) {
+  if (!favoriteCandidates.value.some(tool => tool.id === toolId)) return
+  const next = toggleAppFavorite(activeFavoriteIds.value, toolId)
+  if (next.join('|') === activeFavoriteIds.value.join('|')) return
+  appFavoriteIds.value = next
+  writeAppFavorites(localStorage, selectedDevice.value?.id, next)
+}
+
+function reorderFavorite(toolId, direction) {
+  const next = moveAppFavorite(activeFavoriteIds.value, toolId, direction)
+  if (next.join('|') === activeFavoriteIds.value.join('|')) return
+  appFavoriteIds.value = next
+  writeAppFavorites(localStorage, selectedDevice.value?.id, next)
+}
+
+function toggleAppCategory(id) {
+  if (!appCategories.value.some(group => group.id === id)) return
+  expandedAppCategories.value = expandedAppCategories.value.includes(id)
+    ? expandedAppCategories.value.filter(value => value !== id)
+    : [...expandedAppCategories.value, id]
+}
+
+async function expandAllAppCategories() {
+  expandedAppCategories.value = appCategories.value.map(group => group.id)
+  await nextTick()
+  document.getElementById('app-category-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 const showHomeDetector = computed(() => {
   if (installedRouterApps.value?.detector === false) return false
   if (installedRouterApps.value?.detector === true) return true
@@ -2002,21 +2057,126 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
-              <div class="app-launcher-heading">
-                <div><h2>应用管理</h2><p>{{ installedRouterAppsLoading ? '正在检查已安装应用…' : '点击图标进入已安装应用或内置管理功能' }}</p></div>
+              <div class="app-hub">
+                <div class="app-launcher-heading">
+                  <h2>应用管理</h2>
+                  <p>{{ installedRouterAppsLoading ? '正在检查已安装应用…' : '常用快捷入口与分类管理' }}</p>
+                </div>
+
+                <v-text-field v-model="appSearch" class="app-hub-search"
+                  aria-label="搜索应用或功能" label="搜索应用或功能"
+                  prepend-inner-icon="mdi-magnify" clearable hide-details
+                  variant="outlined" density="compact"/>
+
+                <template v-if="appSearch.trim()">
+                  <div class="app-hub-section-heading">
+                    <strong>搜索结果</strong>
+                    <small>{{ appSearchResults.length }} 项</small>
+                  </div>
+                  <div v-if="appSearchResults.length" class="app-tool-list app-search-results">
+                    <button v-for="tool in appSearchResults" :key="tool.id" type="button"
+                      class="app-tool-row" :class="{ 'is-danger': isDangerousApp(tool.id) }"
+                      :aria-label="'打开' + tool.title" @click="showLegacyTool(tool.id)">
+                      <span class="app-tool-icon"><v-icon :icon="tool.icon" size="21"/></span>
+                      <span class="app-tool-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
+                      <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
+                    </button>
+                  </div>
+                  <div v-else class="app-hub-empty">没有找到匹配的应用或功能。</div>
+                </template>
+
+                <template v-else>
+                  <section class="app-hub-favorites" aria-label="常用应用">
+                    <div class="app-hub-section-heading">
+                      <strong>常用应用</strong>
+                      <v-btn size="small" variant="text" prepend-icon="mdi-pencil-outline"
+                        aria-label="编辑常用应用" @click="favoriteEditorOpen = true">编辑</v-btn>
+                    </div>
+                    <div class="app-favorites-grid">
+                      <button v-for="tool in favoriteTools" :key="tool.id" type="button"
+                        class="app-favorite-tile" :aria-label="'打开' + tool.title"
+                        @click="showLegacyTool(tool.id)">
+                        <v-avatar rounded="lg" size="44" color="primary" variant="tonal">
+                          <v-icon :icon="tool.icon" size="23"/>
+                        </v-avatar>
+                        <span>{{ tool.title }}</span>
+                      </button>
+                      <button type="button" class="app-favorite-tile is-more"
+                        aria-label="展开全部应用" @click="expandAllAppCategories">
+                        <v-avatar rounded="lg" size="44" color="secondary" variant="tonal">
+                          <v-icon icon="mdi-apps" size="23"/>
+                        </v-avatar>
+                        <span>全部应用</span>
+                      </button>
+                    </div>
+                    <p v-if="!favoriteTools.length" class="app-hub-hint">暂无常用应用，点击编辑添加。</p>
+                  </section>
+
+                  <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
+                    <div class="app-hub-section-heading">
+                      <strong>全部功能</strong>
+                      <small>{{ visibleLegacyTools.length }} 项</small>
+                    </div>
+                    <div v-for="category in appCategories" :key="category.id" class="app-category-card">
+                      <button type="button" class="app-category-toggle"
+                        :aria-expanded="expandedAppCategories.includes(category.id)"
+                        :aria-controls="'app-category-' + category.id"
+                        :aria-label="(expandedAppCategories.includes(category.id) ? '收起' : '展开') + category.title"
+                        @click="toggleAppCategory(category.id)">
+                        <span class="app-category-icon"><v-icon :icon="category.icon" size="22"/></span>
+                        <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项功能</small></span>
+                        <v-icon :icon="expandedAppCategories.includes(category.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                          size="20" class="app-tool-chevron"/>
+                      </button>
+                      <div v-if="expandedAppCategories.includes(category.id)"
+                        :id="'app-category-' + category.id" class="app-tool-list">
+                        <button v-for="tool in category.tools" :key="tool.id" type="button"
+                          class="app-tool-row" :class="{ 'is-danger': isDangerousApp(tool.id) }"
+                          :aria-label="'打开' + tool.title" @click="showLegacyTool(tool.id)">
+                          <span class="app-tool-icon"><v-icon :icon="tool.icon" size="21"/></span>
+                          <span class="app-tool-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
+                          <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+                </template>
               </div>
-              <div class="app-launcher-grid" role="group" aria-label="应用功能入口">
-                <v-card v-for="tool in visibleLegacyTools" :key="tool.id" rounded="xl" variant="flat"
-                  role="button" tabindex="0" class="app-launcher-tile" :aria-label="'打开' + tool.title"
-                  @click="showLegacyTool(tool.id)" @keydown.enter.prevent="showLegacyTool(tool.id)">
-                  <v-avatar rounded="lg" size="49" :color="tool.id === 'reset' ? 'error' : 'primary'" variant="tonal">
-                    <v-icon :icon="tool.icon" size="25"/>
-                  </v-avatar>
-                  <strong>{{ tool.title }}</strong>
-                  <span>{{ tool.subtitle }}</span>
+
+              <v-dialog v-model="favoriteEditorOpen" max-width="480" scrollable>
+                <v-card rounded="xl" class="app-favorite-dialog">
+                  <v-card-title>编辑常用应用</v-card-title>
+                  <v-card-subtitle>最多 5 个快捷入口，使用箭头调整顺序</v-card-subtitle>
+                  <v-divider class="mt-3"/>
+                  <v-card-text>
+                    <div v-for="tool in favoriteEditorTools" :key="tool.id" class="app-favorite-edit-row">
+                      <v-icon :icon="tool.icon" size="21" color="primary"/>
+                      <span class="app-favorite-edit-name">{{ tool.title }}</span>
+                      <div class="app-favorite-edit-actions">
+                        <template v-if="activeFavoriteIds.includes(tool.id)">
+                          <v-btn icon="mdi-chevron-up" size="x-small" variant="text"
+                            :disabled="activeFavoriteIds.indexOf(tool.id) === 0"
+                            :aria-label="'上移' + tool.title" @click="reorderFavorite(tool.id, -1)"/>
+                          <v-btn icon="mdi-chevron-down" size="x-small" variant="text"
+                            :disabled="activeFavoriteIds.indexOf(tool.id) === activeFavoriteIds.length - 1"
+                            :aria-label="'下移' + tool.title" @click="reorderFavorite(tool.id, 1)"/>
+                        </template>
+                        <v-btn :icon="activeFavoriteIds.includes(tool.id) ? 'mdi-minus-circle-outline' : 'mdi-plus-circle-outline'"
+                          size="small" variant="text"
+                          :color="activeFavoriteIds.includes(tool.id) ? 'error' : 'primary'"
+                          :disabled="!activeFavoriteIds.includes(tool.id) && activeFavoriteIds.length >= APP_FAVORITES_LIMIT"
+                          :aria-label="(activeFavoriteIds.includes(tool.id) ? '移除常用' : '添加常用') + tool.title"
+                          @click="updateFavorite(tool.id)"/>
+                      </div>
+                    </div>
+                    <p class="app-hub-hint mt-3">已选择 {{ activeFavoriteIds.length }}/{{ APP_FAVORITES_LIMIT }} 项，按当前路由器分别保存。</p>
+                  </v-card-text>
+                  <v-card-actions>
+                    <v-spacer/>
+                    <v-btn color="primary" variant="tonal" @click="favoriteEditorOpen = false">完成</v-btn>
+                  </v-card-actions>
                 </v-card>
-              </div>
-              
+              </v-dialog>
             </template>
             <template v-else>
               <!-- Back and refresh moved into the top app toolbar. -->
