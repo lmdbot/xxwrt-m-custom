@@ -120,12 +120,12 @@ export function translateText(value, language) {
   // Vue may render an interpolated label and its value as a single text node.
   // Translate the full field, not just dictionary fragments, to avoid mixed
   // labels such as "表 999" and "16 条" after switching languages.
-  const routeCount = raw.match(/^(\\d+)\\s*(条路由|条|项)$/)
+  const routeCount = raw.match(/^(\d+)\s*(条路由|条|项)$/)
   if (routeCount) {
     const noun = routeCount[2] === '条路由' ? 'routes' : routeCount[2] === '条' ? 'entries' : 'items'
     return leading + routeCount[1] + ' ' + noun + trailing
   }
-  const inlineField = raw.match(/^(经由|表|协议|跃点)\\s+(.+)$/)
+  const inlineField = raw.match(/^(经由|表|协议|跃点)\s+(.+)$/)
   if (inlineField) return leading + ENGLISH[inlineField[1]] + ' ' + translateText(inlineField[2], 'en') + trailing
   for (const prefix of ['CPU 架构：', '·　构建日期：', '管理端口：', '后台外网访问：', '安全入口：']) {
     if (raw.startsWith(prefix)) {
