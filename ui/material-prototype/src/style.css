@@ -135,12 +135,6 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .theme-is-dark .settings-category-card{border-color:rgba(192,205,228,.16)!important}
 .theme-is-dark .settings-category-card.is-selected{background:rgba(var(--v-theme-primary),.18)!important}
 .settings-page{width:100%;max-width:760px;margin:0 auto}
-.settings-page-heading{display:flex;align-items:flex-start;gap:10px;margin:2px 0 20px}
-.settings-page-heading>div{min-width:0;flex:1}
-.settings-page-heading .v-btn{margin-top:2px;flex:none}
-.settings-page-heading .eyebrow{margin:0 0 5px}
-.settings-page-heading h1{font-size:26px;font-weight:750;line-height:1.25;letter-spacing:-.3px}
-.settings-page-heading p:last-child{font-size:13px;color:var(--ui-text-muted);line-height:1.65;margin-top:7px}
 .settings-option-card{padding:19px;margin-bottom:14px;min-width:0}
 .settings-option-heading{display:flex;align-items:center;gap:12px;margin-bottom:16px;min-width:0}
 .settings-option-heading>div{min-width:0;flex:1}
@@ -177,7 +171,6 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
  .settings-category-copy strong{font-size:13px}
  .settings-category-copy small{font-size:10px}
  .settings-option-card{padding:15px}
- .settings-page-heading h1{font-size:24px}
  .settings-segmented .v-btn{font-size:11px!important;padding:0 4px!important}
  .settings-segmented .v-btn .v-icon{display:none}
 }
@@ -641,7 +634,6 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .theme-is-dark .preferences p,
 .theme-is-dark .device-list-help,
 .theme-is-dark .empty-devices p,
-.theme-is-dark .settings-page-heading p:last-child,
 .theme-is-dark .settings-option-heading p,
 .theme-is-dark .settings-switch-row p,
 .theme-is-dark .settings-footnote,

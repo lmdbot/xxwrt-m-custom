@@ -10,7 +10,7 @@ test('sidebar language selection switches immediately and survives restart', asy
   await expect(page.getByText('应用语言')).toBeVisible()
   await page.getByRole('radio', { name: 'English' }).check()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  await expect(page.getByRole('heading', { name: 'Language', exact: true })).toBeVisible()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('Language')
   await expect(page.getByText('Choose the app language. Changes take effect immediately.')).toBeVisible()
   await expect.poll(() => page.evaluate(() =>
     localStorage.getItem('xxwrt_material_language'))).toBe('en')
@@ -69,3 +69,22 @@ test('English also localizes dropdowns and notification overlays created after c
   await expect(overlay.getByRole('status')).toHaveText('Status refreshed')
 })
 
+
+test('all sidebar settings categories use the top app-bar title and a single back button', async ({ page }) => {
+  await page.goto('/')
+  for (const category of ['路由器', '显示', '隐私', '刷新', '实验室', '语言', '关于']) {
+    await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+    await page.getByRole('button', { name: '打开' + category + '设置' }).click()
+    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText(category)
+    await expect(page.locator('.settings-page-heading')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '返回设置上一级' })).toHaveCount(1)
+  }
+
+  // Back remains visible when opening settings from the device list.
+  await page.reload()
+  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+  await page.getByRole('button', { name: '打开路由器设置' }).click()
+  await page.getByRole('button', { name: '返回设置上一级' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('我的 OpenWrt')
+  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+})

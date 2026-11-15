@@ -1425,12 +1425,12 @@ onUnmounted(() => {
   <v-app class="material-demo" :class="{ 'theme-is-dark': dark }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
       <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
-      <v-btn v-if="viewMode === 'detail'" icon="mdi-arrow-left" size="small"
-        :aria-label="activeTab === 'apps' && toolPanel ? '返回应用功能列表' : '返回上一页'"
-        @click="activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
+      <v-btn v-if="settingsOpen || viewMode === 'detail'" icon="mdi-arrow-left" size="small"
+        :aria-label="settingsOpen ? '返回设置上一级' : activeTab === 'apps' && toolPanel ? '返回应用功能列表' : '返回上一页'"
+        @click="settingsOpen ? closeSettingsPage() : activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
-          <span class="router-toolbar-name">{{ settingsOpen ? '设置' : viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</span>
+          <span class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</span>
           <span v-if="toolbarSection && !settingsOpen" class="router-toolbar-context" :title="toolbarSection">· {{ toolbarSection }}</span>
         </div>
       </v-toolbar-title>
@@ -1482,15 +1482,6 @@ onUnmounted(() => {
       <v-container class="main-container">
         <template v-if="settingsOpen">
           <section class="settings-page" :data-settings-category="settingsCategory">
-            <div class="settings-page-heading">
-              <v-btn icon="mdi-arrow-left" variant="text" size="small" aria-label="返回设置上一级" @click="closeSettingsPage"/>
-              <div>
-                <p class="eyebrow">设置 · {{ settingsPage.title }}</p>
-                <h1>{{ settingsPage.title }}</h1>
-                <p>{{ settingsPage.description }}</p>
-              </div>
-            </div>
-
             <template v-if="settingsCategory === 'router'">
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
