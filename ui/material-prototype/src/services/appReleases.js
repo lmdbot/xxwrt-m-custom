@@ -49,3 +49,33 @@ export function selectLatestStableRelease(releases) {
   }
   return latest
 }
+
+// The primary update feed is a static JSON file served by the user's HTTPS
+// update domain. Never trust arbitrary download URLs from an update manifest.
+export function parseMirrorRelease(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) || data.schemaVersion !== 1) {
+    throw new TypeError('阿里云版本信息格式不正确')
+  }
+  const rawVersion = String(data.version ?? '')
+  const parsed = parseAppVersion(rawVersion)
+  if (!/^\d+\.\d+\.\d+$/.test(rawVersion) || !parsed || parsed.version !== rawVersion
+      || data.tag !== 'v' + rawVersion) {
+    throw new TypeError('阿里云版本号无效')
+  }
+  const apkName = 'XX-WRT-Material-v' + rawVersion + '.apk'
+  const apkUrl = 'https://update.12130812.xyz/' + apkName
+  const releaseUrl = 'https://github.com/lmdbot/xxwrt-m-custom/releases/tag/v' + rawVersion
+  const githubApkUrl = 'https://github.com/lmdbot/xxwrt-m-custom/releases/download/v' + rawVersion + '/' + apkName
+  if (data.apkName !== apkName || data.apkUrl !== apkUrl
+      || data.releaseUrl !== releaseUrl || data.githubApkUrl !== githubApkUrl
+      || !Number.isSafeInteger(data.apkSize) || data.apkSize <= 0
+      || typeof data.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(data.sha256)) {
+    throw new TypeError('阿里云 APK 信息无效')
+  }
+  return {
+    tag: data.tag, version: rawVersion,
+    title: String(data.title || 'XX-WRT管理器 v' + rawVersion),
+    releaseUrl, apkUrl, apkName, apkSize: data.apkSize,
+    sha256: data.sha256, githubApkUrl, source: 'mirror'
+  }
+}
