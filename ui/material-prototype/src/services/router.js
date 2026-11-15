@@ -1,5 +1,5 @@
 import { macFromDuid, normalizeMac } from './deviceIdentity.js'
-import { extractLuciCookie, describeLuciHttpFailure } from './luciHttp.js'
+import { extractLuciCookie, describeLuciHttpFailure, isSsrUpgradeEndpoint, ssrLuciReadTimeout } from './luciHttp.js'
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 
 const NULL_SESSION = '00000000000000000000000000000000'
@@ -138,12 +138,14 @@ export class RouterClient {
       const response = await CapacitorHttp.get({
         url: this.baseUrl + path + (query ? '?' + query : ''),
         headers,
-        connectTimeout: 5000, readTimeout: 20000, disableRedirects: true
+        connectTimeout: 5000, readTimeout: ssrLuciReadTimeout(path), disableRedirects: true
       })
       if (response.status !== 200) {
         const note = this.luciLoginStatus && [401, 403, 301, 302, 303].includes(response.status)
           ? '；' + this.luciLoginStatus : ''
         return { data: null, status: response.status,
+          // A gateway error may arrive while a synchronous install is still running.
+          indeterminate: isSsrUpgradeEndpoint(path) && response.status >= 500,
           reason: describeLuciHttpFailure(response.status, path) + note }
       }
       let content = response.data
@@ -151,14 +153,21 @@ export class RouterClient {
         try { content = JSON.parse(content) }
         catch (_) {
           return { data: null, status: 200,
-            reason: 'LuCI 返回 HTML/非 JSON 内容，可能是登录页面或插件接口不兼容' }
+            indeterminate: isSsrUpgradeEndpoint(path),
+            reason: 'LuCI 返回 HTML/非 JSON 内容，可能是登录页面、插件接口不兼容或安装期间服务重启' }
         }
       }
       if (!content || typeof content !== 'object' || Array.isArray(content))
-        return { data: null, status: 200, reason: 'LuCI 返回的数据格式不正确' }
+        return { data: null, status: 200,
+          indeterminate: isSsrUpgradeEndpoint(path), reason: 'LuCI 返回的数据格式不正确' }
       return { data: content, status: 200, reason: '' }
     } catch (error) {
-      return { data: null, reason: 'LuCI 请求连接失败：' + shortError(error) }
+      // A timed-out GET may still be running on the router. Never infer that
+      // the install was cancelled, and never automatically launch it again.
+      const upgrade = isSsrUpgradeEndpoint(path)
+      return { data: null, indeterminate: upgrade,
+        reason: 'LuCI 请求连接失败：' + shortError(error) +
+          (upgrade ? '。路由器可能仍在执行安装，请稍后核对本地版本，勿重复更新' : '') }
     }
   }
 

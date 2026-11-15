@@ -407,7 +407,8 @@ async function luciSsrComponent(component, action) {
   const data = response.data
   if (data && (Object.hasOwn(data, 'component') || Object.hasOwn(data, 'current_version') ||
     Object.hasOwn(data, 'error'))) return { data, reason: '' }
-  return { data: null, reason: response.reason || 'SSR Plus+ 接口未返回有效组件信息' }
+  return { data: null, indeterminate: response.indeterminate === true,
+    reason: response.reason || 'SSR Plus+ 接口未返回有效组件信息' }
 }
 async function execSsrComponent(action) {
   const script = '/usr/share/shadowsocksr/update_components.sh'
@@ -471,6 +472,14 @@ async function upgradeSsrComponent() {
   ssrComponentBusy.value = true; error.value = ''; notice.value = ''
   try {
     const api = await luciSsrComponent(component, 'upgrade')
+    // Never run the fallback script if LuCI timed out or disconnected:
+    // the same update may still be downloading/installing on the router.
+    if (api.indeterminate) {
+      ssrComponentChecked.value = false
+      notice.value = '安装请求未收到最终结果：' + api.reason +
+        '。请稍后点击“查看本地版本”确认，不要立即重复安装。'
+      return
+    }
     const r = api.data ? null : await execSsrComponent(component + '_upgrade')
     if (!api.data && !r) throw new Error('无法访问 SSR Plus+ 组件安装接口：' + api.reason)
     const result = api.data || parseSsrComponent(r.stdout)
@@ -1187,7 +1196,7 @@ defineExpose({ refresh, refreshAction })
           </div>
           <v-alert v-if="ssrComponentResult && ssrComponentChecked" :type="ssrComponentResult.can_upgrade === '1' ? 'success' : 'info'" variant="tonal" density="compact" class="mt-3">{{ ssrComponentResult.can_upgrade === '1' ? '检测到可安装更新' : '未检测到可安装更新' }}</v-alert>
           <v-btn class="mt-3" color="success" variant="tonal" :disabled="ssrComponentBusy || !ssrComponentChecked || ssrComponentResult?.can_upgrade !== '1'" @click="ssrComponentDialog = true">安装组件更新</v-btn>
-          <p class="muted-hint mt-3">优先使用 SSR Plus+ 原版 LuCI 组件接口；只有在路由器已授权时才尝试固定更新脚本。检查失败会显示 HTTP 状态或 RPC 权限原因。</p>
+          <p class="muted-hint mt-3">优先使用 SSR Plus+ 原版 LuCI 接口。安装可能持续数分钟，APP 最长等待 10 分钟；遇到超时或断线时，请先查看本地版本，不要重复安装。</p>
         </template>
       </template>
       <v-dialog v-model="ssrComponentDialog" max-width="420"><v-card rounded="xl">

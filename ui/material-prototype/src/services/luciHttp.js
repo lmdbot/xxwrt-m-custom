@@ -1,4 +1,20 @@
-/** LuCI session cookies and HTTP failures. Pure helpers for regression tests. */
+/** LuCI session cookies, timeouts and HTTP failures. Pure helpers for regression tests. */
+export const SSR_LUCI_QUERY_TIMEOUT_MS = 20000
+export const SSR_LUCI_UPGRADE_TIMEOUT_MS = 600000
+
+/** Installs perform downloads, file replacement and service restarts synchronously. */
+export function isSsrUpgradeEndpoint(path) {
+  return /^\/cgi-bin\/luci\/admin\/services\/shadowsocksr\/(?:component_upgrade|geo_upgrade)$/.test(path)
+}
+
+export function ssrLuciReadTimeout(path) {
+  return isSsrUpgradeEndpoint(path) ? SSR_LUCI_UPGRADE_TIMEOUT_MS : SSR_LUCI_QUERY_TIMEOUT_MS
+}
+
+export function isLuciTimeout(error) {
+  return /timeout|timed?\s*out|etimedout|超时/i.test(String(error?.message || error || ''))
+}
+
 export function extractLuciCookie(headers = {}) {
   for (const [key, value] of Object.entries(headers)) {
     if (key.toLowerCase() !== 'set-cookie') continue
