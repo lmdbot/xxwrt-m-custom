@@ -3,7 +3,7 @@ import test from 'node:test'
 import {
   luckyVersionAtLeast, luckyRuleBytes, normalizeLuckyRules, luckyToken,
   parseLuckyReply, luckyCore, luckyStatus, luckyWatchdog,
-  luckyService, luckyRulesOpen, luckyRulesSave, luckyArchive
+  luckyService, luckyRulesOpen, luckyRulesSave, luckyArchive, luckyDiagnostics
 } from '../src/services/luckyRpc.js'
 
 const ok = value => ({ code: 0, stdout: JSON.stringify({ ok: true, ...value }) })
@@ -50,17 +50,20 @@ test('Lucky core, running, and watchdog use the official scoped helpers', async 
     '/usr/libexec/lucky-watchdog status': {
       code: 0, stdout: '{"enabled":false,"scheduled":false,"paused":false,"cron_running":true}\n'
     },
-    '/usr/libexec/lucky-call service restart': { code: 0, stdout: '' }
+    '/usr/libexec/lucky-call service restart': { code: 0, stdout: '' },
+    '/usr/libexec/lucky-diagnostics read': { code: 0, stdout: '{"sources":[{"name":"logread","status":"ok"}],"events":[]}' }
   })
   assert.equal((await luckyCore(client)).status, 'ready')
   assert.equal(await luckyStatus(client), true)
   assert.equal((await luckyWatchdog(client)).enabled, false)
   await luckyService(client, 'restart')
+  assert.equal((await luckyDiagnostics(client)).sources[0].name, 'logread')
   assert.deepEqual(client.calls.map(x => x.args.command), [
     '/usr/libexec/lucky-backup',
     '/usr/libexec/lucky-call',
     '/usr/libexec/lucky-watchdog',
-    '/usr/libexec/lucky-call'
+    '/usr/libexec/lucky-call',
+    '/usr/libexec/lucky-diagnostics'
   ])
   await assert.rejects(() => luckyService(client, 'rm -rf /'), /不支持/)
 })
