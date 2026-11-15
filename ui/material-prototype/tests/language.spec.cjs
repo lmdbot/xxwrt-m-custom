@@ -32,3 +32,40 @@ test('sidebar language selection switches immediately and survives restart', asy
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
   await expect(page.getByText('应用语言')).toBeVisible()
 })
+
+test('English also localizes dropdowns and notification overlays created after changing language', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+  await page.getByRole('button', { name: '打开语言设置' }).click()
+  await page.getByRole('radio', { name: 'English' }).check()
+
+  // Vuetify teleports dialogs, select menus and snackbars to document.body.
+  // Test their late-added content, attributes, and an untranslated code value.
+  await page.evaluate(() => {
+    const root = document.createElement('section')
+    root.id = 'locale-overlay-probe'
+    root.innerHTML = [
+      '<div class="v-overlay__content" role="dialog"><span>重新读取会丢弃此文件的未保存修改，是否继续？</span></div>',
+      '<div class="v-overlay__content" role="listbox"><div role="option">关闭推送</div><div role="option">企业微信 Markdown</div></div>',
+      '<div class="v-snackbar__content" role="status">最新状态已刷新</div>',
+      '<span id="overlay-tooltip" title="检查更新失败：HTTP 403">Info</span>',
+      '<code>/usr/share/wechatpush/api/diy.json</code>'
+    ].join('')
+    document.body.append(root)
+  })
+  const overlay = page.locator('#locale-overlay-probe')
+  await expect(overlay.getByRole('dialog')).toContainText('Reloading will discard unsaved changes')
+  await expect(overlay.getByRole('option', { name: 'Disable notifications' })).toBeVisible()
+  await expect(overlay.getByRole('option', { name: 'WeCom Markdown' })).toBeVisible()
+  await expect(overlay.getByRole('status')).toHaveText('Status refreshed')
+  await expect(overlay.locator('#overlay-tooltip')).toHaveAttribute('title', 'Update check failed: HTTP 403')
+  await expect(overlay.locator('code')).toHaveText('/usr/share/wechatpush/api/diy.json')
+
+  // A locale switch must retranslate the original source, not the English text.
+  await page.getByRole('radio', { name: '繁體中文' }).check()
+  await expect(overlay.getByRole('option', { name: '關閉推送' })).toBeVisible()
+  await expect(overlay.getByRole('status')).toHaveText('最新狀態已刷新')
+  await page.getByRole('radio', { name: 'English' }).check()
+  await expect(overlay.getByRole('status')).toHaveText('Status refreshed')
+})
+
