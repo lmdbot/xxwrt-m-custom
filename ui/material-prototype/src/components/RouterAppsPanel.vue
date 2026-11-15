@@ -319,6 +319,7 @@ async function applySsrNode() {
   let saved = false
   let restarted = false
   let restartIssue = ''
+  let confirmed = false
   try {
     if (!ssr.value.available) throw new Error('未检测到 ShadowSocksR Plus+ 配置')
     if (selected !== 'nil' && !ssr.value.nodes.some(x => x.id === selected)) throw new Error('所选节点不存在')
@@ -328,30 +329,42 @@ async function applySsrNode() {
       await service('ssr')
       restarted = true
     } catch (e) {
-      // Changes were already committed; no automatic retry after a timeout
-      // because restart could still be executing on the router.
+      // A missing file.exec ACL does not mean the UCI commit failed. The
+      // router may already be applying the change through its own service.
       restartIssue = shortError(e)
     }
-    // UCI readback disambiguates "saved but restart denied" from a failed save.
     let current = null
     try {
       const savedConfig = await getUci('shadowsocksr')
       current = sectionOf(sections(savedConfig), ssr.value.section, 'global')?.options?.global_server
-    } catch (_) { /* Save may have succeeded even if readback is unavailable. */ }
-    if (current !== null && String(current) !== selected) {
-      error.value = '所选节点未通过路由器配置回读校验，请刷新后核对'
-    } else if (restarted) {
-      notice.value = current === null ? '已提交节点切换及重启命令，当前配置待确认'
-        : '节点切换已保存，ShadowSocksR Plus+ 重启命令已执行'
+      confirmed = current !== null && String(current) === selected
+    } catch (_) { /* The write may have succeeded despite readback failure. */ }
+
+    let statusRefreshed = false
+    try {
+      await loadSsr()
+      statusRefreshed = true
+    } catch (_) { /* Keep the verified UCI result even if status is unavailable. */ }
+
+    if (current !== null && !confirmed) {
+      error.value = '节点配置回读与所选节点不一致，请刷新后核对'
+    } else if (confirmed && restarted) {
+      notice.value = '节点切换成功，重启命令已执行'
+    } else if (confirmed && statusRefreshed && ssr.value.service?.running === true) {
+      // A denied restart RPC is not a failed node change. Do not show a
+      // misleading red permission error after the selected node was saved.
+      notice.value = '节点已切换成功，代理服务正在运行'
+      if (restartIssue) warning.value = '重启命令未获 RPC 确认；请在运行状态页核对是否已重新加载'
+    } else if (confirmed) {
+      notice.value = '节点配置已保存'
+      warning.value = restartIssue
+        ? '服务重启未确认：' + restartIssue + '。请在运行状态页核对，避免重复点击。'
+        : '服务运行状态待确认，请在运行状态页核对'
     } else {
-      warning.value = (current === null ? '节点配置已提交（回读未确认）' : '节点切换已保存') +
-        '，但服务重启未确认：' + (restartIssue || '当前 RPC 未开放重启权限') +
-        '。请查看运行状态；不要重复点击。'
+      warning.value = '节点切换请求已提交，但路由器回读未确认；请刷新后核对，避免重复操作'
     }
-    try { await loadSsr() }
-    catch (e) { warning.value = (warning.value ? warning.value + '；' : '') + '状态刷新失败：' + shortError(e) }
   } catch (e) {
-    if (saved) warning.value = '配置已提交，后续操作未确认：' + shortError(e)
+    if (saved) warning.value = '节点配置可能已保存，后续操作未确认：' + shortError(e)
     else error.value = shortError(e)
   } finally { busy.value = false }
 }
