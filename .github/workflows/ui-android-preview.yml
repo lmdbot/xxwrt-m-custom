@@ -163,6 +163,9 @@ jobs:
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
           test -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 
+      - name: Inject per-router opt-in TLS certificate exception bridge
+        run: python3 scripts/patch_router_tls.py
+
       - name: Compile unsigned release APK
         run: |
           chmod +x android/gradlew
