@@ -157,7 +157,7 @@ const diagnosticText = computed(() => {
     text.push('', '[' + String(event.source || '') + ' · ' + (kinds[event.kind] || '退出记录') + ']',
       String(event.text || ''))
   }
-  return text.join('\\n')
+  return text.join('\n')
 })
 
 async function openLuci() {
