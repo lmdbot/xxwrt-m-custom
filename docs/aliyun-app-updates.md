@@ -120,4 +120,4 @@ curl -I "https://update.12130812.xyz/XX-WRT-Material-v2.0.21.apk"
 - 镜像失败：GitHub Release 依然保留，APP 会尝试回退到 GitHub API。
 - 下载慢：检查云服务器实际公网出口带宽和下载流量计费/限额。
 - APP 没检测到升级：必须把 Android 版本从旧版递增（例如 2.0.20 → 2.0.21），仅替换同版本 APK 不会显示为新版本。
-- GitHub Workflow 为防止重复发布，原有 webhook 通知可能因其独立 Secret 缺失报错；这与镜像同步是两个独立步骤。
+- 正式版通知由阿里云服务器监测 `/srv/app-updates/version.json` 变化的脚本负责。GitHub Actions 已不再调用 Webhook，避免重复通知及因通知接口故障导致构建显示失败。
