@@ -859,12 +859,33 @@ async function loadZeroTier() {
   }
   ztEnabled.value = String(global?.options.enabled || '0') === '1'
 }
-async function saveZt() {
-  await run(async () => {
+async function toggleZtEnabled(enabled) {
+  if (busy.value || loading.value || enabled === ztEnabled.value) return
+  busy.value = true
+  error.value = ''
+  notice.value = ''
+  try {
     if (!zt.value.section) throw new Error('未检测到 ZeroTier 全局配置')
-    await setUci('zerotier', zt.value.section, { enabled: ztEnabled.value ? '1' : '0' })
+    // UCI set + commit happen together, followed by an immediate service restart.
+    await setUci('zerotier', zt.value.section, { enabled: enabled ? '1' : '0' })
+    // This is now the persisted setting, even if the subsequent restart fails.
+    ztEnabled.value = enabled
     await service('zerotier')
-  }, 'ZeroTier 全局配置已保存，服务已重启')
+    await refresh()
+    if (!error.value) notice.value = enabled ? 'ZeroTier 已启用，服务已重启' : 'ZeroTier 已停用，服务已重启'
+  } catch (e) {
+    const message = shortError(e)
+    // On a partial failure (e.g. restart denied after UCI commit), show the
+    // router's real saved state instead of pretending the switch was reverted.
+    try {
+      const cfg = await getUci('zerotier')
+      const global = sectionOf(sections(cfg), 'global', 'zerotier')
+      if (global) ztEnabled.value = String(global.options.enabled ?? '0') === '1'
+    } catch (_) { /* Keep last known confirmed state if readback is unavailable. */ }
+    error.value = message
+  } finally {
+    busy.value = false
+  }
 }
 async function addZt() {
   await run(async () => {
@@ -1298,7 +1319,7 @@ defineExpose({ refresh, refreshAction })
       <v-alert v-if="!zt.available" type="warning" variant="tonal">未检测到 ZeroTier 配置，请先安装 zerotier 并初始化 /etc/config/zerotier。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(zt.service) }}</strong></div><div><span>全局开关</span><strong>{{ ztEnabled ? '已启用' : '未启用' }}</strong></div><div><span>网络数量</span><strong>{{ zt.networks.length }}</strong></div></div>
-        <v-switch density="compact" inset v-model="ztEnabled" label="启用 ZeroTier" color="primary" hide-details/><v-btn color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZt">保存并重启服务</v-btn>
+        <v-switch density="compact" inset :model-value="ztEnabled" label="启用 ZeroTier" color="primary" hide-details :disabled="busy || loading" @update:model-value="toggleZtEnabled($event)"/>
         <h3 class="router-app-section-title mt-4">已加入的网络</h3>
         <v-list v-if="zt.networks.length" density="compact"><v-list-item v-for="x in zt.networks" :key="x.section" :title="x.name || x.id" :subtitle="x.id"><template #append><v-switch inset :model-value="x.enabled" density="compact" color="primary" hide-details :disabled="busy" @update:model-value="toggleZt(x,$event)"/><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除 ZeroTier 网络" @click="ztDelete=x;ztDeleteDialog=true"/></template></v-list-item></v-list>
         <v-alert v-else type="info" variant="tonal" density="compact">尚未配置 ZeroTier 网络。</v-alert>
