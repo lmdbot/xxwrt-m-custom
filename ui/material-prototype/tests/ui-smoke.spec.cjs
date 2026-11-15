@@ -372,7 +372,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.v-application')).toBeVisible()
   await expect(page.locator('v-app, v-card, v-btn')).toHaveCount(0)
   await page.getByRole('button', { name: '打开侧栏菜单' }).click()
-  await expect(page.locator('.settings-category-card')).toHaveCount(6)
+  await expect(page.locator('.settings-category-card')).toHaveCount(7)
   await expect(page.getByRole('button', { name: '打开路由器设置' })).toBeVisible()
   await expect(page.getByRole('button', { name: '打开显示设置' })).toBeVisible()
   await expect(page.getByRole('button', { name: '打开隐私设置' })).toBeVisible()
