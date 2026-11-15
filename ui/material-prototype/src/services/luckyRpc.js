@@ -15,7 +15,7 @@ export const LUCKY_DEFAULT_LOCALIPS = '10.0.0.0/8\n172.16.0.0/12\n169.254.0.0/16
 export const LUCKY_RULE_LIMIT = 65536
 
 export function luckyVersionAtLeast(version, major, minor, patch = 0) {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:$|[-+])/.exec(String(version || ''))
+  const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(version || ''))
   if (!match) return false
   const actual = match.slice(1, 4).map(Number)
   const desired = [major, minor, patch]
