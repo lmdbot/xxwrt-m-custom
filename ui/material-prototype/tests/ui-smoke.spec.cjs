@@ -705,10 +705,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await openApplication(page, 'ZeroTier')
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
-  await expect(page.getByText('网络已连接')).toBeVisible()
+  // The duplicate runtime network card has been removed; its network still
+  // appears in the joined networks list and its NIC details remain visible.
+  await expect(page.locator('.zt-network-card:not(.zt-interface-card)')).toHaveCount(0)
+  await expect(page.getByText('当前运行网络信息')).toBeVisible()
   await expect(page.getByText('节点 ID')).toBeVisible()
   await expect(page.getByText('abcdef1234')).toBeVisible()
-  await expect(page.getByText('10.10.10.2/24')).toBeVisible()
   const interfaceCard = page.locator('.zt-interface-card').filter({ hasText: 'ztsjsdnpbo' })
   await expect(interfaceCard).toBeVisible()
   await expect(interfaceCard.getByText('B6:8E:88:62:C0:C0')).toBeVisible()
@@ -717,14 +719,15 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(interfaceCard.getByText('2800')).toBeVisible()
   await expect(interfaceCard.getByText('737.9 KiB')).toBeVisible()
   await expect(interfaceCard.getByText('5.1 MiB')).toBeVisible()
-  await auditDarkTextContrast(page, ['.router-app-summary span', '.zt-network-card .muted-hint'])
+  await auditDarkTextContrast(page, ['.router-app-summary span', '.zt-interface-card .zt-interface-row'])
   zeroTierRpcAllowed = false
   zeroTierCliAllowed = false
   await page.getByRole('button', { name: '刷新当前页面' }).click()
   await expect(page.getByText(/未开放实时 ZeroTier 状态读取接口/)).toBeVisible()
-  // System NIC can be up although ZeroTier runtime RPC is inaccessible.
-  // Report link state, not a falsely confirmed ZeroTier network connection.
-  await expect(page.getByText('虚拟网卡已启用', { exact: true }).first()).toBeVisible()
+  // No duplicate runtime card is shown, even when ZeroTier runtime RPC
+  // is inaccessible. Only the real interface state remains visible.
+  await expect(page.locator('.zt-network-card:not(.zt-interface-card)')).toHaveCount(0)
+  await expect(interfaceCard.getByText('接口已启用', { exact: true })).toBeVisible()
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   zeroTierRpcAllowed = true
   zeroTierCliAllowed = true
