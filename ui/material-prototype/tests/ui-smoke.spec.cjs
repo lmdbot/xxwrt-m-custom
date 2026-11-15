@@ -847,7 +847,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   const statusContrast = await page.evaluate(() => {
     const root = document.querySelector('.material-demo')
     const original = root.classList.contains('theme-is-dark')
-    const parseRgb = value => [...value.matchAll(/[\\d.]+/g)].slice(0, 3).map(x => +x[0])
+    const parseRgb = value => [...value.matchAll(/[\d.]+/g)].slice(0, 3).map(x => +x[0])
     const luminance = rgb => rgb.map(v => {
       const value = v / 255
       return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
