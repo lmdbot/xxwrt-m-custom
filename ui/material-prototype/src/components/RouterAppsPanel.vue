@@ -19,19 +19,25 @@ const manualRefreshing = ref(false)
 const floatingNoticeOpen = ref(false)
 const operationWaiting = computed(() => busy.value || ssrProbeBusy.value ||
   ssrComponentBusy.value || carbonChecking.value || manualRefreshing.value)
-const floatingNoticeText = computed(() => error.value || warning.value || notice.value ||
+const floatingNoticeText = computed(() => error.value || warning.value ||
+  wechatDevicesError.value || wechatDiyError.value || wechatAliasesError.value || notice.value ||
   (manualRefreshing.value ? '正在刷新路由器数据…'
     : ssrProbeBusy.value ? '正在通过 QWRT 探测节点…'
     : ssrComponentBusy.value ? '正在读取 SSR 组件版本或执行更新…'
     : carbonChecking.value ? (carbonCheckText.value || '正在检查 Carbon 更新…')
     : busy.value ? '正在提交配置，请稍候…' : ''))
-const floatingNoticeColor = computed(() => error.value ? 'error' : warning.value ? 'warning' : notice.value ? 'success' : 'primary')
+const floatingNoticeColor = computed(() => error.value ? 'error' :
+  warning.value || wechatDevicesError.value || wechatDiyError.value || wechatAliasesError.value
+    ? 'warning' : notice.value ? 'success' : 'primary')
 function dismissFloatingNotice() {
   if (operationWaiting.value) return
   floatingNoticeOpen.value = false
   error.value = ''
   warning.value = ''
   notice.value = ''
+  wechatDevicesError.value = ''
+  wechatDiyError.value = ''
+  wechatAliasesError.value = ''
 }
 const ssrTab = ref('nodes')
 const ssrProbeBusy = ref(false)
@@ -55,9 +61,6 @@ const ssrComponents = [
 ]
 const carbonChecking = ref(false)
 const carbonCheckText = ref('')
-watch([floatingNoticeText, operationWaiting], () => {
-  floatingNoticeOpen.value = Boolean(floatingNoticeText.value)
-})
 const ssr = ref({ available: false, section: '', global: {}, nodes: [], service: null })
 const ssrNode = ref('nil')
 const wechat = ref({ available: false, section: '', service: null })
@@ -77,6 +80,9 @@ const wechatAliasesOriginal = ref('')
 const wechatAliasesLoaded = ref(false)
 const wechatAliasesLoading = ref(false)
 const wechatAliasesError = ref('')
+watch([floatingNoticeText, operationWaiting], () => {
+  floatingNoticeOpen.value = Boolean(floatingNoticeText.value)
+})
 const wechatAliasTarget = ref('')
 const wechatAliasName = ref('')
 const wechatAliasesDirty = computed(() => wechatAliasesLoaded.value &&
@@ -1377,7 +1383,6 @@ defineExpose({ refresh, refreshAction })
           <template v-if="wechatForm.jsonpath === DIY_FILE">
             <h3 class="router-app-section-title mt-3">DIY 推送 JSON 文件内容</h3>
             <p class="muted-hint">直接编辑 {{ DIY_FILE }}，不是输入文件路径。保存前会校验 JSON 格式。</p>
-            <v-alert v-if="wechatDiyError" type="warning" variant="tonal" density="compact" class="my-2">{{ wechatDiyError }}</v-alert>
             <v-textarea v-model="wechatDiy" label="DIY JSON 内容" aria-label="DIY JSON 内容" variant="outlined" rows="4" class="wechat-json-editor" :disabled="!wechatDiyLoaded" spellcheck="false"/>
             <div class="d-flex flex-wrap ga-2 mb-3">
               <v-btn color="primary" variant="tonal" :disabled="busy || !wechatDiyLoaded || !wechatDiyDirty" @click="saveWechatDiy">保存 DIY 文件内容</v-btn>
@@ -1411,8 +1416,7 @@ defineExpose({ refresh, refreshAction })
             <div><strong>微信推送检测设备</strong><p class="muted-hint">确认在线 {{ wechatOnlineCount }} · 未确认 {{ wechatDevicesShown.length - wechatOnlineCount }}</p></div>
             <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" :disabled="loading || busy" @click="loadWechatDevices">刷新列表</v-btn>
           </div>
-          <v-alert v-if="wechatDevicesError" type="info" variant="tonal" density="compact">{{ wechatDevicesError }}</v-alert>
-          <template v-else-if="wechatDevicesShown.length">
+          <template v-if="wechatDevicesShown.length">
             <v-text-field v-model="wechatDeviceSearch" class="wechat-devices-search mb-3"
               label="搜索在线设备" aria-label="搜索在线设备" placeholder="主机名、IP、MAC 或接入信息"
               prepend-inner-icon="mdi-magnify" variant="outlined" density="compact" hide-details clearable/>
@@ -1446,7 +1450,7 @@ defineExpose({ refresh, refreshAction })
               没有匹配的在线设备，请调整搜索条件。
             </v-alert>
           </template>
-          <v-alert v-else-if="wechatDevicesAvailable" type="info" variant="tonal" density="compact">微信推送缓存中暂无在线或待确认的设备。</v-alert>
+          <v-alert v-else-if="wechatDevicesAvailable && !wechatDevicesError" type="info" variant="tonal" density="compact">微信推送缓存中暂无在线或待确认的设备。</v-alert>
         </template>
         <template v-else-if="wechatTab === 'aliases'">
           <div class="d-flex align-center justify-space-between ga-2 mb-2">
@@ -1455,7 +1459,6 @@ defineExpose({ refresh, refreshAction })
           </div>
           <p class="muted-hint mb-3">与 QWRT 原版微信推送共用别名文件。支持 MAC、IPv4 或 IPv6 地址；可在“在线设备”点击铅笔图标快速带入地址。</p>
           <v-progress-linear v-if="wechatAliasesLoading" indeterminate color="primary" class="mb-3"/>
-          <v-alert v-if="wechatAliasesError" type="warning" variant="tonal" density="compact" class="mb-3">{{ wechatAliasesError }}</v-alert>
           <template v-if="wechatAliasesLoaded">
             <v-card variant="outlined" rounded="lg" class="pa-3 mb-3">
               <v-text-field v-model.trim="wechatAliasTarget" label="设备 MAC 或 IP" aria-label="设备 MAC 或 IP"

@@ -220,13 +220,11 @@ jobs:
           retention-days: 30
 
       - name: Publish Material APK release
-        id: publish_release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          CREATED_NEW_RELEASE=false
           if [[ "$GITHUB_REF_NAME" == "main" ]]; then
             TAG="v${APP_VERSION}"
             TITLE="XX-WRT管理器 v${APP_VERSION}"
@@ -260,7 +258,6 @@ jobs:
           elif [[ "$GITHUB_REF_NAME" == "main" ]]; then
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
               --title "$TITLE" --notes-file "$NOTES" --latest --repo "$GITHUB_REPOSITORY"
-            CREATED_NEW_RELEASE=true
           else
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" \
               --title "$TITLE" --notes-file "$NOTES" --prerelease --repo "$GITHUB_REPOSITORY"
@@ -275,9 +272,8 @@ jobs:
               gh release delete-asset "$TAG" "$asset_name" --yes --repo "$GITHUB_REPOSITORY"
             fi
           done < <(gh release view "$TAG" --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY")
-          # Only notify for a newly created stable Release with its signed APK attached.
+          # Confirm the published Release includes the signed canonical APK.
           gh release view "$TAG" --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY" | grep -Fxq "$APP_APK_NAME"
-          echo "created=$CREATED_NEW_RELEASE" >> "$GITHUB_OUTPUT"
 
       # Only main's signed, published APK is eligible for the public mirror.
       # Lucky's built-in "file service" serves this folder.
@@ -345,33 +341,3 @@ jobs:
           # Verify version.json and its advertised APK before deleting anything.
           ssh "${SSH_OPTIONS[@]}" "$DEST" "python3 - '$REMOTE_DIR' 5" < "$GITHUB_WORKSPACE/.github/scripts/prune_mirror_apks.py"
           echo "Aliyun mirror published: v${APP_VERSION}; retaining newest five APKs"
-
-      # Notify once after a new stable Release and its signed APK are published.
-      # The entire webhook URL (including its capability token) must be an Actions secret.
-      - name: Notify new stable Release via Webhook
-        if: github.ref_name == 'main' && steps.publish_release.outputs.created == 'true'
-        shell: bash
-        env:
-          RELEASE_WEBHOOK_URL: ${{ secrets.XXWRT_RELEASE_WEBHOOK_URL }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$RELEASE_WEBHOOK_URL" ]]; then
-            echo "::error::Missing Actions secret XXWRT_RELEASE_WEBHOOK_URL; the Release was published but notification was not sent."
-            exit 1
-          fi
-
-          TAG="v${APP_VERSION}"
-          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
-          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${APP_APK_NAME}"
-          BUILD_URL="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          TITLE="XX-WRT 管理器 ${TAG} 正式版发布成功"
-          CONTENT="$(printf '# XX-WRT 正式版发布成功\n\n- **版本号**：%s\n- **状态**：已签名并发布 APK\n- **发布说明**：[查看 Release](%s)\n- **APK 安装包**：[下载 %s](%s)\n- **构建记录**：[查看 GitHub Actions](%s)\n' "$TAG" "$RELEASE_URL" "$APP_APK_NAME" "$APK_URL" "$BUILD_URL")"
-          PAYLOAD="$(jq -cn --arg title "$TITLE" --arg content "$CONTENT" '{ title: $title, content: $content, type: "markdown" }')"
-
-          # Retry only transient HTTP/network errors; never print the secret URL.
-          curl --fail --silent --show-error --retry 3 --retry-delay 2 \
-            --connect-timeout 10 --max-time 30 \
-            --output /dev/null \
-            --header "Content-Type: application/json" \
-            --data-binary "$PAYLOAD" "$RELEASE_WEBHOOK_URL"
-          echo "Webhook notification delivered for ${TAG}."
