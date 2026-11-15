@@ -1689,7 +1689,8 @@ defineExpose({ refresh, refreshAction })
               <div v-if="rule.family"><span>地址族</span><strong>{{ rule.family }}</strong></div>
             </div>
             <div class="firewall-rule-entry__foot">
-              <v-chip size="small" variant="tonal" :color="rule.enabled ? 'success' : 'secondary'"
+              <v-chip size="small" variant="flat" class="firewall-rule-status-chip"
+                :class="rule.enabled ? 'firewall-rule-status-chip--enabled' : 'firewall-rule-status-chip--disabled'"
                 :aria-label="'规则状态：' + (rule.enabled ? '已启用' : '已停用')">
                 <v-icon start :icon="rule.enabled ? 'mdi-check-circle-outline' : 'mdi-pause-circle-outline'" size="small"/>
                 {{ rule.enabled ? '已启用' : '已停用' }}

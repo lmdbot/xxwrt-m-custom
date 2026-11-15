@@ -465,6 +465,30 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .firewall-rule-entry__fields span{font-size:10px;color:rgb(var(--v-theme-on-surface-variant));line-height:1.25}
 .firewall-rule-entry__fields strong{font-size:12px;line-height:1.35;overflow-wrap:anywhere;word-break:break-word;font-weight:550}
 .firewall-rule-entry__foot{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-height:22px;color:rgb(var(--v-theme-on-surface-variant));font-size:10px;overflow-wrap:anywhere}.firewall-rule-entry__foot .v-chip{flex:none;font-weight:650}
+/* Explicit high-contrast status capsules. These are persistent rule states,
+   not the action/target chips in the rule header. */
+.firewall-rule-status-chip.v-chip{
+  font-size:11px!important;font-weight:750!important;
+  border:1px solid transparent!important;
+  opacity:1!important;
+}
+.firewall-rule-status-chip--enabled.v-chip{
+  background:#d8f4e4!important;color:#155b38!important;
+  border-color:#79bc97!important;
+}
+.firewall-rule-status-chip--disabled.v-chip{
+  background:#fae2e7!important;color:#8d2b41!important;
+  border-color:#d494a4!important;
+}
+.theme-is-dark .firewall-rule-status-chip--enabled.v-chip{
+  background:#204a38!important;color:#c0f6d8!important;
+  border-color:#65c998!important;
+}
+.theme-is-dark .firewall-rule-status-chip--disabled.v-chip{
+  background:#512936!important;color:#ffd6e0!important;
+  border-color:#d57891!important;
+}
+.firewall-rule-status-chip .v-icon{color:inherit!important}
 @media(max-width:380px){
  .firewall-rule-entry{padding:10px}
  .firewall-rule-entry__head{gap:5px}
@@ -497,8 +521,10 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 }
 .firewall-rule-entry__control{display:flex;flex:none;flex-direction:column;align-items:center;gap:1px;min-width:52px}
 .firewall-rule-entry__control .firewall-rule-entry__switch{margin:0!important}
-.firewall-rule-entry__state{font-size:10px;font-weight:650;white-space:nowrap;color:rgb(var(--v-theme-on-surface-variant))}
-.firewall-rule-entry__state.is-enabled{color:rgb(var(--v-theme-success))}
+.firewall-rule-entry__state{font-size:10px;font-weight:700;white-space:nowrap;color:#8d2b41}
+.firewall-rule-entry__state.is-enabled{color:#155b38}
+.theme-is-dark .firewall-rule-entry__state{color:#ffb4c6}
+.theme-is-dark .firewall-rule-entry__state.is-enabled{color:#a4efc8}
 
 /* Two-column physical Ethernet dashboard, optimized for 360px Android viewports. */
 .ethernet-port-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
