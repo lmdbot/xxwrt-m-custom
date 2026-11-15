@@ -506,7 +506,12 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 }
 
 /* WeChatPush online clients: compact responsive device cards. */
-.wechat-tab-toggle .v-btn{min-width:0!important;flex:1 1 0!important;padding-inline:2px!important;font-size:11px!important;letter-spacing:0!important}
+/* English labels can be much wider than Chinese: scroll tabs instead of squeezing/overlapping them. */
+.localized-scroll-tabs{max-width:100%;width:100%;min-width:0}
+.localized-scroll-tabs .v-tab{flex:0 0 auto!important;min-width:max-content!important;padding-inline:12px!important;font-size:12px!important;letter-spacing:0!important;text-transform:none}
+.localized-scroll-tabs .v-btn__content{white-space:nowrap}
+.localized-scroll-tabs .v-slide-group__prev,.localized-scroll-tabs .v-slide-group__next{min-width:28px!important;flex:0 0 28px!important}
+.localized-scroll-tabs .v-slide-group__prev .v-icon,.localized-scroll-tabs .v-slide-group__next .v-icon{font-size:20px}
 .wechat-device-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;min-width:0}
 .wechat-device-card{min-width:0;overflow:hidden;border-radius:13px;border:1px solid rgba(125,142,163,.20);background:rgba(125,142,163,.04);padding:12px 13px}
 .wechat-device-card__top{display:flex;align-items:flex-start;gap:8px;justify-content:space-between;min-width:0}
