@@ -197,7 +197,11 @@ export async function saveTerminalStaticIP(client, device, settings, input) {
   assertDedicatedHost(current, mac)
   const enabled = Boolean(input.enabled)
   const ip = String(input.ip || '').trim()
-  const name = String(input.name || device.displayName || '').trim().slice(0, 63)
+  const rawName = String(input.name || '').trim()
+  const name = rawName || 'client-' + mac.replace(/:/g, '').slice(-6).toLowerCase()
+  if (enabled && !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(name)) {
+    throw new Error('DHCP 主机名只能包含英文、数字和连字符，且长度不超过 63 个字符')
+  }
   if (enabled) assertUsableIP(ip, device.ip, settings)
   if (current && !SECTION_RE.test(current.id)) throw new Error('静态租约节名无效')
   if (!enabled && !current) return { applied: true, message: '当前终端未设置静态 IP' }
@@ -246,7 +250,7 @@ export async function saveTerminalRateLimit(client, device, settings, input) {
     if (conflicting) throw new Error('该 IP 的限速规则绑定了其他 MAC，请先清理冲突')
   }
   // Quick editing must not destroy schedule, blocking or quota configuration.
-  const simpleKeys = new Set(['.name', '.type', '.index', 'ip', 'ipaddr',
+  const simpleKeys = new Set(['id', '.name', '.type', '.index', 'ip', 'ipaddr',
     'target', 'mac', 'download', 'upload', 'enable', 'comment', 'hostname', 'rate', 'unit'])
   if (oldRules.some(row => Object.keys(row).some(key => !simpleKeys.has(key)))) {
     throw new Error('当前终端已有带时段/配额等高级规则，请使用路由器 Web 页面编辑，避免覆盖')
