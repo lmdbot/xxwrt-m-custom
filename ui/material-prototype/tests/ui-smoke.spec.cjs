@@ -840,6 +840,43 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' })).toContainText('目标端口')
   await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' })).toContainText('68')
   await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Block-Guest-IoT' })).toContainText('已停用')
+  await expect(page.getByLabel('规则状态：已启用')).toHaveClass(/firewall-rule-status-chip--enabled/)
+  await expect(page.getByLabel('规则状态：已停用')).toHaveClass(/firewall-rule-status-chip--disabled/)
+  // Verify the status capsules' *actual computed* foreground/background contrast
+  // in both modes; disabled must be visually distinct, not a pale tonal twin.
+  const statusContrast = await page.evaluate(() => {
+    const root = document.querySelector('.material-demo')
+    const original = root.classList.contains('theme-is-dark')
+    const parseRgb = value => [...value.matchAll(/[\\d.]+/g)].slice(0, 3).map(x => +x[0])
+    const luminance = rgb => rgb.map(v => {
+      const value = v / 255
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+    }).reduce((sum, value, i) => sum + value * [0.2126, 0.7152, 0.0722][i], 0)
+    const contrast = (a, b) => {
+      const left = luminance(a), right = luminance(b)
+      return (Math.max(left, right) + .05) / (Math.min(left, right) + .05)
+    }
+    try {
+      return [false, true].map(dark => {
+        root.classList.toggle('theme-is-dark', dark)
+        const samples = ['enabled', 'disabled'].map(state => {
+          const chip = document.querySelector('.firewall-rule-status-chip--' + state)
+          const style = getComputedStyle(chip)
+          return { state, ratio: contrast(parseRgb(style.color), parseRgb(style.backgroundColor)),
+            background: style.backgroundColor }
+        })
+        return { dark, samples }
+      })
+    } finally {
+      root.classList.toggle('theme-is-dark', original)
+    }
+  })
+  for (const theme of statusContrast) {
+    for (const chip of theme.samples) {
+      expect(chip.ratio, `contrast ${chip.state} dark=${theme.dark}`).toBeGreaterThanOrEqual(4.5)
+    }
+    expect(theme.samples[0].background).not.toBe(theme.samples[1].background)
+  }
   await page.getByRole('button', { name: /已停用规则 1/ }).click()
   await expect(page.locator('.firewall-rule-entry')).toHaveCount(1)
   await expect(page.getByText('Block-Guest-IoT')).toBeVisible()
@@ -853,6 +890,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '确认应用' }).click()
   await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' })).toContainText('已停用')
   await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' }).getByLabel('规则状态：已停用')).toBeVisible()
+  await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' }).getByLabel('规则状态：已停用')).toHaveClass(/firewall-rule-status-chip--disabled/)
   expect(firewallRuleEnabled).toBe('0')
   await expect(page.getByText('已启用 0', { exact: false }).first()).toBeVisible()
   // Defer each list's first RPC: no empty states or zero-count cards before data loads.
