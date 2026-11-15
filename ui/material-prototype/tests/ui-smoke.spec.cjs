@@ -143,7 +143,7 @@ const dataFor = (object, method, params = {}) => {
     const control = (name, version, size, description) => [
       'Package: ' + name, 'Version: ' + version, 'Size: ' + size,
       'Description: ' + description, ''
-    ].join('\n')
+    ].join('\n') + '\n'
     if (action === 'list-installed') return { code: 0, stdout:
       control('busybox', '1.35.0-1', 40000, 'Busybox') +
       '\n' + control('luci-app-demo', '1.0-1', 1200, 'Demo') }
