@@ -2,6 +2,11 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
 import { formatWechatOnlineTime } from '../services/wechatOnlineTime.js'
+import {
+  WECHAT_DEVICE_ALIASES_PATH, canonicalAliasTarget, normalizeAliasText,
+  readDeviceAliasEntries, findDeviceAlias, putDeviceAlias,
+  deleteDeviceAlias, validateDeviceAliasText
+} from '../services/wechatDeviceAliases.js'
 import { CapacitorHttp } from '@capacitor/core'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
@@ -63,6 +68,16 @@ const wechatDiyOriginal = ref('')
 const wechatDiyError = ref('')
 const wechatDiyLoaded = ref(false)
 const wechatDiyDirty = computed(() => wechatDiyLoaded.value && wechatDiy.value !== wechatDiyOriginal.value)
+const wechatAliasesText = ref('')
+const wechatAliasesOriginal = ref('')
+const wechatAliasesLoaded = ref(false)
+const wechatAliasesLoading = ref(false)
+const wechatAliasesError = ref('')
+const wechatAliasTarget = ref('')
+const wechatAliasName = ref('')
+const wechatAliasesDirty = computed(() => wechatAliasesLoaded.value &&
+  wechatAliasesText.value !== wechatAliasesOriginal.value)
+const wechatAliasEntries = computed(() => readDeviceAliasEntries(wechatAliasesText.value))
 const wechatForm = reactive({
   enable: '0', jsonpath: '', sleeptime: '60', device_name: '', debuglevel: '0',
   reset_regularly: '0', prefer_client_page: '1', passive_mode: '0',
@@ -511,6 +526,7 @@ async function loadWechat() {
   }
   for (const key of Object.keys(wechatMulti)) wechatMulti[key] = multiValues(o[key])
   if (wechatTab.value === 'online') await loadWechatDevices()
+  if (wechatTab.value === 'aliases' && !wechatAliasesDirty.value) await loadWechatAliases()
   if (wechatForm.jsonpath === DIY_FILE && !wechatDiyDirty.value) await loadWechatDiy()
 }
 async function loadWechatDevices() {
@@ -537,6 +553,75 @@ async function loadWechatDevices() {
     wechatDevices.value = []
     wechatDevicesError.value = '微信推送设备缓存不是有效的 devices.json 格式'
   }
+}
+
+async function loadWechatAliases() {
+  if (wechatAliasesLoading.value || wechatAliasesDirty.value) return
+  wechatAliasesLoading.value = true
+  wechatAliasesError.value = ''
+  try {
+    const result = await props.client.call('file', 'read', { path: WECHAT_DEVICE_ALIASES_PATH }, true)
+    if (typeof result?.data !== 'string') {
+      wechatAliasesLoaded.value = false
+      wechatAliasesError.value = '无法读取设备别名文件，请检查微信推送插件和 QWRT 文件读取权限。'
+      return
+    }
+    wechatAliasesText.value = normalizeAliasText(result.data)
+    wechatAliasesOriginal.value = wechatAliasesText.value
+    wechatAliasesLoaded.value = true
+  } catch (e) {
+    wechatAliasesLoaded.value = false
+    wechatAliasesError.value = shortError(e)
+  } finally { wechatAliasesLoading.value = false }
+}
+function editWechatAlias(entry) {
+  wechatAliasTarget.value = entry.target
+  wechatAliasName.value = entry.alias
+  wechatAliasesError.value = ''
+}
+function stageWechatAlias() {
+  if (!wechatAliasesLoaded.value) return
+  wechatAliasesError.value = ''
+  try {
+    wechatAliasesText.value = putDeviceAlias(wechatAliasesText.value, wechatAliasTarget.value, wechatAliasName.value)
+    wechatAliasTarget.value = ''
+    wechatAliasName.value = ''
+    notice.value = '别名已加入待保存列表，请点击“保存设备别名”写入路由器。'
+  } catch (e) { wechatAliasesError.value = shortError(e) }
+}
+function removeWechatAlias(entry) {
+  if (!wechatAliasesLoaded.value) return
+  wechatAliasesText.value = deleteDeviceAlias(wechatAliasesText.value, entry.target)
+  wechatAliasesError.value = ''
+  notice.value = '已从待保存列表移除，点击“保存设备别名”后生效。'
+}
+function discardWechatAliases() {
+  wechatAliasesText.value = wechatAliasesOriginal.value
+  wechatAliasesError.value = ''
+}
+async function openWechatAliasFromDevice(item) {
+  const target = canonicalAliasTarget(item.mac) || canonicalAliasTarget(item.ip)
+  if (!target) return
+  if (!wechatAliasesLoaded.value) await loadWechatAliases()
+  wechatTab.value = 'aliases'
+  if (!wechatAliasesLoaded.value) return
+  wechatAliasTarget.value = target
+  wechatAliasName.value = findDeviceAlias(wechatAliasesText.value, target)
+}
+async function saveWechatAliases() {
+  if (!wechatAliasesLoaded.value || !wechatAliasesDirty.value) return
+  await run(async () => {
+    const content = validateDeviceAliasText(wechatAliasesText.value)
+    const latest = await props.client.call('file', 'read', { path: WECHAT_DEVICE_ALIASES_PATH }, true)
+    if (typeof latest?.data !== 'string') throw new Error('无法核验设备别名原文件，已取消保存')
+    if (normalizeAliasText(latest.data) !== wechatAliasesOriginal.value) {
+      throw new Error('设备别名已在其他页面修改，请核对后重新读取，避免覆盖')
+    }
+    await props.client.call('file', 'write', { path: WECHAT_DEVICE_ALIASES_PATH, data: content })
+    wechatAliasesText.value = content
+    wechatAliasesOriginal.value = content
+    wechatAliasesError.value = ''
+  }, '设备别名已写入微信推送插件，无需重启服务', false)
 }
 async function loadWechatDiy() {
   wechatDiyError.value = ''
@@ -601,6 +686,7 @@ async function testWechat() {
 watch(wechatTab, next => {
   if (props.kind !== 'wechatpush') return
   if (next === 'online') void loadWechatDevices().catch(e => { wechatDevicesError.value = shortError(e) })
+  if (next === 'aliases' && !wechatAliasesLoaded.value) void loadWechatAliases()
   if (next === 'settings' && wechatForm.jsonpath === DIY_FILE && !wechatDiyLoaded.value) {
     void loadWechatDiy().catch(e => { wechatDiyError.value = shortError(e) })
   }
@@ -1210,10 +1296,11 @@ defineExpose({ refresh, refreshAction })
       <v-alert v-if="!wechat.available" type="warning" variant="tonal">未检测到 /etc/config/wechatpush，请先安装 luci-app-wechatpush。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(wechat.service) }}</strong></div><div><span>推送功能</span><strong>{{ wechatForm.enable === '1' ? '已启用' : '未启用' }}</strong></div></div>
-        <v-btn-toggle v-model="wechatTab" mandatory variant="outlined" color="primary" class="d-flex mt-3 mb-4" style="width:100%" density="comfortable">
+        <v-btn-toggle v-model="wechatTab" mandatory variant="outlined" color="primary" class="wechat-tab-toggle d-flex mt-3 mb-4" style="width:100%" density="comfortable">
           <v-btn value="settings" class="flex-grow-1">基本配置</v-btn>
           <v-btn value="content" class="flex-grow-1">推送内容</v-btn>
           <v-btn value="online" class="flex-grow-1">在线设备</v-btn>
+          <v-btn value="aliases" class="flex-grow-1">设备别名</v-btn>
           <v-btn value="advanced" class="flex-grow-1">高级</v-btn>
         </v-btn-toggle>
         <template v-if="wechatTab === 'settings'">
@@ -1278,10 +1365,16 @@ defineExpose({ refresh, refreshAction })
                     <span v-if="item.uptime">在线 {{ formatWechatOnlineTime(item.uptime) }}</span>
                   </div>
                 </div>
-                <v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'secondary'"
-                  variant="tonal" class="app-compact-status">
-                  {{ item.status === 'online' ? '在线' : '待确认' }}
-                </v-chip>
+                <div class="d-flex align-center ga-1 flex-shrink-0">
+                  <v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'secondary'"
+                    variant="tonal" class="app-compact-status">
+                    {{ item.status === 'online' ? '在线' : '待确认' }}
+                  </v-chip>
+                  <v-btn icon="mdi-pencil-outline" variant="text" color="primary" size="x-small"
+                    :disabled="!canonicalAliasTarget(item.mac) && !canonicalAliasTarget(item.ip)"
+                    :aria-label="'设置设备别名：' + (item.name || item.mac)"
+                    @click="openWechatAliasFromDevice(item)"/>
+                </div>
               </div>
             </div>
             <v-alert v-else type="info" variant="tonal" density="compact">
@@ -1289,6 +1382,58 @@ defineExpose({ refresh, refreshAction })
             </v-alert>
           </template>
           <v-alert v-else-if="wechatDevicesAvailable" type="info" variant="tonal" density="compact">微信推送缓存中暂无在线或待确认的设备。</v-alert>
+        </template>
+        <template v-else-if="wechatTab === 'aliases'">
+          <div class="d-flex align-center justify-space-between ga-2 mb-2">
+            <h3 class="router-app-section-title">设备别名管理</h3>
+            <v-chip v-if="wechatAliasesDirty" size="small" variant="tonal" color="warning">尚未保存</v-chip>
+          </div>
+          <p class="muted-hint mb-3">与 QWRT 原版微信推送共用别名文件。支持 MAC、IPv4 或 IPv6 地址；可在“在线设备”点击铅笔图标快速带入地址。</p>
+          <v-progress-linear v-if="wechatAliasesLoading" indeterminate color="primary" class="mb-3"/>
+          <v-alert v-if="wechatAliasesError" type="warning" variant="tonal" density="compact" class="mb-3">{{ wechatAliasesError }}</v-alert>
+          <template v-if="wechatAliasesLoaded">
+            <v-card variant="outlined" rounded="lg" class="pa-3 mb-3">
+              <v-text-field v-model.trim="wechatAliasTarget" label="设备 MAC 或 IP" aria-label="设备 MAC 或 IP"
+                placeholder="AA:BB:CC:DD:EE:FF 或 192.168.100.10" density="comfortable" variant="outlined"/>
+              <v-text-field v-model="wechatAliasName" label="设备别名" aria-label="设备别名"
+                placeholder="例如：客厅电视" density="comfortable" variant="outlined"/>
+              <v-btn color="primary" variant="tonal" :disabled="busy" prepend-icon="mdi-plus"
+                @click="stageWechatAlias">添加 / 更新到待保存列表</v-btn>
+            </v-card>
+            <div class="d-flex align-center justify-space-between mb-2">
+              <strong>现有别名（{{ wechatAliasEntries.length }}）</strong>
+              <span class="muted-hint">编辑或删除后需要保存</span>
+            </div>
+            <div v-if="wechatAliasEntries.length" class="app-compact-table mb-3" role="list" aria-label="已配置的微信推送设备别名">
+              <div v-for="entry in wechatAliasEntries" :key="entry.line" class="app-compact-row" role="listitem">
+                <div class="app-compact-body">
+                  <div class="app-compact-name">{{ entry.alias }}</div>
+                  <div class="app-compact-sub">{{ entry.target }}</div>
+                </div>
+                <div class="d-flex align-center ga-1 flex-shrink-0">
+                  <v-btn icon="mdi-pencil-outline" variant="text" size="small" color="primary"
+                    :aria-label="'编辑设备别名：' + entry.alias" @click="editWechatAlias(entry)"/>
+                  <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error"
+                    :aria-label="'删除设备别名：' + entry.alias" @click="removeWechatAlias(entry)"/>
+                </div>
+              </div>
+            </div>
+            <v-alert v-else type="info" variant="tonal" density="compact" class="mb-3">尚未设置设备别名，可以在上方添加。</v-alert>
+            <h3 class="router-app-section-title mb-2">批量编辑</h3>
+            <p class="muted-hint mb-2">每行一条：MAC/IP 空格 别名。以 # 开头的备注行会保留；此处支持一次性粘贴多条。</p>
+            <v-textarea v-model="wechatAliasesText" label="设备别名文件内容" aria-label="设备别名文件内容"
+              variant="outlined" rows="5" spellcheck="false" class="wechat-json-editor"/>
+            <div class="d-flex flex-wrap ga-2 mt-2">
+              <v-btn color="primary" :disabled="busy || !wechatAliasesDirty" prepend-icon="mdi-content-save-outline"
+                @click="saveWechatAliases">保存设备别名</v-btn>
+              <v-btn variant="outlined" :disabled="busy || !wechatAliasesDirty" @click="discardWechatAliases">撤销未保存修改</v-btn>
+              <v-btn variant="text" :disabled="busy || wechatAliasesDirty || wechatAliasesLoading"
+                @click="loadWechatAliases">重新读取</v-btn>
+            </div>
+            <p class="muted-hint mt-2">只写入微信推送插件的 device_aliases.list，不修改 DHCP 主机名或其他配置。</p>
+          </template>
+          <v-btn v-else-if="!wechatAliasesLoading" color="primary" variant="tonal" class="mt-2"
+            @click="loadWechatAliases">重试读取设备别名</v-btn>
         </template>
         <template v-else-if="wechatTab === 'advanced'">
           <h3 class="router-app-section-title">设备探测</h3>

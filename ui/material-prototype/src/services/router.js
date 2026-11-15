@@ -1,4 +1,5 @@
 import { macFromDuid, normalizeMac } from './deviceIdentity.js'
+import { formatRouterUptime } from './routerUptime.js'
 import { extractLuciCookie, describeLuciHttpFailure, isSsrUpgradeEndpoint, ssrLuciReadTimeout } from './luciHttp.js'
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 
@@ -320,10 +321,7 @@ export function parseDashboard(results) {
     name: NAMES[String(item.instance || '').toLowerCase()] || String(item.instance || '监测 ' + (index + 1)),
     state: Number(item.inet) === 0 ? 'up' : Number(item.inet) === -1 ? 'pending' : 'down'
   }))
-  const uptimeSeconds = Number(info?.uptime) || 0
-  const days = Math.floor(uptimeSeconds / 86400)
-  const hours = Math.floor((uptimeSeconds % 86400) / 3600)
-  const minutes = Math.floor((uptimeSeconds % 3600) / 60)
+  const uptimeSeconds = info?.uptime
   const load = Array.isArray(info?.load) ? info.load.slice(0, 3).map(v => (Number(v) / 65536).toFixed(2)).join(' ') : '--'
   const temp = [temperature, telemetry, thermal].map(v => parseTemperature(v)).find(Boolean)
   const ipv4 = item => item?.['ipv4-address']?.[0]?.address || '--'
@@ -338,7 +336,7 @@ export function parseDashboard(results) {
       kernel: board?.kernel || '--'
     },
     temperature: temp || '--',
-    uptime: days + 'd ' + hours + 'h ' + minutes + 'm',
+    uptime: formatRouterUptime(uptimeSeconds),
     localtime: info?.localtime ? new Date(info.localtime * 1000).toLocaleString('zh-CN', { hour12: false }) : '--',
     cpuPercent: cpuMatch ? Number(cpuMatch[1]) : null,
     load,
