@@ -443,7 +443,7 @@ test('device list supports left-edge swipe to open settings drawer without a log
 
   // A modal (adding a router) must take precedence over the drawer gesture.
   await page.getByRole('button', { name: '添加', exact: true }).click()
-  await expect(page.getByText('添加 OpenWrt 设备')).toBeVisible()
+  await expect(page.getByRole('dialog').getByText('添加 OpenWrt 设备', { exact: true })).toBeVisible()
   await swipeDrawerGesture(page, 24, 260, 172, 265)
   await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
   await page.getByRole('button', { name: '取消', exact: true }).click()
