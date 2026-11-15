@@ -21,7 +21,7 @@ const appGroups = {
 }
 
 async function openApplication(page, name) {
-  const button = page.getByRole('button', { name: '打开' + name, exact: true })
+  const button = page.getByRole('button', { name: '打开' + name, exact: true }).first()
   if (!(await button.isVisible())) {
     await page.getByRole('button', { name: '展开' + appGroups[name], exact: true }).click()
   }
@@ -923,7 +923,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '上移ShadowSocksR Plus+' }).click()
   await page.getByRole('button', { name: '完成', exact: true }).click()
   await expect(page.locator('.app-favorite-tile')).toHaveCount(6)
-  await expect(page.getByRole('button', { name: '打开ShadowSocksR Plus+' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部应用' }).click()
   await expect(page.locator('.app-tool-row')).toHaveCount(16)
