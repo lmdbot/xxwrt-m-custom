@@ -344,7 +344,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('button', { name: '打开显示设置' })).toBeVisible()
   await expect(page.getByRole('button', { name: '打开隐私设置' })).toBeVisible()
   await expect(page.locator('.sidebar-brand small')).toHaveText('路由器管理')
-  await expect(page.locator('.sidebar-footer')).toContainText('QWRT · OpenWrt 移动管理')
+  await expect(page.locator('.sidebar-footer')).toHaveCount(0)
   await expect(page.getByText('语言设置', { exact: true })).toHaveCount(0)
   await page.getByRole('button', { name: '打开路由器设置' }).click()
   await expect(page.getByRole('heading', { name: '路由器', level: 1 })).toBeVisible()

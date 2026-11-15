@@ -1331,10 +1331,6 @@ onUnmounted(() => {
           <v-icon icon="mdi-chevron-right" size="22" color="secondary"/>
         </v-card>
       </div>
-      <div class="sidebar-footer">
-        <v-divider class="mb-3"/>
-        <span>QWRT · OpenWrt 移动管理</span>
-      </div>
     </v-navigation-drawer>
 
     <v-main

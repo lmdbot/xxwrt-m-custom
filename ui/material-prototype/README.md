@@ -6,7 +6,7 @@
 
 - Material 包名：`com.lmdbot.xxwrt.materialpreview`
 - Material 应用名称：`XX-WRT管理器`
-- 版本：`2.0.5`（Android versionCode 从版本号生成，保持单调递增）
+- 版本：`2.0.8`（Android versionCode 从版本号生成，保持单调递增）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
 - 保留 Material 分支的应用信息与 Capacitor 构建流程，启动器图标使用已选中的路由器＋盾牌设计并适配安全边距。
 - 正式 APK 使用 `XX-WRT-Material-vx.x.x.apk` 命名，构建版本自动取自 `package.json`。
