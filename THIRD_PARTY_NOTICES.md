@@ -8,6 +8,7 @@
 
 | 组件 | 版本 | License / 权利说明 | 上游 |
 | --- | --- | --- | --- |
+| `opencc-js` | 1.4.2 | MIT AND Apache-2.0（浏览器端简繁转换及内置词典） | [来源](https://github.com/nk2028/opencc-js) |
 | `vue` | 3.5.22 | MIT | [来源](https://github.com/vuejs/core/blob/main/packages/vue/LICENSE) |
 | `vuetify` | 3.13.7 | MIT | [来源](https://github.com/vuetifyjs/vuetify/blob/master/packages/vuetify/LICENSE.md) |
 | `@mdi/font` | 7.4.47 | Apache-2.0（字体/图标；代码 MIT） | [来源](https://github.com/Templarian/MaterialDesign/blob/master/LICENSE) |
