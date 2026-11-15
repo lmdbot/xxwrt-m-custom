@@ -538,7 +538,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
   await expect(page.getByText('应用管理')).toBeVisible()
-  await expect(page.locator('.app-launcher-tile')).toHaveCount(14)
+  await expect(page.locator('.app-launcher-tile')).toHaveCount(15)
+  await expect(page.getByRole('button', { name: '打开Lucky' })).toBeVisible()
   await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   // Tapping the already selected Apps tab returns from a nested app page.
