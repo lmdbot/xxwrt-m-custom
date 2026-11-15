@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 SPEC = importlib.util.spec_from_file_location("patch_android_updater", HERE / "patch_android_updater.py")
@@ -58,6 +59,12 @@ class NativeUpdaterPatchTests(unittest.TestCase):
         self.assertNotIn('android:grantUriPermissions="true"', xml)
         self.assertNotIn("fileprovider", xml)
         self.assertIn("android.permission.INTERNET", xml)
+        root = ET.fromstring(xml)
+        receivers = root.findall(".//receiver")
+        self.assertEqual(len(receivers), 1)
+        self.assertEqual(receivers[0].attrib[
+            "{http://schemas.android.com/apk/res/android}name"
+        ], ".ApkInstallStatusReceiver")
 
     def test_refuses_duplicate_patch(self):
         MODULE.patch(self.android)
