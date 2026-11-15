@@ -154,16 +154,86 @@ const updateError = ref('')
 const updateNotice = ref('')
 const updateDialog = ref(false)
 const openSourceDialog = ref(false)
+const downloadBusy = ref(false)
+const downloadPercent = ref(0)
+const downloadBytes = ref(0)
+const downloadTotal = ref(0)
+const downloadedApkReady = ref(false)
+const installPermissionPending = ref(false)
+let nativeApkProgressSubscription = null
+let nativeApkProgressPromise = null
 const updateAvailable = computed(() => !!latestRelease.value
   && compareAppVersions(latestRelease.value.version, installedVersion.value) > 0)
+const downloadProgressText = computed(() => {
+  const mb = bytes => (Number(bytes || 0) / (1024 * 1024)).toFixed(1)
+  return mb(downloadBytes.value) + ' / ' + mb(downloadTotal.value) + ' MB'
+})
+
+function listenNativeApkProgress() {
+  if (!nativeApkProgressPromise) {
+    nativeApkProgressPromise = ApkDownloader.addListener('downloadProgress', progress => {
+      if (!downloadBusy.value) return
+      downloadBytes.value = Number(progress.receivedBytes || 0)
+      downloadTotal.value = Number(progress.totalBytes || 0)
+      downloadPercent.value = Math.max(0, Math.min(100, Number(progress.percent || 0)))
+    }).then(listener => { nativeApkProgressSubscription = listener })
+      .catch(error => { nativeApkProgressPromise = null; throw error })
+  }
+  return nativeApkProgressPromise
+}
+
+function handleInstallLaunch(result) {
+  downloadedApkReady.value = true
+  installPermissionPending.value = result?.status === 'permissionRequired'
+  if (installPermissionPending.value) {
+    updateNotice.value = '已下载并校验 APK，请允许此 APP 安装应用；返回后将打开安装确认界面。'
+  } else if (result?.status === 'installerOpened') {
+    updateNotice.value = 'APK 已校验，已打开 Android 安装确认界面，请确认安装。'
+  } else {
+    updateError.value = 'Android 安装服务没有返回预期状态'
+  }
+}
+
+async function installDownloadedApk() {
+  if (!isNative || !downloadedApkReady.value || downloadBusy.value) return
+  updateError.value = ''
+  try {
+    handleInstallLaunch(await ApkDownloader.installDownloaded())
+  } catch (error) {
+    updateError.value = '无法打开安装界面：' + shortError(error)
+  }
+}
+
+async function continueInstallAfterPermission() {
+  if (!installPermissionPending.value || !downloadedApkReady.value || downloadBusy.value) return
+  installPermissionPending.value = false
+  try {
+    const permission = await ApkDownloader.checkInstallPermission()
+    if (permission?.granted) await installDownloadedApk()
+    else updateNotice.value = '尚未允许 APP 安装更新包，可点击“重新打开安装”再次授权。'
+  } catch (error) {
+    updateError.value = '安装权限检查失败：' + shortError(error)
+  }
+}
+
+async function cancelApkDownload() {
+  if (!downloadBusy.value || !isNative) return
+  try { await ApkDownloader.cancel() }
+  catch (error) { updateError.value = '无法取消下载：' + shortError(error) }
+}
 
 async function checkAppUpdates({ automatic = false } = {}) {
-  if (updateChecking.value) return
+  if (updateChecking.value || downloadBusy.value) return
   updateChecking.value = true
   updateError.value = ''
   updateNotice.value = ''
   try {
-    latestRelease.value = await fetchLatestStableRelease()
+    const next = await fetchLatestStableRelease()
+    if (latestRelease.value?.tag !== next?.tag) {
+      downloadedApkReady.value = false
+      installPermissionPending.value = false
+    }
+    latestRelease.value = next
     updateChecked.value = true
     if (automatic && isNative && updateAvailable.value && latestRelease.value.apkUrl) {
       const key = 'xxwrt_material_update_prompted_v1'
@@ -182,26 +252,36 @@ async function checkAppUpdates({ automatic = false } = {}) {
 
 async function downloadLatestApk() {
   const release = latestRelease.value
-  if (!release?.apkUrl || !updateAvailable.value) return
+  if (!release?.apkUrl || !updateAvailable.value || downloadBusy.value) return
   updateError.value = ''
-  try {
-    if (isNative) {
-      await ApkDownloader.download({ url: release.apkUrl, filename: release.apkName })
-      updateNotice.value = '已添加到系统下载任务，请在通知栏或“下载”中查看。'
-    } else {
-      await Browser.open({ url: release.apkUrl, windowName: '_blank' })
-      updateNotice.value = '已打开 APK 下载地址，请在浏览器中查看下载状态。'
-    }
-    updateDialog.value = false
-  } catch (error) {
+  updateNotice.value = ''
+  if (!isNative) {
     try {
       await Browser.open({ url: release.apkUrl, windowName: '_blank' })
-      updateNotice.value = '系统下载不可用，已在浏览器中打开 APK 下载地址。'
+      updateNotice.value = '已打开 APK 下载地址，请在浏览器中查看下载状态。'
       updateDialog.value = false
-    } catch (_) {
-      updateError.value = '无法启动下载：' + shortError(error)
-    }
+    } catch (error) { updateError.value = '无法打开下载地址：' + shortError(error) }
+    return
   }
+  downloadBusy.value = true
+  downloadedApkReady.value = false
+  installPermissionPending.value = false
+  downloadBytes.value = 0
+  downloadTotal.value = release.apkSize || 0
+  downloadPercent.value = 0
+  try {
+    await listenNativeApkProgress()
+    const result = await ApkDownloader.download({
+      url: release.apkUrl, filename: release.apkName,
+      apkSize: release.apkSize, sha256: release.sha256 || null
+    })
+    handleInstallLaunch(result)
+    updateDialog.value = false
+  } catch (error) {
+    const message = shortError(error)
+    if (/下载已取消|cancel/i.test(message)) updateNotice.value = '已取消 APK 下载'
+    else updateError.value = 'APP 内下载或安装失败：' + message
+  } finally { downloadBusy.value = false }
 }
 
 function syncNativeChrome(isDark) {
@@ -1442,7 +1522,10 @@ onMounted(() => {
   if (isNative) {
     // Android can reapply its system-bar appearance after returning from a
     // settings page or another app, so restore both contrast and background.
-    void CapacitorApp.addListener('resume', () => syncNativeChrome(dark.value))
+    void CapacitorApp.addListener('resume', () => {
+      syncNativeChrome(dark.value)
+      void continueInstallAfterPermission()
+    })
       .then(listener => { nativeResumeSubscription = listener })
       .catch(e => console.warn('Android resume listener unavailable', e))
     void CapacitorApp.addListener('backButton', () => {
@@ -1474,6 +1557,7 @@ onUnmounted(() => {
   localizationController?.dispose()
   if (nativeBackSubscription) void nativeBackSubscription.remove()
   if (nativeResumeSubscription) void nativeResumeSubscription.remove()
+  if (nativeApkProgressSubscription) void nativeApkProgressSubscription.remove()
   if (import.meta.env.DEV) {
     delete window.__xxwrtTestBack
     delete window.__xxwrtTestRefreshDevices
@@ -1680,9 +1764,20 @@ onUnmounted(() => {
                 <v-alert v-if="!updateError && updateAvailable && latestRelease?.apkUrl" type="success" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，可下载正式版 APK。</v-alert>
                 <v-alert v-else-if="!updateError && updateAvailable" type="warning" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，但此 Release 暂无匹配的 Material APK。</v-alert>
                 <v-alert v-else-if="!updateError && updateChecked" type="info" variant="tonal" density="compact" class="mb-3">{{ latestRelease ? '当前已是最新版' : '暂未找到有效的正式 Release' }}</v-alert>
+                <div v-if="downloadBusy" class="mt-3 mb-2" role="status">
+                  <div class="d-flex justify-space-between mb-2">
+                    <span>正在下载并校验更新包</span><strong>{{ downloadPercent }}%</strong>
+                  </div>
+                  <v-progress-linear :model-value="downloadPercent" height="9" rounded color="primary"/>
+                  <p class="text-caption text-medium-emphasis mt-2">{{ downloadProgressText }}</p>
+                </div>
                 <div class="settings-actions">
-                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" :loading="updateChecking" @click="checkAppUpdates">检查更新</v-btn>
-                  <v-btn v-if="updateAvailable && latestRelease?.apkUrl" color="primary" prepend-icon="mdi-download" @click="downloadLatestApk">下载最新 APK</v-btn>
+                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" :loading="updateChecking" :disabled="downloadBusy" @click="checkAppUpdates">检查更新</v-btn>
+                  <v-btn v-if="updateAvailable && latestRelease?.apkUrl" color="primary" prepend-icon="mdi-download"
+                    :disabled="downloadBusy" @click="downloadLatestApk">{{ isNative ? '下载并安装' : '下载最新 APK' }}</v-btn>
+                  <v-btn v-if="downloadBusy && isNative" variant="outlined" color="warning" @click="cancelApkDownload">取消下载</v-btn>
+                  <v-btn v-if="downloadedApkReady && isNative && !downloadBusy" variant="outlined"
+                    prepend-icon="mdi-package-up" @click="installDownloadedApk">重新打开安装</v-btn>
                   <v-btn variant="outlined" prepend-icon="mdi-open-in-new" @click="showReleasePage">发布记录</v-btn>
                 </div>
               </v-card>
@@ -2480,17 +2575,24 @@ onUnmounted(() => {
         <v-card-actions><v-spacer/><v-btn variant="text" @click="confirmReboot = false">取消</v-btn><v-btn color="error" :loading="actionBusy" @click="rebootRouter">确认重启</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="updateDialog" max-width="420">
+    <v-dialog v-model="updateDialog" max-width="420" :persistent="downloadBusy">
       <v-card rounded="xl">
         <v-card-title class="d-flex align-center ga-2"><v-icon icon="mdi-update" color="primary"/>发现应用新版本</v-card-title>
         <v-card-text v-if="latestRelease">
           当前版本 v{{ installedVersion }}，正式版已更新至 v{{ latestRelease.version }}。
-          <p class="mt-3">APK 下载后可从系统“下载”目录打开安装。不会自动安装。</p>
+          <p class="mt-3">在 APP 内下载并校验 APK，完成后自动打开 Android 系统安装确认界面。</p>
+          <div v-if="downloadBusy" class="mt-4" role="status">
+            <div class="d-flex justify-space-between mb-2"><span>正在下载</span><strong>{{ downloadPercent }}%</strong></div>
+            <v-progress-linear :model-value="downloadPercent" height="9" rounded color="primary"/>
+            <p class="text-caption text-medium-emphasis mt-2">{{ downloadProgressText }}</p>
+          </div>
         </v-card-text>
         <v-card-actions>
           <v-spacer/>
-          <v-btn variant="text" @click="updateDialog = false">暂不更新</v-btn>
-          <v-btn color="primary" prepend-icon="mdi-download" @click="downloadLatestApk">下载最新 APK</v-btn>
+          <v-btn v-if="downloadBusy" variant="text" color="warning" @click="cancelApkDownload">取消下载</v-btn>
+          <v-btn v-else variant="text" @click="updateDialog = false">暂不更新</v-btn>
+          <v-btn color="primary" prepend-icon="mdi-download" :disabled="downloadBusy"
+            @click="downloadLatestApk">{{ isNative ? '下载并安装' : '下载最新 APK' }}</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

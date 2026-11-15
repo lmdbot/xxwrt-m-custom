@@ -102,7 +102,7 @@ curl -I "https://update.12130812.xyz/XX-WRT-Material-v2.0.21.apk"
 
 返回的 JSON 含 `schemaVersion`、`version`、`tag`、`apkName`、`apkUrl`、`apkSize`、`sha256`、`releaseUrl` 和 `githubApkUrl`。
 
-注意：`sha256` 用于公布安装包校验值；目前 APP 原生下载器由 Android 系统下载服务接管，**未在客户端实现自动 SHA-256 校验**。Android 安装时仍由操作系统验证 APK 签名。后续若要强制下载哈希校验，需要扩展原生下载模块。
+从 v2.0.23 起，Android APP 使用自有原生下载插件将 APK 流式写入应用私有缓存，并在下载后验证文件大小和 `sha256`，检查包名及版本号，然后通过 FileProvider 打开 Android 系统安装器。无需系统 DownloadManager 或公共下载目录，也无需存储权限；首次安装可能需要用户授予「安装未知应用」权限，且最终安装仍由用户确认。
 
 
 ### APK 保留策略
