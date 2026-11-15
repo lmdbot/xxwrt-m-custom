@@ -2417,7 +2417,6 @@ onUnmounted(() => {
               v-model="deviceForm.ignoreTlsErrors" color="warning" hide-details
               label="忽略此设备 HTTPS 证书错误（不安全）"/>
             <p class="muted-hint">设备地址可以是 HTTPS 公网域名。更换地址时会自动取消此前的证书例外。</p>
-            <v-alert v-if="listError" type="warning" variant="tonal" density="compact" class="mt-2">{{ listError }}</v-alert>
           </form>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" @click="deviceDialog = false">取消</v-btn><v-btn type="submit" form="device-editor" color="primary">保存设备</v-btn></v-card-actions>
@@ -2441,7 +2440,6 @@ onUnmounted(() => {
             </v-alert>
             <p v-else class="muted-hint">网页预览不保存密码；Android 安装版支持安全存储。</p>
           </form>
-          <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" class="mt-2">{{ errorMessage }}</v-alert>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" :disabled="connecting" @click="loginDialog = false">返回列表</v-btn><v-btn type="submit" form="router-login" color="primary" :loading="connecting">登录并进入</v-btn></v-card-actions>
       </v-card>
