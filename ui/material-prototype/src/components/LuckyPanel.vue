@@ -39,7 +39,21 @@ async function refresh() {
     luckyArch(props.client), luckyWatchdog(props.client)
   ])
   const [c, s, a, w] = requests
-  if (c.status === 'fulfilled') core.value = c.value
+  if (c.status === 'fulfilled') {
+    core.value = c.value
+    // The official LuCI page warms a version cache on first visit. A fresh
+    // router has no cache yet: query the version once, only with safe headroom.
+    if (core.value?.status === 'ready' && !core.value.info?.Version &&
+        Number(core.value.available_memory_kib || 0) >= 128 * 1024) {
+      try {
+        const result = await luckyCore(props.client, 'core-info')
+        core.value = { ...core.value, info: result.info || result }
+      } catch (_) {
+        // Service and access-rule status remain available if version probing
+        // is denied or a packed core cannot be queried safely.
+      }
+    }
+  }
   if (s.status === 'fulfilled') running.value = s.value
   if (a.status === 'fulfilled') arch.value = a.value
   if (w.status === 'fulfilled') watchdog.value = w.value
