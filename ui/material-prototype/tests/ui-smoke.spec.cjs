@@ -536,7 +536,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('dialog').getByText('AA:BB:CC:DD:EE:FF', { exact: true })).toBeVisible()
   await expect(page.getByText('静态 IPv4 绑定')).toBeVisible()
   await expect(page.getByText('终端网速限制')).toBeVisible()
-  await page.getByRole('dialog').locator('.v-switch input[type="checkbox"]').check({ force: true })
+  await page.getByRole('dialog').getByText('为该 MAC 固定分配 IPv4', { exact: true }).click()
   await page.getByRole('dialog').locator('input[placeholder="例如：192.168.100.50"]').fill('192.168.100.50')
   await page.getByRole('button', { name: '保存静态 IP' }).click()
   await expect(page.getByText('已保存并应用到路由器', { exact: false })).toBeVisible()
