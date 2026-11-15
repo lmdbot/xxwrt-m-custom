@@ -386,6 +386,8 @@ const installedRouterAppsLoading = ref(false)
 let installedRouterAppsRequest = 0
 const routerAppToolIds = ['ssr', 'wechatpush', 'openclash', 'detector', 'carbon', 'zerotier', 'firewall']
 const toolLoading = ref(false)
+const legacyLoadStatus = reactive({ process: 'idle', startup: 'idle', routes: 'idle' })
+const legacyLoadError = ref('')
 const toolMessage = ref('')
 const toolFeedbackOpen = ref(false)
 const toolWaiting = computed(() => toolLoading.value || wolBusy.value || actionBusy.value)
@@ -1064,7 +1066,7 @@ async function refreshCurrent() {
   }
 }
 
-async function showLegacyTool(toolId) {
+async function showLegacyTool(toolId, { force = false } = {}) {
   if (!client.value || toolLoading.value) return
   if (toolId === 'reboot') { confirmReboot.value = true; return }
   if (toolId === 'reset') {
@@ -1073,43 +1075,54 @@ async function showLegacyTool(toolId) {
     factoryDialog.value = true
     return
   }
+  const isSystemList = ['process', 'startup', 'routes'].includes(toolId)
+  const needsFetch = toolId !== 'startup' || force || !serviceData.value.available
+  if (isSystemList) {
+    legacyLoadStatus[toolId] = needsFetch ? 'loading' : 'ready'
+    legacyLoadError.value = ''
+  }
   if (toolId === 'wol') wolLoadStatus.value = 'loading'
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (toolId === 'parental' || routerAppToolIds.includes(toolId)) return
-  if (toolId === 'startup') {
-    if (!serviceData.value.available) {
-      toolLoading.value = true
-      try { serviceData.value = await readServices(client.value) }
-      catch (e) { toolMessage.value = shortError(e) }
-      finally { toolLoading.value = false }
-    }
-    return
-  }
+  if (toolId === 'parental' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
   toolLoading.value = true
   try {
+    if (toolId === 'startup') {
+      const data = await readServices(client.value)
+      if (!data.available) throw new Error('暂时无法读取启动项服务，请确认 rc.list RPC 授权并重试')
+      serviceData.value = data
+    }
     if (toolId === 'process') {
-      processData.value = await readProcessList(client.value)
-      if (!processData.value.available) toolMessage.value = '当前 QWRT 未开放 luci.getProcessList RPC 接口，请核实固件插件及权限。'
+      const data = await readProcessList(client.value)
+      if (!data.available) throw new Error('当前 QWRT 未开放 luci.getProcessList RPC 接口，请核实固件及账号权限')
+      processData.value = data
     }
     if (toolId === 'routes') {
-      ;[routeData.value, liveRoutes.value] = await Promise.all([
+      const [config, runtime] = await Promise.all([
         readRouteConfig(client.value), readRuntimeRoutes(client.value)
       ])
-      if (!routeData.value.available && !liveRoutes.value.available) toolMessage.value = '当前账号无路由表读取权限，请检查 ubus ACL。'
+      if (!config.available && !runtime.available)
+        throw new Error('路由表读取失败：当前账号无 UCI 与系统路由查询权限，请检查 ubus ACL')
+      routeData.value = config
+      liveRoutes.value = runtime
     }
     if (toolId === 'wol') {
       const result = await readWolDevices(client.value)
       wolData.value = result
       wolForm.iface = result.interfaces.includes('br-lan') ? 'br-lan' : (result.interfaces[0] || '')
-      // A missing RPC response is unknown; only an explicit plugin status
-      // confirming that both wake binaries are absent warrants a warning.
       wolLoadStatus.value = 'ready'
     }
-
+    if (isSystemList) legacyLoadStatus[toolId] = 'ready'
   } catch (e) {
-    if (toolId === 'wol') wolLoadStatus.value = 'error'
-    toolMessage.value = shortError(e)
+    if (toolId === 'wol') {
+      wolLoadStatus.value = 'error'
+      toolMessage.value = shortError(e)
+    } else if (isSystemList) {
+      legacyLoadStatus[toolId] = 'error'
+      legacyLoadError.value = shortError(e)
+    } else {
+      toolMessage.value = shortError(e)
+    }
   } finally {
     toolLoading.value = false
   }
@@ -1120,7 +1133,7 @@ function refreshCurrentTool() {
     void routerAppsPanel.value?.refreshAction()
     return
   }
-  void showLegacyTool(toolPanel.value)
+  void showLegacyTool(toolPanel.value, { force: true })
 }
 
 async function submitWolTarget() {
@@ -1879,8 +1892,16 @@ onUnmounted(() => {
               <v-card rounded="xl" elevation="1" class="network-card app-subpage">
 
                 <v-progress-linear v-if="toolLoading" indeterminate class="mb-3"/>
+                <v-alert v-if="['process','startup','routes'].includes(toolPanel) && legacyLoadStatus[toolPanel] === 'loading'"
+                  type="info" variant="tonal" density="compact" class="mb-3" role="status">
+                  正在读取{{ toolPanel === 'process' ? '进程' : toolPanel === 'startup' ? '启动项' : '路由表' }}数据…
+                </v-alert>
+                <v-alert v-else-if="['process','startup','routes'].includes(toolPanel) && legacyLoadStatus[toolPanel] === 'error'"
+                  type="error" variant="tonal" density="compact" class="mb-3" role="alert">
+                  {{ legacyLoadError || '读取失败，请点击右上角刷新重试。' }}
+                </v-alert>
                 <CompactManagementLists
-                v-if="['process','startup','routes'].includes(toolPanel)"
+                v-else-if="['process','startup','routes'].includes(toolPanel) && legacyLoadStatus[toolPanel] === 'ready'"
                 :kind="toolPanel"
                 :processes="processData.processes"
                 :services="serviceData.services"

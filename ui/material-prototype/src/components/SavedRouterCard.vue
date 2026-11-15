@@ -45,7 +45,6 @@ const rate = value => Number.isFinite(Number(value)) && value != null
       <div class="router-main">
         <div class="router-name-row">
           <h2 class="router-name">{{ displayName }}</h2>
-          <span v-if="hasTelemetry" class="router-uptime">{{ summary.uptime }}</span>
         </div>
         <div class="router-address">{{ displayAddress }}</div>
       </div>
@@ -53,10 +52,14 @@ const rate = value => Number.isFinite(Number(value)) && value != null
     </div>
 
     <div class="router-meta-line">
-      <v-chip size="x-small" variant="tonal" :color="connectionColor"
-              :prepend-icon="status === 'online' ? 'mdi-check-circle' : status === 'offline' ? 'mdi-alert-circle-outline' : 'mdi-lan-connect'">
-        {{ connectionLabel }}
-      </v-chip>
+      <div class="router-connection-group">
+        <v-chip size="x-small" variant="tonal" :color="connectionColor"
+                :prepend-icon="status === 'online' ? 'mdi-check-circle' : status === 'offline' ? 'mdi-alert-circle-outline' : 'mdi-lan-connect'">
+          {{ connectionLabel }}
+        </v-chip>
+        <span v-if="hasTelemetry && summary.uptime && summary.uptime !== '--'" class="router-uptime"
+              :title="'已运行 ' + summary.uptime">{{ summary.uptime }}</span>
+      </div>
       <div v-if="hasTelemetry" class="router-temp">
         <v-icon size="15" icon="mdi-thermometer"/>
         {{ summary.temperature || '--' }}
@@ -128,10 +131,12 @@ const rate = value => Number.isFinite(Number(value)) && value != null
 .router-main{min-width:0;flex:1}
 .router-name-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;min-width:0}
 .router-name{font-size:16px;font-weight:680;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.router-uptime{font-size:10px;opacity:.6;white-space:nowrap;flex:none}
+.router-uptime{font-size:10px;opacity:.68;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
 .router-address{font-size:12px;opacity:.61;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .router-chevron{opacity:.45;flex:none}
 .router-meta-line{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:13px}
+.router-connection-group{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
+.router-connection-group .v-chip{flex:none}
 .router-temp{display:flex;align-items:center;gap:3px;font-weight:650;font-size:12px;white-space:nowrap}
 .router-model-line{font-size:11px;opacity:.65;margin-top:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .router-stat-block{border-radius:13px;background:rgba(104,123,178,.055);padding:11px;margin-top:12px}

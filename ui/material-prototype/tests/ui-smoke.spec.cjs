@@ -655,9 +655,34 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.firewall-rule-entry').filter({ hasText: 'Allow-DHCP-Renew' }).getByLabel('规则状态：已停用')).toBeVisible()
   expect(firewallRuleEnabled).toBe('0')
   await expect(page.getByText('已启用 0', { exact: false }).first()).toBeVisible()
+  // Defer each list's first RPC: no empty states or zero-count cards before data loads.
+  async function holdToolRpc(object, method) {
+    let notify, release
+    const started = new Promise(resolve => { notify = resolve })
+    const gate = new Promise(resolve => { release = resolve })
+    const interceptor = async route => {
+      const req = route.request().postDataJSON()
+      const items = Array.isArray(req) ? req : [req]
+      if (items.some(item => item.params?.[1] === object && item.params?.[2] === method)) {
+        notify()
+        await gate
+      }
+      await handler(route)
+    }
+    await page.route('**/ubus', interceptor)
+    return { started, resume: () => release(), dispose: () => page.unroute('**/ubus', interceptor) }
+  }
+
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  const heldProcess = await holdToolRpc('luci', 'getProcessList')
   await page.getByRole('button', { name: '打开进程' }).click()
+  await heldProcess.started
+  await expect(page.getByText('正在读取进程数据…')).toBeVisible()
+  await expect(page.getByText('暂无进程数据')).toHaveCount(0)
+  await expect(page.locator('.compact-system-list')).toHaveCount(0)
+  heldProcess.resume()
   await expect(page.getByText('rpcd')).toBeVisible()
+  await heldProcess.dispose()
   await expect(page.getByText('状态 S')).toBeVisible()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
   await expect(page.getByText('应用管理')).toBeVisible()
@@ -682,11 +707,27 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('textbox', { name: '搜索启动项' }).fill('firewall')
   await expect(page.locator('.compact-system-list .compact-entry')).toHaveCount(1)
   await page.getByRole('textbox', { name: '搜索启动项' }).fill('')
+  const heldStartup = await holdToolRpc('rc', 'list')
+  await page.getByRole('button', { name: '刷新当前页面' }).click()
+  await heldStartup.started
+  await expect(page.getByText('正在读取启动项数据…')).toBeVisible()
+  await expect(page.getByText('暂无服务数据')).toHaveCount(0)
+  await expect(page.locator('.compact-system-list')).toHaveCount(0)
+  heldStartup.resume()
+  await expect(page.locator('.compact-system-list .compact-entry')).toHaveCount(expectedStartupServices)
+  await heldStartup.dispose()
   await page.screenshot({ path: 'test-results/screenshots/compact-startup-services.png', fullPage: true })
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  const heldRoutes = await holdToolRpc('uci', 'get')
   await page.getByRole('button', { name: '打开路由表' }).click()
+  await heldRoutes.started
+  await expect(page.getByText('正在读取路由表数据…')).toBeVisible()
+  await expect(page.getByText('尚未取得路由表数据，请检查 RPC 权限')).toHaveCount(0)
+  await expect(page.locator('.compact-system-list')).toHaveCount(0)
+  heldRoutes.resume()
   await expect(page.getByRole('button', { name: '刷新当前页面' })).toHaveCount(1)
   await expect(page.locator('.compact-system-list .route-entry')).toHaveCount(4)
+  await heldRoutes.dispose()
   await expect(page.getByText('10.0.0.0/24', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('默认路由')).toBeVisible()
   await expect(page.getByText('网络路由').first()).toBeVisible()
@@ -942,6 +983,9 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await expect(page.locator('.router-list-card')).toBeVisible()
   await expect(page.locator('.router-stat-block')).toBeVisible()
   await expect(page.getByText('已登录 · 在线')).toBeVisible()
+  await expect(page.locator('.router-meta-line .router-connection-group .router-uptime')).toBeVisible()
+  await expect(page.locator('.router-name-row .router-uptime')).toHaveCount(0)
+  await expect(page.locator('.router-meta-line .router-temp')).toBeVisible()
   await expect(page.getByRole('button', { name: '刷新设备状态' }))
     .not.toHaveClass(/v-btn--loading/)
 
