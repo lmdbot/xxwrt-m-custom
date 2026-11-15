@@ -124,8 +124,15 @@ npm run test:ui
 | --- | --- |
 | `XXWRT_KEYSTORE_BASE64` | PKCS#12（`.p12`）签名文件的 Base64 内容 |
 | `XXWRT_KEYSTORE_PASSWORD` | 签名文件及密钥密码 |
+| `XXWRT_RELEASE_WEBHOOK_URL` | 新正式版 Release 发布成功后的 Markdown Webhook 接收地址（含访问令牌，必须作为 Secret 保存） |
 
 工作流使用的密钥别名为 `xxwrt`。**不要将签名文件、密码或其 Base64 内容提交到仓库。** 未配置所需 Secrets 时，APK 签名步骤会失败。
+
+### 正式版 Release 发布通知
+
+`main` 分支**首次创建正式版 Release 并成功上传已签名 APK**后，工作流向 `XXWRT_RELEASE_WEBHOOK_URL` 发送 `POST` 请求（`Content-Type: application/json`），消息包含 `title`、Markdown 格式的 `content` 与 `type: "markdown"`，展示版本号、发布说明、APK 直链及构建记录。预发布版本、失败构建、被取消的构建以及对已有 Release 的 APK 重新上传不会重复通知。
+
+需要在 GitHub 仓库 **Settings → Secrets and variables → Actions → New repository secret** 中新增 `XXWRT_RELEASE_WEBHOOK_URL`，将完整 Webhook URL（包括末尾的令牌）填入 Secret Value。**请勿将该地址写进工作流 YAML、Issues、构建日志或公开文档**。如果新 Release 发布时未配置 Secret，通知步骤会明确失败并记录原因，但不会撤销已发布的 Release；Webhook 请求失败时会对可重试错误有限次重试。
 
 ## 项目目录
 
