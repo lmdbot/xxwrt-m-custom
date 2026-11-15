@@ -17,6 +17,7 @@ import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
+import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
 import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
@@ -145,6 +146,7 @@ const updateChecked = ref(false)
 const updateError = ref('')
 const updateNotice = ref('')
 const updateDialog = ref(false)
+const openSourceDialog = ref(false)
 const updateAvailable = computed(() => !!latestRelease.value
   && compareAppVersions(latestRelease.value.version, installedVersion.value) > 0)
 
@@ -656,6 +658,7 @@ function onDrawerEdgeTouchEnd(event) {
 // Back: dialogs → drawer/settings → app subpage → router list → minimize.
 async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
+  if (openSourceDialog.value) { openSourceDialog.value = false; return 'dialog' }
   if (factoryDialog.value) { factoryDialog.value = false; return 'dialog' }
   if (confirmReboot.value) { confirmReboot.value = false; return 'dialog' }
   if (wolDeleteDialog.value) { wolDeleteDialog.value = false; return 'dialog' }
@@ -1536,6 +1539,13 @@ onUnmounted(() => {
               </v-card>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-scale-balance" size="23"/></v-avatar>
+                  <div><h2>开源许可证</h2><p>原创代码采用 MIT License，第三方组件保留各自授权声明。</p></div>
+                </div>
+                <v-btn variant="outlined" block prepend-icon="mdi-text-box-multiple-outline" @click="openSourceDialog = true">查看开源许可证</v-btn>
+              </v-card>
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-heart-outline" size="23"/></v-avatar>
                   <div><h2>支持项目</h2><p>查看源代码、提交问题或参与项目改进。</p></div>
                 </div>
@@ -2066,6 +2076,7 @@ onUnmounted(() => {
         </div>
       </VGlass>
     </div>
+    <OpenSourceLicensesDialog v-model="openSourceDialog"/>
     <v-dialog v-model="selectedClient" max-width="420">
       <v-card v-if="selectedClient" rounded="xl" title="终端详情">
         <v-card-text>

@@ -32,3 +32,18 @@ test('older release does not show update', async ({ page }) => {
   await expect(page.getByText('当前已是最新版')).toBeVisible()
   await expect(page.getByRole('button',{name:'下载最新 APK'})).toHaveCount(0)
 })
+
+test('about opens MIT and third-party licensing information offline', async ({ page }) => {
+  await openAbout(page)
+  await page.getByRole('button', { name: '查看开源许可证' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByText('XX-WRT Material 原创代码依据 MIT License')).toBeVisible()
+  await expect(dialog.getByText('主要第三方运行依赖')).toBeVisible()
+  await expect(dialog.getByText('Apache ECharts')).toBeVisible()
+  await dialog.getByText('MIT License · 项目原创部分').click()
+  await expect(dialog.getByText('Copyright (c) 2026 lmdbot')).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭开源许可证' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '关于', level: 1 })).toBeVisible()
+})

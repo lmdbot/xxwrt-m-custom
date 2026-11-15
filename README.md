@@ -14,8 +14,8 @@
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 应用版本 | **2.0.13** |
-| Android `versionCode` | `2000013` |
+| 应用版本 | **2.0.16** |
+| Android `versionCode` | `2000016` |
 | 应用名称 | `XX-WRT管理器` |
 | Android 包名 | `com.lmdbot.xxwrt.materialpreview` |
 | 技术栈 | Vue 3 · Vite 7 · Vuetify 3 · Capacitor 8 · ECharts 5 |
@@ -115,8 +115,8 @@ npm run test:ui
 
 - **触发方式：** 手动运行工作流，或向 `main` / `feature/material-ui` 推送命中 `ui/material-prototype/**`、工作流文件的变更。
 - **构建环境：** Node.js 22、Java 21、Android SDK Platform 36 / Build Tools 35.0.0。
-- **Actions Artifact：** `XX-WRT-M-Material-Preview-APK`；APK 文件名为 `XX-WRT-M-Material-QWRT-v2.0.0.apk`。
-- **Release：** `main` 对应 `v2.0.0` 正式发布；`feature/material-ui` 对应 `material-wrt-v2.0.0` 预发布。成功构建时，工作流会创建或更新对应 Release 附件。
+- **Actions Artifact：** `XX-WRT-Material-APK`；APK 文件名为 `XX-WRT-Material-vx.x.x.apk`，版本号来自 `package.json`。
+- **Release：** `main` 对应 `vx.x.x` 正式发布；`feature/material-ui` 对应 `material-wrt-vx.x.x` 预发布。成功构建时，工作流会创建或更新对应 Release 附件。
 
 签名依赖仓库 **Settings → Secrets and variables → Actions** 中的以下 Secrets：
 
@@ -175,11 +175,15 @@ Material 2.0 的 Android 主线使用 `ui/material-prototype/` 及 `ui-android-p
 
 ## License 声明
 
-- **本项目自身：** 截至本次整理，仓库根目录尚无统一的 `LICENSE` 文件，也未确认适用于整个 XX-WRT Material 项目源代码、文档和美术资源的统一开源许可证。本节是许可状态说明，**不构成对本项目自身代码的 MIT、Apache-2.0 或其他许可证授权**。仓库公开可读不等同于允许任意复制、修改、再发布；如需明确开放衍生或再分发权限，应由项目维护者确定许可方案并添加相应 `LICENSE` 文件。
-- **第三方软件：** 上表所列项目保留各自的版权、许可证和免责条款；使用本项目不改变这些上游许可证，也不意味着上游作者认可或背书本项目。
-- **再分发与合规：** 当分发包含第三方代码、图标字体或原生库的源码与 APK 时，应按实际打包版本保留适用的版权和许可证文本，并遵守 MIT 的版权与许可声明保留要求，以及 Apache-2.0 的许可证、修改说明和适用的 `NOTICE` 要求。请以对应组件实际分发物中的声明为准。
-- **覆盖范围：** 上表是 Material 2.0 的**直接依赖致谢清单**，不是完整的软件物料清单（SBOM）或法律合规审计；传递依赖、Android SDK/AndroidX、原生 Gradle 依赖及仓库早期 `vendor/`、`src/www/` 资源需要在正式对外再分发前另行核查。
-- **图标与素材：** 本项目界面截图、宣传图和定制 APP 图标不因使用开源 UI 框架而自动采用相同的许可证；其权利与授权范围应单独确认。
+**XX-WRT Material 中由项目版权持有人有权授权的原创代码，依据 [MIT License](LICENSE) 开源。** 您可以自由使用、复制、修改、合并、分发、再授权和商业销售这些代码；分发时需保留适用的版权声明与完整 MIT 许可文本。
+
+- **版权声明：** `Copyright (c) 2026 lmdbot`。MIT 仅授予项目版权持有人有权授予的权利，不会使第三方项目、品牌标识或历史资产自动改为 MIT。
+- **第三方组件：** Vue、Vuetify、ECharts、Capacitor 等及其依赖遵从原有许可证。见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，其中列明主要直接依赖、授权来源及 Apache-2.0 正文。
+- **已识别的例外：** `ui/material-prototype/src/data/carbon-brands.js` 中包含上游 Carbon、Simple Icons 及 IEEE 数据；旧版 `src/www/**`、`vendor/base.apk` 的来源与再分发权利尚未完成核查，**不因根目录 LICENSE 自动获得 MIT 再授权**。参见 [历史资产授权审查](docs/LEGACY_ASSETS_LICENSE.md)。
+- **APP 内查看：** “设置 → 关于 → 开源许可证”可离线阅读本项目 MIT 正文、Apache-2.0 正文及主要第三方组件许可说明。
+- **免责声明：** 项目按“现状”提供，不作明示或默示担保；法律文本以 [LICENSE](LICENSE) 原文为准。
+
+对于源码的传递依赖、Android 原生依赖和历史资产，本项目仍需随正式分发持续核验版权及适用的 NOTICE；不能将此声明理解为完成了所有第三方许可审计。
 
 ## 参与改进
 

@@ -1,4 +1,4 @@
-# XX-WRT Material 2.0.13 — QWRT / OpenWrt 移动管理
+# XX-WRT Material 2.0.16 — QWRT / OpenWrt 移动管理
 
 这是 `main` 的 Android 应用源码。Vue 3 + Vite + Vuetify 3 + Capacitor 8 构建 Material / Liquid Glass 界面，数据来自登录路由器的真实 ubus JSON-RPC、UCI 与授权的插件接口，不使用假终端数据。
 
@@ -6,9 +6,9 @@
 
 - Material 包名：`com.lmdbot.xxwrt.materialpreview`
 - Material 应用名称：`XX-WRT管理器`
-- 版本：`2.0.13`（Android versionCode 从版本号生成，保持单调递增）
+- 版本：`2.0.16`（Android versionCode 从版本号生成，保持单调递增）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
-- 保留 Material 分支的应用信息与 Capacitor 构建流程，启动器图标使用已选中的路由器＋盾牌设计并适配安全边距。
+- 保留 Material 分支的应用信息与 Capacitor 构建流程，启动器图标使用已选定的紫色二次元网络守护少女设计并适配安全边距。
 - 正式 APK 使用 `XX-WRT-Material-vx.x.x.apk` 命名，构建版本自动取自 `package.json`。
 - `main` 提供正式发布渠道；`feature/material-ui` 提供预发布测试包。
 
@@ -49,3 +49,7 @@ APK 构建由 `.github/workflows/ui-android-preview.yml` 通过 GitHub Actions �
 ## 注意
 
 浏览器本地预览不具备 Android Keystore 能力。真实插件运行状态、路由器 RPC ACL、Full Cone NAT、TCP 拥塞算法等必须通过实机联调核验；CI 模拟环境不等于路由器。
+
+## 开源授权
+
+项目有权授权的原创代码以 [MIT License](../../LICENSE) 公开，允许使用、修改和商用，分发时需保留版权和许可声明。第三方库、Carbon/Simple Icons 数据及历史 UniApp 编译资源的权利边界见 [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) 与 [历史资产授权审查](../../docs/LEGACY_ASSETS_LICENSE.md)。APP 内可在“设置 → 关于 → 开源许可证”离线查看 MIT、Apache-2.0 正文与主要运行依赖声明。
