@@ -50,7 +50,11 @@ class NativeUpdaterPatchTests(unittest.TestCase):
         self.assertIn("PendingIntent.FLAG_MUTABLE", java)
         self.assertIn("PackageInstaller.STATUS_PENDING_USER_ACTION", receiver_java)
         self.assertIn("PackageInstaller.EXTRA_STATUS_MESSAGE", receiver_java)
-        self.assertNotIn("FileProvider", java + receiver_java)
+        # Match executable Java references, not explanatory comments that
+        # mention why the previous FileProvider approach was replaced.
+        self.assertNotIn("import androidx.core.content.FileProvider;", java)
+        self.assertNotIn("FileProvider.getUriForFile(", java)
+        self.assertNotIn("import androidx.core.content.FileProvider;", receiver_java)
         self.assertNotIn("DownloadManager", java)
         xml = manifest.read_text(encoding="utf-8")
         self.assertIn("android.permission.REQUEST_INSTALL_PACKAGES", xml)
