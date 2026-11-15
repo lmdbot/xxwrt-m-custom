@@ -1593,7 +1593,9 @@ onUnmounted(() => {
       <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
 
-    <v-navigation-drawer v-model="drawerOpen" temporary location="left" width="320" class="material-side-drawer" aria-label="设置分类侧栏">
+    <!-- Disable Vuetify's own whole-screen touch gesture. Our v-main left-edge
+         handler is the single gesture owner and enforces the 72px edge guard. -->
+    <v-navigation-drawer v-model="drawerOpen" temporary touchless location="left" width="320" class="material-side-drawer" aria-label="设置分类侧栏">
       <div class="sidebar-brand">
         <v-avatar size="54" color="primary" variant="tonal" rounded="xl"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
         <div><strong>我的 OpenWrt</strong><small>路由器管理</small></div>
