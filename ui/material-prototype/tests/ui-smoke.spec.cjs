@@ -722,7 +722,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   zeroTierCliAllowed = false
   await page.getByRole('button', { name: '刷新当前页面' }).click()
   await expect(page.getByText(/未开放实时 ZeroTier 状态读取接口/)).toBeVisible()
-  await expect(page.getByText('网络状态待确认', { exact: true }).first()).toBeVisible()
+  // System NIC can be up although ZeroTier runtime RPC is inaccessible.
+  // Report link state, not a falsely confirmed ZeroTier network connection.
+  await expect(page.getByText('虚拟网卡已启用', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   zeroTierRpcAllowed = true
   zeroTierCliAllowed = true
@@ -923,8 +925,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '上移ShadowSocksR Plus+' }).click()
   await page.getByRole('button', { name: '完成', exact: true }).click()
   await expect(page.locator('.app-favorite-tile')).toHaveCount(6)
-  await expect(page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).first()).toBeVisible()
-  await expect(page.getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
+  await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开ShadowSocksR Plus+' })).toBeVisible()
+  await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部应用' }).click()
   await expect(page.locator('.app-tool-row')).toHaveCount(16)
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toBeVisible()
