@@ -14,8 +14,8 @@
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 应用版本 | **2.0.24** |
-| Android `versionCode` | `2000024` |
+| 应用版本 | **2.0.25** |
+| Android `versionCode` | `2000025` |
 | 应用名称 | `XX-WRT管理器` |
 | Android 包名 | `com.lmdbot.xxwrt.materialpreview` |
 | 技术栈 | Vue 3 · Vite 7 · Vuetify 3 · Capacitor 8 · ECharts 5 |
