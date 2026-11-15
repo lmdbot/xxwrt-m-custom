@@ -19,6 +19,19 @@ const ruleEditors = reactive({
   allowlist: { loaded: false, loading: false, token: '', name: 'ip-allowlist.txt', directory: '', text: '', original: '', error: '' },
   localips: { loaded: false, loading: false, token: '', name: 'localips', directory: '', text: '', original: '', error: '' }
 })
+const floatingNoticeOpen = ref(false)
+const floatingError = computed(() => error.value ||
+  ruleEditors.allowlist.error || ruleEditors.localips.error || diagnosticsError.value)
+const floatingNoticeText = computed(() => floatingError.value || notice.value)
+const floatingNoticeColor = computed(() => floatingError.value ? 'warning' : 'success')
+watch(floatingNoticeText, text => { floatingNoticeOpen.value = Boolean(text) })
+function dismissFloatingNotice() {
+  floatingNoticeOpen.value = false
+  error.value = ''
+  notice.value = ''
+  diagnosticsError.value = ''
+  Object.values(ruleEditors).forEach(editor => { editor.error = '' })
+}
 const version = computed(() => String(core.value?.info?.Version || core.value?.version || '-'))
 const supportsAllowlist = computed(() => luckyVersionAtLeast(version.value, 3, 1, 0))
 const base = computed(() => core.value?.base?.BaseConfigure || {})
@@ -194,21 +207,31 @@ async function loadRulesOnDemand() {
 }
 watch([tab, loading], () => { void loadRulesOnDemand() })
 onMounted(() => { void refresh() })
-defineExpose({ refresh, refreshAction: refresh })
+async function refreshAction() {
+  if (working.value) return
+  await refresh()
+  if (!error.value) notice.value = 'Lucky 状态已刷新'
+}
+defineExpose({ refresh, refreshAction })
 </script>
 
 <template>
   <section class="lucky-app-panel">
+    <v-snackbar v-model="floatingNoticeOpen" :timeout="5200" :color="floatingNoticeColor"
+      location="bottom" :style="{ bottom: '77px' }" role="status" aria-live="polite"
+      class="router-app-floating-feedback">
+      {{ floatingNoticeText }}
+      <template #actions>
+        <v-btn variant="text" size="small" @click="dismissFloatingNotice">关闭</v-btn>
+      </template>
+    </v-snackbar>
     <div class="d-flex align-center justify-space-between ga-2 mb-3">
       <div><h2 class="text-h6 font-weight-bold">Lucky</h2><p class="text-body-2 text-medium-emphasis">服务状态与后台管理</p></div>
-      <v-btn prepend-icon="mdi-refresh" variant="tonal" :loading="loading" :disabled="busy" @click="refresh">刷新</v-btn>
     </div>
     <v-tabs v-model="tab" color="primary" show-arrows density="comfortable" class="localized-scroll-tabs mb-4">
       <v-tab value="overview">概览</v-tab><v-tab value="rules">访问规则</v-tab><v-tab value="maintenance">维护</v-tab>
     </v-tabs>
     <v-progress-linear v-if="loading" indeterminate color="primary" class="mb-3"/>
-    <v-alert v-if="error" type="warning" variant="tonal" density="compact" class="mb-3" closable @click:close="error = ''">{{ error }}</v-alert>
-    <v-alert v-if="notice" type="success" variant="tonal" density="compact" class="mb-3" closable @click:close="notice = ''">{{ notice }}</v-alert>
 
     <template v-if="tab === 'overview'">
       <div class="router-app-summary mb-4">
@@ -259,7 +282,6 @@ defineExpose({ refresh, refreshAction: refresh })
           <v-textarea v-model="ruleEditors[type].text" :label="type === 'allowlist' ? 'IP 白名单文件内容' : '局域网网段文件内容'"
             :disabled="!ruleEditors[type].loaded || working" variant="outlined" rows="8" auto-grow spellcheck="false" class="mb-1"/>
           <p v-if="ruleEditors[type].loaded" class="text-caption text-medium-emphasis text-right mb-2">{{ luckyRuleBytes(ruleEditors[type].text) }} / {{ LUCKY_RULE_LIMIT }} 字节</p>
-          <v-alert v-if="ruleEditors[type].error" type="warning" variant="tonal" density="compact" class="mb-3">{{ ruleEditors[type].error }}</v-alert>
           <div class="d-flex flex-wrap ga-2">
             <v-btn color="primary" variant="tonal" :disabled="working || !ruleEditors[type].loaded ||
               ruleEditors[type].text === ruleEditors[type].original ||
@@ -296,7 +318,6 @@ defineExpose({ refresh, refreshAction: refresh })
             <p class="text-body-2 text-medium-emphasis mb-3">仅从 QWRT 的 logread / dmesg 提取近期与 Lucky 异常退出有关的日志摘要，不读取完整系统日志。</p>
             <v-btn color="primary" variant="tonal" :loading="diagnosticsLoading" :disabled="working"
               prepend-icon="mdi-text-search" @click="readDiagnostics">读取异常日志</v-btn>
-            <v-alert v-if="diagnosticsError" type="warning" variant="tonal" density="compact" class="mt-3">{{ diagnosticsError }}</v-alert>
             <v-textarea v-if="diagnostics" :model-value="diagnosticText" label="日志摘要" variant="outlined"
               readonly auto-grow rows="5" spellcheck="false" class="mt-3"/>
           </v-expansion-panel-text>
