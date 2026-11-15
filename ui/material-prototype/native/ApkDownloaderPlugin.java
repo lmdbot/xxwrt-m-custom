@@ -267,6 +267,8 @@ public class ApkDownloaderPlugin extends Plugin {
             params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED);
         }
 
+        getContext().getSharedPreferences(ApkInstallStatusReceiver.PREFS, Context.MODE_PRIVATE)
+            .edit().remove(ApkInstallStatusReceiver.LAST_ERROR).apply();
         final int sessionId = installer.createSession(params);
         boolean committed = false;
         try (PackageInstaller.Session session = installer.openSession(sessionId)) {
@@ -288,7 +290,10 @@ public class ApkDownloaderPlugin extends Plugin {
         } catch (Exception failure) {
             throw new IOException("Android 安装会话准备失败：" + failure.getMessage(), failure);
         } finally {
-            if (!committed) installer.abandonSession(sessionId);
+            if (!committed) {
+                try { installer.abandonSession(sessionId); }
+                catch (Exception ignored) { /* Preserve the original installation error. */ }
+            }
         }
         return "installRequested";
     }
