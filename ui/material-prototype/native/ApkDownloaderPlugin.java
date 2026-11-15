@@ -264,6 +264,15 @@ public class ApkDownloaderPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void checkInstallPermission(PluginCall call) {
+        final boolean granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+            || getContext().getPackageManager().canRequestPackageInstalls();
+        final JSObject result = new JSObject();
+        result.put("granted", granted);
+        call.resolve(result);
+    }
+
+    @PluginMethod
     public void installDownloaded(PluginCall call) {
         final File apk = completedApk;
         if (downloading.get() || apk == null) {
