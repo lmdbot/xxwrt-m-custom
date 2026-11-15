@@ -142,8 +142,9 @@ public class ApkDownloaderPlugin extends Plugin {
         final String rawUrl = call.getString("url");
         final String filename = call.getString("filename");
         final String checksum = call.getString("sha256");
-        final Long sizeValue = call.getLong("apkSize");
-        final long expectedSize = sizeValue == null ? 0L : sizeValue;
+        // JSON numbers under 2^31 may be parsed as Integer, not Long.
+        final Object rawSize = call.getData().opt("apkSize");
+        final long expectedSize = rawSize instanceof Number ? ((Number) rawSize).longValue() : 0L;
         if (!trustedDownload(rawUrl, filename)) {
             call.reject("安装包来源或文件名不可信");
             return;
