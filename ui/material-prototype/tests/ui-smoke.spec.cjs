@@ -50,6 +50,8 @@ let zeroTierRpcAllowed = true
 let zeroTierCliAllowed = true
 let ssrExecAllowed = true
 let ssrLuciAllowed = true
+let terminalDhcpHost = null
+let terminalEqosRate = null
 
 const dataFor = (object, method, params = {}) => {
   if (object === 'session' && method === 'login') return { ubus_rpc_session: '0123456789abcdef0123456789abcdef' }
@@ -96,7 +98,7 @@ const dataFor = (object, method, params = {}) => {
   }
   if (object === 'network.interface' && method === 'dump') return {
     interface: [
-      { interface: 'lan', device: 'br-lan', up: true, proto: 'static', 'ipv4-address': [{ address: '192.168.100.1' }] },
+      { interface: 'lan', device: 'br-lan', up: true, proto: 'static', 'ipv4-address': [{ address: '192.168.100.1', mask: 24 }] },
       { interface: 'wan', device: 'pppoe-wan', up: true, proto: 'pppoe', uptime: 90061, 'ipv4-address': [{ address: '10.12.4.5' }],
         'dns-server': ['223.5.5.5'], route: [{ target: '0.0.0.0', mask: 0, nexthop: '10.12.4.1' }] }
     ]
@@ -186,6 +188,36 @@ const dataFor = (object, method, params = {}) => {
       }}
     }
     return { 'br-lan': { up: true } }
+  }
+  if (object === 'uci' && method === 'get' && params.config === 'dhcp') return {
+    values: terminalDhcpHost ? { terminal_static: terminalDhcpHost } : {}
+  }
+  if (object === 'uci' && method === 'get' && params.config === 'eqos') return {
+    values: {
+      global: { '.type': 'eqos', enabled: '1', wan: 'wan', upload: '50', download: '100' },
+      ...(terminalEqosRate ? { eqos_device: terminalEqosRate } : {})
+    }
+  }
+  if (object === 'uci' && method === 'get' && ['nft-limiter', 'nft-qos'].includes(params.config)) return null
+  if (object === 'uci' && method === 'add' && params.config === 'dhcp') {
+    terminalDhcpHost = { '.type': 'host', ...params.values }
+    return { section: 'terminal_static' }
+  }
+  if (object === 'uci' && method === 'set' && params.config === 'dhcp') {
+    terminalDhcpHost = { ...(terminalDhcpHost || { '.type': 'host' }), ...params.values }
+    return {}
+  }
+  if (object === 'uci' && method === 'delete' && params.config === 'dhcp') {
+    terminalDhcpHost = null
+    return {}
+  }
+  if (object === 'uci' && method === 'add' && params.config === 'eqos') {
+    terminalEqosRate = { '.type': 'device', ...params.values }
+    return { section: 'eqos_device' }
+  }
+  if (object === 'uci' && method === 'delete' && params.config === 'eqos') {
+    terminalEqosRate = null
+    return {}
   }
   if (object === 'uci' && method === 'get' && params.config === 'luci-wol') return { values: { demo: { '.type': 'target', '.name': 'demo', name: '测试主机', mac: 'AA:BB:CC:DD:EE:FF', iface: 'br-lan' } } }
   if (object === 'uci' && method === 'get' && params.config === 'shadowsocksr') return { values: {
@@ -468,10 +500,21 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.terminal-tile.v-card')).toHaveCount(3)
   await page.screenshot({ path: 'test-results/screenshots/terminal-cards.png', fullPage: true })
   await page.getByText('Phone', { exact: true }).click()
-  await expect(page.getByText('终端详情')).toBeVisible()
+  await expect(page.getByText('终端管理')).toBeVisible()
   await expect(page.getByRole('dialog').getByText('AA:BB:CC:DD:EE:FF', { exact: true })).toBeVisible()
+  await expect(page.getByText('静态 IPv4 绑定')).toBeVisible()
+  await expect(page.getByText('终端网速限制')).toBeVisible()
+  await page.getByRole('switch', { name: '为该 MAC 固定分配 IPv4' }).check()
+  await page.getByRole('textbox', { name: '绑定 IPv4 地址' }).fill('192.168.100.50')
+  await page.getByRole('button', { name: '保存静态 IP' }).click()
+  await expect(page.getByText('已保存并应用到路由器', { exact: false })).toBeVisible()
+  await page.getByRole('spinbutton', { name: '下载限速 (Mbps)' }).fill('10')
+  await page.getByRole('spinbutton', { name: '上传限速 (Mbps)' }).fill('5')
+  await page.getByRole('button', { name: '保存终端限速' }).click()
+  await expect(page.getByRole('spinbutton', { name: '下载限速 (Mbps)' })).toHaveValue('10')
+  await expect(page.getByRole('spinbutton', { name: '上传限速 (Mbps)' })).toHaveValue('5')
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('dialog')
-  await expect(page.getByText('终端详情')).not.toBeVisible()
+  await expect(page.getByText('终端管理')).not.toBeVisible()
   await page.getByText('Phone', { exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
   await page.getByRole('button', { name: '网络' }).click()
