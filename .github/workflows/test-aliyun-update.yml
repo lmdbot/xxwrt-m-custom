@@ -1,0 +1,86 @@
+name: Verify Aliyun Lucky update mirror
+
+on:
+  push:
+    branches: [feature/aliyun-static-apk-updates]
+    paths:
+      - ".github/workflows/test-aliyun-update.yml"
+      - ".github/scripts/prune_mirror_apks.py"
+      - ".github/scripts/test_prune_mirror_apks.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check update source syntax and parser regression tests
+        working-directory: ui/material-prototype
+        run: |
+          node --check src/services/appUpdates.js
+          node --check src/services/appReleases.js
+          npm run test:versions
+
+      - name: Test APK retention policy (latest five)
+        run: python3 -m unittest discover -s .github/scripts -p 'test_prune_mirror_apks.py' -v
+
+      - name: Check SSH authentication and Lucky public file access
+        shell: bash
+        env:
+          UPDATE_HOST: ${{ secrets.XXWRT_UPDATE_SSH_HOST }}
+          UPDATE_USER: ${{ secrets.XXWRT_UPDATE_SSH_USER }}
+          UPDATE_PRIVATE_KEY: ${{ secrets.XXWRT_UPDATE_SSH_PRIVATE_KEY }}
+          UPDATE_KNOWN_HOSTS: ${{ secrets.XXWRT_UPDATE_SSH_KNOWN_HOSTS }}
+          UPDATE_PORT: ${{ vars.XXWRT_UPDATE_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          for name in UPDATE_HOST UPDATE_USER UPDATE_PRIVATE_KEY UPDATE_KNOWN_HOSTS; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing GitHub Actions Secret: $name"
+              exit 1
+            fi
+          done
+          [[ "$UPDATE_PORT" =~ ^[0-9]{1,5}$ ]] || { echo "::error::Invalid SSH port"; exit 1; }
+          umask 077
+          SSH_DIR="$RUNNER_TEMP/xxwrt-mirror-smoke"
+          mkdir -p "$SSH_DIR"
+          trap 'rm -rf "$SSH_DIR"' EXIT
+          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$SSH_DIR/id_deploy"
+          printf '%s\n' "$UPDATE_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          chmod 600 "$SSH_DIR/id_deploy" "$SSH_DIR/known_hosts"
+          SSH_OPTIONS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -p "$UPDATE_PORT" )
+          SCP_OPTIONS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -P "$UPDATE_PORT" )
+          DEST="${UPDATE_USER}@${UPDATE_HOST}"
+          REMOTE_DIR="/srv/app-updates"
+          PROBE_NAME="xxwrt-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
+          PROBE_CONTENT="xxwrt-mirror-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          PROBE_PATH="$RUNNER_TEMP/$PROBE_NAME"
+          printf '%s\n' "$PROBE_CONTENT" > "$PROBE_PATH"
+
+          echo "Checking SSH and writable directory (no real APK or version.json modified)"
+          ssh "${SSH_OPTIONS[@]}" "$DEST" "command -v python3 >/dev/null && test -d '$REMOTE_DIR' && test -w '$REMOTE_DIR'"
+          cleanup() {
+            ssh "${SSH_OPTIONS[@]}" "$DEST" "rm -f '$REMOTE_DIR/$PROBE_NAME'" || true
+          }
+          trap 'cleanup; rm -rf "$SSH_DIR"' EXIT
+          scp "${SCP_OPTIONS[@]}" "$PROBE_PATH" "$DEST:$REMOTE_DIR/$PROBE_NAME"
+
+          echo "Checking public HTTPS file download via Lucky"
+          URL="https://update.12130812.xyz/$PROBE_NAME"
+          GOT="$(curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 --retry 2 "$URL")"
+          if [[ "$GOT" != "$PROBE_CONTENT" ]]; then
+            echo "::error::Lucky returned unexpected file content"
+            exit 1
+          fi
+          echo "SSH and HTTPS mirror smoke test passed"

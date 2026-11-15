@@ -7,6 +7,9 @@ async function openAbout(page) {
 }
 test('about displays newer official APK and filters prereleases', async ({ page }) => {
   const tag='v2.21.0',name='XX-WRT-Material-'+tag+'.apk'
+  await page.route('https://update.12130812.xyz/version.json',route=>
+    route.fulfill({status:503,contentType:'application/json',
+      headers:{'Access-Control-Allow-Origin':'*'},body:'{}'}))
   await page.route('https://api.github.com/repos/lmdbot/xxwrt-m-custom/releases?*',route=>
     route.fulfill({status:200,contentType:'application/json',
       headers:{'Access-Control-Allow-Origin':'*'},
@@ -24,6 +27,9 @@ test('about displays newer official APK and filters prereleases', async ({ page 
   await expect(page.getByText('v'+localAppVersion,{exact:true})).toBeVisible()
 })
 test('older release does not show update', async ({ page }) => {
+  await page.route('https://update.12130812.xyz/version.json',route=>
+    route.fulfill({status:503,contentType:'application/json',
+      headers:{'Access-Control-Allow-Origin':'*'},body:'{}'}))
   await page.route('https://api.github.com/repos/lmdbot/xxwrt-m-custom/releases?*',route=>
     route.fulfill({status:200,contentType:'application/json',
       headers:{'Access-Control-Allow-Origin':'*'},
@@ -46,4 +52,28 @@ test('about opens MIT and third-party licensing information offline', async ({ p
   await dialog.getByRole('button', { name: '关闭开源许可证' }).click()
   await expect(dialog).toHaveCount(0)
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('关于')
+})
+
+
+test('Aliyun static manifest is preferred over GitHub API', async ({ page }) => {
+  const version='2.21.0', tag='v'+version, name='XX-WRT-Material-'+tag+'.apk'
+  let githubCalls=0
+  await page.route('https://api.github.com/repos/lmdbot/xxwrt-m-custom/releases?*', route => {
+    githubCalls++
+    return route.fulfill({status:500,body:'unexpected GitHub fallback'})
+  })
+  await page.route('https://update.12130812.xyz/version.json',route=>
+    route.fulfill({status:200,contentType:'application/json',
+      headers:{'Access-Control-Allow-Origin':'*'},
+      body:JSON.stringify({
+        schemaVersion:1,version,tag,title:'XX-WRT管理器 '+tag,
+        apkName:name,apkUrl:'https://update.12130812.xyz/'+name,
+        releaseUrl:'https://github.com/lmdbot/xxwrt-m-custom/releases/tag/'+tag,
+        githubApkUrl:'https://github.com/lmdbot/xxwrt-m-custom/releases/download/'+tag+'/'+name,
+        apkSize:7115152,sha256:'a'.repeat(64)
+      })}))
+  await openAbout(page)
+  await expect(page.getByText('发现新版本 v2.21.0',{exact:false})).toBeVisible()
+  await expect(page.getByText('阿里云',{exact:true})).toBeVisible()
+  expect(githubCalls).toBe(0)
 })

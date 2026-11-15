@@ -1661,10 +1661,11 @@ onUnmounted(() => {
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-update" size="23"/></v-avatar>
-                  <div><h2>版本与更新</h2><p>仅检查 GitHub 正式 Release，预发布版本不参与更新判断。</p></div>
+                  <div><h2>版本与更新</h2><p>优先检查阿里云正式版，服务不可用时使用 GitHub 备用接口。</p></div>
                 </div>
                 <div class="settings-detail-row"><span>当前安装版本</span><strong>v{{ installedVersion }}</strong></div>
                 <div v-if="latestRelease" class="settings-detail-row"><span>最新正式版本</span><strong>v{{ latestRelease.version }}</strong></div>
+                <div v-if="latestRelease" class="settings-detail-row"><span>更新来源</span><strong>{{ latestRelease.source === 'mirror' ? '阿里云' : 'GitHub 备用' }}</strong></div>
                 <v-alert v-if="updateError" type="error" variant="tonal" density="compact" class="mb-3">{{ updateError }}</v-alert>
                 <v-alert v-else-if="updateAvailable && latestRelease?.apkUrl" type="success" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，可下载正式版 APK。</v-alert>
                 <v-alert v-else-if="updateAvailable" type="warning" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，但此 Release 暂无匹配的 Material APK。</v-alert>
@@ -2478,7 +2479,7 @@ onUnmounted(() => {
       <v-card rounded="xl">
         <v-card-title class="d-flex align-center ga-2"><v-icon icon="mdi-update" color="primary"/>发现应用新版本</v-card-title>
         <v-card-text v-if="latestRelease">
-          当前版本 v{{ installedVersion }}，GitHub 正式版已更新至 v{{ latestRelease.version }}。
+          当前版本 v{{ installedVersion }}，正式版已更新至 v{{ latestRelease.version }}。
           <p class="mt-3">APK 下载后可从系统“下载”目录打开安装。不会自动安装。</p>
         </v-card-text>
         <v-card-actions>

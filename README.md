@@ -128,6 +128,8 @@ npm run test:ui
 
 工作流使用的密钥别名为 `xxwrt`。**不要将签名文件、密码或其 Base64 内容提交到仓库。** 未配置所需 Secrets 时，APK 签名步骤会失败。
 
+正式版支持使用阿里云 Lucky 静态文件镜像作为 APP 首选更新源，GitHub 保留为备用。服务器准备、SSH Secrets、域名、发布验证见 [阿里云 Lucky 自动更新部署指南](docs/aliyun-app-updates.md)。
+
 ### 正式版 Release 发布通知
 
 `main` 分支**首次创建正式版 Release 并成功上传已签名 APK**后，工作流向 `XXWRT_RELEASE_WEBHOOK_URL` 发送 `POST` 请求（`Content-Type: application/json`），消息包含 `title`、Markdown 格式的 `content` 与 `type: "markdown"`，展示版本号、发布说明、APK 直链及构建记录。预发布版本、失败构建、被取消的构建以及对已有 Release 的 APK 重新上传不会重复通知。

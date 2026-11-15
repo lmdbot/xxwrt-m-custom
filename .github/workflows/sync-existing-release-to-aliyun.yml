@@ -1,0 +1,103 @@
+name: Seed Aliyun Lucky with existing stable APK
+
+on:
+  push:
+    branches: [feature/aliyun-static-apk-updates]
+    paths:
+      - ".github/workflows/sync-existing-release-to-aliyun.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Download and verify published v2.0.20 APK
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="2.0.20"
+          TAG="v$VERSION"
+          APK="XX-WRT-Material-v$VERSION.apk"
+          mkdir -p "$RUNNER_TEMP/xxwrt-seed"
+          cd "$RUNNER_TEMP/xxwrt-seed"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$APK" --dir .
+          test -s "$APK"
+          EXPECTED="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq '.assets[] | select(.name=="XX-WRT-Material-v2.0.20.apk") | .digest')"
+          [[ "$EXPECTED" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::Release APK has no trusted sha256 digest"; exit 1; }
+          EXPECTED_SHA="${EXPECTED#sha256:}"
+          ACTUAL_SHA="$(sha256sum "$APK" | awk '{print $1}')"
+          [[ "$ACTUAL_SHA" == "$EXPECTED_SHA" ]] || { echo "::error::GitHub Release APK checksum mismatch"; exit 1; }
+          SIZE="$(stat -c '%s' "$APK")"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg tag "$TAG" \
+            --arg title "XX-WRT管理器 $TAG" \
+            --arg apkName "$APK" \
+            --arg apkUrl "https://update.12130812.xyz/$APK" \
+            --arg releaseUrl "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" \
+            --arg githubApkUrl "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$APK" \
+            --argjson apkSize "$SIZE" \
+            --arg sha256 "$ACTUAL_SHA" \
+            '{schemaVersion:1,version:$version,tag:$tag,title:$title,apkName:$apkName,apkUrl:$apkUrl,releaseUrl:$releaseUrl,githubApkUrl:$githubApkUrl,apkSize:$apkSize,sha256:$sha256}' \
+            > version.json
+          echo "Release APK verified (size: $SIZE bytes, sha256: $ACTUAL_SHA)"
+      - name: Upload real APK and version.json to Aliyun
+        shell: bash
+        env:
+          UPDATE_HOST: ${{ secrets.XXWRT_UPDATE_SSH_HOST }}
+          UPDATE_USER: ${{ secrets.XXWRT_UPDATE_SSH_USER }}
+          UPDATE_PRIVATE_KEY: ${{ secrets.XXWRT_UPDATE_SSH_PRIVATE_KEY }}
+          UPDATE_KNOWN_HOSTS: ${{ secrets.XXWRT_UPDATE_SSH_KNOWN_HOSTS }}
+          UPDATE_PORT: ${{ vars.XXWRT_UPDATE_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          for name in UPDATE_HOST UPDATE_USER UPDATE_PRIVATE_KEY UPDATE_KNOWN_HOSTS; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing SSH deployment configuration: $name"
+              exit 1
+            fi
+          done
+          [[ "$UPDATE_PORT" =~ ^[0-9]{1,5}$ ]] || { echo "::error::Invalid SSH port"; exit 1; }
+          umask 077
+          SSH_DIR="$RUNNER_TEMP/xxwrt-seed-ssh"
+          mkdir -p "$SSH_DIR"
+          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$SSH_DIR/id_deploy"
+          printf '%s\n' "$UPDATE_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          chmod 600 "$SSH_DIR/id_deploy" "$SSH_DIR/known_hosts"
+          trap 'rm -rf "$SSH_DIR"' EXIT
+          SSH_ARGS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -p "$UPDATE_PORT" )
+          SCP_ARGS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -P "$UPDATE_PORT" )
+          DEST="${UPDATE_USER}@${UPDATE_HOST}"
+          DIR="/srv/app-updates"
+          APK="XX-WRT-Material-v2.0.20.apk"
+          SOURCE="$RUNNER_TEMP/xxwrt-seed"
+          ssh "${SSH_ARGS[@]}" "$DEST" "test -d '$DIR' && test -w '$DIR'"
+          scp "${SCP_ARGS[@]}" "$SOURCE/$APK" "$DEST:$DIR/$APK.uploading"
+          ssh "${SSH_ARGS[@]}" "$DEST" "mv -f -- '$DIR/$APK.uploading' '$DIR/$APK'"
+          scp "${SCP_ARGS[@]}" "$SOURCE/version.json" "$DEST:$DIR/version.json.uploading"
+          ssh "${SSH_ARGS[@]}" "$DEST" "mv -f -- '$DIR/version.json.uploading' '$DIR/version.json'"
+          echo "Real APK and version.json uploaded. Files are intentionally retained on server."
+      - name: Verify real files through public Lucky HTTPS
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://update.12130812.xyz"
+          SOURCE="$RUNNER_TEMP/xxwrt-seed"
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
+            --connect-timeout 10 --max-time 45 "$BASE/version.json" -o "$RUNNER_TEMP/version.remote.json"
+          jq -e '.schemaVersion==1 and .version=="2.0.20" and .apkName=="XX-WRT-Material-v2.0.20.apk"' "$RUNNER_TEMP/version.remote.json" >/dev/null
+          diff -u "$SOURCE/version.json" "$RUNNER_TEMP/version.remote.json"
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
+            --connect-timeout 10 --max-time 90 "$BASE/XX-WRT-Material-v2.0.20.apk" -o "$RUNNER_TEMP/downloaded.apk"
+          EXPECTED_SHA="$(jq -r '.sha256' "$SOURCE/version.json")"
+          DOWNLOADED_SHA="$(sha256sum "$RUNNER_TEMP/downloaded.apk" | awk '{print $1}')"
+          [[ "$DOWNLOADED_SHA" == "$EXPECTED_SHA" ]] || { echo "::error::Public HTTPS APK SHA-256 mismatch"; exit 1; }
+          echo "PASS: version.json returned exactly the published metadata"
+          echo "PASS: APK downloaded via Lucky HTTPS and SHA-256 matched"
+          echo "PASS: both files remain stored at /srv/app-updates"
