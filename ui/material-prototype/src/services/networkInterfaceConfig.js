@@ -35,6 +35,16 @@ export function ipv6Valid(input) {
 export function validIp(input) {
   return ipv4Valid(input) || ipv6Valid(input)
 }
+function ipv4Prefix(value) {
+  const raw = String(value || '')
+  if (/^(?:[1-9]|[12]\d|3[0-2])$/.test(raw)) return Number(raw)
+  if (!ipv4Valid(raw)) return -1
+  const num = raw.split('.').reduce((v, x) => ((v << 8) | Number(x)) >>> 0, 0)
+  if (!num) return -1
+  const inverted = (~num) >>> 0
+  if (((inverted & (inverted + 1)) >>> 0) !== 0) return -1
+  return (num.toString(2).match(/1/g) || []).length
+}
 export function validNetmask(input) {
   const value = String(input || '')
   if (/^(?:[1-9]|[12]\d|3[0-2])$/.test(value)) return true
@@ -174,12 +184,16 @@ export function buildInterfaceChanges(name, network, dhcp, form) {
   if (form.dhcpEnabled && !hasDhcp) throw new Error('路由器没有开放 DHCP 配置读取权限')
   if (hasDhcp && activeServer && (dhcpSection || form.dhcpEnabled)) {
     const start = text(form.dhcpStart), limit = text(form.dhcpLimit), lease = text(form.dhcpLease)
-    if (!/^\d{1,4}$/.test(start) || Number(start) < 1 || Number(start) > 254 ||
-        !/^\d{1,4}$/.test(limit) || Number(limit) < 1 || Number(limit) > 254 ||
-        Number(start) + Number(limit) > 255) {
-      throw new Error('DHCP 地址池需要在同一 /24 中，起始地址与数量之和不能超过 255')
+    const prefix = ipv4Prefix(mask)
+    const totalHosts = 2 ** (32 - prefix)
+    if (prefix >= 31 || prefix < 0 ||
+        !/^\d{1,5}$/.test(start) || Number(start) < 1 ||
+        !/^\d{1,5}$/.test(limit) || Number(limit) < 1 ||
+        Number(start) + Number(limit) > totalHosts - 1) {
+      throw new Error('DHCP 地址池起始偏移/数量超出当前 IPv4 子网可用范围')
     }
-    if (!/^\d{1,5}[smhd]$/.test(lease)) throw new Error('租期格式例如 12h、30m 或 1d')
+    if (!/^\d{1,5}[smhd]$/.test(lease) && lease !== 'infinite')
+      throw new Error('租期格式例如 12h、30m、1d 或 infinite')
     if (!['disabled', 'server', 'relay', 'hybrid'].includes(form.dhcpv6Mode) ||
         !['disabled', 'server', 'relay', 'hybrid'].includes(form.raMode))
       throw new Error('DHCPv6/RA 模式无效')
