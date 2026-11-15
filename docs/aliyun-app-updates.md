@@ -90,7 +90,8 @@ ssh-keyscan -p 22 -t ed25519 <服务器公网IP或SSH域名>
 3. 合并改动后，推送 `main`，正式 APK 经现有构建、测试和签名并发布到 GitHub。
 4. 新增的 `Sync stable APK to Aliyun Lucky file service` 步骤上传至 `/srv/app-updates`。
 5. APK 文件上传成功之后，通过 `mv` 原子发布 `version.json`。
-6. 手机在「关于 → 检查更新」查看更新来源是否显示「阿里云」，并测试 APK 下载。
+6. **自动保留最新 5 个正式 APK**：正式版同步完成后，运行 `.github/scripts/prune_mirror_apks.py`，按数字版本号排序并删除超出数量的旧 APK；`version.json`、其他类型文件和非规范命名 APK 不删除。
+7. 手机在「关于 → 检查更新」查看更新来源是否显示「阿里云」，并测试 APK 下载。
 
 验证：
 
@@ -102,6 +103,15 @@ curl -I "https://update.12130812.xyz/XX-WRT-Material-v2.0.21.apk"
 返回的 JSON 含 `schemaVersion`、`version`、`tag`、`apkName`、`apkUrl`、`apkSize`、`sha256`、`releaseUrl` 和 `githubApkUrl`。
 
 注意：`sha256` 用于公布安装包校验值；目前 APP 原生下载器由 Android 系统下载服务接管，**未在客户端实现自动 SHA-256 校验**。Android 安装时仍由操作系统验证 APK 签名。后续若要强制下载哈希校验，需要扩展原生下载模块。
+
+
+### APK 保留策略
+
+- **阿里云只保留最新 5 个规范命名的正式版 APK**，例如最新版本为 v2.0.25 时保留 v2.0.21 至 v2.0.25（假设每个版本均已发布）。
+- 每次 `main` 发布新版本并成功上传 `version.json` 后执行清理；无需服务器定时任务，也不会在查询更新或下载时触发。
+- 清理前会核对 `version.json` 指向的 APK 是否存在，并确认其属于最新 5 个版本。如果检查不通过，则拒绝删除任何 APK，以免造成下载链接失效。
+- 不删除 `version.json`、其他项目文件或非规范名称的 APK。GitHub Releases 历史版本不受影响。
+- 当前服务器只上传了 v2.0.20，未超过 5 个，因此不会清理该文件。此策略随下一次正式版发布开始自动生效。
 
 ## 5. 故障处理
 
