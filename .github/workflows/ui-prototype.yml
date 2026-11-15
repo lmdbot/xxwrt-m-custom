@@ -32,6 +32,9 @@ jobs:
       - name: Install open-source UI dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Run application logic regression tests
+        run: npm run test:logic
+
       - name: Build Vuetify + Liquid Glass prototype
         run: npm run build
 
