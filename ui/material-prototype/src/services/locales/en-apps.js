@@ -68,6 +68,7 @@ export default {
   "高级": "Advanced",
   "启用微信推送": "Enable WeChat Push",
   "推送渠道": "Notification channels",
+  "DIY 自定义推送": "DIY custom notification",
   "消息中的设备名称（可选）": "Device name in messages (optional)",
   "检测间隔（秒）": "Detection interval (seconds)",
   "DIY 推送 JSON 文件内容": "DIY notification JSON file content",
