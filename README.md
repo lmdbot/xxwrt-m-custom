@@ -14,8 +14,8 @@
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 应用版本 | **2.0.22** |
-| Android `versionCode` | `2000022` |
+| 应用版本 | **2.0.23** |
+| Android `versionCode` | `2000023` |
 | 应用名称 | `XX-WRT管理器` |
 | Android 包名 | `com.lmdbot.xxwrt.materialpreview` |
 | 技术栈 | Vue 3 · Vite 7 · Vuetify 3 · Capacitor 8 · ECharts 5 |
@@ -128,6 +128,8 @@ npm run test:ui
 工作流使用的密钥别名为 `xxwrt`。**不要将签名文件、密码或其 Base64 内容提交到仓库。** 未配置所需 Secrets 时，APK 签名步骤会失败。
 
 正式版支持使用阿里云 Lucky 静态文件镜像作为 APP 首选更新源，GitHub 保留为备用。服务器准备、SSH Secrets、域名、发布验证见 [阿里云 Lucky 自动更新部署指南](docs/aliyun-app-updates.md)。
+
+Android v2.0.23 起支持 APP 内私有缓存下载、显示进度及文件校验，下载完成后自动唤起系统 APK 安装器（必须由用户确认安装，首次可能需要授权“安装未知应用”）；不再使用系统下载管理器。原生实现保存在 `ui/material-prototype/native/ApkDownloaderPlugin.java`，由构建脚本 `scripts/patch_android_updater.py` 注入生成的 Capacitor 工程。
 
 正式版通知由阿里云服务器文件变化监测脚本处理，不再由 GitHub Actions 发送 Webhook。
 
