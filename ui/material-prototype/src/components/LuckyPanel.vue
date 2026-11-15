@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 import { shortError } from '../services/router.js'
+import { savedLanguage, translateText } from '../services/localization.js'
 import {
   luckyArch, luckyCore, luckyStatus, luckyService, luckyWatchdog,
   luckyRulesOpen, luckyRulesSave, luckyArchive, luckyDiagnostics,
@@ -111,7 +112,7 @@ async function loadRule(type, discard = false) {
   const editor = ruleEditors[type]
   if (!editor || working.value || editor.loading) return
   if (editor.loaded && editor.text !== editor.original && !discard &&
-      !window.confirm('重新读取会丢弃此文件的未保存修改，是否继续？')) return
+      !window.confirm(translateText('重新读取会丢弃此文件的未保存修改，是否继续？', savedLanguage()))) return
   editor.loading = true; editor.error = ''; error.value = ''; notice.value = ''
   let previousToken = editor.token
   try {
