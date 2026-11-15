@@ -2291,11 +2291,10 @@ onUnmounted(() => {
             </template>
           </template>
         </template>
-        <v-alert v-if="errorMessage && !connected" class="mt-4" type="error" variant="tonal">{{ errorMessage }}</v-alert>
       </v-container>
     </v-main>
 
-    <v-snackbar :model-value="Boolean(errorMessage) && connected" location="bottom" :timeout="5500"
+    <v-snackbar :model-value="Boolean(errorMessage)" location="bottom" :timeout="5500"
       :style="{ bottom: '77px' }" color="error" role="alert"
       @update:model-value="!$event && (errorMessage = '')">
       {{ errorMessage }}
