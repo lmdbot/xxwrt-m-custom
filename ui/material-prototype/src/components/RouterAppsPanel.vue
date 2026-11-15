@@ -61,9 +61,6 @@ const ssrComponents = [
 ]
 const carbonChecking = ref(false)
 const carbonCheckText = ref('')
-watch([floatingNoticeText, operationWaiting], () => {
-  floatingNoticeOpen.value = Boolean(floatingNoticeText.value)
-})
 const ssr = ref({ available: false, section: '', global: {}, nodes: [], service: null })
 const ssrNode = ref('nil')
 const wechat = ref({ available: false, section: '', service: null })
@@ -83,6 +80,9 @@ const wechatAliasesOriginal = ref('')
 const wechatAliasesLoaded = ref(false)
 const wechatAliasesLoading = ref(false)
 const wechatAliasesError = ref('')
+watch([floatingNoticeText, operationWaiting], () => {
+  floatingNoticeOpen.value = Boolean(floatingNoticeText.value)
+})
 const wechatAliasTarget = ref('')
 const wechatAliasName = ref('')
 const wechatAliasesDirty = computed(() => wechatAliasesLoaded.value &&
