@@ -214,6 +214,16 @@ function syncNativeChrome(isDark) {
   }
 }
 const listError = ref('')
+const generalFeedbackOpen = ref(false)
+const generalFeedbackText = computed(() => listError.value || updateError.value || updateNotice.value)
+const generalFeedbackColor = computed(() => listError.value || updateError.value ? 'warning' : 'info')
+watch(generalFeedbackText, value => { generalFeedbackOpen.value = Boolean(value) })
+function dismissGeneralFeedback() {
+  generalFeedbackOpen.value = false
+  listError.value = ''
+  updateError.value = ''
+  updateNotice.value = ''
+}
 const deviceStatuses = reactive({})
 const deviceSummaries = reactive({})
 const deviceForm = reactive({ name: '', address: 'http://192.168.100.1', username: 'root', ignoreTlsErrors: false })
@@ -1287,6 +1297,7 @@ async function showLegacyTool(toolId, { force = false } = {}) {
     } else if (isSystemList) {
       legacyLoadStatus[toolId] = 'error'
       legacyLoadError.value = shortError(e)
+      toolMessage.value = legacyLoadError.value
     } else {
       toolMessage.value = shortError(e)
     }
@@ -1666,11 +1677,9 @@ onUnmounted(() => {
                 <div class="settings-detail-row"><span>当前安装版本</span><strong>v{{ installedVersion }}</strong></div>
                 <div v-if="latestRelease" class="settings-detail-row"><span>最新正式版本</span><strong>v{{ latestRelease.version }}</strong></div>
                 <div v-if="latestRelease" class="settings-detail-row"><span>更新来源</span><strong>{{ latestRelease.source === 'mirror' ? '阿里云' : 'GitHub 备用' }}</strong></div>
-                <v-alert v-if="updateError" type="error" variant="tonal" density="compact" class="mb-3">{{ updateError }}</v-alert>
-                <v-alert v-else-if="updateAvailable && latestRelease?.apkUrl" type="success" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，可下载正式版 APK。</v-alert>
-                <v-alert v-else-if="updateAvailable" type="warning" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，但此 Release 暂无匹配的 Material APK。</v-alert>
-                <v-alert v-else-if="updateChecked" type="info" variant="tonal" density="compact" class="mb-3">{{ latestRelease ? '当前已是最新版' : '暂未找到有效的正式 Release' }}</v-alert>
-                <v-alert v-if="updateNotice" type="info" variant="tonal" density="compact" class="mb-3">{{ updateNotice }}</v-alert>
+                <v-alert v-if="!updateError && updateAvailable && latestRelease?.apkUrl" type="success" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，可下载正式版 APK。</v-alert>
+                <v-alert v-else-if="!updateError && updateAvailable" type="warning" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，但此 Release 暂无匹配的 Material APK。</v-alert>
+                <v-alert v-else-if="!updateError && updateChecked" type="info" variant="tonal" density="compact" class="mb-3">{{ latestRelease ? '当前已是最新版' : '暂未找到有效的正式 Release' }}</v-alert>
                 <div class="settings-actions">
                   <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" :loading="updateChecking" @click="checkAppUpdates">检查更新</v-btn>
                   <v-btn v-if="updateAvailable && latestRelease?.apkUrl" color="primary" prepend-icon="mdi-download" @click="downloadLatestApk">下载最新 APK</v-btn>
@@ -1727,7 +1736,6 @@ onUnmounted(() => {
                 @click="routerListLayout = routerListLayout === 'card' ? 'list' : 'card'"/>
             </div>
           </div>
-          <v-alert v-if="listError && !deviceDialog" type="warning" variant="tonal" closable density="compact" class="mb-3" @click:close="listError = ''">{{ listError }}</v-alert>
           <v-card v-if="!devices.length" rounded="xl" elevation="1" class="empty-devices">
             <v-avatar color="primary" variant="tonal" size="72"><v-icon icon="mdi-router-wireless" size="36"/></v-avatar>
             <h2>还没有添加 OpenWrt 设备</h2>
@@ -2188,10 +2196,6 @@ onUnmounted(() => {
                   type="info" variant="tonal" density="compact" class="mb-3" role="status">
                   正在读取{{ toolPanel === 'process' ? '进程' : toolPanel === 'startup' ? '启动项' : '路由表' }}数据…
                 </v-alert>
-                <v-alert v-else-if="['process','startup','routes'].includes(toolPanel) && legacyLoadStatus[toolPanel] === 'error'"
-                  type="error" variant="tonal" density="compact" class="mb-3" role="alert">
-                  {{ legacyLoadError || '读取失败，请点击右上角刷新重试。' }}
-                </v-alert>
                 <CompactManagementLists
                 v-else-if="['process','startup','routes'].includes(toolPanel) && legacyLoadStatus[toolPanel] === 'ready'"
                 :kind="toolPanel"
@@ -2207,10 +2211,6 @@ onUnmounted(() => {
                 <v-alert v-if="wolLoadStatus === 'loading' || wolLoadStatus === 'idle'"
                   type="info" variant="tonal" density="compact" class="mb-3">
                   正在读取网络唤醒配置与服务状态…
-                </v-alert>
-                <v-alert v-else-if="wolLoadStatus === 'error'" type="error"
-                  variant="tonal" density="compact" class="mb-3">
-                  网络唤醒状态读取失败，请点击右上角刷新后重试。
                 </v-alert>
                 <template v-else-if="wolLoadStatus === 'ready'">
                 <v-btn-toggle v-model="wolTab" mandatory density="compact" variant="tonal" rounded="lg" color="primary" class="wol-tabs">
@@ -2300,6 +2300,14 @@ onUnmounted(() => {
       @update:model-value="!$event && (errorMessage = '')">
       {{ errorMessage }}
       <template #actions><v-btn size="small" variant="text" @click="errorMessage = ''">关闭</v-btn></template>
+    </v-snackbar>
+    <v-snackbar v-model="generalFeedbackOpen" location="bottom" :timeout="5200"
+      :style="{ bottom: '77px' }" :color="generalFeedbackColor" role="status" aria-live="polite"
+      class="router-app-floating-feedback">
+      {{ generalFeedbackText }}
+      <template #actions>
+        <v-btn size="small" variant="text" @click="dismissGeneralFeedback">关闭</v-btn>
+      </template>
     </v-snackbar>
     <v-snackbar v-model="toolFeedbackOpen" location="bottom" :timeout="toolWaiting ? -1 : 5000"
       :style="{ bottom: '77px' }" color="primary" role="status" aria-live="polite"
