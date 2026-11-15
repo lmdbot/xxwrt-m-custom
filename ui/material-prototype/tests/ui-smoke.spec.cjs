@@ -729,7 +729,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('button', { name: '断开接口 wan' })).toBeDisabled()
   // All network edits use timed rollback and require an explicit confirmation.
   await page.getByRole('button', { name: '配置接口 wan' }).click()
-  await page.getByRole('switch', { name: '开机自动启用接口' }).uncheck()
+  // Vuetify renders VSwitch using a native checkbox. Clicking the visible
+  // associated label is stable across Vuetify accessibility-role changes.
+  const wanAutoInput = page.locator('.network-interface-editor .v-switch input[type="checkbox"]').first()
+  await expect(wanAutoInput).toBeChecked()
+  await page.locator('.network-interface-editor').getByText('开机自动启用接口', { exact: true }).click()
+  await expect(wanAutoInput).not.toBeChecked()
   await page.getByRole('button', { name: '保存并应用（可回滚）' }).click()
   await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
   await page.getByRole('button', { name: '确认保留配置' }).last().click()
