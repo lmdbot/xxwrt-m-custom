@@ -51,15 +51,20 @@ export function writeAppFavorites(storage, deviceId, favorites) {
   if (!deviceId) return false
   const clean = cleanAppFavorites(favorites)
   if (!clean) return false
+  // A malformed JSON value is recoverable: replace it with this router's
+  // new favorites, but keep genuine storage access errors non-fatal.
+  let raw
+  try { raw = storage.getItem(APP_FAVORITES_STORAGE_KEY) }
+  catch (_) { return false }
+  let saved
+  try { saved = JSON.parse(raw || '{}') }
+  catch (_) { saved = {} }
+  const data = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
+  data[deviceId] = clean
   try {
-    const saved = JSON.parse(storage.getItem(APP_FAVORITES_STORAGE_KEY) || '{}')
-    const data = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}
-    data[deviceId] = clean
     storage.setItem(APP_FAVORITES_STORAGE_KEY, JSON.stringify(data))
     return true
-  } catch (_) {
-    return false
-  }
+  } catch (_) { return false }
 }
 
 export function groupVisibleApps(tools) {
