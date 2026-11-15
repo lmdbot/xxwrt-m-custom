@@ -135,6 +135,25 @@ const dataFor = (object, method, params = {}) => {
     ]
   }
   if (object === 'luci' && method === 'getOnlineUsers') return { onlineusers: '9' }
+  // Lucky 3.1+ read-only rule editor responses for overlay regression.
+  if (object === 'file' && method === 'exec' && params.command === '/usr/libexec/lucky-backup') {
+    const operation = params.params?.[0]
+    if (operation === 'core-status') return { code: 0,
+      stdout: JSON.stringify({ ok: true, status: 'ready', info: { Version: '3.1.0' } }) }
+    if (operation === 'rules-localips' || operation === 'rules-allowlist') {
+      const allowlist = operation === 'rules-allowlist'
+      return { code: 0, stdout: JSON.stringify({
+        ok: true, token: 'a'.repeat(32), directory: '/etc/lucky',
+        name: allowlist ? 'ip-allowlist.txt' : 'localips', content: '192.168.100.0/24\n'
+      }) }
+    }
+    if (operation === 'cleanup') return { code: 0, stdout: '{"ok":true}' }
+  }
+  if (object === 'file' && method === 'exec' && params.command === '/usr/libexec/lucky-call') {
+    return { code: 0, stdout: params.params?.[0] === 'status' ? 'true' : 'x86_64' }
+  }
+  if (object === 'file' && method === 'exec' && params.command === '/usr/libexec/lucky-watchdog')
+    return { code: 0, stdout: '{"enabled":true,"scheduled":true,"paused":false}' }
   if (object === 'file' && method === 'read' && params.path === '/tmp/wechatpush/devices.json') {
     return { data: JSON.stringify({ devices: [
       { name: 'Phone', ip: '192.168.100.88', mac: 'AA:BB:CC:DD:EE:FF', status: 'online', interface: 'LAN', uptime: String(Math.floor(Date.now() / 1000) - 3661) },
@@ -635,6 +654,26 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.app-search-results .app-tool-row')).toHaveCount(1)
   await page.getByRole('textbox', { name: '搜索应用或功能' }).fill('')
   await page.screenshot({ path: 'test-results/screenshots/compact-app-hub.png', fullPage: true })
+  // Action feedback uses floating snackbars instead of permanent page-top alerts.
+  await openApplication(page, 'Lucky')
+  const luckyPanel = page.locator('.lucky-app-panel')
+  await expect(luckyPanel.getByRole('button', { name: '刷新', exact: true })).toHaveCount(0)
+  await page.getByRole('tab', { name: '访问规则' }).click()
+  await expect(page.locator('.v-snackbar').filter({ hasText: 'ip-allowlist.txt 已从路由器读取' })).toBeVisible()
+  await expect(luckyPanel.locator('.v-alert').filter({ hasText: 'ip-allowlist.txt 已从路由器读取' })).toHaveCount(0)
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+
+  await openApplication(page, 'Vlmcsd KMS')
+  const kmsPanel = page.locator('.vlmcsd-panel')
+  await expect(kmsPanel.getByRole('button', { name: '刷新', exact: true })).toHaveCount(0)
+  await page.getByRole('tab', { name: '配置文件' }).click()
+  const kmsEditor = kmsPanel.locator('.vlmcsd-config-editor textarea')
+  await expect(kmsEditor).toHaveAttribute('rows', '6')
+  await expect.poll(() => kmsEditor.evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(210)
+  await page.getByRole('button', { name: '刷新当前页面' }).click()
+  await expect(page.locator('.v-snackbar').filter({ hasText: 'Vlmcsd 状态已刷新' })).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+
   await openApplication(page, 'ShadowSocksR Plus+')
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   // Tapping the already selected Apps tab returns from a nested app page.
