@@ -325,7 +325,10 @@ jobs:
           test -s "$APK"
           APK_SIZE="$(stat -c '%s' "$APK")"
           APK_SHA256="$(sha256sum "$APK" | cut -d' ' -f1)"
+          RELEASE_NOTES="../../docs/releases/v${APP_VERSION}.md"
+          test -s "$RELEASE_NOTES" || { echo "::error::Release notes missing: $RELEASE_NOTES"; exit 1; }
           jq -n \
+            --rawfile releaseNotes "$RELEASE_NOTES" \
             --arg version "$APP_VERSION" \
             --arg tag "v${APP_VERSION}" \
             --arg title "XX-WRT管理器 v${APP_VERSION}" \
@@ -335,7 +338,7 @@ jobs:
             --arg githubApkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${APP_VERSION}/${APP_APK_NAME}" \
             --argjson apkSize "$APK_SIZE" \
             --arg sha256 "$APK_SHA256" \
-            '{schemaVersion:1,version:$version,tag:$tag,title:$title,apkName:$apkName,apkUrl:$apkUrl,releaseUrl:$releaseUrl,githubApkUrl:$githubApkUrl,apkSize:$apkSize,sha256:$sha256}' \
+            '{schemaVersion:1,version:$version,tag:$tag,title:$title,apkName:$apkName,apkUrl:$apkUrl,releaseUrl:$releaseUrl,githubApkUrl:$githubApkUrl,apkSize:$apkSize,sha256:$sha256,releaseNotes:$releaseNotes}' \
             > "$MANIFEST"
 
           # Publish the entire APK before making its version visible to clients.

@@ -13,7 +13,7 @@ import {
   sortFavoriteTools, toggleAppFavorite, moveAppFavorite, isDangerousApp
 } from './services/appLauncher.js'
 import { formatLeaseDuration } from './services/leaseTime.js'
-import { fetchLatestStableRelease } from './services/appUpdates.js'
+import { fetchLatestStableRelease, fetchGithubReleaseNotes } from './services/appUpdates.js'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import RouterAppsPanel from './components/RouterAppsPanel.vue'
 import LuckyPanel from './components/LuckyPanel.vue'
@@ -154,6 +154,23 @@ const updateChecked = ref(false)
 const updateError = ref('')
 const updateNotice = ref('')
 const updateDialog = ref(false)
+const releaseNotesDialog = ref(false)
+const releaseNotesLoading = ref(false)
+const releaseNotesText = ref('')
+const releaseNotesError = ref('')
+const releaseNotesVersion = ref('')
+const releaseNotesSource = ref('')
+const releaseNotesBlocks = computed(() => String(releaseNotesText.value || '').split(/\r?\n/)
+  .map(raw => {
+    const line = raw.trim()
+    if (!line) return null
+    const heading = /^#{1,6}\s+(.+)$/.exec(line)
+    const bullet = /^(?:[-*]|\d+\.)\s+(.+)$/.exec(line)
+    const plain = (heading?.[1] || bullet?.[1] || line)
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+    return { kind: heading ? 'heading' : bullet ? 'bullet' : 'paragraph', text: plain }
+  }).filter(Boolean))
 const openSourceDialog = ref(false)
 const downloadBusy = ref(false)
 const downloadPercent = ref(0)
@@ -907,6 +924,7 @@ function onDrawerEdgeTouchEnd(event) {
 // Back: dialogs → drawer/settings → app subpage → router list → minimize.
 async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
+  if (releaseNotesDialog.value) { releaseNotesDialog.value = false; return 'dialog' }
   if (openSourceDialog.value) { openSourceDialog.value = false; return 'dialog' }
   if (factoryDialog.value) { factoryDialog.value = false; return 'dialog' }
   if (confirmReboot.value) { confirmReboot.value = false; return 'dialog' }
@@ -1470,11 +1488,41 @@ async function saveParentalOptions() {
   finally { parentalSaving.value = false }
 }
 
-async function showReleasePage() {
+async function showLatestReleaseNotes() {
+  if (releaseNotesLoading.value) return
+  releaseNotesDialog.value = true
+  releaseNotesLoading.value = true
+  releaseNotesText.value = ''
+  releaseNotesVersion.value = ''
+  releaseNotesSource.value = ''
+  releaseNotesError.value = ''
   try {
-    await Browser.open({ url: 'https://github.com/lmdbot/xxwrt-m-custom/releases', windowName: '_blank' })
+    // The update checker already stores the latest stable release. If it has
+    // not completed yet, fetch using the exact same Aliyun-first path.
+    const latest = latestRelease.value || await fetchLatestStableRelease()
+    if (!latest) throw new Error('暂无可用的正式版本信息')
+    releaseNotesVersion.value = latest.version
+    let content = String(latest.releaseNotes || '').trim()
+    let source = latest.source || 'github'
+    if (!content) {
+      // Old version.json files have no notes field; only then use GitHub.
+      content = (await fetchGithubReleaseNotes(latest.tag)).trim()
+      source = 'github'
+    }
+    if (!content) throw new Error('当前最新版本尚未提供变更日志')
+    releaseNotesText.value = content
+    releaseNotesSource.value = source
   } catch (e) {
-    listError.value = '打开版本页面失败：' + shortError(e)
+    releaseNotesError.value = '无法获取版本日志：' + shortError(e)
+  } finally {
+    releaseNotesLoading.value = false
+  }
+}
+async function showIssuesPage() {
+  try {
+    await Browser.open({ url: 'https://github.com/lmdbot/xxwrt-m-custom/issues', windowName: '_blank' })
+  } catch (e) {
+    listError.value = '打开 GitHub Issues 失败：' + shortError(e)
   }
 }
 async function showProjectPage() {
@@ -1807,15 +1855,16 @@ onUnmounted(() => {
                   <v-btn v-if="downloadBusy && isNative" variant="outlined" color="warning" @click="cancelApkDownload">取消下载</v-btn>
                   <v-btn v-if="downloadedApkReady && isNative && !downloadBusy" variant="outlined"
                     prepend-icon="mdi-package-up" @click="installDownloadedApk">重新打开安装</v-btn>
-                  <v-btn variant="outlined" prepend-icon="mdi-open-in-new" @click="showReleasePage">发布记录</v-btn>
+                  <v-btn variant="outlined" prepend-icon="mdi-text-box-outline" :loading="releaseNotesLoading"
+                     @click="showLatestReleaseNotes">版本日志</v-btn>
                 </div>
               </v-card>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-help-circle-outline" size="23"/></v-avatar>
-                  <div><h2>帮助与反馈</h2><p>查看使用说明、已知限制和项目版本记录。</p></div>
+                  <div><h2>帮助与反馈</h2><p>查看已知问题、反馈故障或提出功能建议。</p></div>
                 </div>
-                <v-btn variant="outlined" block prepend-icon="mdi-book-open-outline" @click="showReleasePage">查看项目及版本记录</v-btn>
+                <v-btn variant="outlined" block prepend-icon="mdi-bug-outline" @click="showIssuesPage">查看问题与反馈（Issues）</v-btn>
               </v-card>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
@@ -2578,6 +2627,38 @@ onUnmounted(() => {
       <v-card rounded="xl" title="确认重启 QWRT">
         <v-card-text>此操作将断开所有连接并重启路由器。确定执行吗？</v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" @click="confirmReboot = false">取消</v-btn><v-btn color="error" :loading="actionBusy" @click="rebootRouter">确认重启</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="releaseNotesDialog" max-width="620" scrollable>
+      <v-card rounded="xl" class="release-notes-dialog">
+        <v-card-title class="d-flex align-center ga-2">
+          <v-icon icon="mdi-text-box-outline" color="primary"/>
+          <span>最新版本变更日志</span>
+        </v-card-title>
+        <v-card-subtitle v-if="releaseNotesVersion">
+          v{{ releaseNotesVersion }} · {{ releaseNotesSource === 'mirror' ? '阿里云' : releaseNotesSource === 'github' ? 'GitHub 备用' : '正在获取日志' }}
+        </v-card-subtitle>
+        <v-divider class="mt-3"/>
+        <v-card-text class="release-notes-scroll">
+          <div v-if="releaseNotesLoading" class="d-flex align-center ga-3 py-4" role="status">
+            <v-progress-circular indeterminate size="22" color="primary"/>
+            <span>正在获取版本日志…</span>
+          </div>
+          <v-alert v-else-if="releaseNotesError" type="warning" variant="tonal" density="compact">
+            {{ releaseNotesError }}
+          </v-alert>
+          <div v-else class="release-notes-content" role="document">
+            <template v-for="(line, index) in releaseNotesBlocks" :key="index">
+              <h3 v-if="line.kind === 'heading'" class="release-notes-heading">{{ line.text }}</h3>
+              <p v-else-if="line.kind === 'bullet'" class="release-notes-bullet">{{ line.text }}</p>
+              <p v-else class="release-notes-paragraph">{{ line.text }}</p>
+            </template>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn variant="text" @click="releaseNotesDialog = false">关闭</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="updateDialog" max-width="420" :persistent="downloadBusy">

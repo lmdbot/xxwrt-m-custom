@@ -46,7 +46,8 @@ export function selectLatestStableRelease(releases) {
       apkUrl: apk?.browser_download_url || '',
       apkName: apk?.name || '', apkSize: Number(apk?.size || 0),
       sha256: /^sha256:[a-f0-9]{64}$/.test(String(apk?.digest || ''))
-        ? apk.digest.slice(7) : null
+        ? apk.digest.slice(7) : null,
+      releaseNotes: typeof release.body === 'string' ? release.body.slice(0, 48000) : ''
     }
   }
   return latest
@@ -78,6 +79,9 @@ export function parseMirrorRelease(data) {
     tag: data.tag, version: rawVersion,
     title: String(data.title || 'XX-WRT管理器 v' + rawVersion),
     releaseUrl, apkUrl, apkName, apkSize: data.apkSize,
-    sha256: data.sha256, githubApkUrl, source: 'mirror'
+    sha256: data.sha256, githubApkUrl, source: 'mirror',
+    // Optional in schema v1 for backwards compatibility with earlier mirrors.
+    releaseNotes: typeof data.releaseNotes === 'string'
+      ? data.releaseNotes.slice(0, 48000) : ''
   }
 }
