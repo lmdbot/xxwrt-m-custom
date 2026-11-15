@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Generate all Android launcher icon densities from the selected QWRT artwork.
+"""Generate Android launcher icons from the selected blue OpenWrt chibi mascot.
 
-The source is the selected purple chibi network guardian with a router,
-not a screenshot of the ChatGPT interface. Run after "npx cap add android"
-because Capacitor recreates android/ from its stock template.
+The selected original art combines the Q-version anime mascot, Wi-Fi symbol,
+OpenWrt router, antennas, and status LEDs. Run after "npx cap add android":
+Capacitor recreates the native Android tree on every CI build.
 """
 from pathlib import Path
+import hashlib
 from collections import deque
 from PIL import Image, ImageDraw, ImageChops
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "assets" / "qwrt-purple-network-guardian.webp"
+SOURCE = ROOT / "assets" / "qwrt-chibi-openwrt-router.webp"
+SOURCE_SHA256 = "a324b0e6285c31bfdc74b789712548f1c29e0b2617b52bc6e1a14f102e9165f1"
 RES = ROOT / "android" / "app" / "src" / "main" / "res"
 SIZES = {
     "mdpi": 48,
@@ -23,14 +25,14 @@ ADAPTIVE_SIZES = {name: round(size * 108 / 48) for name, size in SIZES.items()}
 # The 108dp adaptive icon is clipped by Android to a central 66dp safe zone.
 # Foreground illustration must be smaller than that safe zone to retain margins.
 # Legacy icons are displayed without the adaptive foreground crop.
-# The selected artwork already contains the finished purple rounded-square icon.
+# The selected artwork already contains the finished blue rounded-square icon.
 # Enlarge the legacy bitmap (used by Settings/App info) while retaining a small
 # transparent margin. For adaptive icons the OS clips a 108dp canvas to a
 # roughly 72dp viewport; the 72% foreground fills that area without leaving
 # a dark transparent halo, while the character and mini router stay central.
 LEGACY_ART_SCALE = 0.94
 ADAPTIVE_ART_SCALE = 0.66
-ADAPTIVE_BACKGROUND = "#4A2EC7"
+ADAPTIVE_BACKGROUND = "#338AEB"
 SOURCE_TRIM_RATIO = 0.035
 
 
@@ -82,6 +84,10 @@ def main():
     if not RES.is_dir():
         raise SystemExit(f"Android resources not initialized: {RES}")
 
+    actual_sha256 = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
+    if actual_sha256 != SOURCE_SHA256:
+        raise SystemExit(f"Selected launcher artwork SHA256 mismatch: {actual_sha256}")
+
     source = remove_outer_black(Image.open(SOURCE))
     if source.getchannel("A").getbbox() is None:
         raise SystemExit("Selected launcher artwork has no visible pixels")
@@ -119,7 +125,7 @@ def main():
 
     for density, pixels in ADAPTIVE_SIZES.items():
         # Keep the original graphic large in the Android adaptive mask.
-        # Opaque purple background below prevents black margins on dark launchers.
+        # Opaque blue background below prevents black margins on dark launchers.
         icon = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
         art_size = round(pixels * ADAPTIVE_ART_SCALE)
         art = source.resize((art_size, art_size), Image.Resampling.LANCZOS)
@@ -143,7 +149,7 @@ def main():
         '<?xml version="1.0" encoding="utf-8"?>\n'
         f'<resources><color name="qwrt_launcher_background">{ADAPTIVE_BACKGROUND}</color></resources>\n'
     )
-    print("QWRT icon: enlarged artwork, trimmed black halo, opaque adaptive background")
+    print("OpenWrt chibi icon: five densities, round launcher, adaptive icon")
 
 
 if __name__ == "__main__":
