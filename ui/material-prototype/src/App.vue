@@ -20,6 +20,7 @@ import LuckyPanel from './components/LuckyPanel.vue'
 import VlmcsdPanel from './components/VlmcsdPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
+import NetworkInterfacesPanel from './components/NetworkInterfacesPanel.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
@@ -617,6 +618,7 @@ const parentalData = ref({ available: false, base: {}, status: {}, advanced: {},
 const parentalForm = reactive({ enable: false, record_enable: false, work_mode: 0 })
 const parentalSaving = ref(false)
 const networkHardware = ref({ wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] })
+const networkInterfacesPanel = ref(null)
 const networkView = ref('interfaces')
 const networkInterfaces = computed(() =>
   (snapshot.value?.interfaces || []).filter(item => item.interface !== 'loopback'))
@@ -1317,6 +1319,7 @@ async function refreshCurrent() {
   }
   if (activeTab.value === 'home' || activeTab.value === 'statistics' || activeTab.value === 'network') {
     await refreshDashboard()
+    if (activeTab.value === 'network') void networkInterfacesPanel.value?.refreshAction()
     return
   }
   refreshing.value = true
@@ -2146,24 +2149,8 @@ onUnmounted(() => {
               </v-btn>
             </div>
             <template v-if="networkView === 'interfaces'">
-              <v-card v-for="nic in networkInterfaces" :key="nic.interface" rounded="xl" elevation="1" class="interface-card mb-3">
-                <div class="section-heading">
-                  <div><strong>{{ nic.interface }}</strong><div class="muted-hint">{{ nic.proto || 'unknown' }} · {{ nic.device || nic.l3_device || '--' }}</div></div>
-                  <v-chip size="small" variant="tonal" :color="nic.up ? 'success' : 'error'">{{ nic.up ? '已连接' : '未连接' }}</v-chip>
-                </div>
-                <div class="network-interface-details">
-                  <div><span>IPv4</span><strong>{{ nic['ipv4-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
-                  <div><span>IPv6</span><strong>{{ nic['ipv6-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
-                  <div v-if="nic['ipv6-prefix']?.length"><span>IPv6-PD</span><strong>{{ nic['ipv6-prefix'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
-                  <div v-if="['wan6','wan_6'].includes(nic.interface) && ipv6ValidSeconds(nic) !== null"><span>剩余有效期</span><strong>{{ formatInterfaceUptime(ipv6ValidSeconds(nic)) }}</strong></div>
-                  <div v-if="nic['ipv6-prefix-assignment']?.length"><span>IPv6-PD 分配</span><strong>{{ nic['ipv6-prefix-assignment'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
-                  <div v-if="nic['dns-server']?.length"><span>DNS</span><strong>{{ nic['dns-server'].join(' / ') }}</strong></div>
-                  <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
-                  <div v-if="nic.uptime !== undefined && nic.uptime !== null"><span>运行时间</span><strong>{{ formatInterfaceUptime(nic.uptime) }}</strong></div>
-                  <div v-if="nic.route?.length"><span>路由</span><strong>{{ nic.route.map(x => x.target + '/' + x.mask + ' → ' + (x.nexthop || '--')).join('; ') }}</strong></div>
-                </div>
-              </v-card>
-              <v-alert v-if="!networkInterfaces.length" type="info" variant="tonal" density="compact">暂未获取到网络接口。</v-alert>
+              <NetworkInterfacesPanel v-if="client" ref="networkInterfacesPanel"
+                :client="client" :interfaces="networkInterfaces" @refresh="refreshDashboard"/>
             </template>
             <template v-else-if="networkView === 'devices'">
               <v-card rounded="xl" elevation="1" class="network-card mb-3">
