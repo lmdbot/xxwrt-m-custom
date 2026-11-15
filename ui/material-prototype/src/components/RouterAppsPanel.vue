@@ -1587,16 +1587,6 @@ defineExpose({ refresh, refreshAction })
         </div>
         <p v-if="zt.runtimeUnavailable" class="muted-hint mt-2">当前路由器未开放实时 ZeroTier 状态读取接口；以下展示已保存的网络配置，运行状态待确认。</p>
         <p v-else class="muted-hint mt-2">运行信息来源：{{ zt.runtimeSource === 'luci-zerotier' ? 'ZeroTier 专用 RPC' : 'ZeroTier CLI' }}</p>
-        <v-card v-for="x in zt.runtime" :key="x.id" variant="outlined" rounded="lg" class="zt-network-card mt-3" style="padding:12px">
-          <div class="d-flex align-center justify-space-between ga-2"><strong>{{ x.name || x.id.slice(0, 8) }}</strong>
-            <v-chip size="x-small" :color="x.status === 'OK' ? 'success' : x.interfaceUp ? 'info' : 'secondary'" variant="tonal">{{ x.status === 'OK' ? '网络已连接' : x.interfaceUp ? '虚拟网卡已启用' : '网络状态待确认' }}</v-chip>
-          </div>
-          <div class="muted-hint mt-2">网络 ID：{{ x.id }}</div>
-          <div class="muted-hint">虚拟网卡：{{ x.portDeviceName || '--' }}</div>
-          <div class="muted-hint">虚拟 MAC：{{ x.mac || '--' }}</div>
-          <div class="muted-hint">分配 IP：{{ x.addresses || '暂无' }}</div>
-          <div class="muted-hint">网络类型：{{ x.type || '--' }}</div>
-        </v-card>
         <div v-if="zt.virtualDevices?.length" class="mt-3">
           <h3 class="router-app-section-title">网络接口信息</h3>
           <v-card v-for="device in zt.virtualDevices" :key="device.name" rounded="lg" variant="outlined" class="zt-network-card zt-interface-card mb-3">
