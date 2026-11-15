@@ -1597,10 +1597,17 @@ onUnmounted(() => {
         @click="settingsOpen ? closeSettingsPage() : activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
-          <span class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : viewMode === 'list' ? '我的 OpenWrt' : displayDeviceName(selectedDevice) }}</span>
+          <h1 v-if="viewMode === 'list' && !settingsOpen"
+            class="router-toolbar-name router-list-toolbar-heading">设备列表</h1>
+          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : displayDeviceName(selectedDevice) }}</span>
           <span v-if="toolbarSection && !settingsOpen" class="router-toolbar-context" :title="toolbarSection">· {{ toolbarSection }}</span>
         </div>
       </v-toolbar-title>
+      <v-btn v-if="viewMode === 'list' && !settingsOpen"
+        icon="mdi-refresh" size="small" variant="tonal" color="primary"
+        :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
+      <v-btn v-if="viewMode === 'list' && !settingsOpen" class="router-list-add-topbar"
+        color="primary" rounded="xl" size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
       <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面" @click="activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
@@ -1825,13 +1832,7 @@ onUnmounted(() => {
           </section>
         </template>
         <template v-else-if="viewMode === 'list'">
-          <div class="list-page-title">
-            <div><h1>设备列表</h1></div>
-            <div class="list-page-actions">
-              <v-btn icon="mdi-refresh" variant="tonal" color="primary" :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
-              <v-btn color="primary" rounded="xl" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
-            </div>
-          </div>
+          <!-- Title and primary actions live in the fixed top bar. -->
           <div class="router-list-toolbar">
             <v-btn-toggle v-model="routerListFilter" mandatory density="compact"
               rounded="lg" variant="tonal" color="primary" aria-label="设备在线状态筛选">

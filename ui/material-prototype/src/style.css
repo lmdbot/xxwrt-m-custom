@@ -93,9 +93,6 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 
 
 /* Material multi-router device list, replacing the single-login landing page. */
-.list-page-title{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:18px}
-.list-page-title h1{font-size:25px;font-weight:700;letter-spacing:-.3px;margin:0}
-.list-page-actions{display:flex;gap:7px;align-items:center;flex-shrink:0}
 .saved-device-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:12px}
 .saved-device-card{padding:17px;cursor:pointer;transition:box-shadow .2s ease,transform .12s ease;min-width:0}
 .saved-device-card:active{transform:scale(.995)}
@@ -114,7 +111,7 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .empty-devices{padding:42px 18px;min-height:280px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:14px}
 .empty-devices h2{font-size:18px}
 .empty-devices p{font-size:13px;color:var(--ui-text-muted);line-height:1.65}
-@media(max-width:385px){.list-page-title{flex-direction:column;gap:12px}.list-page-actions{align-self:flex-end}.saved-device-card{padding:14px}}
+@media(max-width:385px){.saved-device-card{padding:14px}}
 
 
 /* Scheme C: card-based settings categories with dedicated full-page groups. */
@@ -607,6 +604,22 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .router-toolbar-title{display:flex;align-items:baseline;min-width:0;width:100%;gap:5px;overflow:hidden;white-space:nowrap}
 .router-toolbar-name{font-size:18px;font-weight:750;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .router-toolbar-context{font-size:13px;font-weight:500;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:rgba(var(--v-theme-on-surface),.76)}
+/* The device list shares the fixed 64px toolbar with its refresh/add actions.
+   Keep the action readable instead of applying the narrow icon-button width. */
+.router-list-toolbar-heading{margin:0;line-height:1.25;letter-spacing:0;font-size:18px}
+.top-bar .router-list-add-topbar.v-btn{
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:76px!important;
+  height:36px!important;
+  padding-inline:12px!important;
+  margin-inline:4px 6px;
+  white-space:nowrap
+}
+@media(max-width:390px){
+  .router-list-toolbar-heading{font-size:16px}
+  .top-bar .router-list-add-topbar.v-btn{min-width:72px!important;padding-inline:9px!important;margin-inline:2px 3px}
+}
 @media(max-width:390px){
  .top-bar .v-btn{width:34px!important;min-width:34px!important}
  .router-toolbar-name{font-size:16px}
