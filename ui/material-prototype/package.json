@@ -10,7 +10,7 @@
     "android:sync": "npm run build && npx cap sync android",
     "test:ui": "playwright test",
     "test:versions": "node --test tests/app-releases.test.mjs",
-    "test:logic": "node --test tests/lease-time.test.mjs tests/drawer-swipe.test.mjs tests/luci-http.test.mjs tests/wechat-online-time.test.mjs tests/wechat-device-aliases.test.mjs tests/router-uptime.test.mjs"
+    "test:logic": "node --test tests/lease-time.test.mjs tests/drawer-swipe.test.mjs tests/luci-http.test.mjs tests/wechat-online-time.test.mjs tests/wechat-device-aliases.test.mjs tests/router-uptime.test.mjs tests/lucky-rpc.test.mjs"
   },
   "dependencies": {
     "@daisigu/vue-liquid-glass": "1.0.4",
