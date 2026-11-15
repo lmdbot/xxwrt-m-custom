@@ -10,23 +10,24 @@ import {
 import { CapacitorHttp } from '@capacitor/core'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
-const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
+const loading = ref(false), busy = ref(false), error = ref(''), notice = ref(''), warning = ref('')
 const readyKind = ref('')
 const manualRefreshing = ref(false)
 const floatingNoticeOpen = ref(false)
 const operationWaiting = computed(() => busy.value || ssrProbeBusy.value ||
   ssrComponentBusy.value || carbonChecking.value || manualRefreshing.value)
-const floatingNoticeText = computed(() => error.value || notice.value ||
+const floatingNoticeText = computed(() => error.value || warning.value || notice.value ||
   (manualRefreshing.value ? '正在刷新路由器数据…'
     : ssrProbeBusy.value ? '正在通过 QWRT 探测节点…'
     : ssrComponentBusy.value ? '正在读取 SSR 组件版本或执行更新…'
     : carbonChecking.value ? (carbonCheckText.value || '正在检查 Carbon 更新…')
     : busy.value ? '正在提交配置，请稍候…' : ''))
-const floatingNoticeColor = computed(() => error.value ? 'error' : notice.value ? 'success' : 'primary')
+const floatingNoticeColor = computed(() => error.value ? 'error' : warning.value ? 'warning' : notice.value ? 'success' : 'primary')
 function dismissFloatingNotice() {
   if (operationWaiting.value) return
   floatingNoticeOpen.value = false
   error.value = ''
+  warning.value = ''
   notice.value = ''
 }
 const ssrTab = ref('nodes')
@@ -250,11 +251,17 @@ async function command(path, params = []) {
 }
 async function service(key, action = 'restart') {
   if (!['start', 'stop', 'restart', 'reload'].includes(action) || !servicePaths[key]) throw new Error('不支持的服务操作')
+  if (key === 'ssr') {
+    // rc.init is the native OpenWrt service controller, authorized by LuCI's
+    // startup-service ACL. A declined call is not evidence that UCI failed.
+    const result = await props.client.call('rc', 'init', { name: 'shadowsocksr', action }, true)
+    if (result !== null) return result
+  }
   return command(servicePaths[key], [action])
 }
 async function run(action, success, reload = true) {
   if (busy.value) return
-  busy.value = true; error.value = ''; notice.value = ''
+  busy.value = true; error.value = ''; notice.value = ''; warning.value = ''
   try {
     await action()
     if (reload) await refresh()
@@ -306,12 +313,47 @@ async function loadSsr() {
     }).catch(() => {})
 }
 async function applySsrNode() {
-  await run(async () => {
+  if (busy.value) return
+  busy.value = true; error.value = ''; notice.value = ''; warning.value = ''
+  const selected = ssrNode.value
+  let saved = false
+  let restarted = false
+  let restartIssue = ''
+  try {
     if (!ssr.value.available) throw new Error('未检测到 ShadowSocksR Plus+ 配置')
-    if (ssrNode.value !== 'nil' && !ssr.value.nodes.some(x => x.id === ssrNode.value)) throw new Error('所选节点不存在')
-    await setUci('shadowsocksr', ssr.value.section, { global_server: ssrNode.value })
-    await service('ssr')
-  }, '节点已切换，ShadowSocksR Plus+ 已重启')
+    if (selected !== 'nil' && !ssr.value.nodes.some(x => x.id === selected)) throw new Error('所选节点不存在')
+    await setUci('shadowsocksr', ssr.value.section, { global_server: selected })
+    saved = true
+    try {
+      await service('ssr')
+      restarted = true
+    } catch (e) {
+      // Changes were already committed; no automatic retry after a timeout
+      // because restart could still be executing on the router.
+      restartIssue = shortError(e)
+    }
+    // UCI readback disambiguates "saved but restart denied" from a failed save.
+    let current = null
+    try {
+      const savedConfig = await getUci('shadowsocksr')
+      current = sectionOf(sections(savedConfig), ssr.value.section, 'global')?.options?.global_server
+    } catch (_) { /* Save may have succeeded even if readback is unavailable. */ }
+    if (current !== null && String(current) !== selected) {
+      error.value = '所选节点未通过路由器配置回读校验，请刷新后核对'
+    } else if (restarted) {
+      notice.value = current === null ? '已提交节点切换及重启命令，当前配置待确认'
+        : '节点切换已保存，ShadowSocksR Plus+ 重启命令已执行'
+    } else {
+      warning.value = (current === null ? '节点配置已提交（回读未确认）' : '节点切换已保存') +
+        '，但服务重启未确认：' + (restartIssue || '当前 RPC 未开放重启权限') +
+        '。请查看运行状态；不要重复点击。'
+    }
+    try { await loadSsr() }
+    catch (e) { warning.value = (warning.value ? warning.value + '；' : '') + '状态刷新失败：' + shortError(e) }
+  } catch (e) {
+    if (saved) warning.value = '配置已提交，后续操作未确认：' + shortError(e)
+    else error.value = shortError(e)
+  } finally { busy.value = false }
 }
 async function probeSsrViaLuci(node) {
   // New SSR Plus+ supports sid; older versions rely on domain/port/type.
@@ -1161,7 +1203,7 @@ async function deleteForward() {
 async function refresh() {
   if (!props.client || loading.value) return
   const kind = props.kind
-  loading.value = true; error.value = ''; notice.value = ''
+  loading.value = true; error.value = ''; notice.value = ''; warning.value = ''
   try {
     if (kind === 'ssr') await loadSsr()
     else if (kind === 'wechatpush') await loadWechat()
