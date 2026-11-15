@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
 
 const props = defineProps({ client: { type: Object, required: true } })
@@ -9,6 +9,16 @@ const busy = ref(false)
 const error = ref('')
 const notice = ref('')
 const warning = ref('')
+const floatingNoticeOpen = ref(false)
+const floatingNoticeText = computed(() => error.value || warning.value || notice.value)
+const floatingNoticeColor = computed(() => error.value ? 'error' : warning.value ? 'warning' : 'success')
+watch(floatingNoticeText, text => { floatingNoticeOpen.value = Boolean(text) })
+function dismissFloatingNotice() {
+  floatingNoticeOpen.value = false
+  error.value = ''
+  warning.value = ''
+  notice.value = ''
+}
 const available = ref(false)
 const section = ref('')
 const serviceRunning = ref(null)
@@ -117,23 +127,35 @@ function reset() {
   error.value = ''; warning.value = ''
 }
 onMounted(() => { void refresh() })
-defineExpose({ refresh, refreshAction: refresh })
+async function refreshAction() {
+  if (busy.value || loading.value) return
+  if (dirtyConfig.value || dirtyFile.value) {
+    warning.value = '存在未保存的修改，请先保存或复位后再刷新，避免覆盖编辑内容。'
+    return
+  }
+  await refresh()
+  if (!error.value && !warning.value) notice.value = 'Vlmcsd 状态已刷新'
+}
+defineExpose({ refresh, refreshAction })
 </script>
 
 <template>
   <section class="vlmcsd-panel">
+    <v-snackbar v-model="floatingNoticeOpen" :timeout="5200" :color="floatingNoticeColor"
+      location="bottom" :style="{ bottom: '77px' }" role="status" aria-live="polite"
+      class="router-app-floating-feedback">
+      {{ floatingNoticeText }}
+      <template #actions>
+        <v-btn variant="text" size="small" @click="dismissFloatingNotice">关闭</v-btn>
+      </template>
+    </v-snackbar>
     <div class="d-flex align-center justify-space-between ga-2 mb-3">
       <div><h2 class="text-h6 font-weight-bold">Vlmcsd KMS 服务器</h2><p class="text-body-2 text-medium-emphasis">服务状态、常规设置与配置文件</p></div>
-      <v-btn prepend-icon="mdi-refresh" variant="tonal" :loading="loading" :disabled="busy || dirtyConfig || dirtyFile" @click="refresh">刷新</v-btn>
     </div>
-    <v-alert :type="serviceRunning === true ? 'success' : serviceRunning === false ? 'warning' : 'info'"
-      variant="tonal" density="comfortable" class="mb-3">
-      Vlmcsd KMS 服务器{{ serviceRunning === true ? '运行中' : serviceRunning === false ? '未运行' : '运行状态待确认' }}
-    </v-alert>
+    <div class="router-app-summary mb-3">
+      <div><span>服务状态</span><strong>{{ serviceRunning === true ? '运行中' : serviceRunning === false ? '未运行' : '待确认' }}</strong></div>
+    </div>
     <v-progress-linear v-if="loading" indeterminate class="mb-3"/>
-    <v-alert v-if="error" type="warning" variant="tonal" class="mb-3">{{ error }}</v-alert>
-    <v-alert v-if="warning" type="warning" variant="tonal" class="mb-3">{{ warning }}</v-alert>
-    <v-alert v-if="notice" type="success" variant="tonal" class="mb-3">{{ notice }}</v-alert>
     <v-alert v-if="!available && !loading" type="info" variant="tonal" density="compact" class="mb-3">
       未检测到 vlmcsd UCI 配置；请确认路由器已安装 luci-app-vlmcsd 且账号有读取权限。
     </v-alert>
@@ -153,8 +175,8 @@ defineExpose({ refresh, refreshAction: refresh })
     </v-card>
     <v-card v-else rounded="xl" variant="outlined" class="pa-3 mb-3">
       <p class="text-body-2 text-medium-emphasis mb-3">编辑 /etc/vlmcsd.ini 文件的内容。</p>
-      <v-textarea v-model="fileText" label="配置文件内容" :disabled="busy || !fileAvailable" rows="15"
-        auto-grow variant="outlined" spellcheck="false" class="vlmcsd-config-editor"/>
+      <v-textarea v-model="fileText" label="配置文件内容" :disabled="busy || !fileAvailable" rows="6"
+        no-resize variant="outlined" spellcheck="false" class="vlmcsd-config-editor"/>
       <p class="text-caption text-medium-emphasis">文件大小：{{ bytes(fileText) }} / {{ MAX_FILE_BYTES }} 字节</p>
       <v-alert v-if="!fileAvailable" type="info" variant="tonal" density="compact">
         无法读取配置文件。请检查 ubus file.read 的 RPC 权限；禁用编辑以避免覆盖未知文件。
