@@ -208,7 +208,7 @@ export class RouterClient {
  */
 export async function readInstalledRouterApps(client) {
   const configs = ['shadowsocksr', 'wechatpush', 'openclash', 'zerotier',
-    'internet-detector', 'luci', 'luci-wol']
+    'internet-detector', 'luci', 'luci-wol', 'lucky']
   const entries = [
     ...configs.map(config => ['uci', 'get', { config }]),
     ['rc', 'list'],
@@ -217,7 +217,7 @@ export async function readInstalledRouterApps(client) {
     ['luci.internet-detector', 'UIPoll'],
     ['luci.carbon_update', 'status']
   ]
-  const [ssr, wechat, clash, zt, detector, luci, wolConfig,
+  const [ssr, wechat, clash, zt, detector, luci, wolConfig, lucky,
     services, wolStat, parental, detectorPoll, carbonStatus] = await client.batch(entries)
   const readable = config => Boolean(config?.values && typeof config.values === 'object' &&
     Object.keys(config.values).length)
@@ -230,6 +230,7 @@ export async function readInstalledRouterApps(client) {
   })
   const map = {
     ssr: readable(ssr) || hasService('shadowsocksr'),
+    lucky: readable(lucky) || hasService('lucky'),
     wechatpush: readable(wechat) || hasService('wechatpush'),
     openclash: readable(clash) || hasService('openclash'),
     detector: readable(detector) || hasService('internet-detector') || detectorPoll != null,
@@ -244,6 +245,7 @@ export async function readInstalledRouterApps(client) {
   const installed = Object.fromEntries(Object.entries(map).map(([key, found]) =>
     [key, found || (uncertain && (
       key === 'ssr' && ssr == null ||
+      key === 'lucky' && lucky == null ||
       key === 'wechatpush' && wechat == null ||
       key === 'openclash' && clash == null ||
       key === 'zerotier' && zt == null ||
