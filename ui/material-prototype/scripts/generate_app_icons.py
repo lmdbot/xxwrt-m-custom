@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate all Android launcher icon densities from the selected QWRT artwork.
 
-The source is the originally generated blue/indigo router + network shield,
+The source is the selected purple chibi network guardian with a router,
 not a screenshot of the ChatGPT interface. Run after "npx cap add android"
 because Capacitor recreates android/ from its stock template.
 """
@@ -10,7 +10,7 @@ from collections import deque
 from PIL import Image, ImageDraw, ImageChops
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "assets" / "qwrt-material-shield.webp"
+SOURCE = ROOT / "assets" / "qwrt-purple-network-guardian.webp"
 RES = ROOT / "android" / "app" / "src" / "main" / "res"
 SIZES = {
     "mdpi": 48,
@@ -23,14 +23,14 @@ ADAPTIVE_SIZES = {name: round(size * 108 / 48) for name, size in SIZES.items()}
 # The 108dp adaptive icon is clipped by Android to a central 66dp safe zone.
 # Foreground illustration must be smaller than that safe zone to retain margins.
 # Legacy icons are displayed without the adaptive foreground crop.
-# The selected artwork already contains the finished blue rounded-square icon.
+# The selected artwork already contains the finished purple rounded-square icon.
 # Enlarge the legacy bitmap (used by Settings/App info) while retaining a small
 # transparent margin. For adaptive icons the OS clips a 108dp canvas to a
 # roughly 72dp viewport; the 72% foreground fills that area without leaving
-# a dark transparent halo, while the important router/shield stays central.
+# a dark transparent halo, while the character and mini router stay central.
 LEGACY_ART_SCALE = 0.94
-ADAPTIVE_ART_SCALE = 0.72
-ADAPTIVE_BACKGROUND = "#0A44B8"
+ADAPTIVE_ART_SCALE = 0.66
+ADAPTIVE_BACKGROUND = "#4A2EC7"
 SOURCE_TRIM_RATIO = 0.035
 
 
@@ -119,7 +119,7 @@ def main():
 
     for density, pixels in ADAPTIVE_SIZES.items():
         # Keep the original graphic large in the Android adaptive mask.
-        # Opaque blue background below prevents black margins on dark launchers.
+        # Opaque purple background below prevents black margins on dark launchers.
         icon = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
         art_size = round(pixels * ADAPTIVE_ART_SCALE)
         art = source.resize((art_size, art_size), Image.Resampling.LANCZOS)
