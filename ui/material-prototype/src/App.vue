@@ -448,7 +448,7 @@ const legacyTools = [
   { id: 'startup', title: '启动项', subtitle: '开机启动服务', icon: 'mdi-power-plug-outline' },
   { id: 'wol', title: '网络唤醒', subtitle: '远程唤醒终端', icon: 'mdi-lan-connect' },
   { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
-  { id: 'lucky', title: 'Lucky', subtitle: '运行状态、访问规则与备份维护', icon: 'mdi-clover-outline' },
+  { id: 'lucky', title: 'Lucky', subtitle: '运行状态、访问规则与备份维护', icon: 'mdi-clover' },
   { id: 'wechatpush', title: '微信推送', subtitle: '通知渠道与推送配置', icon: 'mdi-message-badge-outline' },
   { id: 'openclash', title: 'OpenClash', subtitle: '代理模式与运行控制', icon: 'mdi-cloud-sync-outline' },
   { id: 'detector', title: 'Internet Detector', subtitle: '联网监测状态', icon: 'mdi-web-check' },
