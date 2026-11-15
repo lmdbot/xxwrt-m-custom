@@ -180,7 +180,9 @@ export function buildInterfaceChanges(name, network, dhcp, form) {
   const hasDhcp = Boolean(dhcp && dhcp.values)
   const activeServer = form.proto === 'static' && !/^wan(?:6|_6)?$/i.test(name)
   const dhcpSection = findDhcpSection(dhcp, name)
-  if (form.dhcpEnabled && !activeServer) throw new Error('DHCP 服务端只能启用在静态地址的非 WAN 接口上')
+  // A protocol change away from static automatically disables a formerly
+  // configured DHCP server for this interface (handled below), preventing
+  // accidental address assignment by a now-DHCP-client interface.
   if (form.dhcpEnabled && !hasDhcp) throw new Error('路由器没有开放 DHCP 配置读取权限')
   if (hasDhcp && activeServer && (dhcpSection || form.dhcpEnabled)) {
     const start = text(form.dhcpStart), limit = text(form.dhcpLimit), lease = text(form.dhcpLease)
