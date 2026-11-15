@@ -19,6 +19,7 @@ import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
+import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
 import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
 import {
@@ -221,6 +222,9 @@ const form = reactive({
 })
 const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' : 'standard')
 const drawerOpen = ref(false)
+const appLocale = ref(savedLanguage())
+const selectedLanguage = computed(() => LANGUAGES.find(option => option.code === appLocale.value)?.name || '简体中文')
+let localizationController = null
 const settingsOpen = ref(false)
 const settingsCategory = ref('display')
 const settingsTrail = []
@@ -230,7 +234,8 @@ const settingsCategories = [
   { id: 'privacy', title: '隐私', description: '主机名、IP 地址与隐私显示', icon: 'mdi-shield-lock-outline' },
   { id: 'refresh', title: '刷新', description: '设备状态与数据更新策略', icon: 'mdi-refresh' },
   { id: 'lab', title: '实验室', description: '高级选项与实验性功能', icon: 'mdi-flask-outline' },
-  { id: 'about', title: '关于', description: '语言、帮助、反馈与版本', icon: 'mdi-information-outline' }
+  { id: 'language', title: '语言', description: '简体中文、繁體中文和 English', icon: 'mdi-translate' },
+  { id: 'about', title: '关于', description: '帮助、反馈与版本', icon: 'mdi-information-outline' }
 ]
 const settingsPage = computed(() =>
   settingsCategories.find(category => category.id === settingsCategory.value) || settingsCategories[1]
@@ -540,6 +545,11 @@ function applyNetworkHardwareRates(data) {
 
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
+watch(appLocale, async value => {
+  persistLanguage(value)
+  await nextTick()
+  localizationController?.refresh(value)
+})
 watch(showIp, v => localStorage.setItem(storage.showIp, String(v)))
 watch(showHostnames, v => localStorage.setItem(storage.showHostname, String(v)))
 watch(routerListLayout, v => localStorage.setItem(storage.listLayout, v))
@@ -1274,6 +1284,7 @@ async function rebootRouter() {
 }
 
 onMounted(() => {
+  localizationController = mountLocalization(document.body, appLocale.value)
   void (async () => {
     if (isNative) {
       try {
@@ -1315,6 +1326,7 @@ onMounted(() => {
   }, 12000)
 })
 onUnmounted(() => {
+  localizationController?.dispose()
   if (nativeBackSubscription) void nativeBackSubscription.remove()
   if (nativeResumeSubscription) void nativeResumeSubscription.remove()
   if (import.meta.env.DEV) {
@@ -1496,6 +1508,22 @@ onUnmounted(() => {
               </v-card>
             </template>
 
+            <template v-else-if="settingsCategory === 'language'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-translate" size="23"/></v-avatar>
+                  <div><h2>应用语言</h2><p>选择应用界面语言，切换后立即生效。</p></div>
+                </div>
+                <v-radio-group v-model="appLocale" class="settings-language-group" hide-details aria-label="应用语言">
+                  <v-radio value="zh-CN" label="简体中文" data-localize-ignore/>
+                  <v-radio value="zh-TW" label="繁體中文" data-localize-ignore/>
+                  <v-radio value="en" label="English" data-localize-ignore/>
+                </v-radio-group>
+                <div class="settings-detail-row"><span>当前语言</span><strong data-localize-ignore>{{ selectedLanguage }}</strong></div>
+                <p class="settings-footnote"><v-icon icon="mdi-content-save-check-outline" size="16"/> 语言偏好保存在本机，重启应用后仍然有效。</p>
+              </v-card>
+            </template>
+
             <template v-else-if="settingsCategory === 'lab'">
               <v-card rounded="xl" elevation="1" class="settings-option-card settings-empty-state">
                 <v-avatar color="primary" variant="tonal" size="58"><v-icon icon="mdi-flask-outline" size="29"/></v-avatar>
@@ -1505,13 +1533,6 @@ onUnmounted(() => {
             </template>
 
             <template v-else-if="settingsCategory === 'about'">
-              <v-card rounded="xl" elevation="1" class="settings-option-card">
-                <div class="settings-option-heading">
-                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-translate" size="23"/></v-avatar>
-                  <div><h2>语言设置</h2><p>当前版本提供简体中文界面。</p></div>
-                </div>
-                <div class="settings-detail-row"><span>当前语言</span><strong>简体中文</strong></div>
-              </v-card>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-update" size="23"/></v-avatar>

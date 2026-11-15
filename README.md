@@ -71,7 +71,7 @@
 ### 界面与交互
 
 - 浅色、深色及跟随系统的主题模式；标准 Material / Liquid Glass 底部导航可切换。
-- 设备列表设置侧栏按 **路由器、显示、隐私、刷新、实验室、关于** 分类。
+- 设备列表设置侧栏按 **路由器、显示、隐私、刷新、语言、实验室、关于** 分类。语言支持 **简体中文、繁體中文、English**，切换后即时生效并在本机持久保存。
 - 可独立隐藏设备名称和 IP/域名；显示偏好与布局偏好保存在本机。
 - 终端分类使用宫格导航，网络分类使用紧凑卡片，适配移动端触控和窄屏。
 - Android 返回操作优先关闭当前弹窗或子页面；位于底部页签根页面时返回设备列表。
@@ -150,7 +150,7 @@ Material 2.0 的 Android 主线使用 `ui/material-prototype/` 及 `ui-android-p
 - 核心数据取自实际路由器响应；**“不可用”“未知”“待确认”不等同于服务故障**，也可能是缺少插件、固件接口差异或 RPC 权限不足。
 - DHCP 租约和历史设备提示不能单独证明终端在线；APP 使用可获取的网络邻居、无线关联和插件检测信息辅助判断。
 - 目前的 Playwright 测试使用模拟 ubus 响应验证主要 UI、交互和 RPC 调用路径，**不等同于所有 QWRT/OpenWrt 固件及插件已完成真机兼容测试**。
-- 部分高级功能（例如完整终端访问历史、全部插件配置能力及完整多语言内容）仍有覆盖差异，具体以当前应用界面和代码为准。
+- 部分高级功能（例如完整终端访问历史、全部插件配置能力及少量插件动态返回信息的多语言翻译）仍有覆盖差异，具体以当前应用界面和代码为准。
 - 修改防火墙区域策略、网络服务或恢复出厂可能中断管理连接；建议事先保留本地或其他可靠的访问方式。
 
 更多功能边界与测试范围见 [功能对照文档](docs/material-main-feature-parity.md)，界面工程说明见 [Material UI README](ui/material-prototype/README.md)。
@@ -161,6 +161,7 @@ Material 2.0 的 Android 主线使用 `ui/material-prototype/` 及 `ui-android-p
 
 | 开源项目 | 当前依赖版本 | 项目用途 | License |
 | --- | --- | --- | --- |
+| [OpenCC.js](https://github.com/nk2028/opencc-js) | `opencc-js@1.4.2` | 离线简繁中文转换（繁体中文界面） | [MIT AND Apache-2.0](https://github.com/nk2028/opencc-js/blob/master/LICENSE) |
 | [Vue.js](https://github.com/vuejs/core) | `vue@3.5.22` | 响应式界面与组件框架 | [MIT](https://github.com/vuejs/core/blob/main/packages/vue/LICENSE) |
 | [Vuetify](https://github.com/vuetifyjs/vuetify) | `vuetify@3.13.7` | Material Design UI 组件 | [MIT](https://github.com/vuetifyjs/vuetify/blob/master/packages/vuetify/LICENSE.md) |
 | [Material Design Icons / Pictogrammers](https://github.com/Templarian/MaterialDesign-Webfont) | `@mdi/font@7.4.47` | 应用内图标与图标字体 | [Apache-2.0（图标及字体）](https://github.com/Templarian/MaterialDesign/blob/master/LICENSE) |
