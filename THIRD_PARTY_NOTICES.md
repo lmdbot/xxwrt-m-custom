@@ -42,6 +42,22 @@
 - **Apache License 2.0**：完整英文条款已收录为 [Apache-2.0](ui/material-prototype/src/data/LICENSE-Apache-2.0.txt)，与 [Apache 基金会官方文本](https://www.apache.org/licenses/LICENSE-2.0.txt) 对应。
 - **CC0 1.0**：[Creative Commons 官方全文](https://creativecommons.org/publicdomain/zero/1.0/legalcode)。Simple Icons 对商标与单个图形权利另有 [免责声明](https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md)，CC0 不会消除第三方商标权。
 
+## 历史编译文件许可核查（2026-11-15）
+
+已进一步核对 `src/www/` 中的可识别第三方脚本及旧 APK 生成方式，详情参见 [历史资产核查证据](docs/LEGACY_ASSETS_LICENSE.md)。
+
+| 已识别的旧版组件 | 上游来源及版本证据 | License | 核查结论 |
+| --- | --- | --- | --- |
+| Quill Editor | `__uniappquill.js` 注明 v1.3.7 | BSD-3-Clause · [全文](docs/third-party-licenses/Quill-1.3.7-LICENSE.txt) | 源文件注明且上游条款确认 |
+| Highlight.js | `__uniappquillhighlight.js` 注明 v11.9.0 | BSD-3-Clause · [全文](docs/third-party-licenses/Highlight.js-11.9.0-LICENSE.txt) | 源文件注明且上游条款确认 |
+| lime-echart | 旧版 `uni_modules/lime-echart` | [MIT](https://ext.dcloud.net.cn/plugin?name=lime-echart) | 插件许可确认，精确打包版本未确认 |
+| ECharts（旧版） | `uni_modules/lime-echart/static/app/echarts.min.js` | [Apache-2.0](https://github.com/apache/echarts/blob/master/LICENSE) | 上游许可确认，文件版本未核实 |
+| ecStat | `ecStat.min.js` 与 [上游文件](https://github.com/ecomfe/echarts-stat/blob/master/dist/ecStat.min.js) Git blob 一致 | 上游 package.json 标记 `BSD` | **来源确认、BSD 具体变体/完整条款待补证** |
+| Quill ImageResize | `__uniappquillimageresize.js` 模块结构 | 候选上游 [MIT](https://github.com/kensnyder/quill-image-resize-module/blob/master/LICENSE) | 具体版本及代码来源尚不能严格对应 |
+| DCloud uni-app / 5+ Runtime | `manifest.json` 标记旧版 uni-app 1.0.6 | 开源部分 [Apache-2.0](https://github.com/dcloudio/uni-app/blob/master/LICENSE)，Runtime 另见 [DCloud 条款](https://uniapp.dcloud.net.cn/license.html) | **非统一 Apache-2.0/MIT，再打包与再分发方式待核实** |
+
+旧工作流会将 `src/www/` 资源覆盖至 `vendor/base.apk` 后重新签名；在取得原始 DCloud 打包/SDK 许可证明前，不能确认这一历史二进制的公开再分发权利。**以上条款均不自动适用于旧版整个 APK**。
+
 ## 再分发时的注意事项
 
 1. 分发含第三方 MIT 代码的源码或二进制时，请保留各组件原始版权声明与许可声明。
