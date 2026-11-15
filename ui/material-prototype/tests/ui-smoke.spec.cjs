@@ -727,6 +727,13 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '关闭接口配置' }).click()
   await expect(page.getByRole('button', { name: '断开接口 lan' })).toBeDisabled()
   await expect(page.getByRole('button', { name: '断开接口 wan' })).toBeDisabled()
+  // All network edits use timed rollback and require an explicit confirmation.
+  await page.getByRole('button', { name: '配置接口 wan' }).click()
+  await page.getByRole('switch', { name: '开机自动启用接口' }).uncheck()
+  await page.getByRole('button', { name: '保存并应用（可回滚）' }).click()
+  await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
+  await page.getByRole('button', { name: '确认保留配置' }).last().click()
+  await expect(page.getByText('已确认保留接口配置')).toBeVisible()
   await page.getByRole('button', { name: /设备，/ }).click()
   await expect(page.locator('.hardware-list')).toBeVisible()
   await expect(page.locator('.hardware-panel')).toHaveCount(1)
