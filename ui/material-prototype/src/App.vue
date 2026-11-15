@@ -21,6 +21,7 @@ import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
+import { readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit } from './services/terminalManagement.js'
 import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
 import {
   readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
@@ -389,6 +390,80 @@ const factoryBusy = ref(false)
 const factoryError = ref('')
 const actionBusy = ref(false)
 const selectedClient = ref(null)
+const terminalSettings = ref(null)
+const terminalSettingsBusy = ref(false)
+const terminalSaving = ref(false)
+const terminalError = ref('')
+const terminalNotice = ref('')
+const terminalForm = reactive({ staticEnabled: false, staticIp: '', name: '', download: '', upload: '' })
+let terminalRequestId = 0
+
+function applyTerminalSettings(settings) {
+  terminalSettings.value = settings
+  terminalForm.staticEnabled = settings.staticEnabled
+  terminalForm.staticIp = settings.staticIP || ''
+  terminalForm.name = settings.host?.name || selectedClient.value?.name || ''
+  terminalForm.download = settings.rates.download == null ? '' : String(settings.rates.download)
+  terminalForm.upload = settings.rates.upload == null ? '' : String(settings.rates.upload)
+}
+async function openTerminal(item) {
+  if (terminalSaving.value) return
+  selectedClient.value = item
+  terminalSettings.value = null
+  terminalError.value = ''
+  terminalNotice.value = ''
+  const id = ++terminalRequestId
+  const api = client.value
+  terminalSettingsBusy.value = true
+  try {
+    const settings = await readTerminalSettings(api, item)
+    if (id === terminalRequestId && api === client.value && selectedClient.value?.mac === item.mac) {
+      applyTerminalSettings(settings)
+    }
+  } catch (error) {
+    if (id === terminalRequestId) terminalError.value = shortError(error)
+  } finally {
+    if (id === terminalRequestId) terminalSettingsBusy.value = false
+  }
+}
+async function refreshTerminalSettings() {
+  if (!selectedClient.value || !client.value) return
+  const settings = await readTerminalSettings(client.value, selectedClient.value)
+  applyTerminalSettings(settings)
+}
+async function saveTerminalStatic() {
+  if (!terminalSettings.value || !client.value || terminalSaving.value) return
+  terminalSaving.value = true
+  terminalError.value = ''
+  terminalNotice.value = ''
+  try {
+    const result = await saveTerminalStaticIP(client.value, selectedClient.value, terminalSettings.value,
+      { enabled: terminalForm.staticEnabled, ip: terminalForm.staticIp, name: terminalForm.name })
+    terminalNotice.value = result.message + (result.applied ? '。新 IP 通常在终端重新获取 DHCP 租约后生效。' : '')
+    await refreshTerminalSettings()
+    void fetchClientsInBackground(client.value)
+  } catch (error) {
+    terminalError.value = shortError(error)
+  } finally {
+    terminalSaving.value = false
+  }
+}
+async function saveTerminalQos() {
+  if (!terminalSettings.value?.backend || !client.value || terminalSaving.value) return
+  terminalSaving.value = true
+  terminalError.value = ''
+  terminalNotice.value = ''
+  try {
+    const result = await saveTerminalRateLimit(client.value, selectedClient.value, terminalSettings.value,
+      { upload: terminalForm.upload, download: terminalForm.download })
+    terminalNotice.value = result.message
+    await refreshTerminalSettings()
+  } catch (error) {
+    terminalError.value = shortError(error)
+  } finally {
+    terminalSaving.value = false
+  }
+}
 const toolPanel = ref('')
 const routerAppsPanel = ref(null)
 const luckyPanel = ref(null)
@@ -766,6 +841,8 @@ function resetSession() {
   hardwareSampleAt = 0
   networkHardware.value = { wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] }
   selectedClient.value = null
+  terminalRequestId++
+  terminalSettings.value = null
   toolPanel.value = ''
   toolMessage.value = ''
   serviceData.value = { services: [], available: false }
@@ -1817,7 +1894,7 @@ onUnmounted(() => {
                 @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
               <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="DHCP 终端设备">
                 <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip"
-                  :item="item" @click="selectedClient = item"/>
+                  :item="item" @click="openTerminal(item)"/>
               </div>
               <v-empty-state v-else-if="clientData.data.length && clientSearch" icon="mdi-magnify-close"
                 title="没有匹配的终端" text="请尝试设备名称、IP 地址或 MAC 地址"/>
@@ -1827,13 +1904,13 @@ onUnmounted(() => {
               </template>
               <div v-if="terminalView === 'dhcp6'" class="terminal-grid">
                 <TerminalDeviceCard v-for="item in filteredClients" :key="'dhcp6-'+(item.mac || item.ip)"
-                  :item="item" @click="selectedClient = item"/>
+                  :item="item" @click="openTerminal(item)"/>
                 <p v-if="!filteredClients.length" class="muted-hint">没有匹配的 DHCPv6 终端。</p>
               </div>
               <div v-if="terminalView === 'wireless'">
                 <div class="terminal-grid" v-if="filteredClients.length">
                   <TerminalDeviceCard v-for="item in filteredClients" :key="'wifi-'+(item.mac || item.ip)"
-                    :item="item" @click="selectedClient = item"/>
+                    :item="item" @click="openTerminal(item)"/>
                 </div>
                 <v-alert v-else type="info" variant="tonal" density="compact">
                   {{ wifiClientData.available ? '当前没有已关联的无线终端' : 'QWRT 未开放 iwinfo RPC 或当前路由器没有 Wi-Fi 射频' }}
@@ -2098,18 +2175,73 @@ onUnmounted(() => {
       </VGlass>
     </div>
     <OpenSourceLicensesDialog v-model="openSourceDialog"/>
-    <v-dialog v-model="selectedClient" max-width="420">
-      <v-card v-if="selectedClient" rounded="xl" title="终端详情">
+    <v-dialog v-model="selectedClient" max-width="480" :persistent="terminalSaving">
+      <v-card v-if="selectedClient" rounded="xl">
+        <v-card-title class="d-flex align-center ga-2">
+          <v-icon icon="mdi-devices" color="primary"/>
+          <span>终端管理</span>
+        </v-card-title>
         <v-card-text>
           <div class="details">
-            <div><span>名称</span><strong>{{ selectedClient.name }}</strong></div>
-            <div><span>IPv4</span><strong>{{ selectedClient.ip }}</strong></div>
-            <div><span>MAC 地址</span><strong>{{ selectedClient.mac }}</strong></div>
+            <div><span>名称</span><strong>{{ selectedClient.displayName || selectedClient.name || '未知终端' }}</strong></div>
+            <div><span>IPv4</span><strong>{{ selectedClient.ip || '--' }}</strong></div>
+            <div><span>MAC 地址</span><strong>{{ selectedClient.mac || '--' }}</strong></div>
             <div><span>在线状态</span><strong>{{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '状态未知' }}</strong></div>
-            <div><span>租约时间</span><strong>{{ formatLeaseDuration(selectedClient.expires) }}</strong></div>
           </div>
+          <v-progress-linear v-if="terminalSettingsBusy" indeterminate color="primary" class="my-4"/>
+          <v-alert v-if="terminalError" type="error" variant="tonal" density="compact" class="mt-3">{{ terminalError }}</v-alert>
+          <v-alert v-if="terminalNotice" type="success" variant="tonal" density="compact" class="mt-3">{{ terminalNotice }}</v-alert>
+          <template v-if="terminalSettings">
+            <v-divider class="my-4"/>
+            <div class="d-flex align-center ga-2 mb-2">
+              <v-icon icon="mdi-ip-network" color="primary"/>
+              <strong>静态 IPv4 绑定</strong>
+            </div>
+            <v-switch v-model="terminalForm.staticEnabled" label="为该 MAC 固定分配 IPv4"
+              color="primary" density="compact" hide-details :disabled="terminalSaving"/>
+            <v-text-field v-model.trim="terminalForm.staticIp" label="绑定 IPv4 地址"
+              placeholder="例如：192.168.100.50" variant="outlined" density="compact"
+              :disabled="!terminalForm.staticEnabled || terminalSaving" class="mt-2" />
+            <v-text-field v-model.trim="terminalForm.name" label="DHCP 主机名"
+              variant="outlined" density="compact" maxlength="63"
+              :disabled="!terminalForm.staticEnabled || terminalSaving"/>
+            <p class="muted-hint mb-2">使用路由器 DHCP 固定租约，不修改终端系统的网卡配置；生效后可能需要终端重新连接网络。</p>
+            <v-btn color="primary" variant="tonal" block :loading="terminalSaving"
+              :disabled="terminalSettingsBusy" @click="saveTerminalStatic">
+              {{ terminalForm.staticEnabled ? '保存静态 IP' : '取消静态 IP 绑定' }}
+            </v-btn>
+            <v-divider class="my-4"/>
+            <div class="d-flex align-center ga-2 mb-2">
+              <v-icon icon="mdi-speedometer" color="primary"/>
+              <strong>终端网速限制</strong>
+            </div>
+            <template v-if="terminalSettings.backend">
+              <v-chip size="x-small" color="primary" variant="tonal" class="mb-3">
+                {{ terminalSettings.backendLabel }}
+              </v-chip>
+              <div class="d-flex ga-2">
+                <v-text-field v-model.trim="terminalForm.download" label="下载限速 (Mbps)"
+                  placeholder="不限速" type="number" min="1" max="10000" step="1" variant="outlined"
+                  density="compact" :disabled="terminalSaving" hide-details="auto"/>
+                <v-text-field v-model.trim="terminalForm.upload" label="上传限速 (Mbps)"
+                  placeholder="不限速" type="number" min="1" max="10000" step="1" variant="outlined"
+                  density="compact" :disabled="terminalSaving" hide-details="auto"/>
+              </div>
+              <p class="muted-hint my-2">
+                留空表示不限速，清空两项并保存可取消规则。
+                {{ terminalSettings.backend === 'eqos' ? 'EQOS 需要上下行同时设置。' : '' }}
+                限速按 IPv4 生效，建议先绑定静态 IP，避免 DHCP 续租后限制到其他设备。
+              </p>
+              <v-btn color="primary" variant="tonal" block :loading="terminalSaving"
+                :disabled="terminalSettingsBusy || !terminalSettings.activeIP" @click="saveTerminalQos">保存终端限速</v-btn>
+            </template>
+            <v-alert v-else type="info" density="compact" variant="tonal" class="mt-2">
+              {{ terminalSettings.reason }}。静态 IP 绑定仍可独立使用。
+            </v-alert>
+          </template>
         </v-card-text>
-        <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
+        <v-card-actions><v-spacer/><v-btn variant="text" :disabled="terminalSaving"
+          @click="selectedClient = null; terminalRequestId++">关闭</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="deviceDialog" max-width="430">
