@@ -1,6 +1,9 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
+import {
+  isZeroTierInterfaceName, buildZeroTierInterface, formatZeroTierBytes
+} from '../services/zeroTierInterfaces.js'
 import { formatWechatOnlineTime } from '../services/wechatOnlineTime.js'
 import {
   WECHAT_DEVICE_ALIASES_PATH, canonicalAliasTarget, normalizeAliasText,
@@ -928,17 +931,9 @@ async function loadZeroTier() {
       }
     } catch (_) { /* Denied CLI execution is not proof that the daemon is down. */ }
   }
-  // Find ZeroTier virtual devices in standard OpenWrt RPC structures, even
-  // when no ZeroTier-specific RPC or zerotier-cli permission is available.
-  const addressList = source => {
-    const values = Array.isArray(source) ? source : source == null ? [] : [source]
-    return values.flatMap(x => {
-      if (typeof x === 'string') return x ? [x] : []
-      if (!x || typeof x !== 'object') return []
-      const address = x.address || x.addr || x.ipaddr || x.ip
-      return address ? [String(address) + (x.mask == null ? '' : '/' + x.mask)] : []
-    })
-  }
+  // Use per-interface LuCI and netifd data. Both expose MTU and RX/TX counters
+  // on most OpenWrt builds, and LuCI exposes IPv4 / IPv6 (including fe80::).
+  // Read-only iproute2 / sysfs fallbacks cover custom OpenWrt RPC builds.
   let virtualDevices = []
   try {
     const [luciDevices, status, dump] = await Promise.all([
@@ -951,17 +946,18 @@ async function loadZeroTier() {
     const names = new Set()
     for (const candidate of sources) {
       if (Array.isArray(candidate)) {
-        for (const item of candidate) if (/^zt[a-z0-9]{5,}$/i.test(item?.name || '')) names.add(item.name)
+        for (const item of candidate) if (isZeroTierInterfaceName(item?.name)) names.add(item.name)
       } else if (candidate && typeof candidate === 'object') {
-        for (const key of Object.keys(candidate)) if (/^zt[a-z0-9]{5,}$/i.test(key)) names.add(key)
+        for (const name of Object.keys(candidate)) if (isZeroTierInterfaceName(name)) names.add(name)
       }
     }
     for (const iface of interfaceList) {
-      const deviceName = iface.l3_device || iface.device
-      if (/^zt[a-z0-9]{5,}$/i.test(String(deviceName || ''))) names.add(deviceName)
+      for (const name of [iface.l3_device, iface.device]) {
+        if (isZeroTierInterfaceName(name)) names.add(name)
+      }
     }
     for (const net of runtime) {
-      if (/^zt[a-z0-9]{5,}$/i.test(net.portDeviceName || '')) names.add(net.portDeviceName)
+      if (isZeroTierInterfaceName(net.portDeviceName)) names.add(net.portDeviceName)
     }
     virtualDevices = await Promise.all([...names].slice(0, 24).map(async name => {
       const fromLuci = Array.isArray(luciDevices) ? luciDevices.find(x => x.name === name)
@@ -969,45 +965,59 @@ async function loadZeroTier() {
       const fromStatus = Array.isArray(status) ? status.find(x => x.name === name)
         : (status?.devices || status || {})[name]
       const direct = await props.client.call('network.device', 'status', { name }, true)
-      const detail = { ...(fromLuci || {}), ...(fromStatus || {}), ...(direct || {}) }
       const related = interfaceList.filter(x => x.device === name || x.l3_device === name)
-      const addresses = [
-        ...addressList(detail['ipv4-address']), ...addressList(detail['ipv6-address']),
-        ...addressList(detail.ipaddrs), ...addressList(detail.ip4addrs),
-        ...addressList(detail.ip6addrs), ...addressList(detail.addresses),
-        ...related.flatMap(x => [
-          ...addressList(x['ipv4-address']), ...addressList(x['ipv6-address'])
-        ])
-      ]
-      // ZeroTier creates its own TUN interface, so netifd often knows the
-      // device and MAC but not the assigned IPv4/IPv6 addresses. Ask iproute2
-      // on the router for that exact interface, if the RPC ACL permits it.
-      if (!addresses.length) {
+      const networkMatch = runtime.filter(x => x.portDeviceName === name)
+      const assigned = networkMatch.map(x => x.addresses)
+      const fromSources = [direct, fromStatus, fromLuci, ...related]
+      const macFallback = networkMatch.find(x => x.mac)?.mac || ''
+      let info = buildZeroTierInterface(name, fromSources, assigned, macFallback)
+
+      // IPv6 link-local addresses can be missing from ZeroTier CLI responses,
+      // even when IPv4 is already known; never skip this lookup on that basis.
+      if (!info.ipv4.length || !info.ipv6.length) {
         for (const command of ['/sbin/ip', '/usr/sbin/ip']) {
-          const ipResult = await props.client.call('file', 'exec', {
+          const response = await props.client.call('file', 'exec', {
             command, params: ['-j', 'address', 'show', 'dev', name], env: null
           }, true)
-          if (!ipResult || Number(ipResult.code ?? 1) !== 0) continue
+          if (!response || Number(response.code ?? 1) !== 0) continue
           try {
-            const ipData = JSON.parse(String(ipResult.stdout || '[]'))
-            for (const entry of ipData) {
-              for (const addr of entry.addr_info || []) {
-                if (addr.local && addr.family !== 'link') {
-                  addresses.push(addr.local + (addr.prefixlen == null ? '' : '/' + addr.prefixlen))
-                }
-              }
-            }
-          } catch (_) {}
-          if (addresses.length) break
+            const ipEntries = JSON.parse(String(response.stdout || '[]'))
+            if (!Array.isArray(ipEntries)) continue
+            info = buildZeroTierInterface(name, [...fromSources, ...ipEntries], assigned, macFallback)
+            break
+          } catch (_) { /* Not all router ip binaries support JSON mode. */ }
         }
       }
-      return {
-        name, mac: String(detail.macaddr || detail.mac || detail.mac_address || ''),
-        up: detail.up === true || detail.link === true,
-        addresses: [...new Set(addresses)].join(', ')
+
+      // Only read missing values, and only from a validated /sys/class/net/zt*
+      // path. Standard netifd / LuCI RPC counters are preferred.
+      const missing = [
+        !info.mac && ['mac', 'address'],
+        info.mtu == null && ['mtu', 'mtu'],
+        info.rxBytes == null && ['rxBytes', 'statistics/rx_bytes'],
+        info.txBytes == null && ['txBytes', 'statistics/tx_bytes']
+      ].filter(Boolean)
+      if (missing.length) {
+        const recovered = await Promise.all(missing.map(async ([key, leaf]) => {
+          try {
+            const result = await props.client.call('file', 'read', {
+              path: '/sys/class/net/' + name + '/' + leaf
+            }, true)
+            const raw = String(result?.data ?? '').trim()
+            if (key === 'mac') return [key, /^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(raw) ? raw : null]
+            if (!/^\d+$/.test(raw)) return [key, null]
+            const number = Number(raw)
+            if (!Number.isFinite(number) || number < 0 || (key === 'mtu' && (!Number.isInteger(number) || number === 0))) {
+              return [key, null]
+            }
+            return [key, number]
+          } catch (_) { return [key, null] }
+        }))
+        for (const [key, value] of recovered) if (value != null) info[key] = value
       }
+      return info
     }))
-  } catch (_) { /* Permission denial is unknown, not proof of a missing IP. */ }
+  } catch (_) { /* A denied RPC means unknown interface data, not a stopped network. */ }
   // If there is exactly one configured ZeroTier network and one virtual NIC,
   // there is a safe one-to-one association for its assigned addresses.
   if (runtime.length === 1 && virtualDevices.length === 1) {
@@ -1588,14 +1598,19 @@ defineExpose({ refresh, refreshAction })
           <div class="muted-hint">网络类型：{{ x.type || '--' }}</div>
         </v-card>
         <div v-if="zt.virtualDevices?.length" class="mt-3">
-          <h3 class="router-app-section-title">ZeroTier 虚拟网卡（来自系统网络接口）</h3>
-          <v-card v-for="device in zt.virtualDevices" :key="device.name" rounded="lg" variant="outlined" class="zt-network-card mb-2" style="padding:12px">
-            <div class="d-flex align-center justify-space-between ga-2">
+          <h3 class="router-app-section-title">网络接口信息</h3>
+          <v-card v-for="device in zt.virtualDevices" :key="device.name" rounded="lg" variant="outlined" class="zt-network-card zt-interface-card mb-3">
+            <div class="d-flex align-center justify-space-between ga-2 mb-2">
               <strong>{{ device.name }}</strong>
-              <v-chip size="x-small" :color="device.up ? 'success' : 'secondary'" variant="tonal">{{ device.up ? '接口已启用' : '链路未确认' }}</v-chip>
+              <v-chip size="x-small" :color="device.up === true ? 'success' : 'secondary'" variant="tonal">{{ device.up === true ? '接口已启用' : '链路未确认' }}</v-chip>
             </div>
-            <div class="muted-hint mt-2">MAC：{{ device.mac || '--' }}</div>
-            <div class="muted-hint">地址：{{ device.addresses || '未从 netifd 获取' }}</div>
+            <div class="zt-interface-row"><span>接口名称</span><strong>{{ device.name }}</strong></div>
+            <div class="zt-interface-row"><span>MAC 地址</span><strong>{{ device.mac || '未获取' }}</strong></div>
+            <div class="zt-interface-row"><span>IPv4 地址</span><strong>{{ device.ipv4.join(', ') || '未获取' }}</strong></div>
+            <div class="zt-interface-row"><span>IPv6 地址</span><strong>{{ device.ipv6.join(', ') || '未获取' }}</strong></div>
+            <div class="zt-interface-row"><span>最大传输单元</span><strong>{{ device.mtu ?? '未获取' }}</strong></div>
+            <div class="zt-interface-row"><span>总下载</span><strong>{{ formatZeroTierBytes(device.rxBytes) }}</strong></div>
+            <div class="zt-interface-row"><span>总上传</span><strong>{{ formatZeroTierBytes(device.txBytes) }}</strong></div>
           </v-card>
         </div>
         <v-alert v-if="!zt.runtime.length" type="info" variant="tonal" density="compact">当前没有已配置或可读取的 ZeroTier 网络。</v-alert>

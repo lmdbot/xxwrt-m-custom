@@ -715,3 +715,10 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .settings-language-group .v-radio{min-height:46px;border-radius:12px;padding:4px 8px}
 .settings-language-group .v-radio:hover{background:rgba(var(--v-theme-primary),.055)}
 .settings-language-group .v-label{font-size:15px;opacity:1}
+
+/* ZeroTier interface details: readable two-column labels and untruncated IPv6. */
+.zt-interface-card{padding:12px;min-width:0}
+.zt-interface-row{display:grid;grid-template-columns:minmax(94px,42%) minmax(0,1fr);column-gap:12px;align-items:start;padding:10px 0;border-bottom:1px solid rgba(var(--v-theme-on-surface),.08)}
+.zt-interface-row:last-child{border-bottom:0;padding-bottom:2px}
+.zt-interface-row span{font-size:13px;color:var(--ui-text-muted)}
+.zt-interface-row strong{font-size:13px;font-weight:600;overflow-wrap:anywhere;min-width:0}

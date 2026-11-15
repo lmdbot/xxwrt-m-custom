@@ -90,7 +90,7 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'luci-zerotier' && zeroTierRpcAllowed && method === 'get_networks_peers') return {
     code: 0,
     networks: JSON.stringify([{ id: '1234567890abcdef', name: 'home', status: 'OK',
-      mac: 'aa:bb:cc:dd:ee:ff', type: 'PRIVATE', portDeviceName: 'zt0',
+      mac: 'aa:bb:cc:dd:ee:ff', type: 'PRIVATE', portDeviceName: 'ztsjsdnpbo',
       assignedAddresses: ['10.10.10.2/24'] }]),
     peers: '[]'
   }
@@ -150,6 +150,12 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'luci.wol' && method === 'stat') return { etherwake: wolToolEnabled, wakeonlan: false }
   if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
   if (object === 'file' && method === 'exec' && params.command === '/sbin/ip') {
+    if (params.params?.[0] === '-j' && params.params?.[3] === 'dev' && params.params?.[4] === 'ztsjsdnpbo') {
+      return { code: 0, stdout: JSON.stringify([{ ifname: 'ztsjsdnpbo', mtu: 2800,
+        addr_info: [{ family: 'inet', local: '10.10.10.2', prefixlen: 24 },
+          { family: 'inet6', local: 'fe80::b48e:88ff:fe62:c0c0', prefixlen: 64 }]
+      }]) }
+    }
     if (params.params?.[1] === 'neigh') return { code: 0, stdout: params.params[0] === '-4'
       ? '192.168.100.88 dev br-lan lladdr aa:bb:cc:dd:ee:ff REACHABLE\n192.168.100.89 dev br-lan FAILED\n192.168.100.90 dev br-lan FAILED\n'
       : 'fe80::1 dev br-lan lladdr bb:cc:dd:ee:ff:00 STALE\n' }
@@ -161,7 +167,7 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli' && !zeroTierCliAllowed) return null
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
     if (params.params?.join(' ') === '-j info') return { code: 0, stdout: JSON.stringify({ address: 'abcdef1234', version: '1.14.0', online: true }) }
-    if (params.params?.join(' ') === '-j listnetworks') return { code: 0, stdout: JSON.stringify([{ id: '1234567890abcdef', name: 'home', status: 'OK', mac: 'aa:bb:cc:dd:ee:ff', type: 'PRIVATE', portDeviceName: 'zt0', assignedAddresses: ['10.10.10.2/24'] }]) }
+    if (params.params?.join(' ') === '-j listnetworks') return { code: 0, stdout: JSON.stringify([{ id: '1234567890abcdef', name: 'home', status: 'OK', mac: 'aa:bb:cc:dd:ee:ff', type: 'PRIVATE', portDeviceName: 'ztsjsdnpbo', assignedAddresses: ['10.10.10.2/24'] }]) }
     return { code: 0, stdout: '200 listnetworks 1234567890abcdef home aa:bb:cc:dd:ee:ff OK PRIVATE zt0 10.10.10.2/24\n' }
   }
   // WeChatPush ACL permits executing its script, but NOT arbitrary /bin/bash.
@@ -181,6 +187,9 @@ const dataFor = (object, method, params = {}) => {
     results: [{mac:'11:22:33:44:55:66', signal:-56, rx:{rate:144}, tx:{rate:130}, connected_time:50}]
   }
   if (object === 'network.device' && method === 'status') {
+    if (params.name === 'ztsjsdnpbo') return { name: 'ztsjsdnpbo', up: true,
+      macaddr: 'B6:8E:88:62:C0:C0', mtu: 2800,
+      statistics: { rx_bytes: 755610, tx_bytes: 5347738 } }
     if (params.name) {
       networkBytes += 60 * 1024
       return { name: params.name, statistics: {
@@ -188,7 +197,7 @@ const dataFor = (object, method, params = {}) => {
         rx_packets: 1000, tx_packets: 900
       }}
     }
-    return { 'br-lan': { up: true } }
+    return { 'br-lan': { up: true }, ztsjsdnpbo: { name: 'ztsjsdnpbo', up: true } }
   }
   if (object === 'uci' && method === 'get' && params.config === 'dhcp') return {
     values: terminalDhcpHost ? { terminal_static: terminalDhcpHost } : {}
@@ -277,7 +286,11 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'luci-rpc' && method === 'getNetworkDevices') return {
     eth0: { up: true, type: 1, macaddr: '00:11:22:33:44:55', stats: {
       rx_bytes: 10485760, tx_bytes: 5242880, rx_packets: 1000, tx_packets: 500
-    }}
+    }},
+    ztsjsdnpbo: { name: 'ztsjsdnpbo', up: true, mtu: 2800,
+      ipaddrs: [{ address: '10.10.10.2', netmask: '255.255.255.0' }],
+      ip6addrs: [{ address: 'fe80::b48e:88ff:fe62:c0c0' }],
+      stats: { rx_bytes: 755610, tx_bytes: 5347738 } }
   }
   if (object === 'luci-rpc' && method === 'getWirelessDevices') return { radio0: { up: true } }
   if (object === 'luci' && method === 'getProcessList') return {
@@ -659,6 +672,14 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('节点 ID')).toBeVisible()
   await expect(page.getByText('abcdef1234')).toBeVisible()
   await expect(page.getByText('10.10.10.2/24')).toBeVisible()
+  const interfaceCard = page.locator('.zt-interface-card').filter({ hasText: 'ztsjsdnpbo' })
+  await expect(interfaceCard).toBeVisible()
+  await expect(interfaceCard.getByText('B6:8E:88:62:C0:C0')).toBeVisible()
+  await expect(interfaceCard.getByText('10.10.10.2')).toBeVisible()
+  await expect(interfaceCard.getByText('fe80::b48e:88ff:fe62:c0c0')).toBeVisible()
+  await expect(interfaceCard.getByText('2800')).toBeVisible()
+  await expect(interfaceCard.getByText('737.9 KiB')).toBeVisible()
+  await expect(interfaceCard.getByText('5.1 MiB')).toBeVisible()
   await auditDarkTextContrast(page, ['.router-app-summary span', '.zt-network-card .muted-hint'])
   zeroTierRpcAllowed = false
   zeroTierCliAllowed = false
