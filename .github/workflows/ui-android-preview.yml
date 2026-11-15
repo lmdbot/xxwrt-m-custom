@@ -312,7 +312,7 @@ jobs:
           SSH_OPTIONS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -p "$UPDATE_PORT" )
           SCP_OPTIONS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -P "$UPDATE_PORT" )
           DEST="${UPDATE_USER}@${UPDATE_HOST}"
-          REMOTE_DIR="/srv/xxwrt-updates"
+          REMOTE_DIR="/srv/app-updates"
           ssh "${SSH_OPTIONS[@]}" "$DEST" "test -d '$REMOTE_DIR' && test -w '$REMOTE_DIR'"
 
           APK="../../dist/material-preview/${APP_APK_NAME}"
