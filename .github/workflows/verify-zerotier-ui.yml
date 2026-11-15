@@ -1,0 +1,36 @@
+name: Verify ZeroTier UI cleanup
+
+on:
+  push:
+    branches: [feature/zerotier-remove-runtime-summary-card]
+    paths:
+      - ".github/workflows/verify-zerotier-ui.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: ui/material-prototype
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run unit tests
+        run: |
+          npm run test:versions
+          npm run test:logic
+      - name: Compile production UI
+        run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run UI regression tests
+        run: npm run test:ui
