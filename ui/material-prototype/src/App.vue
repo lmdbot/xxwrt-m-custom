@@ -11,6 +11,7 @@ import { formatLeaseDuration } from './services/leaseTime.js'
 import { fetchLatestStableRelease } from './services/appUpdates.js'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import RouterAppsPanel from './components/RouterAppsPanel.vue'
+import LuckyPanel from './components/LuckyPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
@@ -381,6 +382,7 @@ const actionBusy = ref(false)
 const selectedClient = ref(null)
 const toolPanel = ref('')
 const routerAppsPanel = ref(null)
+const luckyPanel = ref(null)
 const installedRouterApps = ref(null)
 const installedRouterAppsLoading = ref(false)
 let installedRouterAppsRequest = 0
@@ -446,6 +448,7 @@ const legacyTools = [
   { id: 'startup', title: '启动项', subtitle: '开机启动服务', icon: 'mdi-power-plug-outline' },
   { id: 'wol', title: '网络唤醒', subtitle: '远程唤醒终端', icon: 'mdi-lan-connect' },
   { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
+  { id: 'lucky', title: 'Lucky', subtitle: '运行状态、访问规则与备份维护', icon: 'mdi-clover-outline' },
   { id: 'wechatpush', title: '微信推送', subtitle: '通知渠道与推送配置', icon: 'mdi-message-badge-outline' },
   { id: 'openclash', title: 'OpenClash', subtitle: '代理模式与运行控制', icon: 'mdi-cloud-sync-outline' },
   { id: 'detector', title: 'Internet Detector', subtitle: '联网监测状态', icon: 'mdi-web-check' },
@@ -1084,7 +1087,7 @@ async function showLegacyTool(toolId, { force = false } = {}) {
   if (toolId === 'wol') wolLoadStatus.value = 'loading'
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (toolId === 'parental' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
+  if (toolId === 'parental' || toolId === 'lucky' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
   toolLoading.value = true
   try {
     if (toolId === 'startup') {
@@ -1129,6 +1132,10 @@ async function showLegacyTool(toolId, { force = false } = {}) {
 }
 
 function refreshCurrentTool() {
+  if (toolPanel.value === 'lucky') {
+    void luckyPanel.value?.refreshAction()
+    return
+  }
   if (routerAppToolIds.includes(toolPanel.value)) {
     void routerAppsPanel.value?.refreshAction()
     return
@@ -1993,6 +2000,7 @@ onUnmounted(() => {
               <AppFilterPanel v-if="toolPanel === 'parental' && client" :client="client"/>
               <RouterAppsPanel v-if="routerAppToolIds.includes(toolPanel) && client"
                 ref="routerAppsPanel" :client="client" :kind="toolPanel"/>
+              <LuckyPanel v-if="toolPanel === 'lucky' && client" ref="luckyPanel" :client="client"/>
               </v-card>
             </template>
           </template>
