@@ -84,6 +84,9 @@ jobs:
       - name: Verify terminal lease formatting and drawer swipe gestures
         run: npm run test:logic
 
+      - name: Verify five-version mirror APK retention
+        run: python3 -m unittest discover -s ../../.github/scripts -p 'test_prune_mirror_apks.py' -v
+
       - name: Set Android version and APK filename
         shell: bash
         run: |
@@ -338,7 +341,10 @@ jobs:
           TMP_NAME="version.json.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}.tmp"
           scp "${SCP_OPTIONS[@]}" "$MANIFEST" "$DEST:$REMOTE_DIR/$TMP_NAME"
           ssh "${SSH_OPTIONS[@]}" "$DEST" "mv -- '$REMOTE_DIR/$TMP_NAME' '$REMOTE_DIR/version.json'"
-          echo "Aliyun mirror published: v${APP_VERSION}"
+          # Delete only obsolete canonical Material APKs; keep the latest five.
+          # Verify version.json and its advertised APK before deleting anything.
+          ssh "${SSH_OPTIONS[@]}" "$DEST" "python3 - '$REMOTE_DIR' 5" < "$GITHUB_WORKSPACE/.github/scripts/prune_mirror_apks.py"
+          echo "Aliyun mirror published: v${APP_VERSION}; retaining newest five APKs"
 
       # Notify once after a new stable Release and its signed APK are published.
       # The entire webhook URL (including its capability token) must be an Actions secret.
