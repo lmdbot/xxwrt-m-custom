@@ -16,7 +16,7 @@
 ```bash
 # 推荐为 GitHub Actions 建立独立账号，勿复用日常管理员密钥。
 sudo useradd --create-home --shell /bin/bash xxwrt-updater
-sudo install -d -o xxwrt-updater -g xxwrt-updater -m 755 /srv/xxwrt-updates
+sudo install -d -o xxwrt-updater -g xxwrt-updater -m 755 /srv/app-updates
 sudo install -d -o xxwrt-updater -g xxwrt-updater -m 700 /home/xxwrt-updater/.ssh
 ```
 
@@ -46,7 +46,7 @@ ssh-keygen -t ed25519 -f "$HOME\.ssh\xxwrt_update" -C "xxwrt-github-actions"
 1. DNS 管理中，将 `update.12130812.xyz` 的 A/AAAA 记录指向对应阿里云服务器公网地址。
 2. 在 Lucky 已有的 HTTPS 443「Web 服务规则」中新增**子规则**，避免重复监听 443。
 3. 前端域名：`update.12130812.xyz`；Web 服务类型：**文件服务**。
-4. 文件服务目录：`/srv/xxwrt-updates`；启用 HTTPS，使用对应该子域名有效的证书（现有通配符证书可复用）。
+4. 文件服务目录：`/srv/app-updates`；启用 HTTPS，使用对应该子域名有效的证书（现有通配符证书可复用）。
 5. 不开启 BasicAuth 或其他需登录才能访问的保护：APK 和 JSON 必须允许 APP 直接获取。
 6. 若 Lucky 已配置国家/地区访问限制，确保预期使用 APP 的地区可以访问此更新域名。
 7. 仅为此服务开放必要的 GET/HEAD 访问；不要让公网用户上传或修改文件。Web 预览模式若要跨域检查，需要响应 `Access-Control-Allow-Origin: *`。
@@ -88,7 +88,7 @@ ssh-keyscan -p 22 -t ed25519 <服务器公网IP或SSH域名>
 1. 保持 `ui/material-prototype/package.json` 版本号为三段数字（如 `2.0.21`）。
 2. 新版本创建 `docs/releases/v2.0.21.md`，包含原有工作流要求的结构化变更类别。
 3. 合并改动后，推送 `main`，正式 APK 经现有构建、测试和签名并发布到 GitHub。
-4. 新增的 `Sync stable APK to Aliyun Lucky file service` 步骤上传至 `/srv/xxwrt-updates`。
+4. 新增的 `Sync stable APK to Aliyun Lucky file service` 步骤上传至 `/srv/app-updates`。
 5. APK 文件上传成功之后，通过 `mv` 原子发布 `version.json`。
 6. 手机在「关于 → 检查更新」查看更新来源是否显示「阿里云」，并测试 APK 下载。
 
@@ -106,7 +106,7 @@ curl -I "https://update.12130812.xyz/XX-WRT-Material-v2.0.21.apk"
 ## 5. 故障处理
 
 - 没有配置全部 4 个 SSH Secret：全部缺失会**跳过镜像**；只配置一部分则**报错**，防止静默发布半成品。
-- SSH 连接失败：核查端口、安全组、部署公钥、主机指纹及 /srv/xxwrt-updates 写权限。
+- SSH 连接失败：核查端口、安全组、部署公钥、主机指纹及 /srv/app-updates 写权限。
 - 镜像失败：GitHub Release 依然保留，APP 会尝试回退到 GitHub API。
 - 下载慢：检查云服务器实际公网出口带宽和下载流量计费/限额。
 - APP 没检测到升级：必须把 Android 版本从旧版递增（例如 2.0.20 → 2.0.21），仅替换同版本 APK 不会显示为新版本。
