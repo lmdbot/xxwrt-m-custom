@@ -634,6 +634,8 @@ export async function readWolDevices(client) {
       iface: String(item.iface || ''),
       broadcast: String(item.broadcast || '0') === '1'
     }))
+  const statusKnown = Boolean(stat && typeof stat === 'object' &&
+    (Object.hasOwn(stat, 'etherwake') || Object.hasOwn(stat, 'wakeonlan')))
   const available = Boolean(stat?.etherwake || stat?.wakeonlan)
   const tool = stat?.etherwake ? '/usr/bin/etherwake' : stat?.wakeonlan ? '/usr/bin/wakeonlan' : ''
   const interfaces = Array.isArray(nics) ? nics.map(n => n.name).filter(Boolean)
@@ -659,7 +661,7 @@ export async function readWolDevices(client) {
   }
   const savedMacs = new Set(targets.map(item => item.mac))
   const neighbors = known.filter(item => !savedMacs.has(item.mac))
-  return { available, tool, targets, interfaces, known, neighbors }
+  return { available, statusKnown, tool, targets, interfaces, known, neighbors }
 }
 
 /** Only execute the known WOL binary reported by the original LuCI plugin. */

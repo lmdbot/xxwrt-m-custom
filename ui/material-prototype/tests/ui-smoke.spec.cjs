@@ -50,6 +50,7 @@ let zeroTierRpcAllowed = true
 let zeroTierCliAllowed = true
 let ssrExecAllowed = true
 let ssrLuciAllowed = true
+let wolToolEnabled = true
 
 const dataFor = (object, method, params = {}) => {
   if (object === 'session' && method === 'login') return { ubus_rpc_session: '0123456789abcdef0123456789abcdef' }
@@ -144,7 +145,7 @@ const dataFor = (object, method, params = {}) => {
     'internet-detector': { enabled: true, running: true },
     zerotier: { enabled: true, running: true }
   }
-  if (object === 'luci.wol' && method === 'stat') return { etherwake: true }
+  if (object === 'luci.wol' && method === 'stat') return { etherwake: wolToolEnabled, wakeonlan: false }
   if (object === 'luci.wol' && method === 'exec') return { code: 0, stdout: '' }
   if (object === 'file' && method === 'exec' && params.command === '/sbin/ip') {
     if (params.params?.[1] === 'neigh') return { code: 0, stdout: params.params[0] === '-4'
@@ -696,8 +697,29 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.screenshot({ path: 'test-results/screenshots/compact-route-table.png', fullPage: true })
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await expect(page.getByRole('button', { name: '刷新当前页面' })).toHaveCount(1)
+  let releaseWolResponse
+  let notifyWolRequested
+  const wolRequested = new Promise(resolve => { notifyWolRequested = resolve })
+  const wolResponseHeld = new Promise(resolve => { releaseWolResponse = resolve })
+  const delayedWolRpc = async route => {
+    const request = route.request().postDataJSON()
+    const batch = Array.isArray(request) ? request : [request]
+    if (batch.some(item => item.params?.[1] === 'luci.wol' && item.params?.[2] === 'stat')) {
+      notifyWolRequested()
+      await wolResponseHeld
+    }
+    await handler(route)
+  }
+  await page.route('**/ubus', delayedWolRpc)
   await page.getByRole('button', { name: '打开网络唤醒' }).click()
+  await wolRequested
+  await expect(page.getByText('正在读取网络唤醒配置与服务状态…')).toBeVisible()
+  await expect(page.getByText(/WOL 唤醒工具未启用/)).toHaveCount(0)
+  await expect(page.getByText('暂无已保存的网络唤醒目标。')).toHaveCount(0)
+  releaseWolResponse()
+  await page.unroute('**/ubus', delayedWolRpc)
   await expect(page.getByText('测试主机')).toBeVisible()
+  await expect(page.getByText(/WOL 唤醒工具未启用/)).toHaveCount(0)
   await page.getByRole('button', { name: /网络邻居/ }).click()
   await expect(page.getByText('已发现的网络设备')).toBeVisible()
   await expect(page.getByText('邻居电脑')).toBeVisible()
@@ -723,6 +745,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.screenshot({ path: 'test-results/screenshots/compact-wol-neighbors.png', fullPage: true })
   await page.getByRole('button', { name: '唤醒 邻居电脑' }).click()
   await expect(page.getByText(/已向 邻居电脑 发送网络唤醒包/)).toBeVisible()
+  wolToolEnabled = false
+  await page.getByRole('button', { name: '刷新当前页面' }).click()
+  await expect(page.getByText('WOL 唤醒工具未启用，仍可查看邻居，但不能发送唤醒包。')).toBeVisible()
+  wolToolEnabled = true
+  await page.getByRole('button', { name: '刷新当前页面' }).click()
+  await expect(page.getByText(/WOL 唤醒工具未启用/)).toHaveCount(0)
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   await page.getByRole('button', { name: '打开家长控制' }).click()
   await expect(page.getByText('OpenAppFilter 家长控制')).toBeVisible()

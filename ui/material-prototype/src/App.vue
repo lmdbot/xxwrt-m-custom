@@ -398,7 +398,8 @@ function dismissToolFeedback() {
 const processData = ref({ available: false, processes: [] })
 const routeData = ref({ available: false, routes: [] })
 const liveRoutes = ref({ available: false, lines: [] })
-const wolData = ref({ available: false, tool: '', targets: [], interfaces: [], known: [], neighbors: [] })
+const wolData = ref({ available: false, statusKnown: false, tool: '', targets: [], interfaces: [], known: [], neighbors: [] })
+const wolLoadStatus = ref('idle') // idle | loading | ready | error
 const wolForm = reactive({ name: '', mac: '', iface: '', broadcast: false })
 const wolTab = ref('targets')
 const wolNeighborSearch = ref('')
@@ -1072,6 +1073,7 @@ async function showLegacyTool(toolId) {
     factoryDialog.value = true
     return
   }
+  if (toolId === 'wol') wolLoadStatus.value = 'loading'
   toolPanel.value = toolId
   toolMessage.value = ''
   if (toolId === 'parental' || routerAppToolIds.includes(toolId)) return
@@ -1097,12 +1099,16 @@ async function showLegacyTool(toolId) {
       if (!routeData.value.available && !liveRoutes.value.available) toolMessage.value = '当前账号无路由表读取权限，请检查 ubus ACL。'
     }
     if (toolId === 'wol') {
-      wolData.value = await readWolDevices(client.value)
-      wolForm.iface = wolData.value.interfaces.includes('br-lan') ? 'br-lan' : (wolData.value.interfaces[0] || '')
-      if (!wolData.value.available) toolMessage.value = '未安装 LuCI WOL 服务，需先在路由器安装 luci-app-wol。'
+      const result = await readWolDevices(client.value)
+      wolData.value = result
+      wolForm.iface = result.interfaces.includes('br-lan') ? 'br-lan' : (result.interfaces[0] || '')
+      // A missing RPC response is unknown; only an explicit plugin status
+      // confirming that both wake binaries are absent warrants a warning.
+      wolLoadStatus.value = 'ready'
     }
 
   } catch (e) {
+    if (toolId === 'wol') wolLoadStatus.value = 'error'
     toolMessage.value = shortError(e)
   } finally {
     toolLoading.value = false
@@ -1885,6 +1891,15 @@ onUnmounted(() => {
               <div v-if="toolPanel === 'wol'" class="mt-3">
                 <h3>网络唤醒</h3>
                 <p class="muted-hint mb-2">支持已保存目标和 QWRT 当前邻居表中的设备。</p>
+                <v-alert v-if="wolLoadStatus === 'loading' || wolLoadStatus === 'idle'"
+                  type="info" variant="tonal" density="compact" class="mb-3">
+                  正在读取网络唤醒配置与服务状态…
+                </v-alert>
+                <v-alert v-else-if="wolLoadStatus === 'error'" type="error"
+                  variant="tonal" density="compact" class="mb-3">
+                  网络唤醒状态读取失败，请点击右上角刷新后重试。
+                </v-alert>
+                <template v-else-if="wolLoadStatus === 'ready'">
                 <v-btn-toggle v-model="wolTab" mandatory density="compact" variant="tonal" rounded="lg" color="primary" class="wol-tabs">
                   <v-btn value="targets" size="small">已保存目标 {{ wolData.targets.length }}</v-btn>
                   <v-btn value="neighbors" size="small">网络邻居 {{ wolData.neighbors.length }}</v-btn>
@@ -1899,8 +1914,9 @@ onUnmounted(() => {
                     </v-list-item>
                   </v-list>
                   <v-alert v-else type="info" variant="tonal" density="compact" class="mt-2">暂无已保存的网络唤醒目标。</v-alert>
-                  <v-alert v-if="!wolData.available" type="warning" density="compact" variant="tonal">WOL RPC 未启用，无法在 APP 内直接唤醒设备。</v-alert>
-                  <template v-else>
+                  <v-alert v-if="wolData.statusKnown && !wolData.available" type="warning" density="compact" variant="tonal">WOL 唤醒工具未启用，无法在 APP 内直接唤醒设备。</v-alert>
+                  <v-alert v-else-if="!wolData.statusKnown" type="info" density="compact" variant="tonal">尚未确认 WOL RPC 状态，请检查路由器是否安装 WOL 插件及当前账号权限。</v-alert>
+                  <template v-if="wolData.available">
                     <h3 class="mt-4">添加网络唤醒目标</h3>
                     <form @submit.prevent="submitWolTarget">
                       <v-text-field v-model.trim="wolForm.name" label="名称" density="compact" variant="outlined" class="mt-2" required/>
@@ -1948,7 +1964,9 @@ onUnmounted(() => {
                   <v-alert v-else type="info" variant="tonal" density="compact" class="mt-2">
                     {{ wolData.neighbors.length ? '没有匹配的网络邻居，请更换搜索关键词。' : 'QWRT 当前没有可识别的网络邻居。' }}
                   </v-alert>
-                  <v-alert v-if="!wolData.available" type="warning" density="compact" variant="tonal">WOL RPC 未启用，仍可查看邻居，但不能发送唤醒包。</v-alert>
+                  <v-alert v-if="wolData.statusKnown && !wolData.available" type="warning" density="compact" variant="tonal">WOL 唤醒工具未启用，仍可查看邻居，但不能发送唤醒包。</v-alert>
+                  <v-alert v-else-if="!wolData.statusKnown" type="info" density="compact" variant="tonal">尚未确认 WOL RPC 状态，请检查插件安装情况及账号权限。</v-alert>
+                </template>
                 </template>
               </div>
               <AppFilterPanel v-if="toolPanel === 'parental' && client" :client="client"/>
