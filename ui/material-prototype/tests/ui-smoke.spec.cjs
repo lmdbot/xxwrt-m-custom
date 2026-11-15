@@ -1,6 +1,34 @@
 const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
 
+const appGroups = {
+  "ShadowSocksR Plus+": "网络与安全",
+  "OpenClash": "网络与安全",
+  "ZeroTier": "网络与安全",
+  "防火墙": "网络与安全",
+  "家长控制": "网络与安全",
+  "Lucky": "服务与插件",
+  "Vlmcsd KMS": "服务与插件",
+  "微信推送": "服务与插件",
+  "Internet Detector": "服务与插件",
+  "Carbon 主题设置": "服务与插件",
+  "进程": "系统工具",
+  "启动项": "系统工具",
+  "路由表": "系统工具",
+  "网络唤醒": "系统工具",
+  "重启设备": "设备维护",
+  "恢复出厂": "设备维护"
+}
+
+async function openApplication(page, name) {
+  const button = page.getByRole('button', { name: '打开' + name, exact: true }).first()
+  if (!(await button.isVisible())) {
+    await page.getByRole('button', { name: '展开' + appGroups[name], exact: true }).click()
+  }
+  await button.click()
+}
+
+
 /* Contrast smoke check for common text families. All selected nodes are text
    rendered on either a dark surface or the application's dark canvas.
    Test both backdrops so translucent cards cannot mask unreadable labels. */
@@ -598,15 +626,21 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
   await expect(page.getByText('应用管理')).toBeVisible()
-  await expect(page.locator('.app-launcher-tile')).toHaveCount(16)
+  await expect(page.locator('.app-favorite-tile')).toHaveCount(6)
+  await expect(page.locator('.app-category-card')).toHaveCount(4)
+  await expect(page.locator('.app-tool-row')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '打开Lucky' })).toBeVisible()
+  await page.getByRole('textbox', { name: '搜索应用或功能' }).fill('Vlmcsd')
   await expect(page.getByRole('button', { name: '打开Vlmcsd KMS' })).toBeVisible()
-  await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
+  await expect(page.locator('.app-search-results .app-tool-row')).toHaveCount(1)
+  await page.getByRole('textbox', { name: '搜索应用或功能' }).fill('')
+  await page.screenshot({ path: 'test-results/screenshots/compact-app-hub.png', fullPage: true })
+  await openApplication(page, 'ShadowSocksR Plus+')
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   // Tapping the already selected Apps tab returns from a nested app page.
   await page.getByRole('button', { name: '应用', exact: true }).click()
   await expect(page.getByText('应用管理')).toBeVisible()
-  await page.getByRole('button', { name: '打开ShadowSocksR Plus+' }).click()
+  await openApplication(page, 'ShadowSocksR Plus+')
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   await expect(page.getByText('香港节点', { exact: true }).first()).toBeVisible()
   await auditDarkTextContrast(page, ['.router-app-summary span', '.app-compact-sub', '.muted-hint'])
@@ -630,7 +664,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('确认安装 SSR Plus+ 更新？')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开微信推送' }).click()
+  await openApplication(page, '微信推送')
   await expect(page.getByText('启用微信推送')).toBeVisible()
   await expect(page.getByText('PushPlus', { exact: true }).first()).toBeVisible()
   await page.getByRole('tab', { name: '在线设备' }).click()
@@ -654,22 +688,22 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('https://example.invalid/secret-webhook-key')).toHaveCount(0)
   await expect(page.getByText('sensitive request payload')).toHaveCount(0)
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开OpenClash' }).click()
+  await openApplication(page, 'OpenClash')
   await expect(page.getByText('代理模式', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('运行模式', { exact: true }).last().first()).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开Internet Detector' }).click()
+  await openApplication(page, 'Internet Detector')
   await expect(page.locator('.detector-row').first().getByText('正常', { exact: true })).toBeVisible()
   await auditDarkTextContrast(page, ['.app-compact-sub', '.router-app-summary span', '.muted-hint'])
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开Carbon 主题设置' }).click()
+  await openApplication(page, 'Carbon 主题设置')
   await expect(page.getByText('当前主题', { exact: true }).last()).toBeVisible()
   await expect(page.getByText('Carbon 主题更新')).toBeVisible()
   await page.getByRole('button', { name: '检查更新' }).click()
   await expect(page.getByText('检测到可安装的 Carbon 新版本')).toBeVisible()
   await expect(page.getByRole('button', { name: '安装已验证更新' })).toBeEnabled()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开ZeroTier' }).click()
+  await openApplication(page, 'ZeroTier')
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   await expect(page.getByText('网络已连接')).toBeVisible()
   await expect(page.getByText('节点 ID')).toBeVisible()
@@ -695,7 +729,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   zeroTierRpcAllowed = true
   zeroTierCliAllowed = true
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开防火墙' }).click()
+  await openApplication(page, '防火墙')
   await expect(page.getByText('区域策略', { exact: true })).toBeVisible()
   await expect(page.getByText('Full Cone NAT')).toBeVisible()
   await expect(page.getByText('BBR', { exact: true })).toBeVisible()
@@ -747,7 +781,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
 
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   const heldProcess = await holdToolRpc('luci', 'getProcessList')
-  await page.getByRole('button', { name: '打开进程' }).click()
+  await openApplication(page, '进程')
   await heldProcess.started
   await expect(page.getByText('正在读取进程数据…')).toBeVisible()
   await expect(page.getByText('暂无进程数据')).toHaveCount(0)
@@ -758,7 +792,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('状态 S')).toBeVisible()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
   await expect(page.getByText('应用管理')).toBeVisible()
-  await page.getByRole('button', { name: '打开进程' }).click()
+  await openApplication(page, '进程')
   await expect(page.getByText('rpcd')).toBeVisible()
   await expect(page.locator('.compact-system-list .compact-entry')).toHaveCount(1)
   await page.getByRole('textbox', { name: '搜索进程' }).fill('rpcd')
@@ -767,7 +801,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('完整命令')).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/compact-processes.png', fullPage: true })
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开启动项' }).click()
+  await openApplication(page, '启动项')
   const expectedStartupServices = Object.keys(dataFor('rc', 'list')).length
   await expect(page.getByText('firewall')).toBeVisible()
   await expect(page.locator('.compact-system-list .compact-entry')).toHaveCount(expectedStartupServices)
@@ -791,7 +825,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.screenshot({ path: 'test-results/screenshots/compact-startup-services.png', fullPage: true })
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
   const heldRoutes = await holdToolRpc('uci', 'get')
-  await page.getByRole('button', { name: '打开路由表' }).click()
+  await openApplication(page, '路由表')
   await heldRoutes.started
   await expect(page.getByText('正在读取路由表数据…')).toBeVisible()
   await expect(page.getByText('尚未取得路由表数据，请检查 RPC 权限')).toHaveCount(0)
@@ -824,7 +858,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     await handler(route)
   }
   await page.route('**/ubus', delayedWolRpc)
-  await page.getByRole('button', { name: '打开网络唤醒' }).click()
+  await openApplication(page, '网络唤醒')
   await wolRequested
   await expect(page.getByText('正在读取网络唤醒配置与服务状态…')).toBeVisible()
   await expect(page.getByText(/WOL 唤醒工具未启用/)).toHaveCount(0)
@@ -865,7 +899,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '刷新当前页面' }).click()
   await expect(page.getByText(/WOL 唤醒工具未启用/)).toHaveCount(0)
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开家长控制' }).click()
+  await openApplication(page, '家长控制')
   await expect(page.getByText('OpenAppFilter 家长控制')).toBeVisible()
   await auditDarkTextContrast(page, ['.appfilter-kv span'])
   await page.getByRole('tab', { name: '应用分类' }).click()
@@ -876,13 +910,28 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '保存高级设置' }).click()
   await expect(page.getByText('高级设置：已提交')).toBeVisible()
   await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await page.getByRole('button', { name: '打开恢复出厂' }).click()
+  await openApplication(page, '恢复出厂')
   await expect(page.getByText('恢复 QWRT 出厂设置')).toBeVisible()
   await expect(page.getByRole('button', { name: '确认恢复出厂' })).toBeDisabled()
   await page.getByRole('button', { name: '取消' }).click()
-  await page.getByRole('button', { name: '打开重启设备' }).click()
+  await openApplication(page, '重启设备')
   await expect(page.getByText('确认重启 QWRT')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()
+
+  // Favorites can be edited, reordered, and expanded without losing app routes.
+  await page.getByRole('button', { name: '编辑常用应用' }).click()
+  await page.getByRole('button', { name: '移除常用Lucky' }).click()
+  await page.getByRole('button', { name: '添加常用ShadowSocksR Plus+' }).click()
+  await page.getByRole('button', { name: '上移ShadowSocksR Plus+' }).click()
+  await page.getByRole('button', { name: '完成', exact: true }).click()
+  await expect(page.locator('.app-favorite-tile')).toHaveCount(6)
+  await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开ShadowSocksR Plus+' })).toBeVisible()
+  await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
+  await page.getByRole('button', { name: '展开全部应用' }).click()
+  await expect(page.locator('.app-tool-row')).toHaveCount(16)
+  await expect(page.getByRole('button', { name: '打开恢复出厂' })).toBeVisible()
+  await page.getByRole('button', { name: '收起设备维护' }).click()
+  await expect(page.getByRole('button', { name: '打开恢复出厂' })).toHaveCount(0)
 
   await page.getByRole('button', { name: '打开侧栏菜单' }).click()
   await page.getByRole('button', { name: '打开显示设置' }).click()

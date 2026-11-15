@@ -102,3 +102,12 @@ test('dynamic snackbar messages preserve identifiers while translating app copy'
   assert.equal(translateText('/usr/share/wechatpush/api/diy.json', 'en'), '/usr/share/wechatpush/api/diy.json')
 })
 
+
+test('new app launcher strings are translated and revert to Chinese', () => {
+  assert.equal(translateText('搜索应用或功能', 'en'), 'Search apps or features')
+  assert.equal(translateText('网络与安全', 'en'), 'Network & security')
+  assert.equal(translateText('设备维护', 'en'), 'Device maintenance')
+  assert.equal(translateText('编辑常用应用', 'en'), 'Edit favorite apps')
+  assert.equal(translateText('常用应用', 'zh-CN'), '常用应用')
+  assert.equal(translateText('常用应用', 'zh-TW'), '常用應用')
+})
