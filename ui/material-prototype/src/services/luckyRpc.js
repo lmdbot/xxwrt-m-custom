@@ -6,6 +6,7 @@
 const CALL = '/usr/libexec/lucky-call'
 const BACKUP = '/usr/libexec/lucky-backup'
 const WATCHDOG = '/usr/libexec/lucky-watchdog'
+const DIAGNOSTICS = '/usr/libexec/lucky-diagnostics'
 const CORE_OPERATIONS = new Set(['core-status', 'core-fix', 'core-info', 'core-base'])
 const RULE_OPERATIONS = new Set(['rules-localips', 'rules-allowlist'])
 const RULE_TOKEN_OPERATIONS = new Set(['rules-save', 'cleanup'])
@@ -91,6 +92,18 @@ export async function luckyWatchdog(client, action = 'status') {
   catch { throw new Error('Lucky 自动恢复状态不是有效 JSON') }
   if (!data || typeof data.enabled !== 'boolean' || typeof data.scheduled !== 'boolean')
     throw new Error('Lucky 自动恢复状态不完整')
+  return data
+}
+
+export async function luckyDiagnostics(client) {
+  let data
+  try { data = JSON.parse(await exec(client, DIAGNOSTICS, ['read'])) }
+  catch (e) {
+    if (e instanceof SyntaxError) throw new Error('Lucky 异常退出日志不是有效 JSON')
+    throw e
+  }
+  if (!data || !Array.isArray(data.sources) || !Array.isArray(data.events))
+    throw new Error('Lucky 异常退出日志格式不完整')
   return data
 }
 
