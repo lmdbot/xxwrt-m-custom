@@ -850,12 +850,15 @@ function closeSettingsPage() {
   }
   settingsOpen.value = false
 }
-// Open the existing left drawer by swiping right from the left side on root tabs.
+// Allow a deliberate left-edge right swipe on the device list as well as
+// connected device root tabs. Keep dialogs, settings and app subpages guarded.
 let drawerEdgeTouch = null
 function canOpenDrawerBySwipe() {
-  return viewMode.value === 'detail' && connected.value &&
+  const onDeviceList = viewMode.value === 'list'
+  const onDeviceRootTab = viewMode.value === 'detail' && connected.value &&
+    !(activeTab.value === 'apps' && toolPanel.value)
+  return (onDeviceList || onDeviceRootTab) &&
     !settingsOpen.value && !drawerOpen.value &&
-    !(activeTab.value === 'apps' && toolPanel.value) &&
     !document.querySelector('.v-dialog.v-overlay--active, .v-menu.v-overlay--active')
 }
 function clearDrawerEdgeSwipe() {
