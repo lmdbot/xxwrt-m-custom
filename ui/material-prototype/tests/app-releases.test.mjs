@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { compareAppVersions as cmp, parseAppVersion, selectLatestStableRelease } from '../src/services/appReleases.js'
+import { compareAppVersions as cmp, parseAppVersion, selectLatestStableRelease, parseMirrorRelease } from '../src/services/appReleases.js'
 test('numeric segments, including 3 versus 21, do not use string sorting', () => {
   for (const [a,b,want] of [
     ['2.21.0','2.3.99',1],['21.0.0','3.99.99',1],['3.0.0','21.0.0',-1],
@@ -48,4 +48,37 @@ test('new APK name wins over old migration alias, while both are valid', () => {
     selectLatestStableRelease([release('v2.0.1', {oldMaterial: true})]).apkName,
     'XX-WRT-M-Material-QWRT-v2.0.1.apk'
   )
+})
+
+function manifest(version = '2.21.0') {
+  const apkName = 'XX-WRT-Material-v' + version + '.apk'
+  return {
+    schemaVersion: 1, version, tag: 'v' + version,
+    title: 'XX-WRT管理器 v' + version,
+    apkName, apkUrl: 'https://update.12130812.xyz/' + apkName,
+    releaseUrl: 'https://github.com/lmdbot/xxwrt-m-custom/releases/tag/v' + version,
+    githubApkUrl: 'https://github.com/lmdbot/xxwrt-m-custom/releases/download/v' + version + '/' + apkName,
+    apkSize: 7115152, sha256: 'a'.repeat(64)
+  }
+}
+test('Aliyun manifest resolves to one canonical signed APK URL', () => {
+  const release = parseMirrorRelease(manifest())
+  assert.equal(release.version, '2.21.0')
+  assert.equal(release.source, 'mirror')
+  assert.equal(release.apkUrl, 'https://update.12130812.xyz/XX-WRT-Material-v2.21.0.apk')
+  assert.equal(release.githubApkUrl, manifest().githubApkUrl)
+})
+test('Aliyun manifest rejects unsafe or inconsistent APK metadata', () => {
+  for (const patch of [
+    { apkUrl: 'https://untrusted.example/XX-WRT-Material-v2.21.0.apk' },
+    { apkUrl: 'http://update.12130812.xyz/XX-WRT-Material-v2.21.0.apk' },
+    { apkName: '../evil.apk' },
+    { tag: 'v99.0.0' },
+    { version: '2.21.1' },
+    { sha256: 'invalid' },
+    { apkSize: 0 },
+    { githubApkUrl: 'https://untrusted.example/evil.apk' },
+    { schemaVersion: 2 }
+  ]) assert.throws(() => parseMirrorRelease({ ...manifest(), ...patch }), TypeError)
+  assert.throws(() => parseMirrorRelease(null), TypeError)
 })
