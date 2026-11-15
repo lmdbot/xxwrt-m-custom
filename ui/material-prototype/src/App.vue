@@ -402,7 +402,9 @@ function applyTerminalSettings(settings) {
   terminalSettings.value = settings
   terminalForm.staticEnabled = settings.staticEnabled
   terminalForm.staticIp = settings.staticIP || ''
-  terminalForm.name = settings.host?.name || selectedClient.value?.name || ''
+  const dhcpName = settings.host?.name || selectedClient.value?.identityName || ''
+  terminalForm.name = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(dhcpName)
+    ? dhcpName : ''
   terminalForm.download = settings.rates.download == null ? '' : String(settings.rates.download)
   terminalForm.upload = settings.rates.upload == null ? '' : String(settings.rates.upload)
 }
@@ -2205,7 +2207,7 @@ onUnmounted(() => {
             <v-text-field v-model.trim="terminalForm.name" label="DHCP 主机名"
               variant="outlined" density="compact" maxlength="63"
               :disabled="!terminalForm.staticEnabled || terminalSaving"/>
-            <p class="muted-hint mb-2">使用路由器 DHCP 固定租约，不修改终端系统的网卡配置；生效后可能需要终端重新连接网络。</p>
+            <p class="muted-hint mb-2">使用路由器 DHCP 固定租约，不修改终端系统的网卡配置。主机名只支持英文、数字和连字符，可留空自动生成；生效后可能需要终端重新连接网络。</p>
             <v-btn color="primary" variant="tonal" block :loading="terminalSaving"
               :disabled="terminalSettingsBusy" @click="saveTerminalStatic">
               {{ terminalForm.staticEnabled ? '保存静态 IP' : '取消静态 IP 绑定' }}
