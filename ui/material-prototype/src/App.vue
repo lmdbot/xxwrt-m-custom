@@ -12,6 +12,7 @@ import { fetchLatestStableRelease } from './services/appUpdates.js'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import RouterAppsPanel from './components/RouterAppsPanel.vue'
 import LuckyPanel from './components/LuckyPanel.vue'
+import VlmcsdPanel from './components/VlmcsdPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
@@ -133,6 +134,7 @@ const editDeviceId = ref('')
 const deleteDialog = ref(false)
 const deleteDeviceId = ref('')
 const loginRemember = ref(true)
+const loginIgnoreTls = ref(false)
 const isNative = Capacitor.isNativePlatform()
 const UiChrome = registerPlugin('UiChrome')
 const ApkDownloader = registerPlugin('ApkDownloader')
@@ -383,6 +385,7 @@ const selectedClient = ref(null)
 const toolPanel = ref('')
 const routerAppsPanel = ref(null)
 const luckyPanel = ref(null)
+const vlmcsdPanel = ref(null)
 const installedRouterApps = ref(null)
 const installedRouterAppsLoading = ref(false)
 let installedRouterAppsRequest = 0
@@ -426,6 +429,12 @@ const networkHardware = ref({ wiredAvailable: false, wirelessAvailable: false, w
 const networkView = ref('interfaces')
 const networkInterfaces = computed(() =>
   (snapshot.value?.interfaces || []).filter(item => item.interface !== 'loopback'))
+function ipv6ValidSeconds(nic) {
+  const lifetime = [...(nic?.['ipv6-prefix'] || []), ...(nic?.['ipv6-address'] || [])]
+    .map(item => Number(item?.valid))
+    .find(value => Number.isFinite(value) && value >= 0 && value < 4294967295)
+  return lifetime ?? null
+}
 const networkCategories = computed(() => [
   { value: 'interfaces', label: '接口', count: networkInterfaces.value.length, icon: 'mdi-lan' },
   { value: 'devices', label: '设备', count: networkHardware.value.wired.length, icon: 'mdi-ethernet' },
@@ -449,6 +458,7 @@ const legacyTools = [
   { id: 'wol', title: '网络唤醒', subtitle: '远程唤醒终端', icon: 'mdi-lan-connect' },
   { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
   { id: 'lucky', title: 'Lucky', subtitle: '运行状态、访问规则与备份维护', icon: 'mdi-clover' },
+  { id: 'vlmcsd', title: 'Vlmcsd KMS', subtitle: '服务开关、自动激活与配置文件', icon: 'mdi-server-network' },
   { id: 'wechatpush', title: '微信推送', subtitle: '通知渠道与推送配置', icon: 'mdi-message-badge-outline' },
   { id: 'openclash', title: 'OpenClash', subtitle: '代理模式与运行控制', icon: 'mdi-cloud-sync-outline' },
   { id: 'detector', title: 'Internet Detector', subtitle: '联网监测状态', icon: 'mdi-web-check' },
@@ -845,7 +855,7 @@ async function refreshDeviceStatuses() {
           try {
             const secret = await fetchDevicePassword(d.id)
             if (secret) {
-              const session = new RouterClient(d.address)
+              const session = new RouterClient(d.address, { ignoreTlsErrors: d.ignoreTlsErrors })
               await session.login(d.username, secret)
               api = session
               sessions.set(d.id, api)
@@ -863,7 +873,7 @@ async function refreshDeviceStatuses() {
             sessions.delete(d.id)
           }
         }
-        if (status !== 'online') status = await probeDevice(d.address)
+        if (status !== 'online') status = await probeDevice(d.address, d.ignoreTlsErrors)
         if (devices.value.some(x => x.id === d.id)) deviceStatuses[d.id] = status
       }
     }
@@ -892,6 +902,7 @@ async function openDevice(device) {
   listError.value = ''
   errorMessage.value = ''
   loginRemember.value = !!device.rememberPassword
+  loginIgnoreTls.value = Boolean(device.ignoreTlsErrors && device.address.startsWith('https://'))
   // Never show snapshot data from another router while switching.
   snapshot.value = null
   const cached = sessions.get(device.id)
@@ -927,7 +938,7 @@ async function connect() {
   try {
     const device = selectedDevice.value
     if (!device) throw new Error('请先从设备列表选择路由器')
-    const api = new RouterClient(device.address)
+    const api = new RouterClient(device.address, { ignoreTlsErrors: loginIgnoreTls.value })
     const password = form.password
     await api.login(device.username, password)
     client.value = api
@@ -938,6 +949,9 @@ async function connect() {
     activeTab.value = 'home'
     deviceStatuses[device.id] = 'reachable'
     localStorage.setItem(storage.host, api.baseUrl)
+    // TLS exception is remembered per saved router, independently of the password.
+    devices.value = saveDevices(devices.value.map(d => d.id === device.id
+      ? { ...d, ignoreTlsErrors: api.ignoreTlsErrors } : d))
     if (isNative && loginRemember.value) {
       try {
         await storeDevicePassword(device.id, password)
@@ -1087,7 +1101,7 @@ async function showLegacyTool(toolId, { force = false } = {}) {
   if (toolId === 'wol') wolLoadStatus.value = 'loading'
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (toolId === 'parental' || toolId === 'lucky' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
+  if (toolId === 'parental' || toolId === 'lucky' || toolId === 'vlmcsd' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
   toolLoading.value = true
   try {
     if (toolId === 'startup') {
@@ -1132,6 +1146,10 @@ async function showLegacyTool(toolId, { force = false } = {}) {
 }
 
 function refreshCurrentTool() {
+  if (toolPanel.value === 'vlmcsd') {
+    void vlmcsdPanel.value?.refreshAction()
+    return
+  }
   if (toolPanel.value === 'lucky') {
     void luckyPanel.value?.refreshAction()
     return
@@ -1816,6 +1834,7 @@ onUnmounted(() => {
                 <div><span>LAN IPv4</span><strong>{{ snapshot.lanIp }}</strong></div>
                 <div><span>WAN IPv4</span><strong>{{ snapshot.wanIp }}</strong></div>
                 <div><span>WAN IPv6</span><strong>{{ snapshot.wan6Ip }}</strong></div>
+                <div v-if="snapshot.wan6ValidSeconds !== null"><span>WAN6 剩余有效期</span><strong>{{ formatInterfaceUptime(snapshot.wan6ValidSeconds) }}</strong></div>
                 <div><span>默认网关</span><strong>{{ snapshot.gateway }}</strong></div>
                 <div><span>DNS</span><strong>{{ snapshot.dns }}</strong></div>
               </div>
@@ -1853,6 +1872,7 @@ onUnmounted(() => {
                   <div><span>IPv4</span><strong>{{ nic['ipv4-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
                   <div><span>IPv6</span><strong>{{ nic['ipv6-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
                   <div v-if="nic['ipv6-prefix']?.length"><span>IPv6-PD</span><strong>{{ nic['ipv6-prefix'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
+                  <div v-if="['wan6','wan_6'].includes(nic.interface) && ipv6ValidSeconds(nic) !== null"><span>剩余有效期</span><strong>{{ formatInterfaceUptime(ipv6ValidSeconds(nic)) }}</strong></div>
                   <div v-if="nic['ipv6-prefix-assignment']?.length"><span>IPv6-PD 分配</span><strong>{{ nic['ipv6-prefix-assignment'].map(x => x.address + '/' + x.mask).join(', ') }}</strong></div>
                   <div v-if="nic['dns-server']?.length"><span>DNS</span><strong>{{ nic['dns-server'].join(' / ') }}</strong></div>
                   <div v-if="nic.mtu"><span>MTU</span><strong>{{ nic.mtu }}</strong></div>
@@ -2001,6 +2021,7 @@ onUnmounted(() => {
               <RouterAppsPanel v-if="routerAppToolIds.includes(toolPanel) && client"
                 ref="routerAppsPanel" :client="client" :kind="toolPanel"/>
               <LuckyPanel v-if="toolPanel === 'lucky' && client" ref="luckyPanel" :client="client"/>
+              <VlmcsdPanel v-if="toolPanel === 'vlmcsd' && client" ref="vlmcsdPanel" :client="client"/>
               </v-card>
             </template>
           </template>
@@ -2080,6 +2101,13 @@ onUnmounted(() => {
             <v-text-field v-model.trim="form.username" density="comfortable" variant="outlined" label="用户名" autocomplete="username" readonly/>
             <v-text-field v-model="form.password" density="comfortable" variant="outlined" label="路由器密码" autocomplete="current-password" :type="form.showPassword ? 'text' : 'password'" :append-inner-icon="form.showPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="form.showPassword = !form.showPassword" required/>
             <v-checkbox v-if="isNative" v-model="loginRemember" label="使用 Android Keystore 加密记住密码" color="primary" hide-details/>
+            <v-checkbox v-if="isNative && selectedDevice?.address?.startsWith('https://')"
+              v-model="loginIgnoreTls" label="忽略此路由器 HTTPS 证书错误（不安全）"
+              color="warning" hide-details class="mt-2"/>
+            <v-alert v-if="loginIgnoreTls && selectedDevice?.address?.startsWith('https://')"
+              type="warning" variant="tonal" density="compact" class="mt-2">
+              将跳过此路由器的证书链和域名校验，可能泄露登录密码。仅用于完全可信的自签名路由器；优先修复证书。
+            </v-alert>
             <p v-else class="muted-hint">网页预览不保存密码；Android 安装版支持安全存储。</p>
           </form>
           <v-alert v-if="errorMessage" type="warning" variant="tonal" density="compact" class="mt-2">{{ errorMessage }}</v-alert>
