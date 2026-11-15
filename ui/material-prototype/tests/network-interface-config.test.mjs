@@ -112,10 +112,13 @@ test('new DHCP server section is only created with explicit server enablement', 
   assert.deepEqual(buildInterfaceChanges('guest', lanOnly, dhcp, form), [])
   form.dhcpEnabled = true
   const changes = buildInterfaceChanges('guest', lanOnly, dhcp, form)
-  assert.equal(changes.length, 2)
-  assert.equal(changes[1].create, true)
-  assert.equal(changes[1].section, 'guest')
-  assert.equal(changes[1].values.interface, 'guest')
+  // The interface has no network edits because implicit UCI defaults
+  // are preserved; only a new DHCP section is required.
+  assert.equal(changes.length, 1)
+  assert.equal(changes[0].config, 'dhcp')
+  assert.equal(changes[0].create, true)
+  assert.equal(changes[0].section, 'guest')
+  assert.equal(changes[0].values.interface, 'guest')
 })
 test('validate DHCP subnet ranges, static IP, DNS and protocol options', () => {
   const form = edit('lan')

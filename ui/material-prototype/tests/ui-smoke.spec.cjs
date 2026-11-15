@@ -718,7 +718,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('textbox', { name: 'IPv4 地址' })).toHaveValue('192.168.100.1')
   await page.getByRole('tab', { name: 'DHCP 服务端' }).click()
   await expect(page.getByText('不是上级网络的 DHCP 客户端')).toBeVisible()
-  await expect(page.getByRole('textbox', { name: '地址池起始偏移（例如 100）' })).toHaveValue('100')
+  await expect(page.getByRole('spinbutton', { name: '地址池起始偏移（例如 100）' })).toHaveValue('100')
   await page.getByRole('button', { name: '关闭接口配置' }).click()
   await page.getByRole('button', { name: '配置接口 wan' }).click()
   await expect(page.getByText('配置网络接口 · wan')).toBeVisible()

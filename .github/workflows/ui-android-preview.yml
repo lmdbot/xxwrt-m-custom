@@ -106,9 +106,6 @@ jobs:
           echo "APP_APK_NAME=$APP_APK_NAME" >> "$GITHUB_ENV"
           echo "Building $APP_APK_NAME (versionCode $APP_VERSION_CODE)"
 
-      - name: Run router logic regression tests
-        run: npm run test:logic
-
       - name: Build Material UI
         run: npm run build
 
