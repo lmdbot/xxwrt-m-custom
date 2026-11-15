@@ -32,6 +32,14 @@ test('newer release without a Material APK is reported without substituting an o
   const r=selectLatestStableRelease([release('v3.0.0',{legacy:true}),release('v2.9.0')])
   assert.equal(r.version,'3.0.0'); assert.equal(r.apkUrl,'')
 })
+test('GitHub Release SHA-256 digest is forwarded for native APK verification', () => {
+  const item = release('v2.0.23')
+  item.assets[0].digest = 'sha256:' + 'a'.repeat(64)
+  assert.equal(selectLatestStableRelease([item]).sha256, 'a'.repeat(64))
+  item.assets[0].digest = 'md5:deadbeef'
+  assert.equal(selectLatestStableRelease([item]).sha256, null)
+})
+
 test('unsafe download URL is rejected', () => {
   const r=release('v99.0.0');r.assets[0].browser_download_url='https://example.com/bad.apk'
   assert.equal(selectLatestStableRelease([r]).apkUrl,'')
