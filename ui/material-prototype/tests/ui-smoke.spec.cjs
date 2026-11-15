@@ -408,6 +408,58 @@ test('outlined form labels do not overlap placeholders or entered text on narrow
   await page.getByRole('button', { name: '取消', exact: true }).click()
 })
 
+// Exercise the same touchstart/move/end handlers as Android WebView rather than
+// invoking the swipe predicate alone. It must work without a router session.
+async function swipeDrawerGesture(page, startX, startY, endX, endY) {
+  await page.evaluate(({ startX, startY, endX, endY }) => {
+    const main = document.querySelector('.v-main')
+    if (!main) throw new Error('v-main touch region not found')
+    const touch = (x, y) => new Touch({
+      identifier: 7, target: main, clientX: x, clientY: y
+    })
+    const start = touch(startX, startY), end = touch(endX, endY)
+    const fire = (type, touches, changedTouches) => main.dispatchEvent(
+      new TouchEvent(type, {
+        bubbles: true, cancelable: true, touches,
+        targetTouches: touches, changedTouches
+      })
+    )
+    fire('touchstart', [start], [start])
+    fire('touchmove', [end], [end])
+    fire('touchend', [], [end])
+  }, { startX, startY, endX, endY })
+}
+
+test('device list supports left-edge swipe to open settings drawer without a login', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
+
+  // Center-screen movement, ordinary vertical scrolling and taps must not open it.
+  await swipeDrawerGesture(page, 170, 250, 310, 255)
+  await swipeDrawerGesture(page, 24, 250, 38, 390)
+  await swipeDrawerGesture(page, 24, 250, 35, 252)
+  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
+
+  // A modal (adding a router) must take precedence over the drawer gesture.
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+  await expect(page.getByText('添加 OpenWrt 设备')).toBeVisible()
+  await swipeDrawerGesture(page, 24, 260, 172, 265)
+  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+
+  // A deliberate rightward gesture starting in the first 72px opens the drawer.
+  await swipeDrawerGesture(page, 24, 250, 172, 253)
+  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: '打开显示设置' })).toBeVisible()
+  await page.getByRole('button', { name: '打开显示设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+
+  // Settings pages keep the existing gesture guard.
+  await swipeDrawerGesture(page, 24, 250, 172, 253)
+  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
+})
+
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
   const errors = []
   page.on('pageerror', e => errors.push(e.message))
