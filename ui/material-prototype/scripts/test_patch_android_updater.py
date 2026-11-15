@@ -1,0 +1,75 @@
+"""Build-time tests of the generated Android APK updater plumbing."""
+import importlib.util
+from pathlib import Path
+import tempfile
+import unittest
+
+HERE = Path(__file__).resolve().parent
+SPEC = importlib.util.spec_from_file_location("patch_android_updater", HERE / "patch_android_updater.py")
+MODULE = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(MODULE)
+
+
+class NativeUpdaterPatchTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.android = Path(self.temporary.name) / "android"
+        self.java = self.android / "app/src/main/java/com/lmdbot/xxwrt/materialpreview"
+        self.java.mkdir(parents=True)
+        self.activity = self.java / "MainActivity.java"
+        self.activity.write_text(
+            "package com.lmdbot.xxwrt.materialpreview;\n"
+            "public class MainActivity extends BridgeActivity {\n"
+            "  void init(){ registerPlugin(ApkDownloaderPlugin.class); }\n"
+            "}\n", encoding="utf-8")
+        self.manifest = self.android / "app/src/main/AndroidManifest.xml"
+        self.manifest.parent.mkdir(parents=True, exist_ok=True)
+        self.manifest.write_text(
+            '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+            '<uses-permission android:name="android.permission.INTERNET" />'
+            '<application android:label="XX-WRT管理器"></application></manifest>',
+            encoding="utf-8"
+        )
+
+    def test_installs_native_plugin_and_private_fileprovider(self):
+        main, manifest, config = MODULE.patch(self.android)
+        self.assertEqual(main, self.activity)
+        java = main.with_name("ApkDownloaderPlugin.java").read_text(encoding="utf-8")
+        self.assertIn("package com.lmdbot.xxwrt.materialpreview;", java)
+        self.assertNotIn("__PACKAGE__", java)
+        self.assertIn('notifyListeners("downloadProgress", event)', java)
+        self.assertIn('FileProvider.getUriForFile(', java)
+        self.assertIn('verifyPackage(target, validVersion(filename))', java)
+        self.assertNotIn('DownloadManager', java)
+        xml = manifest.read_text(encoding="utf-8")
+        self.assertIn("android.permission.REQUEST_INSTALL_PACKAGES", xml)
+        self.assertIn('android:exported="false"', xml)
+        self.assertIn('android:grantUriPermissions="true"', xml)
+        self.assertIn('android:authorities="${applicationId}.updates.fileprovider"', xml)
+        self.assertIn('<cache-path name="update_apks" path="updates/" />', config.read_text())
+        self.assertIn("android.permission.INTERNET", xml)
+
+    def test_refuses_duplicate_patch(self):
+        MODULE.patch(self.android)
+        with self.assertRaisesRegex(RuntimeError, "already exists"):
+            MODULE.patch(self.android)
+
+    def test_requires_plugin_registration(self):
+        self.activity.write_text(
+            "package com.lmdbot.xxwrt.materialpreview;\npublic class MainActivity {}\n",
+            encoding="utf-8"
+        )
+        with self.assertRaisesRegex(RuntimeError, "was not registered"):
+            MODULE.patch(self.android)
+
+    def test_rejects_wrong_package_template(self):
+        missing = Path(self.temporary.name) / "native"
+        missing.mkdir()
+        (missing / "ApkDownloaderPlugin.java").write_text("package com.example.bad;", encoding="utf-8")
+        with self.assertRaisesRegex(RuntimeError, "placeholder"):
+            MODULE.patch(self.android, missing)
+
+
+if __name__ == "__main__":
+    unittest.main()
