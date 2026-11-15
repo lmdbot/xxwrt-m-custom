@@ -1,6 +1,6 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import { Capacitor } from '@capacitor/core'
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
-import { normalizeRouterAddress } from './router.js'
+import { normalizeRouterAddress, RouterClient } from './router.js'
 
 const LIST_KEY = 'xxwrt_material_saved_devices_v1'
 const OLD_HOST_KEY = 'xxwrt_material_router_url'
@@ -20,7 +20,8 @@ export function loadDevices() {
         address: item.address,
         username: String(item.username || 'root'),
         createdAt: Number(item.createdAt) || Date.now(),
-        rememberPassword: !!item.rememberPassword
+        rememberPassword: !!item.rememberPassword,
+        ignoreTlsErrors: !!item.ignoreTlsErrors && item.address.startsWith('https://')
       }))
     }
   } catch (_) {}
@@ -34,7 +35,8 @@ export function loadDevices() {
         address,
         username: 'root',
         createdAt: Date.now(),
-        rememberPassword: false
+        rememberPassword: false,
+        ignoreTlsErrors: false
       }]
       saveDevices(items)
     } catch (_) {}
@@ -49,13 +51,14 @@ export function saveDevices(items) {
     address: normalizeRouterAddress(item.address),
     username: String(item.username || 'root').trim().slice(0, 64),
     createdAt: Number(item.createdAt) || Date.now(),
-    rememberPassword: !!item.rememberPassword
+    rememberPassword: !!item.rememberPassword,
+    ignoreTlsErrors: !!item.ignoreTlsErrors && normalizeRouterAddress(item.address).startsWith('https://')
   }))
   localStorage.setItem(LIST_KEY, JSON.stringify(clean))
   return clean
 }
 
-export function newDevice({ name, address, username }) {
+export function newDevice({ name, address, username, ignoreTlsErrors = false }) {
   const url = normalizeRouterAddress(address)
   const label = String(name || '').trim()
   if (!label) throw new Error('请输入设备名称')
@@ -68,7 +71,8 @@ export function newDevice({ name, address, username }) {
     address: url,
     username: user,
     createdAt: Date.now(),
-    rememberPassword: false
+    rememberPassword: false,
+    ignoreTlsErrors: !!ignoreTlsErrors && url.startsWith('https://')
   }
 }
 
@@ -91,10 +95,11 @@ export async function deleteDevicePassword(id) {
 }
 
 /** Check basic HTTP transport only. 'reachable' does NOT mean authenticated. */
-export async function probeDevice(address) {
-  const url = normalizeRouterAddress(address) + '/ubus'
+export async function probeDevice(address, ignoreTlsErrors = false) {
+  const api = new RouterClient(address, { ignoreTlsErrors })
+  const url = api.baseUrl + '/ubus'
   try {
-    const response = await CapacitorHttp.post({
+    const response = await api.httpRequest('POST', {
       url,
       data: { jsonrpc: '2.0', id: 1, method: 'call',
         params: ['00000000000000000000000000000000', 'session', 'access', {}] },
