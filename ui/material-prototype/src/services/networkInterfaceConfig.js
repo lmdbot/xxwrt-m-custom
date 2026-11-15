@@ -141,8 +141,10 @@ export function buildInterfaceChanges(name, network, dhcp, form) {
     if (!equals(original[key], value)) values[key] = value
   }
   const del = key => { if (original[key] !== undefined) deletes.push(key) }
-  set('auto', form.auto ? '1' : '0')
-  set('proto', form.proto)
+  // An absent UCI option already denotes the default. Avoid unnecessary
+  // network restarts when the form represents the existing effective value.
+  if (original.auto !== undefined || !form.auto) set('auto', form.auto ? '1' : '0')
+  if (original.proto !== undefined || form.proto !== 'none') set('proto', form.proto)
   if (form.proto !== original.proto) {
     // Clear only IPv4 addressing fields which are incompatible with non-static
     // protocols. Keep unrelated advanced fields, bridge/VLAN and auth secrets.
@@ -166,8 +168,10 @@ export function buildInterfaceChanges(name, network, dhcp, form) {
     set('reqprefix', text(form.reqprefix))
   }
   if (['dhcp', 'dhcpv6', 'pppoe'].includes(form.proto)) {
-    set('peerdns', form.peerdns ? '1' : '0')
-    set('defaultroute', form.defaultroute ? '1' : '0')
+    if (original.peerdns !== undefined || !form.peerdns)
+      set('peerdns', form.peerdns ? '1' : '0')
+    if (original.defaultroute !== undefined || !form.defaultroute)
+      set('defaultroute', form.defaultroute ? '1' : '0')
   }
   if (dns.length) set('dns', dns)
   else del('dns')
@@ -194,6 +198,15 @@ export function buildInterfaceChanges(name, network, dhcp, form) {
         Number(start) + Number(limit) > totalHosts - 1) {
       throw new Error('DHCP 地址池起始偏移/数量超出当前 IPv4 子网可用范围')
     }
+    if (form.dhcpEnabled) {
+      // DHCP start/limit are offsets from the subnet network address.
+      // Never hand out the router's own interface IPv4 address to a client.
+      const ipNumber = ipaddr.split('.').reduce((value, octet) =>
+        value * 256 + Number(octet), 0)
+      const routerOffset = ipNumber % totalHosts
+      if (routerOffset >= Number(start) && routerOffset < Number(start) + Number(limit))
+        throw new Error('DHCP 地址池覆盖了路由器自身 IPv4 地址，请调整起始地址或数量')
+    }
     if (!/^\d{1,5}[smhd]$/.test(lease) && lease !== 'infinite')
       throw new Error('租期格式例如 12h、30m、1d 或 infinite')
     if (!['disabled', 'server', 'relay', 'hybrid'].includes(form.dhcpv6Mode) ||
@@ -207,14 +220,26 @@ export function buildInterfaceChanges(name, network, dhcp, form) {
       config: 'dhcp', section: name, create: true, values: { interface: name, ...valuesDhcp }, deletes: []
     })
     else {
+      const defaults = {
+        ignore: '0', start: '100', limit: '150',
+        leasetime: '12h', dhcpv6: 'disabled', ra: 'disabled'
+      }
       const changes = Object.fromEntries(Object.entries(valuesDhcp)
+        .filter(([key, value]) => !(dhcpSection[1][key] === undefined && defaults[key] === value))
         .filter(([key, value]) => !equals(dhcpSection[1][key], value)))
       if (Object.keys(changes).length)
         mutations.push({ config: 'dhcp', section: dhcpSection[0], values: changes, deletes: [] })
     }
-  } else if (hasDhcp && dhcpSection && !activeServer && dhcpSection[1].ignore !== '1') {
-    // Switching a LAN away from static must not leave its DHCP server active.
-    mutations.push({ config: 'dhcp', section: dhcpSection[0], values: { ignore: '1' }, deletes: [] })
+  } else if (hasDhcp && dhcpSection && !activeServer) {
+    // Leaving static LAN must disable both dnsmasq DHCPv4 and odhcpd's
+    // independent DHCPv6/RA/NDP modes; ignore=1 alone does not stop IPv6 RA.
+    const configured = dhcpSection[1]
+    const stop = { ignore: '1', dhcpv6: 'disabled', ra: 'disabled', ndp: 'disabled' }
+    const changes = Object.fromEntries(Object.entries(stop).filter(([key, value]) =>
+      key === 'ignore' ? configured.ignore !== '1' :
+        configured[key] !== undefined && configured[key] !== value))
+    if (Object.keys(changes).length)
+      mutations.push({ config: 'dhcp', section: dhcpSection[0], values: changes, deletes: [] })
   }
   return mutations
 }

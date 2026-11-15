@@ -85,7 +85,7 @@ test('switching LAN static to DHCP client disables its DHCP server and clears st
   assert.equal(changes.length, 2)
   assert.deepEqual(changes[0].deletes, ['ipaddr', 'netmask'])
   assert.equal(changes[0].values.proto, 'dhcp')
-  assert.deepEqual(changes[1].values, { ignore: '1' })
+  assert.deepEqual(changes[1].values, { ignore: '1', dhcpv6: 'disabled', ra: 'disabled' })
 })
 test('WAN DHCP client and PPPoE password are distinct from DHCP server', () => {
   const wan = edit('wan')
@@ -109,7 +109,7 @@ test('new DHCP server section is only created with explicit server enablement', 
   }}}
   const form = formFromConfig('guest', lanOnly, dhcp)
   assert.equal(form.dhcpEnabled, false)
-  assert.deepEqual(buildInterfaceChanges('guest', lanOnly, dhcp, form), [{ config: 'network', section: 'guest', values: { auto: '1' }, deletes: [] }])
+  assert.deepEqual(buildInterfaceChanges('guest', lanOnly, dhcp, form), [])
   form.dhcpEnabled = true
   const changes = buildInterfaceChanges('guest', lanOnly, dhcp, form)
   assert.equal(changes.length, 2)
@@ -194,4 +194,47 @@ test('critical LAN/WAN immediate shutdown blocked; netifd up/down other interfac
     { obj: 'network.interface.guest', method: 'down' },
     { obj: 'network.interface.guest', method: 'up' }
   ])
+})
+
+test('omitted UCI defaults do not cause unnecessary config apply', () => {
+  assert.deepEqual(buildInterfaceChanges('wan', network, dhcp, edit('wan')), [])
+  const onlyDefaults = { values: {
+    guest: { '.type': 'interface', proto: 'dhcp' }
+  } }
+  const form = formFromConfig('guest', onlyDefaults, dhcp)
+  assert.deepEqual(buildInterfaceChanges('guest', onlyDefaults, dhcp, form), [])
+})
+
+test('DHCP address pool cannot allocate the router interface IP', () => {
+  const form = edit('lan')
+  form.ipaddr = '192.168.100.110'
+  assert.throws(() => buildInterfaceChanges('lan', network, dhcp, form), /路由器自身 IPv4/)
+  form.ipaddr = '192.168.100.1'
+  assert.deepEqual(buildInterfaceChanges('lan', network, dhcp, form), [])
+  form.dhcpEnabled = false
+  form.ipaddr = '192.168.100.110'
+  assert.doesNotThrow(() => buildInterfaceChanges('lan', network, dhcp, form))
+})
+
+test('leaving static LAN stops IPv6 RA even when DHCPv4 already ignored', () => {
+  const oldDhcp = structuredClone(dhcp)
+  oldDhcp.values.lan.ignore = '1'
+  oldDhcp.values.lan.ndp = 'relay'
+  const form = formFromConfig('lan', network, oldDhcp)
+  form.proto = 'dhcp'
+  const changes = buildInterfaceChanges('lan', network, oldDhcp, form)
+  assert.deepEqual(changes[1].values, {
+    dhcpv6: 'disabled', ra: 'disabled', ndp: 'disabled'
+  })
+})
+
+test('absent DHCP defaults remain implicit in unrelated network edits', () => {
+  const sparseDhcp = { values: {
+    lan: { '.type': 'dhcp', interface: 'lan' }
+  } }
+  const form = formFromConfig('lan', network, sparseDhcp)
+  form.dns = '1.1.1.1'
+  const changes = buildInterfaceChanges('lan', network, sparseDhcp, form)
+  assert.equal(changes.length, 1)
+  assert.equal(changes[0].config, 'network')
 })
