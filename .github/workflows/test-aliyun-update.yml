@@ -5,6 +5,8 @@ on:
     branches: [feature/aliyun-static-apk-updates]
     paths:
       - ".github/workflows/test-aliyun-update.yml"
+      - ".github/scripts/prune_mirror_apks.py"
+      - ".github/scripts/test_prune_mirror_apks.py"
   workflow_dispatch:
 
 permissions:
@@ -29,6 +31,9 @@ jobs:
           node --check src/services/appUpdates.js
           node --check src/services/appReleases.js
           npm run test:versions
+
+      - name: Test APK retention policy (latest five)
+        run: python3 -m unittest discover -s .github/scripts -p 'test_prune_mirror_apks.py' -v
 
       - name: Check SSH authentication and Lucky public file access
         shell: bash
@@ -64,7 +69,7 @@ jobs:
           printf '%s\n' "$PROBE_CONTENT" > "$PROBE_PATH"
 
           echo "Checking SSH and writable directory (no real APK or version.json modified)"
-          ssh "${SSH_OPTIONS[@]}" "$DEST" "test -d '$REMOTE_DIR' && test -w '$REMOTE_DIR'"
+          ssh "${SSH_OPTIONS[@]}" "$DEST" "command -v python3 >/dev/null && test -d '$REMOTE_DIR' && test -w '$REMOTE_DIR'"
           cleanup() {
             ssh "${SSH_OPTIONS[@]}" "$DEST" "rm -f '$REMOTE_DIR/$PROBE_NAME'" || true
           }
