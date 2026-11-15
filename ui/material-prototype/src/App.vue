@@ -2068,7 +2068,7 @@ onUnmounted(() => {
                   prepend-inner-icon="mdi-magnify" clearable hide-details
                   variant="outlined" density="compact"/>
 
-                <template v-if="appSearch.trim()">
+                <template v-if="String(appSearch || '').trim()">
                   <div class="app-hub-section-heading">
                     <strong>搜索结果</strong>
                     <small>{{ appSearchResults.length }} 项</small>
