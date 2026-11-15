@@ -81,6 +81,9 @@ jobs:
       - name: Verify stable release version comparison
         run: npm run test:versions
 
+      - name: Verify terminal lease formatting and drawer swipe gestures
+        run: npm run test:logic
+
       - name: Set Android version and APK filename
         shell: bash
         run: |

@@ -325,6 +325,13 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .terminal-identity--brand svg{width:23px;height:23px;fill:currentColor}
 .terminal-identity--brand.terminal-identity--inverse{background:rgb(var(--v-theme-on-surface));color:rgb(var(--v-theme-surface))}
 .terminal-kind{font-size:11px;color:rgb(var(--v-theme-on-surface-variant));line-height:1.25}
+/* Top-right DHCP/privacy labels; IP and MAC share a row when width permits. */
+.terminal-heading{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.terminal-name-block{display:flex;flex:1 1 auto;flex-direction:column;gap:2px;min-width:0}
+.terminal-source-stack{display:flex;flex:0 0 auto;flex-direction:column;align-items:flex-end;gap:3px}
+.terminal-address-line{display:flex;align-items:baseline;column-gap:9px;row-gap:2px;flex-wrap:wrap;min-width:0}
+.terminal-address-line .terminal-mac{min-width:0;white-space:nowrap;text-overflow:unset;overflow:visible}
+.terminal-address-line .terminal-ip6{min-width:0;overflow-wrap:anywhere;white-space:normal}
 .terminal-tags{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px}
 .terminal-tag{font-size:10px!important;height:19px!important;padding-inline:6px!important}
 .terminal-tag--wifi{color:#2385d1!important;background:rgba(35,133,209,.12)!important}

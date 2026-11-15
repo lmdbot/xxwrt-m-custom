@@ -1,7 +1,7 @@
 {
   "name": "xxwrt-material-ui-prototype",
   "private": true,
-  "version": "2.0.4",
+  "version": "2.0.5",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -9,7 +9,8 @@
     "preview": "vite preview --host 0.0.0.0",
     "android:sync": "npm run build && npx cap sync android",
     "test:ui": "playwright test",
-    "test:versions": "node --test tests/app-releases.test.mjs"
+    "test:versions": "node --test tests/app-releases.test.mjs",
+    "test:logic": "node --test tests/lease-time.test.mjs tests/drawer-swipe.test.mjs"
   },
   "dependencies": {
     "@daisigu/vue-liquid-glass": "1.0.4",

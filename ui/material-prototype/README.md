@@ -1,4 +1,4 @@
-# XX-WRT Material 2.0.4 — QWRT / OpenWrt 移动管理
+# XX-WRT Material 2.0.5 — QWRT / OpenWrt 移动管理
 
 这是 `main` 的 Android 应用源码。Vue 3 + Vite + Vuetify 3 + Capacitor 8 构建 Material / Liquid Glass 界面，数据来自登录路由器的真实 ubus JSON-RPC、UCI 与授权的插件接口，不使用假终端数据。
 
@@ -6,7 +6,7 @@
 
 - Material 包名：`com.lmdbot.xxwrt.materialpreview`
 - Material 应用名称：`XX-WRT管理器`
-- 版本：`2.0.4`（Android versionCode 从版本号生成，保持单调递增）
+- 版本：`2.0.5`（Android versionCode 从版本号生成，保持单调递增）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
 - 保留 Material 分支的应用信息与 Capacitor 构建流程，启动器图标使用已选中的路由器＋盾牌设计并适配安全边距。
 - 正式 APK 使用 `XX-WRT-Material-vx.x.x.apk` 命名，构建版本自动取自 `package.json`。
@@ -33,6 +33,7 @@
 ```bash
 npm install --no-audit --no-fund
 npm run test:versions
+npm run test:logic
 npm run build
 npm run test:ui
 ```

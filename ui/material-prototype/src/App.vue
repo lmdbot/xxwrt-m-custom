@@ -7,6 +7,7 @@ import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import packageInfo from '../package.json'
 import { compareAppVersions, parseAppVersion } from './services/appReleases.js'
+import { formatLeaseDuration } from './services/leaseTime.js'
 import { fetchLatestStableRelease } from './services/appUpdates.js'
 import AppFilterPanel from './components/AppFilterPanel.vue'
 import RouterAppsPanel from './components/RouterAppsPanel.vue'
@@ -14,6 +15,7 @@ import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
+import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
 import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
 import {
@@ -597,6 +599,43 @@ function closeSettingsPage() {
     return
   }
   settingsOpen.value = false
+}
+// Open the existing left drawer by swiping right from the left side on root tabs.
+let drawerEdgeTouch = null
+function canOpenDrawerBySwipe() {
+  return viewMode.value === 'detail' && connected.value &&
+    !settingsOpen.value && !drawerOpen.value &&
+    !(activeTab.value === 'apps' && toolPanel.value) &&
+    !document.querySelector('.v-dialog.v-overlay--active, .v-menu.v-overlay--active')
+}
+function clearDrawerEdgeSwipe() {
+  drawerEdgeTouch = null
+}
+function onDrawerEdgeTouchStart(event) {
+  clearDrawerEdgeSwipe()
+  if (!canOpenDrawerBySwipe() || event.touches.length !== 1) return
+  const finger = event.touches[0]
+  if (finger.clientX > DRAWER_EDGE_WIDTH || finger.clientX < 0) return
+  if (event.target?.closest?.('input, textarea, select, [contenteditable], .realtime-chart')) return
+  drawerEdgeTouch = { x: finger.clientX, y: finger.clientY, time: Date.now(), identifier: finger.identifier }
+}
+function onDrawerEdgeTouchMove(event) {
+  if (!drawerEdgeTouch) return
+  if (event.touches.length !== 1) { clearDrawerEdgeSwipe(); return }
+  const finger = [...event.touches].find(t => t.identifier === drawerEdgeTouch.identifier)
+  if (!finger) { clearDrawerEdgeSwipe(); return }
+  const dx = finger.clientX - drawerEdgeTouch.x
+  const dy = Math.abs(finger.clientY - drawerEdgeTouch.y)
+  if (dy > 24 && dy > Math.abs(dx) * 1.2) clearDrawerEdgeSwipe()
+}
+function onDrawerEdgeTouchEnd(event) {
+  const start = drawerEdgeTouch
+  clearDrawerEdgeSwipe()
+  if (!start || !canOpenDrawerBySwipe()) return
+  const finger = [...event.changedTouches].find(t => t.identifier === start.identifier)
+  if (finger && isLeftEdgeDrawerSwipe(start, {
+    x: finger.clientX, y: finger.clientY, time: Date.now()
+  })) drawerOpen.value = true
 }
 // Back: dialogs → drawer/settings → app subpage → router list → minimize.
 async function handleBack() {
@@ -1298,7 +1337,11 @@ onUnmounted(() => {
       </div>
     </v-navigation-drawer>
 
-    <v-main>
+    <v-main
+      @touchstart.capture.passive="onDrawerEdgeTouchStart"
+      @touchmove.capture.passive="onDrawerEdgeTouchMove"
+      @touchend.capture.passive="onDrawerEdgeTouchEnd"
+      @touchcancel.capture="clearDrawerEdgeSwipe">
       <v-container class="main-container">
         <template v-if="settingsOpen">
           <section class="settings-page" :data-settings-category="settingsCategory">
@@ -1964,9 +2007,8 @@ onUnmounted(() => {
             <div><span>IPv4</span><strong>{{ selectedClient.ip }}</strong></div>
             <div><span>MAC 地址</span><strong>{{ selectedClient.mac }}</strong></div>
             <div><span>在线状态</span><strong>{{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '状态未知' }}</strong></div>
-            <div><span>租约时间</span><strong>{{ selectedClient.expires ?? '--' }}</strong></div>
+            <div><span>租约时间</span><strong>{{ formatLeaseDuration(selectedClient.expires) }}</strong></div>
           </div>
-          <p class="muted-hint mt-3">在线状态依据 QWRT 邻居表可达性与无线关联判断，不再仅凭 DHCP 租约或历史 IP 判定在线。红色为邻居解析失败，灰色为状态未确认；部分设备休眠或禁止探测时可能无法确认。</p>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="selectedClient = null">关闭</v-btn></v-card-actions>
       </v-card>

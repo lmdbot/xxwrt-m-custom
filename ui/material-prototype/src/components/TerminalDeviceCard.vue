@@ -60,19 +60,28 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
       <v-icon v-else :icon="typeIcon" size="23"/>
     </div>
     <div class="terminal-meta">
-      <div class="terminal-name-line">
-        <span class="terminal-online-dot" :class="'is-' + onlineState"
-          :title="onlineTitle" :aria-label="onlineTitle" role="img"/>
-        <div class="terminal-name">{{ item.displayName || item.name || '未知设备' }}</div>
-        <v-chip v-if="sourceLabels.length" size="x-small" variant="tonal" color="primary"
-          class="terminal-tag terminal-main-source">{{ sourceLabels[0] }}</v-chip>
+      <div class="terminal-heading">
+        <div class="terminal-name-block">
+          <div class="terminal-name-line">
+            <span class="terminal-online-dot" :class="'is-' + onlineState"
+              :title="onlineTitle" :aria-label="onlineTitle" role="img"/>
+            <div class="terminal-name">{{ item.displayName || item.name || '未知设备' }}</div>
+          </div>
+          <div v-if="item.kind" class="terminal-kind">{{ item.kind }}</div>
+        </div>
+        <div v-if="sourceLabels.length || item.privateMac" class="terminal-source-stack">
+          <v-chip v-if="sourceLabels.length" size="x-small" variant="tonal" color="primary"
+            class="terminal-tag terminal-main-source">{{ sourceLabels[0] }}</v-chip>
+          <v-chip v-if="item.privateMac" size="x-small" variant="tonal"
+            class="terminal-tag terminal-tag--private"
+            title="随机/私有 MAC，无法通过 MAC 前缀可靠识别厂商">随机 MAC</v-chip>
+        </div>
       </div>
-      <div v-if="item.kind" class="terminal-kind">{{ item.kind }}</div>
-      <div v-if="item.ip || item.ip6" class="terminal-ip terminal-ip6">
-        {{ item.ip || item.ip6 }}
+      <div v-if="item.ip || item.ip6 || item.mac" class="terminal-address-line">
+        <span v-if="item.ip || item.ip6" class="terminal-ip terminal-ip6">{{ item.ip || item.ip6 }}</span>
+        <span v-if="item.mac" class="terminal-mac">{{ item.mac }}</span>
       </div>
-      <div v-if="item.mac" class="terminal-mac">{{ item.mac }}</div>
-      <div class="terminal-tags">
+      <div v-if="sourceLabels.length > 1 || item.wifi" class="terminal-tags">
         <v-chip
           v-for="source in sourceLabels.slice(1)"
           :key="source"
@@ -88,13 +97,6 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
           class="terminal-tag terminal-tag--wifi"
           :title="'无线信号 ' + (item.wifi.signal ?? '--') + ' dBm'"
         >Wi-Fi {{ item.wifi.signal == null ? '' : item.wifi.signal + ' dBm' }}</v-chip>
-        <v-chip
-          v-if="item.privateMac"
-          size="x-small"
-          variant="tonal"
-          class="terminal-tag terminal-tag--private"
-          title="随机/私有 MAC，无法通过 MAC 前缀可靠识别厂商"
-        >随机 MAC</v-chip>
       </div>
     </div>
     <div class="terminal-trailing">
