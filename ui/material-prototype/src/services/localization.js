@@ -112,6 +112,11 @@ export function translateText(value, language) {
   const exact = ENGLISH[raw]
   if (exact !== undefined) return leading + exact + trailing
 
+  // Uptime/lease values are assembled at runtime rather than stored as labels.
+  const duration = raw.replace(/(\\d+(?:\\.\\d+)?)\\s*(天|小时|分钟|秒)/g,
+    (_, amount, unit) => amount + ({ '天': 'd', '小时': 'h', '分钟': 'm', '秒': 's' })[unit])
+  if (duration !== raw && !CHINESE.test(duration)) return leading + duration + trailing
+
   // The Vue templates often split a sentence around {{ expressions }}.
   // Translate those fragments without modifying numbers, IDs or addresses.
   let translated = raw
