@@ -44,7 +44,9 @@ export function selectLatestStableRelease(releases) {
       title: String(release.name || release.tag_name),
       releaseUrl: String(release.html_url || ''),
       apkUrl: apk?.browser_download_url || '',
-      apkName: apk?.name || '', apkSize: Number(apk?.size || 0)
+      apkName: apk?.name || '', apkSize: Number(apk?.size || 0),
+      sha256: /^sha256:[a-f0-9]{64}$/.test(String(apk?.digest || ''))
+        ? apk.digest.slice(7) : null
     }
   }
   return latest
