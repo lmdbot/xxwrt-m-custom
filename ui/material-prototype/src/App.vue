@@ -187,6 +187,8 @@ function handleInstallLaunch(result) {
   installPermissionPending.value = result?.status === 'permissionRequired'
   if (installPermissionPending.value) {
     updateNotice.value = '已下载并校验 APK，请允许此 APP 安装应用；返回后将打开安装确认界面。'
+  } else if (result?.status === 'installRequested') {
+    updateNotice.value = 'APK 已校验并提交 Android 系统安装会话，等待系统弹出安装确认界面。'
   } else if (result?.status === 'installerOpened') {
     updateNotice.value = 'APK 已校验，已打开 Android 安装确认界面，请确认安装。'
   } else {
@@ -201,6 +203,16 @@ async function installDownloadedApk() {
     handleInstallLaunch(await ApkDownloader.installDownloaded())
   } catch (error) {
     updateError.value = '无法打开安装界面：' + shortError(error)
+  }
+}
+
+async function showInstallFailureIfAny() {
+  if (!isNative) return
+  try {
+    const result = await ApkDownloader.consumeInstallResult()
+    if (result?.error) updateError.value = result.error
+  } catch (error) {
+    if (import.meta.env.DEV) console.warn('Unable to read Android install result', error)
   }
 }
 
@@ -1521,6 +1533,7 @@ onMounted(() => {
       } catch (_) { /* The embedded package version is the fallback. */ }
     }
     await checkAppUpdates({ automatic: true })
+    void showInstallFailureIfAny()
   })()
   if (isNative) {
     // Android can reapply its system-bar appearance after returning from a
@@ -1528,6 +1541,7 @@ onMounted(() => {
     void CapacitorApp.addListener('resume', () => {
       syncNativeChrome(dark.value)
       void continueInstallAfterPermission()
+      void showInstallFailureIfAny()
     })
       .then(listener => { nativeResumeSubscription = listener })
       .catch(e => console.warn('Android resume listener unavailable', e))

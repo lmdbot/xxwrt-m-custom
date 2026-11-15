@@ -1,14 +1,13 @@
 package __PACKAGE__;
 
-import android.content.ClipData;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
+import android.content.pm.PackageInstaller;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
-import androidx.core.content.FileProvider;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -19,6 +18,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
@@ -221,15 +221,14 @@ public class ApkDownloaderPlugin extends Plugin {
                 }
                 progress(received, expectedSize);
                 downloading.set(false);
+                // Stage the verified APK on the worker thread. Writing a
+                // PackageInstaller session must never block Android's UI.
+                final String installStatus = openInstaller(target);
                 getActivity().runOnUiThread(() -> {
-                    try {
-                        final JSObject result = new JSObject();
-                        result.put("status", openInstaller(target));
-                        result.put("filename", filename);
-                        call.resolve(result);
-                    } catch (Exception e) {
-                        call.reject("无法打开 Android 安装界面：" + e.getMessage(), e);
-                    }
+                    final JSObject result = new JSObject();
+                    result.put("status", installStatus);
+                    result.put("filename", filename);
+                    call.resolve(result);
                 });
             } catch (Exception error) {
                 if (temporary != null && temporary.exists()) temporary.delete();
@@ -243,24 +242,60 @@ public class ApkDownloaderPlugin extends Plugin {
     }
 
     private String openInstaller(File apk) throws IOException {
-        if (!apk.isFile() || !apk.getParentFile().equals(
-                new File(getContext().getCacheDir(), "updates")))
+        final File updateDirectory = new File(getContext().getCacheDir(), "updates");
+        if (!apk.isFile() || !apk.getParentFile().equals(updateDirectory))
             throw new IOException("已下载的安装包不存在");
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                 && !getContext().getPackageManager().canRequestPackageInstalls()) {
             final Intent settings = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                 Uri.parse("package:" + getContext().getPackageName()));
-            getActivity().startActivity(settings);
+            getActivity().runOnUiThread(() -> getActivity().startActivity(settings));
             return "permissionRequired";
         }
-        final Uri uri = FileProvider.getUriForFile(getContext(),
-            getContext().getPackageName() + ".updates.fileprovider", apk);
-        final Intent installer = new Intent(Intent.ACTION_VIEW);
-        installer.setDataAndType(uri, "application/vnd.android.package-archive");
-        installer.setClipData(ClipData.newRawUri("XX-WRT APK", uri));
-        installer.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        getActivity().startActivity(installer);
-        return "installerOpened";
+
+        // On some Android 15/16 OEM installers, a FileProvider content URI
+        // resolves in our process but is unreadable during package parsing.
+        // PackageInstaller.Session streams bytes into the OS-owned staging
+        // area and then asks the OS to obtain explicit user confirmation.
+        final PackageInstaller installer = getContext().getPackageManager().getPackageInstaller();
+        final PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+            PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+        params.setAppPackageName(getContext().getPackageName());
+        params.setSize(apk.length());
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED);
+        }
+
+        getContext().getSharedPreferences(ApkInstallStatusReceiver.PREFS, Context.MODE_PRIVATE)
+            .edit().remove(ApkInstallStatusReceiver.LAST_ERROR).apply();
+        final int sessionId = installer.createSession(params);
+        boolean committed = false;
+        try (PackageInstaller.Session session = installer.openSession(sessionId)) {
+            try (FileInputStream input = new FileInputStream(apk);
+                 OutputStream output = session.openWrite("base.apk", 0, apk.length())) {
+                byte[] buffer = new byte[32768];
+                int bytes;
+                while ((bytes = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, bytes);
+                }
+                session.fsync(output);
+            }
+            final Intent callback = new Intent(getContext(), ApkInstallStatusReceiver.class)
+                .setAction(ApkInstallStatusReceiver.ACTION_RESULT);
+            final PendingIntent pending = PendingIntent.getBroadcast(getContext(), sessionId,
+                callback, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+            session.commit(pending.getIntentSender());
+            committed = true;
+        } catch (Exception failure) {
+            throw new IOException("Android 安装会话准备失败：" + failure.getMessage(), failure);
+        } finally {
+            if (!committed) {
+                try { installer.abandonSession(sessionId); }
+                catch (Exception ignored) { /* Preserve the original installation error. */ }
+            }
+        }
+        return "installRequested";
     }
 
     @PluginMethod
@@ -279,15 +314,29 @@ public class ApkDownloaderPlugin extends Plugin {
             call.reject("还没有下载完成的安装包");
             return;
         }
-        getActivity().runOnUiThread(() -> {
+        worker.execute(() -> {
             try {
-                final JSObject result = new JSObject();
-                result.put("status", openInstaller(apk));
-                call.resolve(result);
+                final String status = openInstaller(apk);
+                getActivity().runOnUiThread(() -> {
+                    final JSObject result = new JSObject();
+                    result.put("status", status);
+                    call.resolve(result);
+                });
             } catch (Exception error) {
-                call.reject("无法打开安装界面：" + error.getMessage(), error);
+                call.reject("无法提交 Android 安装请求：" + error.getMessage(), error);
             }
         });
+    }
+
+    @PluginMethod
+    public void consumeInstallResult(PluginCall call) {
+        final android.content.SharedPreferences prefs = getContext().getSharedPreferences(
+            ApkInstallStatusReceiver.PREFS, Context.MODE_PRIVATE);
+        final String error = prefs.getString(ApkInstallStatusReceiver.LAST_ERROR, "");
+        prefs.edit().remove(ApkInstallStatusReceiver.LAST_ERROR).apply();
+        final JSObject result = new JSObject();
+        result.put("error", error);
+        call.resolve(result);
     }
 
     @PluginMethod
