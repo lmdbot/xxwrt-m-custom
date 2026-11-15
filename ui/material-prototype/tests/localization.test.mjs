@@ -69,3 +69,36 @@ test('Lucky core health and interpolated settings remain readable in English', (
     assert.equal(translateText(chinese, 'en'), english, chinese)
   }
 })
+
+test('English translates dropdown options, action toasts, and confirmation dialogs', () => {
+  const expected = {
+    '关闭推送': 'Disable notifications',
+    '企业微信 Markdown': 'WeCom Markdown',
+    'Server酱': 'ServerChan',
+    '邮件 msmtp': 'Email (msmtp)',
+    '规则模式': 'Rule mode',
+    '全局模式': 'Global mode',
+    '设备上线通知': 'Device online notification',
+    '最新状态已刷新': 'Status refreshed',
+    '节点切换成功，重启命令已执行': 'Node changed; restart command completed',
+    'SSR Plus+ 已启动': 'SSR Plus+ started',
+    'ZeroTier 已启用，服务已重启': 'ZeroTier enabled and service restarted',
+    '家长控制已刷新': 'Parental controls refreshed',
+    'Carbon 更新器未接受检测请求': 'Carbon updater rejected the check request',
+    '重新读取会丢弃此文件的未保存修改，是否继续？': 'Reloading will discard unsaved changes to this file. Continue?',
+    '配置已保存，已提交服务重启操作': 'Configuration saved; service restart requested'
+  }
+  for (const [chinese, english] of Object.entries(expected)) {
+    assert.equal(translateText(chinese, 'en'), english, chinese)
+    assert.equal(translateText(chinese, 'zh-CN'), chinese, chinese)
+  }
+})
+
+test('dynamic snackbar messages preserve identifiers while translating app copy', () => {
+  assert.equal(translateText('JSON 格式无效：Unexpected token', 'en'), 'Invalid JSON: Unexpected token')
+  assert.equal(translateText('检查更新失败：HTTP 403', 'en'), 'Update check failed: HTTP 403')
+  assert.equal(translateText('配置文件读取失败：RPC denied', 'en'), 'Failed to read configuration file: RPC denied')
+  assert.equal(translateText('AA:BB:CC:DD:EE:FF', 'en'), 'AA:BB:CC:DD:EE:FF')
+  assert.equal(translateText('/usr/share/wechatpush/api/diy.json', 'en'), '/usr/share/wechatpush/api/diy.json')
+})
+
