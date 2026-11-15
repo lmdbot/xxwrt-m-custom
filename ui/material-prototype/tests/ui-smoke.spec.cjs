@@ -1058,7 +1058,13 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('已发现的网络设备')).toBeVisible()
   await expect(page.getByText('邻居电脑')).toBeVisible()
   await expect(page.locator('.wol-neighbor-card')).toHaveCount(3)
-  await auditDarkTextContrast(page, ['.wol-neighbor-card__field', '.wol-neighbor-card__field>span:first-child'])
+  await auditDarkTextContrast(page, ['.wol-neighbor-card__address', '.wol-neighbor-card__address b'])
+  const wolAddressRow = await page.locator('.wol-neighbor-card').first().evaluate(node => {
+    const fields = [...node.querySelectorAll('.wol-neighbor-card__address')].map(x => x.getBoundingClientRect())
+    return fields.length === 2 && Math.abs(fields[0].top - fields[1].top) < 2 &&
+      Math.abs(fields[0].bottom - fields[1].bottom) < 2
+  })
+  expect(wolAddressRow).toBe(true)
   await expect(page.locator('.wol-neighbor-card').filter({ hasText: '邻居电脑' })).toContainText('192.168.100.99')
   await expect(page.locator('.wol-neighbor-card').filter({ hasText: '邻居电脑' })).toContainText('BB:CC:DD:EE:FF:00')
   const wolCardsOverflow = await page.locator('.wol-neighbor-card').evaluateAll(nodes =>

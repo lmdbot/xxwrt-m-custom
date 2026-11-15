@@ -2367,13 +2367,9 @@ onUnmounted(() => {
                             :loading="wolBusy" :aria-label="'唤醒 ' + (neighbor.name || neighbor.mac)"
                             @click="sendWakePacket({ name: neighbor.name, mac: neighbor.mac })">唤醒</v-btn>
                         </div>
-                        <div class="wol-neighbor-card__details">
-                          <div class="wol-neighbor-card__field">
-                            <span>IPv4</span><span class="wol-neighbor-card__value">{{ neighbor.ip || '暂无地址' }}</span>
-                          </div>
-                          <div class="wol-neighbor-card__field">
-                            <span>MAC</span><span class="wol-neighbor-card__value">{{ neighbor.mac }}</span>
-                          </div>
+                        <div class="wol-neighbor-card__details" aria-label="IP 和 MAC 地址">
+                          <span class="wol-neighbor-card__address"><b>IP</b>{{ neighbor.ip || '暂无地址' }}</span>
+                          <span class="wol-neighbor-card__address"><b>MAC</b>{{ neighbor.mac }}</span>
                         </div>
                       </div>
                     </div>
