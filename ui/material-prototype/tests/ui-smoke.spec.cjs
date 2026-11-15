@@ -1011,7 +1011,11 @@ test('reject invalid router addresses before attempting authentication', async (
   await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('测试设备')
   await page.getByRole('textbox', { name: 'IP / 域名 / 端口' }).fill('http://192.168.100.1/ubus')
   await page.getByRole('button', { name: '保存设备' }).click()
-  await expect(page.getByText('地址只填写 IP、域名和可选端口，不要包含路径或账号密码')).toBeVisible()
+  const invalidAddressMessage = '地址只填写 IP、域名和可选端口，不要包含路径或账号密码'
+  const errorToast = page.locator('.v-snackbar').filter({ hasText: invalidAddressMessage })
+  await expect(errorToast).toBeVisible()
+  await expect(page.getByText(invalidAddressMessage, { exact: true })).toHaveCount(1)
+  await expect(page.locator('#device-editor .v-alert')).toHaveCount(0)
 })
 
 
