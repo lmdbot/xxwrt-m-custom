@@ -788,3 +788,12 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .zt-interface-row:last-child{border-bottom:0;padding-bottom:2px}
 .zt-interface-row span{font-size:13px;color:var(--ui-text-muted)}
 .zt-interface-row strong{font-size:13px;font-weight:600;overflow-wrap:anywhere;min-width:0}
+
+/* In-app version changelog: readable Markdown sections without HTML injection. */
+.release-notes-scroll{max-height:min(66vh,560px);overflow-y:auto;overscroll-behavior:contain}
+.release-notes-content{font-size:13px;line-height:1.65;color:rgb(var(--v-theme-on-surface));overflow-wrap:anywhere}
+.release-notes-heading{font-size:15px;font-weight:700;line-height:1.45;margin:17px 0 8px}
+.release-notes-heading:first-child{margin-top:0}
+.release-notes-bullet{position:relative;padding-left:15px;margin:0 0 7px}
+.release-notes-bullet::before{content:"•";position:absolute;left:0;top:0;color:rgb(var(--v-theme-primary))}
+.release-notes-paragraph{margin:0 0 10px}
