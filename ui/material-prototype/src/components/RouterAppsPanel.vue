@@ -1351,13 +1351,13 @@ defineExpose({ refresh, refreshAction })
       <v-alert v-if="!wechat.available" type="warning" variant="tonal">未检测到 /etc/config/wechatpush，请先安装 luci-app-wechatpush。</v-alert>
       <template v-else>
         <div class="router-app-summary"><div><span>服务状态</span><strong>{{ statusText(wechat.service) }}</strong></div><div><span>推送功能</span><strong>{{ wechatForm.enable === '1' ? '已启用' : '未启用' }}</strong></div></div>
-        <v-btn-toggle v-model="wechatTab" mandatory variant="outlined" color="primary" class="wechat-tab-toggle d-flex mt-3 mb-4" style="width:100%" density="comfortable">
-          <v-btn value="settings" class="flex-grow-1">基本配置</v-btn>
-          <v-btn value="content" class="flex-grow-1">推送内容</v-btn>
-          <v-btn value="online" class="flex-grow-1">在线设备</v-btn>
-          <v-btn value="aliases" class="flex-grow-1">设备别名</v-btn>
-          <v-btn value="advanced" class="flex-grow-1">高级</v-btn>
-        </v-btn-toggle>
+        <v-tabs v-model="wechatTab" color="primary" show-arrows density="comfortable" class="localized-scroll-tabs wechat-tabs mt-3 mb-4">
+          <v-tab value="settings">基本配置</v-tab>
+          <v-tab value="content">推送内容</v-tab>
+          <v-tab value="online">在线设备</v-tab>
+          <v-tab value="aliases">设备别名</v-tab>
+          <v-tab value="advanced">高级</v-tab>
+        </v-tabs>
         <template v-if="wechatTab === 'settings'">
           <v-switch density="compact" inset :model-value="wechatForm.enable === '1'" label="启用微信推送" color="primary" hide-details @update:model-value="wechatForm.enable = $event ? '1' : '0'"/>
           <v-select v-model="wechatForm.jsonpath" label="推送渠道" :items="wechatProviderItems" item-title="title" item-value="value" density="comfortable" variant="outlined" class="mt-3"/>
