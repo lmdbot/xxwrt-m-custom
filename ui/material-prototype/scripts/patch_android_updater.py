@@ -44,7 +44,7 @@ def patch(android: Path = ROOT / "android", native: Path = ROOT / "native"):
         raise RuntimeError("Android updater manifest already patched")
     xml = xml.replace(
         "<application",
-        f'<uses-permission android:name="{PERMISSION}" />\\n    <application',
+        f'<uses-permission android:name="{PERMISSION}" />\n    <application',
         1
     )
     receiver = """
