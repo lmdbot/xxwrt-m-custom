@@ -83,7 +83,15 @@ export async function luckyArch(client) {
 
 export async function luckyWatchdog(client, action = 'status') {
   if (!['status', 'enable', 'disable'].includes(action)) throw new Error('不支持的 Lucky 恢复操作')
-  return parseLuckyReply(await exec(client, WATCHDOG, [action]), 'Lucky 意外退出恢复')
+  const output = await exec(client, WATCHDOG, [action])
+  // lucky-watchdog is a shell helper; unlike lucky-backup it emits a plain
+  // {enabled,scheduled,paused,cron_running} object without an `ok` key.
+  let data
+  try { data = JSON.parse(output) }
+  catch { throw new Error('Lucky 自动恢复状态不是有效 JSON') }
+  if (!data || typeof data.enabled !== 'boolean' || typeof data.scheduled !== 'boolean')
+    throw new Error('Lucky 自动恢复状态不完整')
+  return data
 }
 
 export async function luckyRulesOpen(client, type) {
