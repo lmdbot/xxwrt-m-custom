@@ -11,7 +11,7 @@ import {
 
 const props = defineProps({ client: { type: Object, required: true } })
 const tab = ref('overview')
-const loading = ref(true), busy = ref(false), error = ref(''), notice = ref('')
+const loading = ref(false), busy = ref(false), error = ref(''), notice = ref('')
 const core = ref(null), running = ref(null), arch = ref(''), watchdog = ref(null)
 const ruleEditors = reactive({
   allowlist: { loaded: false, loading: false, token: '', name: 'ip-allowlist.txt', directory: '', text: '', original: '', error: '' },
@@ -30,7 +30,7 @@ const coreHealth = computed(() => ({
 })[core.value?.status || 'unknown'])
 
 async function refresh() {
-  if (loading.value && core.value) return
+  if (loading.value) return
   loading.value = true
   error.value = ''
   const requests = await Promise.allSettled([
@@ -149,17 +149,14 @@ async function openLuci() {
   } catch (e) { error.value = '无法打开 LuCI Lucky：' + shortError(e) }
 }
 
-watch(tab, next => {
-  if (next !== 'rules' || working.value) return
-  if (!ruleEditors.localips.loaded) void loadRule('localips')
-  if (supportsAllowlist.value && !ruleEditors.allowlist.loaded) {
-    // Sequential loading avoids two simultaneous Lucky archive locks.
-    void (async () => {
-      while (ruleEditors.localips.loading) await new Promise(resolve => setTimeout(resolve, 150))
-      if (!working.value) await loadRule('allowlist')
-    })()
-  }
-})
+async function loadRulesOnDemand() {
+  if (tab.value !== 'rules' || working.value) return
+  // Read in order: the Lucky archive helper serializes access to its
+  // temporary work directory. Do not run both editors concurrently.
+  if (!ruleEditors.localips.loaded) await loadRule('localips')
+  if (supportsAllowlist.value && !ruleEditors.allowlist.loaded) await loadRule('allowlist')
+}
+watch([tab, loading], () => { void loadRulesOnDemand() })
 onMounted(() => { void refresh() })
 defineExpose({ refresh, refreshAction: refresh })
 </script>
