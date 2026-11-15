@@ -14,7 +14,7 @@
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 应用版本 | **2.0.17** |
+| 应用版本 | **2.0.18** |
 | Android `versionCode` | `2000016` |
 | 应用名称 | `XX-WRT管理器` |
 | Android 包名 | `com.lmdbot.xxwrt.materialpreview` |
