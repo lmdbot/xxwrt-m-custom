@@ -35,6 +35,9 @@ jobs:
       - name: Run application logic regression tests
         run: npm run test:logic
 
+      - name: Run router logic regression tests
+        run: npm run test:logic
+
       - name: Build Vuetify + Liquid Glass prototype
         run: npm run build
 
