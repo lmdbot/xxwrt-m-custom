@@ -104,7 +104,7 @@ const dataFor = (object, method, params = {}) => {
   if (object === 'luci' && method === 'getOnlineUsers') return { onlineusers: '9' }
   if (object === 'file' && method === 'read' && params.path === '/tmp/wechatpush/devices.json') {
     return { data: JSON.stringify({ devices: [
-      { name: 'Phone', ip: '192.168.100.88', mac: 'AA:BB:CC:DD:EE:FF', status: 'online', interface: 'LAN', uptime: '2小时' },
+      { name: 'Phone', ip: '192.168.100.88', mac: 'AA:BB:CC:DD:EE:FF', status: 'online', interface: 'LAN', uptime: String(Math.floor(Date.now() / 1000) - 3661) },
       // AP monitor sees a device online although the router ARP lookup failed.
       { name: 'AP备注手机', ip: '192.168.100.89', mac: 'A6:83:E7:2C:91:0F', status: 'online', interface: '5G', uptime: '1小时' },
       { name: 'MacBook-Air', ip: '192.168.100.90', mac: 'F0:EE:7A:91:AA:12', status: 'offline', interface: '5G' }
@@ -574,6 +574,11 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.wechat-device-address').first()).toBeVisible()
   await auditDarkTextContrast(page, ['.wechat-device-address', '.wechat-device-address>span', '.app-compact-sub'])
   await expect(page.locator('.wechat-online-row')).toHaveCount(2)
+  await expect(page.locator('.wechat-device-address')).toHaveCount(2)
+  await expect(page.locator('.wechat-device-address').first().locator('.wechat-device-ip')).toContainText('192.168.100.88')
+  await expect(page.locator('.wechat-device-address').first().locator('.wechat-device-mac')).toContainText('AA:BB:CC:DD:EE:FF')
+  await expect(page.locator('.wechat-device-address').first()).toHaveCSS('white-space', 'nowrap')
+  await expect(page.getByText('在线 1小时1分钟')).toBeVisible()
   await expect(page.getByText('AP备注手机', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '推送内容' }).click()
   await expect(page.getByText('设备上线通知')).toBeVisible()

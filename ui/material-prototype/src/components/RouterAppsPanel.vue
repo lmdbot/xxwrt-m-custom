@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
+import { formatWechatOnlineTime } from '../services/wechatOnlineTime.js'
 import { CapacitorHttp } from '@capacitor/core'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
@@ -1268,11 +1269,13 @@ defineExpose({ refresh, refreshAction })
                 class="app-compact-row wechat-online-row" role="listitem">
                 <div class="app-compact-body">
                   <div class="app-compact-name">{{ item.name || '未命名设备' }}</div>
-                  <div class="app-compact-sub wechat-device-address"><span>IP</span> {{ item.ip || '暂无 IP' }}</div>
-                  <div class="app-compact-sub wechat-device-address"><span>MAC</span> {{ item.mac || '暂无 MAC' }}</div>
+                  <div class="app-compact-sub wechat-device-address" aria-label="IP 地址与 MAC 地址">
+                    <span class="wechat-device-ip"><b>IP</b> {{ item.ip || '暂无 IP' }}</span>
+                    <span class="wechat-device-mac"><b>MAC</b> {{ item.mac || '暂无 MAC' }}</span>
+                  </div>
                   <div v-if="item.interface || item.parent || item.uptime" class="app-compact-foot">
                     <span>{{ item.interface || '接入未知' }}{{ item.parent && item.parent !== 'Local' ? ' · ' + item.parent : '' }}</span>
-                    <span v-if="item.uptime">在线 {{ item.uptime }}</span>
+                    <span v-if="item.uptime">在线 {{ formatWechatOnlineTime(item.uptime) }}</span>
                   </div>
                 </div>
                 <v-chip size="x-small" :color="item.status === 'online' ? 'success' : 'secondary'"

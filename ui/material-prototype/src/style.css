@@ -538,13 +538,15 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .ssr-node-address{overflow-wrap:anywhere;word-break:break-all;font-variant-numeric:tabular-nums}
 .ssr-node-row .app-compact-foot{margin-top:6px}
 .ssr-node-row .app-compact-foot .v-chip{font-size:10px}
-.wechat-device-address{display:flex;align-items:baseline;gap:7px;min-width:0}
-.wechat-device-address>span{flex:0 0 28px;font-size:10px;font-weight:600;color:rgb(var(--v-theme-on-surface-variant))}
+.wechat-device-address{display:flex;align-items:baseline;flex-wrap:nowrap;gap:12px;min-width:0;max-width:100%;white-space:nowrap;overflow-x:auto;scrollbar-width:none;font-variant-numeric:tabular-nums}
+.wechat-device-address::-webkit-scrollbar{display:none}
+.wechat-device-address>span{flex:0 0 auto;white-space:nowrap}
+.wechat-device-address>span>b{font-size:10px;font-weight:600;color:rgb(var(--v-theme-on-surface-variant));margin-right:3px}
 .wechat-online-row .app-compact-status{align-self:center}
 @media(max-width:380px){
  .ssr-node-row .app-compact-end{flex-direction:column;gap:4px}
  .ssr-node-row .app-compact-end .v-btn{width:32px;height:32px}
- .wechat-device-address{gap:4px}
+ .wechat-device-address{gap:7px;font-size:11px}
 }
 
 /* Fixed app-bar: router name and current section share the available width.
