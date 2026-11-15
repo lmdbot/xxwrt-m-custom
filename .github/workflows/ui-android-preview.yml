@@ -276,6 +276,70 @@ jobs:
           gh release view "$TAG" --json assets --jq '.assets[].name' --repo "$GITHUB_REPOSITORY" | grep -Fxq "$APP_APK_NAME"
           echo "created=$CREATED_NEW_RELEASE" >> "$GITHUB_OUTPUT"
 
+      # Only main's signed, published APK is eligible for the public mirror.
+      # Lucky's built-in "file service" serves this folder.
+      - name: Sync stable APK to Aliyun Lucky file service
+        if: github.ref_name == 'main'
+        shell: bash
+        env:
+          UPDATE_HOST: ${{ secrets.XXWRT_UPDATE_SSH_HOST }}
+          UPDATE_USER: ${{ secrets.XXWRT_UPDATE_SSH_USER }}
+          UPDATE_PRIVATE_KEY: ${{ secrets.XXWRT_UPDATE_SSH_PRIVATE_KEY }}
+          UPDATE_KNOWN_HOSTS: ${{ secrets.XXWRT_UPDATE_SSH_KNOWN_HOSTS }}
+          UPDATE_PORT: ${{ vars.XXWRT_UPDATE_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$UPDATE_HOST" && -z "$UPDATE_USER" && -z "$UPDATE_PRIVATE_KEY" && -z "$UPDATE_KNOWN_HOSTS" ]]; then
+            echo "::notice::Aliyun mirror SSH secrets are not configured; continuing GitHub Release only."
+            exit 0
+          fi
+          for variable in UPDATE_HOST UPDATE_USER UPDATE_PRIVATE_KEY UPDATE_KNOWN_HOSTS; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Incomplete Aliyun mirror configuration: missing $variable"
+              exit 1
+            fi
+          done
+          [[ "$UPDATE_PORT" =~ ^[0-9]{1,5}$ ]] || { echo "::error::Invalid SSH port"; exit 1; }
+
+          # Trust only the server's independently verified public host key.
+          umask 077
+          SSH_DIR="$RUNNER_TEMP/xxwrt-update-ssh"
+          mkdir -p "$SSH_DIR"
+          trap 'rm -rf "$SSH_DIR"' EXIT
+          printf '%s\n' "$UPDATE_PRIVATE_KEY" > "$SSH_DIR/id_deploy"
+          printf '%s\n' "$UPDATE_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          chmod 600 "$SSH_DIR/id_deploy" "$SSH_DIR/known_hosts"
+          SSH_OPTIONS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -p "$UPDATE_PORT" )
+          SCP_OPTIONS=( -i "$SSH_DIR/id_deploy" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$SSH_DIR/known_hosts" -P "$UPDATE_PORT" )
+          DEST="${UPDATE_USER}@${UPDATE_HOST}"
+          REMOTE_DIR="/srv/xxwrt-updates"
+          ssh "${SSH_OPTIONS[@]}" "$DEST" "test -d '$REMOTE_DIR' && test -w '$REMOTE_DIR'"
+
+          APK="../../dist/material-preview/${APP_APK_NAME}"
+          MANIFEST="../../build/material-preview/version.json"
+          test -s "$APK"
+          APK_SIZE="$(stat -c '%s' "$APK")"
+          APK_SHA256="$(sha256sum "$APK" | cut -d' ' -f1)"
+          jq -n \
+            --arg version "$APP_VERSION" \
+            --arg tag "v${APP_VERSION}" \
+            --arg title "XX-WRT管理器 v${APP_VERSION}" \
+            --arg apkName "$APP_APK_NAME" \
+            --arg apkUrl "https://update.12130812.xyz/${APP_APK_NAME}" \
+            --arg releaseUrl "https://github.com/${GITHUB_REPOSITORY}/releases/tag/v${APP_VERSION}" \
+            --arg githubApkUrl "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${APP_VERSION}/${APP_APK_NAME}" \
+            --argjson apkSize "$APK_SIZE" \
+            --arg sha256 "$APK_SHA256" \
+            '{schemaVersion:1,version:$version,tag:$tag,title:$title,apkName:$apkName,apkUrl:$apkUrl,releaseUrl:$releaseUrl,githubApkUrl:$githubApkUrl,apkSize:$apkSize,sha256:$sha256}' \
+            > "$MANIFEST"
+
+          # Publish the entire APK before making its version visible to clients.
+          scp "${SCP_OPTIONS[@]}" "$APK" "$DEST:$REMOTE_DIR/$APP_APK_NAME"
+          TMP_NAME="version.json.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}.tmp"
+          scp "${SCP_OPTIONS[@]}" "$MANIFEST" "$DEST:$REMOTE_DIR/$TMP_NAME"
+          ssh "${SSH_OPTIONS[@]}" "$DEST" "mv -- '$REMOTE_DIR/$TMP_NAME' '$REMOTE_DIR/version.json'"
+          echo "Aliyun mirror published: v${APP_VERSION}"
+
       # Notify once after a new stable Release and its signed APK are published.
       # The entire webhook URL (including its capability token) must be an Actions secret.
       - name: Notify new stable Release via Webhook
