@@ -688,7 +688,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   zeroTierCliAllowed = false
   await page.getByRole('button', { name: '刷新当前页面' }).click()
   await expect(page.getByText(/未开放实时 ZeroTier 状态读取接口/)).toBeVisible()
-  await expect(page.getByText('网络状态待确认', { exact: true }).first()).toBeVisible()
+  // System NIC can be up although ZeroTier runtime RPC is inaccessible.
+  // Report link state, not a falsely confirmed ZeroTier network connection.
+  await expect(page.getByText('虚拟网卡已启用', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   zeroTierRpcAllowed = true
   zeroTierCliAllowed = true
