@@ -207,7 +207,7 @@ function syncNativeChrome(isDark) {
 const listError = ref('')
 const deviceStatuses = reactive({})
 const deviceSummaries = reactive({})
-const deviceForm = reactive({ name: '', address: 'http://192.168.100.1', username: 'root' })
+const deviceForm = reactive({ name: '', address: 'http://192.168.100.1', username: 'root', ignoreTlsErrors: false })
 const sessions = new Map()
 const selectedDevice = computed(() => devices.value.find(d => d.id === selectedDeviceId.value) || null)
 const probeBusy = ref(false)
@@ -778,8 +778,9 @@ function showDeviceDialog(device = null) {
   listError.value = ''
   editDeviceId.value = device?.id || ''
   Object.assign(deviceForm, device ? {
-    name: device.name, address: device.address, username: device.username
-  } : { name: '', address: 'http://192.168.100.1', username: 'root' })
+    name: device.name, address: device.address, username: device.username,
+    ignoreTlsErrors: !!device.ignoreTlsErrors
+  } : { name: '', address: 'http://192.168.100.1', username: 'root', ignoreTlsErrors: false })
   deviceDialog.value = true
 }
 
@@ -790,10 +791,12 @@ async function saveDeviceEntry() {
     if (editDeviceId.value) {
       const before = devices.value.find(d => d.id === editDeviceId.value)
       if (!before) throw new Error('未找到需要编辑的路由器')
-      const changed = before.address !== candidate.address || before.username !== candidate.username
+      const changedAddress = before.address !== candidate.address
+      const trust = changedAddress ? false : candidate.ignoreTlsErrors
+      const changed = changedAddress || before.username !== candidate.username || before.ignoreTlsErrors !== trust
       devices.value = devices.value.map(d => d.id === before.id
         ? { ...d, name: candidate.name, address: candidate.address, username: candidate.username,
-            rememberPassword: changed ? false : d.rememberPassword }
+            ignoreTlsErrors: trust, rememberPassword: changed ? false : d.rememberPassword }
         : d)
       if (changed) {
         sessions.get(before.id)?.logout()
@@ -2085,7 +2088,10 @@ onUnmounted(() => {
             <v-text-field v-model.trim="deviceForm.name" label="设备名称 / 备注" variant="outlined" density="comfortable" placeholder="例如：QWRT 主路由" required/>
             <v-text-field v-model.trim="deviceForm.address" label="IP / 域名 / 端口" variant="outlined" density="comfortable" placeholder="http://192.168.100.1" autocomplete="url" autocapitalize="off" required/>
             <v-text-field v-model.trim="deviceForm.username" label="登录用户名" variant="outlined" density="comfortable" autocomplete="username" required/>
-            <p class="muted-hint">设备地址可以是 HTTPS 公网域名。保存后点击设备输入密码登录。</p>
+            <v-checkbox v-if="isNative && deviceForm.address.startsWith('https://')"
+              v-model="deviceForm.ignoreTlsErrors" color="warning" hide-details
+              label="忽略此设备 HTTPS 证书错误（不安全）"/>
+            <p class="muted-hint">设备地址可以是 HTTPS 公网域名。更换地址时会自动取消此前的证书例外。</p>
             <v-alert v-if="listError" type="warning" variant="tonal" density="compact" class="mt-2">{{ listError }}</v-alert>
           </form>
         </v-card-text>
