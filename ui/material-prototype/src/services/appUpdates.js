@@ -46,3 +46,27 @@ export async function fetchLatestStableRelease() {
     return fetchFromGithub()
   }
 }
+
+/**
+ * A legacy Aliyun manifest may not include releaseNotes. Fetch ONLY the
+ * exact version's notes from GitHub (not GitHub's unrelated latest release).
+ * The caller uses this only after checking the mirror's inline notes.
+ */
+export async function fetchGithubReleaseNotes(tag) {
+  if (!/^v\d+\.\d+\.\d+$/.test(String(tag || '')))
+    throw new Error('版本标签无效，无法查询版本日志')
+  const response = await CapacitorHttp.get({
+    url: 'https://api.github.com/repos/lmdbot/xxwrt-m-custom/releases/tags/' + tag,
+    headers: { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    connectTimeout: 7000, readTimeout: 12000
+  })
+  if (response.status !== 200) {
+    if (response.status === 403 || response.status === 429)
+      throw new Error('GitHub 访问受限，请稍后重试')
+    throw new Error('GitHub 版本日志请求失败（HTTP ' + response.status + '）')
+  }
+  const data = jsonBody(response, 'GitHub 版本日志')
+  if (data?.tag_name !== tag || data.draft || data.prerelease)
+    throw new Error('GitHub 未返回对应的正式版本日志')
+  return typeof data.body === 'string' ? data.body.slice(0, 48000) : ''
+}

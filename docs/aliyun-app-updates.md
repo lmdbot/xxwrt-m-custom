@@ -100,7 +100,7 @@ curl -fsS https://update.12130812.xyz/version.json
 curl -I "https://update.12130812.xyz/XX-WRT-Material-v2.0.21.apk"
 ```
 
-返回的 JSON 含 `schemaVersion`、`version`、`tag`、`apkName`、`apkUrl`、`apkSize`、`sha256`、`releaseUrl` 和 `githubApkUrl`。
+返回的 JSON 含 `schemaVersion`、`version`、`tag`、`apkName`、`apkUrl`、`apkSize`、`sha256`、`releaseUrl` 和 `githubApkUrl`，并从 `docs/releases/vX.Y.Z.md` 将最新正式版 Markdown 变更日志放入 `releaseNotes` 字符串。保留 `schemaVersion:1`：旧版 `version.json` 缺少此可选字段时，APP 仅为该版本日志请求 GitHub 对应 tag 的 Release 内容，不影响正常检查更新或 APK 下载。
 
 从 v2.0.23 起，Android APP 使用自有原生下载插件将 APK 流式写入应用私有缓存，并在下载后验证文件大小和 `sha256`，检查包名及版本号，然后通过 FileProvider 打开 Android 系统安装器。无需系统 DownloadManager 或公共下载目录，也无需存储权限；首次安装可能需要用户授予「安装未知应用」权限，且最终安装仍由用户确认。
 

@@ -90,3 +90,15 @@ test('Aliyun manifest rejects unsafe or inconsistent APK metadata', () => {
   ]) assert.throws(() => parseMirrorRelease({ ...manifest(), ...patch }), TypeError)
   assert.throws(() => parseMirrorRelease(null), TypeError)
 })
+
+test('Aliyun optional releaseNotes supports the current schema and older manifests', () => {
+  const text = '# XX-WRT Material v2.21.0\n\n## 优化\n- 版本日志内展示'
+  assert.equal(parseMirrorRelease({ ...manifest(), releaseNotes: text }).releaseNotes, text)
+  assert.equal(parseMirrorRelease(manifest()).releaseNotes, '')
+  assert.equal(parseMirrorRelease({ ...manifest(), releaseNotes: 42 }).releaseNotes, '')
+})
+test('GitHub release body provides changelog when mirror is unavailable', () => {
+  const item = release('v2.21.0')
+  item.body = '## 修复\n- 发布说明来自 GitHub'
+  assert.equal(selectLatestStableRelease([item]).releaseNotes, item.body)
+})

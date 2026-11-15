@@ -250,7 +250,12 @@ const dataFor = (object, method, params = {}) => {
       ...(zeroTierInterfaceVisible ? { ztsjsdnpbo: { name: 'ztsjsdnpbo', up: true } } : {}) }
   }
   if (object === 'uci' && method === 'get' && params.config === 'dhcp') return {
-    values: terminalDhcpHost ? { terminal_static: terminalDhcpHost } : {}
+    values: {
+      lan: { '.type': 'dhcp', '.name': 'lan', interface: 'lan',
+        ignore: '0', start: '100', limit: '150', leasetime: '12h',
+        dhcpv6: 'server', ra: 'server' },
+      ...(terminalDhcpHost ? { terminal_static: terminalDhcpHost } : {})
+    }
   }
   if (object === 'uci' && method === 'get' && params.config === 'eqos') return {
     values: {
@@ -307,13 +312,21 @@ const dataFor = (object, method, params = {}) => {
     main: { '.type': 'core', '.name': 'main', mediaurlbase: '/luci-static/carbon' },
     themes: { '.type': 'internal', '.name': 'themes', Bootstrap: '/luci-static/bootstrap', Carbon: '/luci-static/carbon' }
   } }
-  if (object === 'uci' && method === 'get' && params.config === 'network') return { values: { cfg123: { '.type': 'route', interface: 'wan', target: '10.0.0.0/24', gateway: '10.12.4.1' } } }
+  if (object === 'uci' && method === 'get' && params.config === 'network') return { values: {
+    cfg123: { '.type': 'route', interface: 'wan', target: '10.0.0.0/24', gateway: '10.12.4.1' },
+    lan: { '.type': 'interface', '.name': 'lan', proto: 'static', auto: '1',
+      device: 'br-lan', ipaddr: '192.168.100.1', netmask: '255.255.255.0', ip6assign: '64' },
+    wan: { '.type': 'interface', '.name': 'wan', proto: 'dhcp', auto: '1',
+      device: 'eth0', peerdns: '1' }
+  } }
   if (object === 'uci' && method === 'add') return { section: 'new-app-section' }
   if (object === 'uci' && method === 'set' && params.config === 'firewall' && params.section === 'rule1') {
     firewallRuleEnabled = String(params.values?.enabled ?? firewallRuleEnabled)
     return {}
   }
   if (object === 'uci' && method === 'set') return {}
+  if (object === 'uci' && method === 'changes') return { changes: [] }
+  if (object === 'uci' && ['apply', 'confirm', 'rollback'].includes(method)) return {}
   if (object === 'uci' && method === 'commit') return {}
   if (object === 'uci' && method === 'revert') return {}
   if (object === 'uci' && method === 'delete') return {}
@@ -697,6 +710,30 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   expect(Math.max(...networkTabHeights)).toBeLessThanOrEqual(60)
   await expect(page.locator('.interface-card')).toHaveCount(2)
   await auditDarkTextContrast(page, ['.network-interface-details span', '.interface-card .muted-hint'])
+  // Network config is fetched from UCI independently of the read-only netifd
+  // status cards. LAN DHCP server and WAN DHCP client are separate settings.
+  await expect(page.getByRole('button', { name: '配置接口 lan' })).toBeEnabled()
+  await page.getByRole('button', { name: '配置接口 lan' }).click()
+  await expect(page.getByText('配置网络接口 · lan')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'IPv4 地址' })).toHaveValue('192.168.100.1')
+  await page.getByRole('tab', { name: 'DHCP 服务端' }).click()
+  await expect(page.getByText('不是上级网络的 DHCP 客户端')).toBeVisible()
+  await expect(page.getByRole('spinbutton', { name: '地址池起始偏移（例如 100）' })).toHaveValue('100')
+  await page.getByRole('button', { name: '关闭接口配置' }).click()
+  await page.getByRole('button', { name: '配置接口 wan' }).click()
+  await expect(page.getByText('配置网络接口 · wan')).toBeVisible()
+  await page.getByRole('tab', { name: '常规' }).click()
+  await expect(page.getByText('DHCP 客户端', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '关闭接口配置' }).click()
+  await expect(page.getByRole('button', { name: '断开接口 lan' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '断开接口 wan' })).toBeDisabled()
+  // All network edits use timed rollback and require an explicit confirmation.
+  await page.getByRole('button', { name: '配置接口 wan' }).click()
+  await page.getByRole('switch', { name: '开机自动启用接口' }).uncheck()
+  await page.getByRole('button', { name: '保存并应用（可回滚）' }).click()
+  await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
+  await page.getByRole('button', { name: '确认保留配置' }).last().click()
+  await expect(page.getByText('已确认保留接口配置')).toBeVisible()
   await page.getByRole('button', { name: /设备，/ }).click()
   await expect(page.locator('.hardware-list')).toBeVisible()
   await expect(page.locator('.hardware-panel')).toHaveCount(1)
@@ -1021,7 +1058,13 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('已发现的网络设备')).toBeVisible()
   await expect(page.getByText('邻居电脑')).toBeVisible()
   await expect(page.locator('.wol-neighbor-card')).toHaveCount(3)
-  await auditDarkTextContrast(page, ['.wol-neighbor-card__field', '.wol-neighbor-card__field>span:first-child'])
+  await auditDarkTextContrast(page, ['.wol-neighbor-card__address', '.wol-neighbor-card__address b'])
+  const wolAddressRow = await page.locator('.wol-neighbor-card').first().evaluate(node => {
+    const fields = [...node.querySelectorAll('.wol-neighbor-card__address')].map(x => x.getBoundingClientRect())
+    return fields.length === 2 && Math.abs(fields[0].top - fields[1].top) < 2 &&
+      Math.abs(fields[0].bottom - fields[1].bottom) < 2
+  })
+  expect(wolAddressRow).toBe(true)
   await expect(page.locator('.wol-neighbor-card').filter({ hasText: '邻居电脑' })).toContainText('192.168.100.99')
   await expect(page.locator('.wol-neighbor-card').filter({ hasText: '邻居电脑' })).toContainText('BB:CC:DD:EE:FF:00')
   const wolCardsOverflow = await page.locator('.wol-neighbor-card').evaluateAll(nodes =>
