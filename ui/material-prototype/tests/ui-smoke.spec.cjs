@@ -16,6 +16,7 @@ const appGroups = {
   "启动项": "系统工具",
   "路由表": "系统工具",
   "网络唤醒": "系统工具",
+  "软件包": "系统工具",
   "重启设备": "设备维护",
   "恢复出厂": "设备维护"
 }
@@ -136,6 +137,26 @@ const dataFor = (object, method, params = {}) => {
   }
   if (object === 'luci' && method === 'getOnlineUsers') return { onlineusers: '9' }
   // Lucky 3.1+ read-only rule editor responses for overlay regression.
+  if (object === 'file' && method === 'exec' &&
+      params.command === '/usr/libexec/package-manager-call') {
+    const action = params.params?.[0]
+    const control = (name, version, size, description) => [
+      'Package: ' + name, 'Version: ' + version, 'Size: ' + size,
+      'Description: ' + description, ''
+    ].join('\n')
+    if (action === 'list-installed') return { code: 0, stdout:
+      control('busybox', '1.35.0-1', 40000, 'Busybox') +
+      '\n' + control('luci-app-demo', '1.0-1', 1200, 'Demo') }
+    if (action === 'list-available') return { code: 0, stdout:
+      control('busybox', '1.35.0-2', 42000, 'Busybox update') +
+      control('luci-app-demo', '1.0-1', 1200, 'Demo') +
+      Array.from({ length: 106 }, (_, i) =>
+        control('testpackage-' + String(i).padStart(3, '0'), '1.0', 1000 + i, 'Test package ' + i)
+      ).join('\n') }
+    return { code: 0, stdout: JSON.stringify({
+      code: 0, pkmcmd: 'opkg ' + action, stdout: 'Package operation completed', stderr: ''
+    }) }
+  }
   if (object === 'file' && method === 'exec' && params.command === '/usr/libexec/lucky-backup') {
     const operation = params.params?.[0]
     if (operation === 'core-status') return { code: 0,
@@ -1328,4 +1349,37 @@ test('theme survives reload and refresh keeps existing cards mounted without che
     .not.toHaveClass(/v-btn--loading/)
   await expect(page.locator('.router-stat-block')).toBeVisible()
   await expect(page.getByText('已登录 · 在线')).toBeVisible()
+})
+
+test('software packages shows opkg lists, filters and protects installation actions', async ({ page }) => {
+  await page.route('**/ubus', handler)
+  await page.goto('/')
+  await page.getByRole('button', { name: '添加', exact: true }).click()
+  await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('QWRT 包管理测试')
+  await page.getByRole('textbox', { name: 'IP / 域名 / 端口' }).fill('http://192.168.100.1')
+  await page.getByRole('textbox', { name: '登录用户名' }).fill('root')
+  await page.getByRole('button', { name: '保存设备' }).click()
+  await page.getByRole('button', { name: '进入 QWRT 包管理测试' }).click()
+  await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
+  await page.getByRole('button', { name: '登录并进入' }).click()
+  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
+  await page.getByRole('button', { name: '应用' }).click()
+  await openApplication(page, '软件包')
+  await expect(page.locator('.package-manager-panel')).toBeVisible()
+  await expect(page.getByText('正在显示 1–100，共 108')).toBeVisible()
+  await expect(page.locator('.package-entry')).toHaveCount(100)
+  await page.getByRole('button', { name: '下一页' }).click()
+  await expect(page.locator('.package-entry')).toHaveCount(8)
+  await page.getByRole('tab', { name: /已安装/ }).click()
+  await expect(page.getByText('正在显示 1–2，共 2')).toBeVisible()
+  await page.getByRole('tab', { name: /更新/ }).click()
+  await expect(page.locator('.package-entry')).toHaveCount(1)
+  await expect(page.locator('.package-entry')).toContainText('当前 1.35.0-1')
+  await page.getByRole('button', { name: '升级…' }).click()
+  await expect(page.getByText('升级核心软件包可能与当前固件不兼容')).toBeVisible()
+  await page.getByRole('button', { name: '取消' }).last().click()
+  await page.getByRole('button', { name: '更新列表' }).click()
+  await page.getByRole('button', { name: '确认执行' }).click()
+  await expect(page.locator('.package-exec-output')).toContainText('Package operation completed')
+  await page.getByRole('button', { name: '关闭' }).last().click()
 })
