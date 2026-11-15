@@ -155,6 +155,32 @@ Material 2.0 的 Android 主线使用 `ui/material-prototype/` 及 `ui-android-p
 
 更多功能边界与测试范围见 [功能对照文档](docs/material-main-feature-parity.md)，界面工程说明见 [Material UI README](ui/material-prototype/README.md)。
 
+## 开源致谢
+
+感谢以下开源项目及其维护者。此处依据 `ui/material-prototype/package.json` 梳理 **Material 2.0 主线直接依赖**；“运行依赖”参与 APP 的界面或原生能力，“开发依赖”用于构建与测试。版本以当前配置为准，实际 APK 还可能包含传递依赖及 Android 原生依赖。
+
+| 开源项目 | 当前依赖版本 | 项目用途 | License |
+| --- | --- | --- | --- |
+| [Vue.js](https://github.com/vuejs/core) | `vue@3.5.22` | 响应式界面与组件框架 | [MIT](https://github.com/vuejs/core/blob/main/packages/vue/LICENSE) |
+| [Vuetify](https://github.com/vuetifyjs/vuetify) | `vuetify@3.13.7` | Material Design UI 组件 | [MIT](https://github.com/vuetifyjs/vuetify/blob/master/packages/vuetify/LICENSE.md) |
+| [Material Design Icons / Pictogrammers](https://github.com/Templarian/MaterialDesign-Webfont) | `@mdi/font@7.4.47` | 应用内图标与图标字体 | [Apache-2.0（图标及字体）](https://github.com/Templarian/MaterialDesign/blob/master/LICENSE) |
+| [Apache ECharts](https://github.com/apache/echarts) | `echarts@5.6.0` | 网络流量、系统负载等可视化图表 | [Apache-2.0](https://github.com/apache/echarts/blob/master/LICENSE) |
+| [vue-liquid-glass](https://github.com/Daisigu/vue-liquid-glass) | `@daisigu/vue-liquid-glass@1.0.4` | Liquid Glass 导航视觉效果 | [MIT](https://github.com/Daisigu/vue-liquid-glass#license) |
+| [Capacitor](https://github.com/ionic-team/capacitor) | `@capacitor/{core,android,app,browser}@8.0.0` | Android 应用容器、原生生命周期和浏览器能力 | [MIT](https://github.com/ionic-team/capacitor/blob/main/core/LICENSE) |
+| [Capacitor Secure Storage](https://github.com/aparajita/capacitor-secure-storage) | `@aparajita/capacitor-secure-storage@8.0.1` | Android 本地安全存储 | [MIT](https://github.com/aparajita/capacitor-secure-storage/blob/main/LICENSE) |
+| [Vite](https://github.com/vitejs/vite) / [@vitejs/plugin-vue](https://github.com/vitejs/vite-plugin-vue) | `vite@7.3.8` / `@vitejs/plugin-vue@6.0.0` | 前端开发服务器、Vue 编译与构建（开发依赖） | [MIT](https://github.com/vitejs/vite/blob/main/LICENSE) / [MIT](https://github.com/vitejs/vite-plugin-vue/blob/main/packages/plugin-vue/LICENSE) |
+| [Playwright](https://github.com/microsoft/playwright) | `@playwright/test@1.65.0` | UI 自动化与交互回归测试（开发依赖） | [Apache-2.0](https://github.com/microsoft/playwright/blob/main/LICENSE) |
+
+本项目也感谢 **[OpenWrt](https://openwrt.org/)**、LuCI、ubus/rpcd 生态及相关插件社区。应用会通过路由器授权接口与 ShadowSocksR Plus+、OpenClash、OpenAppFilter、ZeroTier、Lucky、Internet Detector 等设备端功能交互。**接口适配不代表这些软件被打包进 APK 或由本项目再分发**；其著作权、商标与 License 均以各上游项目及具体版本为准。
+
+## License 声明
+
+- **本项目自身：** 截至本次整理，仓库根目录尚无统一的 `LICENSE` 文件，也未确认适用于整个 XX-WRT Material 项目源代码、文档和美术资源的统一开源许可证。本节是许可状态说明，**不构成对本项目自身代码的 MIT、Apache-2.0 或其他许可证授权**。仓库公开可读不等同于允许任意复制、修改、再发布；如需明确开放衍生或再分发权限，应由项目维护者确定许可方案并添加相应 `LICENSE` 文件。
+- **第三方软件：** 上表所列项目保留各自的版权、许可证和免责条款；使用本项目不改变这些上游许可证，也不意味着上游作者认可或背书本项目。
+- **再分发与合规：** 当分发包含第三方代码、图标字体或原生库的源码与 APK 时，应按实际打包版本保留适用的版权和许可证文本，并遵守 MIT 的版权与许可声明保留要求，以及 Apache-2.0 的许可证、修改说明和适用的 `NOTICE` 要求。请以对应组件实际分发物中的声明为准。
+- **覆盖范围：** 上表是 Material 2.0 的**直接依赖致谢清单**，不是完整的软件物料清单（SBOM）或法律合规审计；传递依赖、Android SDK/AndroidX、原生 Gradle 依赖及仓库早期 `vendor/`、`src/www/` 资源需要在正式对外再分发前另行核查。
+- **图标与素材：** 本项目界面截图、宣传图和定制 APP 图标不因使用开源 UI 框架而自动采用相同的许可证；其权利与授权范围应单独确认。
+
 ## 参与改进
 
 欢迎通过 [Issues](https://github.com/lmdbot/xxwrt-m-custom/issues) 反馈问题。建议附上 APP 版本、QWRT/OpenWrt 固件版本、插件版本、相关页面和复现步骤；请勿公开路由器密码、会话令牌及其他敏感配置。
