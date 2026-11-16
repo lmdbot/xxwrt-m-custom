@@ -1362,12 +1362,12 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await page.reload()
   await expect(page.locator('.material-demo.theme-is-dark')).toBeVisible()
   await expect.poll(() => page.locator('meta[name="theme-color"]').getAttribute('content'))
-    .toBe('#101826')
+    .toBe('#0F1727')
   await page.evaluate(() => localStorage.setItem('xxwrt_material_color_mode', 'light'))
   await page.reload()
   await expect(page.locator('.material-demo.theme-is-dark')).toHaveCount(0)
   await expect.poll(() => page.locator('meta[name="theme-color"]').getAttribute('content'))
-    .toBe('#F5F8FE')
+    .toBe('#F3F7FD')
 
   let holdNext = false
   let blocked = false
@@ -1387,6 +1387,10 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await page.getByRole('button', { name: '进入 QWRT' }).click()
   await page.getByRole('textbox', { name: '路由器密码' }).fill('test-only')
   await page.getByRole('button', { name: '登录并进入' }).click()
+  // Hardware is intentionally collapsed on Design A home; expand before checking
+  // that a background refresh does not unmount it.
+  await expect(page.locator('.v3-health-card')).toBeVisible()
+  await page.getByRole('button', { name: '展开系统与硬件详情' }).click()
   await expect(page.locator('.device-card.v-card')).toBeVisible()
   await expect(page.getByText('磁盘占用')).toBeVisible()
 
@@ -1494,6 +1498,9 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
     await page.getByRole('button', { name: '登录并进入' }).click()
     await page.getByRole('button', { name: '设备', exact: true }).click()
+    // Default is the combined multi-source list; select DHCPv4 for the
+    // original three-lease QoS regression scenario.
+    await page.getByRole('button', { name: /DHCPv4，\d+ 条/ }).click()
     await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
     await page.getByText('Phone', { exact: true }).click()
 
