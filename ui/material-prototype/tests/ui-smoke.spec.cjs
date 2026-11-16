@@ -1185,14 +1185,31 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开ShadowSocksR Plus+' })).toBeVisible()
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部应用' }).click()
-  // Seven P1/P2 and platform entries extend the v2.0.33 launcher from 22 to 29.
-  await expect(page.locator('.app-tool-row')).toHaveCount(29)
+  // Topology has been removed; the visible launcher now contains 28 entries.
+  await expect(page.locator('.app-tool-row')).toHaveCount(28)
   for (const title of ['网络诊断', '日志中心', '配置备份恢复', 'DNS / DHCP', '服务管理',
-    'DDNS 管理', '系统定时任务', '系统能力识别', '操作记录', '长期趋势', '设备拓扑', '安全分析']) {
+    'DDNS 管理', '系统定时任务', '系统能力识别', '操作记录', '长期趋势', '安全分析']) {
     await expect(page.getByRole('button', { name: '打开' + title })).toBeVisible()
   }
   await expect(page.getByRole('button', { name: '打开软件包' })).toBeVisible()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toBeVisible()
+  // Deep tools return to their previous app-list scroll position.
+  const hubScroll=await page.evaluate(()=>{
+    const max=Math.max(0,document.scrollingElement.scrollHeight-window.innerHeight)
+    window.scrollTo(0,Math.min(max,580))
+    return window.scrollY||document.scrollingElement.scrollTop
+  })
+  expect(hubScroll).toBeGreaterThan(80)
+  await page.evaluate(()=>{
+    const button=document.querySelector('button[aria-label="打开日志中心"]')
+    if(!button)throw new Error('日志中心入口缺失')
+    button.click()
+  })
+  await expect(page.getByRole('button', { name: '返回应用功能列表' })).toBeVisible()
+  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await expect(page.getByText('应用管理')).toBeVisible()
+  await expect.poll(async()=>Math.abs((await page.evaluate(()=>
+    window.scrollY||document.scrollingElement.scrollTop))-hubScroll)).toBeLessThan(30)
   await page.getByRole('button', { name: '收起设备维护' }).click()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toHaveCount(0)
 

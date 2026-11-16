@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { shortError, readDashboard } from '../services/router.js'
-import TopologyPanel from './TopologyPanel.vue'
+import TrendChartPanel from './TrendChartPanel.vue'
+import SecurityDashboard from './SecurityDashboard.vue'
 import {
   CONFIG_ROLLBACK_SECONDS, applyProtectedUci, finishProtectedUci, releaseExpiredProtectedUci,
   discoverRouterCapabilities, readAuditRecords
@@ -15,7 +16,6 @@ import {
 } from '../services/advancedManagement.js'
 import {
   readMetricHistory, recordMetricSample, sampleFromDashboard, trendPoints,
-  trendSegments, trendPlotPoints, readRouterTopology,
   readSecurityReport
 } from '../services/routerInsights.js'
 const props=defineProps({
@@ -36,7 +36,7 @@ const firewall=ref(null)
 const firewallForm=reactive({name:'',src:'wan',srcIp:'',family:'ipv4',proto:'tcp',target:'REJECT',port:''})
 const auditSearch=ref(''),auditRows=ref([])
 const trendRange=ref('h24'),trendKey=ref('cpu'),history=ref([]),trendNow=ref(Date.now())
-const topology=ref(null),security=ref(null)
+const security=ref(null)
 const queued=ref(null),pending=ref(null),pendingSubject=ref(''),expired=ref(false),remaining=ref(0)
 let interval=null
 const seenAudit=computed(()=>auditRows.value.filter(x=>{
@@ -52,15 +52,9 @@ const trendWindowSamples=computed(()=>history.value.filter(sample=>
 const trendValidCount=computed(()=>trendWindowSamples.value.filter(sample=>
   Number.isFinite(sample[trendKey.value])).length)
 const trendLastSaved=computed(()=>history.value.length?formatTime(history.value.at(-1).time):'暂无')
-const chartUpper=computed(()=>trendKey.value==='load1'
-  ? Math.max(1,...trendData.value.map(x=>x.value))*1.15:100)
-const chartGap=computed(()=>trendRange.value==='h24'?18*60000:Math.max(18*60000,metricRangeMs.value/150*2))
-const chartPaths=computed(()=>trendSegments(trendData.value,
-  trendNow.value-metricRangeMs.value,trendNow.value,chartUpper.value,chartGap.value))
-const chartDots=computed(()=>trendPlotPoints(trendData.value,
-  trendNow.value-metricRangeMs.value,trendNow.value,chartUpper.value))
 const chartLast=computed(()=>trendData.value.length?
   trendData.value.at(-1).value.toFixed(1)+(trendKey.value==='load1'?'':'%'):'--')
+const trendRangeLabel=computed(()=>({h24:'24 小时',d7:'7 天',d30:'30 天'})[trendRange.value])
 const versionLabel=computed(()=>capabilities.value?.firmware||'待识别')
 const ddnsSelected=computed(()=>ddns.value?.sections.find(x=>x.id===ddnsCurrent.value)||null)
 function notify(message,isError=false){
@@ -101,7 +95,6 @@ async function load(){
       trendNow.value=Date.now()
       history.value=readMetricHistory(safeStore(),props.deviceId||props.client.baseUrl)
     }
-    else if(props.kind==='topology')topology.value=await readRouterTopology(props.client)
     else if(props.kind==='security')security.value=await readSecurityReport(props.client)
   }catch(e){handleError(e)}
   finally{busy.value=false}
@@ -494,82 +487,43 @@ onUnmounted(()=>{if(interval)clearInterval(interval)})
     </template>
     <template v-else-if="kind==='trends'">
       <h3>长期运行趋势</h3>
-      <v-alert type="info" density="compact" variant="tonal" class="my-2">
-        本机滚动保存最多 30 天、每 5 分钟一条有效监控样本。
-        只在 APP 已连接并完成采样时写入；离线时段不会补造数据。
-        24 小时无人值守采集需要额外的路由器端或服务器端采集器。
-      </v-alert>
+      <p class="text-caption text-medium-emphasis my-2" style="line-height:1.7">
+        本机保留最多 30 天真实采样；APP 运行并保持连接时每 5 分钟保存一次，
+        关闭 APP 后不会在后台补造数据。
+      </p>
       <v-select v-model="trendKey" label="监控指标" variant="outlined" density="compact"
         :items="Object.entries(metricNames).map(([value,title])=>({value,title}))"/>
-      <v-btn-toggle v-model="trendRange" mandatory variant="tonal" density="compact" color="primary"
-        class="mb-3">
-        <v-btn value="h24">24 小时</v-btn><v-btn value="d7">7 天</v-btn><v-btn value="d30">30 天</v-btn>
+      <v-btn-toggle v-model="trendRange" mandatory variant="tonal" density="compact"
+        color="primary" class="mb-2">
+        <v-btn value="h24">24 小时</v-btn>
+        <v-btn value="d7">7 天</v-btn>
+        <v-btn value="d30">30 天</v-btn>
       </v-btn-toggle>
-      <div class="d-flex align-center ga-2 mb-2">
-        <strong>最新有效样本：{{ chartLast }}</strong><v-spacer/>
-        <v-chip size="small" variant="tonal">{{ trendData.length }} 个时间桶</v-chip>
+      <div class="d-flex align-center justify-space-between ga-2 mt-2">
+        <strong>最新有效样本：{{chartLast}}</strong>
+        <v-chip variant="tonal" size="small">{{trendData.length}} 个时间桶</v-chip>
       </div>
-      <p class="text-caption text-medium-emphasis mb-2">
-        当前范围：{{ trendValidCount }} 条有效指标采样 / {{ trendWindowSamples.length }} 条原始样本
-        · 最近保存：{{ trendLastSaved }}
+      <TrendChartPanel :points="trendData" :metric="trendKey"
+        :title="metricNames[trendKey]" :range-label="trendRangeLabel" :range-value="trendRange"/>
+      <p class="text-caption text-medium-emphasis" style="line-height:1.7">
+        当前范围 {{trendValidCount}} 条有效样本 / {{trendWindowSamples.length}} 条原始记录；
+        最后保存：{{trendLastSaved}}
       </p>
-      <svg v-if="trendData.length" viewBox="0 0 780 145" width="100%" role="img"
-        aria-label="实际采样形成的历史趋势折线图" style="border:1px solid rgba(128,128,128,.25);border-radius:12px">
-        <line x1="0" x2="760" y1="110" y2="110" stroke="currentColor" opacity=".2"/>
-        <line x1="0" x2="760" y1="10" y2="10" stroke="currentColor" opacity=".1"/>
-        <path v-for="(path,i) in chartPaths" :key="i" :d="path"
-          fill="none" stroke="#3f8cff" stroke-width="2.5" stroke-linecap="round"/>
-        <circle v-for="(point,i) in chartDots" :key="'dot-'+i"
-          :cx="point.x" :cy="point.y" r="3.5" fill="#3f8cff"/>
-        <text x="8" y="139" fill="currentColor" font-size="12">较早</text>
-        <text x="700" y="139" fill="currentColor" font-size="12">现在</text>
-      </svg>
-      <v-alert v-else type="info" density="compact" variant="tonal">
-        当前时间范围没有 {{ metricNames[trendKey] }} 的有效采样；切换指标可以确认其他数据是否正常。
-        CPU 首次读取 /proc/stat 时需要第二次采样才能计算；若持续为空，请检查 RPC 读取权限。
+      <v-alert v-if="!trendData.length" type="info" density="compact" variant="tonal" class="my-2">
+        当前指标尚未有有效采样。CPU 首次使用 /proc/stat 回退时需至少两次读取才能计算。
       </v-alert>
-      <v-btn class="mt-3" variant="tonal" color="primary" :loading="busy"
-        :disabled="busy" prepend-icon="mdi-refresh" @click="collectTrendSample">
-        立即采样
-      </v-btn>
-      <div v-if="history.length" class="d-flex ga-2 mt-3">
-        <v-chip size="small" variant="tonal">原始样本 {{ history.length }} 条</v-chip>
-        <v-btn size="small" variant="text"
+      <div class="d-flex align-center flex-wrap ga-2 mt-3">
+        <v-btn variant="tonal" color="primary" :loading="busy" :disabled="busy"
+          prepend-icon="mdi-refresh" @click="collectTrendSample">立即采样</v-btn>
+        <v-chip v-if="history.length" size="small" variant="tonal">
+          原始样本 {{history.length}} 条
+        </v-chip>
+        <v-btn v-if="history.length" size="small" variant="text"
           @click="copy(JSON.stringify(history,null,2))">复制 JSON</v-btn>
       </div>
     </template>
-    <template v-else-if="kind==='topology'">
-      <TopologyPanel v-if="topology" :topology="topology"/>
-    </template>
     <template v-else-if="kind==='security'">
-      <h3>安全事件分析</h3>
-      <v-alert type="info" density="compact" variant="tonal" class="my-2">
-        对实际读取到的系统及内核日志按认证失败、拦截、扫描和 DNS Rebind 规则分类。
-        这是规则匹配分析，不是入侵检测引擎，也不推断攻击者属地。
-      </v-alert>
-      <template v-if="security">
-        <div class="d-flex flex-wrap ga-2 my-3">
-          <v-chip size="small" variant="tonal">读取日志 {{ security.scannedLines }} 行</v-chip>
-          <v-chip size="small" :color="security.total?'warning':'success'">
-            匹配事件 {{ security.total }} 条
-          </v-chip>
-        </div>
-        <div v-for="cat in security.byType" :key="cat.id" class="data-row">
-          <strong>{{ cat.name }}</strong>
-          <v-chip size="small" :color="cat.level==='high'?'error':'warning'">{{ cat.count }}</v-chip>
-        </div>
-        <v-alert v-if="!security.events.length" type="info" density="compact" variant="tonal">
-          当前读取的日志窗口没有命中规则；不代表没有发生安全事件。
-        </v-alert>
-        <h4 v-if="security.events.length" class="mt-4">事件证据（最近 {{ security.events.length }} 条）</h4>
-        <v-expansion-panels v-if="security.events.length" variant="accordion" class="mt-2">
-          <v-expansion-panel v-for="(item,i) in security.events.slice(-50).reverse()"
-            :key="i" :title="item.name">
-            <v-expansion-panel-text style="overflow-wrap:anywhere">{{ item.evidence }}</v-expansion-panel-text>
-          </v-expansion-panel>
-        </v-expansion-panels>
-        <p class="text-caption text-medium-emphasis mt-3">{{ security.note }}</p>
-      </template>
+      <SecurityDashboard v-if="security" :report="security"/>
     </template>
     <v-dialog :model-value="!!queued" max-width="460" persistent>
       <v-card rounded="xl">

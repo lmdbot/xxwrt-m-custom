@@ -3,7 +3,7 @@ import {parseCpuUsage, parseProcStat, cpuPercentFromSnapshots, readDashboard} fr
 import assert from 'node:assert/strict'
 import {
   recordMetricSample, readMetricHistory, sampleFromDashboard,
-  trendPoints, trendSegments, trendPlotPoints, buildTopologyGraph, analyzeSecurityLogs
+  trendPoints, trendSegments, trendPlotPoints, analyzeSecurityLogs, safeLogExcerpt
 } from '../src/services/routerInsights.js'
 function storage() {
   const map=new Map()
@@ -37,17 +37,6 @@ test('trend chart keeps sample timestamp and leaves gaps for missing periods',()
   ],now-86400000,now,100)
   assert.equal(paths.length,2)
 })
-test('topology marks historic MAC hints inferred and Wi-Fi/LLDP observations confirmed',()=>{
-  const hints=[{name:'Laptop',ip:'192.168.100.55',mac:'AA:BB:CC:DD:EE:FF'},
-    {name:'NAS',ip:'192.168.100.9',mac:'AA:BB:CC:DD:EE:10'}]
-  const graph=buildTopologyGraph(hints,[
-    {mac:'AA:BB:CC:DD:EE:FF',device:'wlan0'}
-  ],[{id:'sw1',name:'switch',medium:'eth0',source:'LLDP',confirmed:true}])
-  assert.equal(graph.nodes.length,3)
-  assert.equal(graph.confirmed,2)
-  assert.equal(graph.inferred,1)
-  assert.equal(graph.nodes.find(x=>x.mac==='AA:BB:CC:DD:EE:FF').source,'当前无线关联')
-})
 test('security report is based only on real matching log entries',()=>{
   const raw=[
     'Jan 01 auth: Failed password for invalid user admin',
@@ -57,7 +46,10 @@ test('security report is based only on real matching log entries',()=>{
   const report=analyzeSecurityLogs([raw.join('\n'),raw[0]])
   assert.equal(report.scannedLines,3)
   assert.equal(report.total,2)
-  assert.equal(report.byType.length,2)
+  assert.equal(report.byType.length,7)
+  assert.equal(report.securityTotal,2)
+  assert.equal(report.healthTotal,0)
+  assert.equal(report.byType.filter(x=>x.count>0).length,2)
   assert.equal(analyzeSecurityLogs(['no security events']).total,0)
 })
 
@@ -98,4 +90,34 @@ test('monitoring replaces a recent incomplete point when CPU becomes valid',()=>
   assert.equal(history[0].time,now+12000)
   assert.equal(recordMetricSample(store,'router-warmup',{cpuPercent:18,memoryPercent:64,load:'1.04'},now+14000),false)
   assert.equal(trendPlotPoints([{time:now,value:18}],now-86400000,now,100).length,1)
+})
+
+test('security dashboard shows grounded source activity, severities and all detection rules',()=>{
+  const messages=[
+    'Nov 16 16:01:01 daemon.info dnsmasq: DHCPACK 192.168.1.100',
+    'Nov 16 16:01:03 daemon.warn netifd: wan disconnected',
+    'Nov 16 16:01:05 daemon.err procd: service failed',
+    'Nov 16 16:01:07 kern.err kernel: Out of memory: Killed process 123',
+    'Nov 16 16:01:08 daemon.info dropbear: Bad password attempt',
+    'Nov 16 16:01:09 firewall: DROP IN=eth0 SRC=203.0.113.1 DPT=22',
+    'Nov 16 16:01:10 dnsmasq: possible DNS-rebind attack detected',
+    'Nov 16 16:01:11 daemon.info dnsmasq: password=topSECRET123'
+  ]
+  const report=analyzeSecurityLogs([messages.join('\n')])
+  assert.equal(report.scannedLines,8)
+  assert.equal(report.securityTotal,3)
+  assert.ok(report.healthTotal>=2)
+  assert.ok(report.severity.error>=2)
+  assert.ok(report.severity.warning>=1)
+  assert.ok(report.serviceActivity.some(x=>x.id==='dnsmasq'&&x.count>=2))
+  assert.equal(report.byType.length,7)
+  assert.ok(report.byType.find(x=>x.id==='firewall').count>0)
+  assert.ok(report.byType.find(x=>x.id==='stability').count>0)
+  assert.ok(report.recentNotices.length>0)
+  assert.equal(safeLogExcerpt('password=topSECRET123').includes('topSECRET123'),false)
+  const clean=analyzeSecurityLogs(['Nov 16 daemon.info dnsmasq: DHCPACK 192.168.1.2'])
+  assert.equal(clean.total,0)
+  assert.equal(clean.byType.length,7)
+  assert.equal(clean.scannedLines,1)
+  assert.ok(clean.serviceActivity.some(x=>x.id==='dnsmasq'&&x.count===1))
 })
