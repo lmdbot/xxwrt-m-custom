@@ -312,7 +312,7 @@ const QOS_LABELS = {
 const QOS_ORDER = ['hqos', 'nft-limiter', 'eqos', 'nft-qos', 'sqm', 'qosify', 'qos']
 
 function otherEnabledBackends(backends, selected) {
-  return (backends || []).filter(item => item.id !== selected && item.enabled)
+  return (backends || []).filter(item => item.id !== selected && (item.enabled || item.running))
     .map(item => item.label)
 }
 
@@ -482,7 +482,7 @@ export async function readTerminalSettings(client, device, preferredBackend = ''
     leases: leaseList, networks: knownNetworks(network),
     hqosStatus, hqosRule,
     qosBackends, recommendedBackend: recommended?.id || '',
-    activeQosBackends: descriptors.filter(x => x.enabled).map(x => x.label),
+    activeQosBackends: descriptors.filter(x => x.enabled || x.running).map(x => x.label),
     staticEnabled: Boolean(host?.ip && ipv4Number(host.ip) != null),
     staticIP: host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
   }
@@ -564,9 +564,9 @@ export async function saveTerminalRateLimit(client, device, settings, input) {
       throw new Error('QoS 后端状态已变化，请刷新终端后再保存')
     const changed = (settings.qosBackends || []).some(entry => {
       const next = (latest.qosBackends || []).find(x => x.id === entry.id)
-      return Boolean(entry.enabled) !== Boolean(next?.enabled)
+      return Boolean(entry.enabled || entry.running) !== Boolean(next?.enabled || next?.running)
     }) || (latest.qosBackends || []).some(entry =>
-      !(settings.qosBackends || []).some(old => old.id === entry.id) && entry.enabled)
+      !(settings.qosBackends || []).some(old => old.id === entry.id) && (entry.enabled || entry.running))
     if (changed) throw new Error('检测到其他 QoS 服务状态已变化，请重新加载并确认')
     if (latest.conflicts.length && input.allowConflict !== true)
       throw new Error('其他 QoS 服务已启用（' + latest.conflicts.join('、') +
