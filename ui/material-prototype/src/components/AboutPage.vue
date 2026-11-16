@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import appIcon from '../../assets/qwrt-chibi-openwrt-router.webp'
+import developerAvatar from '../../assets/developer-avatar.webp'
 
 const props = defineProps({
   installedVersion: { type: String, required: true },
@@ -58,7 +59,7 @@ const updateStatus = computed(() => {
         </div>
         <button type="button" class="about-entry" aria-label="查看开发者与项目"
           @click="emit('show-project')">
-          <div class="about-entry-icon"><v-icon icon="mdi-account-code-outline" size="23"/></div>
+          <div class="about-entry-icon about-entry-avatar"><img class="about-developer-image" :src="developerAvatar" alt="开发者头像" width="45" height="45" decoding="async"/></div>
           <div class="about-entry-copy">
             <strong>开发者与项目</strong>
             <small>lmdbot · GitHub 开源项目</small>
@@ -159,6 +160,8 @@ button.about-entry:hover{background:rgba(var(--v-theme-primary),.055)}
 button.about-entry:active{background:rgba(var(--v-theme-primary),.11)}
 .about-entry-static{cursor:default}
 .about-entry-icon{display:flex;align-items:center;justify-content:center;flex:none;width:45px;height:45px;border-radius:14px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary))}
+.about-entry-avatar{overflow:hidden;background:transparent}
+.about-developer-image{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .about-entry-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}
 .about-entry-copy strong{font-size:14px;line-height:1.4;font-weight:700}
 .about-entry-copy small{font-size:12px;line-height:1.45;color:var(--ui-text-muted);overflow-wrap:anywhere}
