@@ -2252,7 +2252,9 @@ onUnmounted(() => {
               <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
               <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
             </header>
-            <div class="v3-section-label">路由器</div>
+            <div class="v3-section-label v3-section-row"><span>路由器</span>
+              <button type="button" class="v3-heading-action" aria-label="打开路由器" @click="openMoreSection('router')">全部 <v-icon icon="mdi-chevron-right" size="17"/></button>
+            </div>
             <div class="more-menu-list">
               <button class="more-menu-item" type="button" aria-label="打开路由器管理" @click="goToDeviceList()">
                 <span class="more-menu-icon"><v-icon icon="mdi-router-wireless" size="25"/></span>
@@ -2265,7 +2267,9 @@ onUnmounted(() => {
                 <v-icon icon="mdi-chevron-right" size="22"/>
               </button>
             </div>
-            <div class="v3-section-label">应用设置</div>
+            <div class="v3-section-label v3-section-row"><span>应用设置</span>
+              <button type="button" class="v3-heading-action" aria-label="打开设置" @click="openMoreSection('settings')">全部 <v-icon icon="mdi-chevron-right" size="17"/></button>
+            </div>
             <div class="more-menu-list">
               <button v-for="category in settingsCategories" :key="category.id" type="button"
                 class="more-menu-item" :aria-label="'打开' + category.title + '设置'"
