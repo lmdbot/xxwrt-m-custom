@@ -4,11 +4,6 @@ name: Design A visual screenshot review (manual)
 # It does not certify a physical Android handset or 100% pixel equivalence.
 on:
   workflow_dispatch:
-  # Temporary branch-only verification. Remove this trigger before merging
-  # so the expensive visual matrix stays strictly manual in main.
-  push:
-    branches: [feature/design-audit-ci-parallel-20261117]
-    paths: ['.github/workflows/design-audit.yml']
 
 permissions:
   contents: read
