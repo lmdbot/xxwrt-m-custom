@@ -820,7 +820,16 @@ const appSearch = ref('')
 const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
-const appCategories = computed(() => groupVisibleApps(visibleLegacyTools.value))
+// V3 presentation groups; preserve legacy favorite IDs and storage for upgrades.
+const v3ToolGroups = [
+  { id: 'plugins', title: '插件中心', icon: 'mdi-puzzle-outline', ids: ['ssr','openclash','lucky','wechatpush','vlmcsd','detector','carbon'] },
+  { id: 'system', title: '系统管理', icon: 'mdi-cog-outline', ids: ['packages','services','process','startup','cron'] },
+  { id: 'diagnostics', title: '诊断与安全', icon: 'mdi-shield-check-outline', ids: ['diagnostics','logs','capabilities','audit','security'] },
+  { id: 'maintenance', title: '维护与备份', icon: 'mdi-backup-restore', ids: ['backup','reboot','reset'] }
+]
+const appCategories = computed(() => v3ToolGroups.map(group => ({
+  ...group, tools: group.ids.map(id => visibleLegacyTools.value.find(tool => tool.id === id)).filter(Boolean)
+})).filter(group => group.tools.length))
 const appSearchResults = computed(() => searchAppTools(visibleLegacyTools.value, appSearch.value))
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
@@ -2248,6 +2257,32 @@ onUnmounted(() => {
           <!-- Connected page errors are shown in the fixed bottom snackbar. -->
 
           <template v-if="activeTab === 'home' || activeTab === 'statistics'">
+            <section v-if="activeTab === 'home'" class="v3-overview-intro">
+              <div class="v3-section-heading"><div><h2>网络概览</h2><p>查看路由器运行状态与常用操作</p></div>
+                <v-chip size="small" :color="connected ? 'success' : 'warning'" variant="tonal">{{ connected ? '已连接' : '未连接' }}</v-chip>
+              </div>
+              <v-card rounded="xl" elevation="0" class="v3-monitor-preview">
+                <div class="v3-section-heading">
+                  <div><h3>实时流量</h3><p>{{ chosenInterface || '自动选择网络接口' }} · 3 秒采样</p></div>
+                  <v-btn color="primary" variant="tonal" size="small" append-icon="mdi-chevron-right"
+                    aria-label="查看详细监控" @click="openDetailedMonitoring">详细监控</v-btn>
+                </div>
+                <div class="v3-rate-values">
+                  <div><span>接收 RX</span><strong>{{ currentRate?.rx || '--' }}</strong></div>
+                  <div><span>发送 TX</span><strong>{{ currentRate?.tx || '--' }}</strong></div>
+                </div>
+                <RealtimeChart v-if="bandwidthHistory.length > 1" :samples="bandwidthHistory.slice(-24)"
+                  :series="rxTxSeries" unit=" KB/s" title="实时流量简图"/>
+                <p v-else class="muted-hint">正在采集实时流量，至少需要两个采样点。</p>
+              </v-card>
+              <div class="v3-section-heading"><h3>快捷操作</h3></div>
+              <div class="v3-quick-actions">
+                <v-btn variant="tonal" prepend-icon="mdi-lan" @click="navigateBottomTab('network')">网络接口</v-btn>
+                <v-btn variant="tonal" prepend-icon="mdi-shield-outline" @click="openToolFromSection('firewall')">防火墙</v-btn>
+                <v-btn variant="tonal" prepend-icon="mdi-earth" @click="openToolFromSection('ddns')">DDNS</v-btn>
+                <v-btn variant="tonal" prepend-icon="mdi-lan-check" @click="openToolFromSection('diagnostics')">网络诊断</v-btn>
+              </div>
+            </section>
             <v-card v-if="snapshot && activeTab === 'home'" rounded="xl" elevation="1" class="device-card">
               <div class="device-heading">
                 <v-avatar color="primary" variant="tonal" rounded="lg" size="52"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
@@ -2395,8 +2430,12 @@ onUnmounted(() => {
           <template v-if="activeTab === 'clients'">
             <div class="terminal-screen">
               <div class="terminal-header">
-                <div><h2>终端设备</h2><p>在线状态按 QWRT 邻居可达性和无线关联判断；灰色表示未确认</p></div>
+                <div><h2>连接设备</h2><p>在线状态按 QWRT 邻居可达性和无线关联判断；灰色表示未确认</p></div>
                 <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
+              </div>
+              <div class="v3-quick-actions v3-device-actions" aria-label="设备管理工具">
+                <v-btn variant="tonal" prepend-icon="mdi-shield-account-outline" @click="openToolFromSection('parental')">家长控制</v-btn>
+                <v-btn variant="tonal" prepend-icon="mdi-lan-connect" @click="openToolFromSection('wol')">网络唤醒</v-btn>
               </div>
               <div class="terminal-category-grid" role="group" aria-label="终端分类">
                 <v-btn
@@ -2483,6 +2522,20 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'network'">
+            <div class="v3-section-heading"><div><h2>网络管理</h2><p>接口、路由、DNS 与网络安全</p></div></div>
+            <div class="v3-network-shortcuts" aria-label="网络配置入口">
+              <button v-for="item in [
+                { id:'routes', name:'路由表', icon:'mdi-routes' },
+                { id:'dnsdhcp', name:'DNS / DHCP', icon:'mdi-dns' },
+                { id:'firewall', name:'防火墙', icon:'mdi-shield-outline' },
+                { id:'ddns', name:'DDNS', icon:'mdi-earth' },
+                { id:'zerotier', name:'ZeroTier', icon:'mdi-lan-connect' }
+              ]" :key="item.id" type="button" class="v3-network-shortcut"
+                :aria-label="'打开' + item.name" @click="openToolFromSection(item.id)">
+                <v-icon :icon="item.icon" color="primary" size="24"/>
+                <span>{{ item.name }}</span><v-icon icon="mdi-chevron-right" size="17"/>
+              </button>
+            </div>
             <v-card rounded="xl" elevation="1" class="network-card mb-4">
               <h2>网络概览</h2>
               <div v-if="snapshot" class="details">
@@ -2598,8 +2651,8 @@ onUnmounted(() => {
 
                   <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
                     <div class="app-hub-section-heading">
-                      <strong>全部功能</strong>
-                      <small>{{ visibleLegacyTools.length }} 项</small>
+                      <strong>工具分类</strong>
+                      <small>{{ appCategories.reduce((n, group) => n + group.tools.length, 0) }} 项</small>
                     </div>
                     <div v-for="category in appCategories" :key="category.id" class="app-category-card">
                       <button type="button" class="app-category-toggle"
