@@ -625,6 +625,7 @@ const terminalCategories = computed(() => [
 const diskData = ref({ available: false, partitions: [], primary: null, temporary: null })
 const chosenInterface = ref('')
 const bandwidthHistory = ref([])
+const monitorLoadExpanded = ref(false)
 const loadHistory = ref([])
 const currentRate = ref(null)
 const telemetryError = ref('')
@@ -2659,58 +2660,65 @@ onUnmounted(() => {
             </div>
 
             <template v-if="snapshot && activeTab === 'statistics'">
-              <div class="v3-monitor-subnav">
-                <div><strong>详细监控</strong><small>实时指标与实际历史采样</small></div>
-                <v-btn color="primary" variant="tonal" size="small" prepend-icon="mdi-chart-line"
-                  @click="launchV3Tool('trends')">30 天长期趋势</v-btn>
-              </div>
-              <v-card class="network-card mt-4" rounded="xl" elevation="1">
-                <div class="section-heading"><h2>实时带宽</h2>
-                  <v-chip color="primary" variant="tonal" size="small">3 秒采样</v-chip>
+              <section class="v3-design-a-monitor">
+                <header class="v3-design-a-hero">
+                  <h2>详细监控</h2>
+                  <p>WAN · 基于接口计数器的真实采样</p>
+                </header>
+                <div class="v3-monitor-kpis">
+                  <div><small>RX</small><strong>{{ currentRate?.rx || '--' }}</strong></div>
+                  <div><small>TX</small><strong>{{ currentRate?.tx || '--' }}</strong></div>
+                  <div><small>平均</small><strong>{{ bandwidthSummary?.rxAverage ?? '--' }}</strong></div>
+                  <div><small>峰值</small><strong>{{ bandwidthSummary?.rxPeak ?? '--' }}</strong></div>
                 </div>
-                <v-select v-model="chosenInterface" label="选择网络接口" variant="outlined"
-                  density="compact" hide-details="auto" :items="availableInterfaces"
-                  item-title="title" item-value="value" class="mt-2 mb-3" :disabled="!availableInterfaces.length"/>
-                <div class="bandwidth-kpis">
-                  <div>
-                    <span>接收 RX · 当前</span>
-                    <strong>{{ currentRate?.rx || '--' }}</strong>
-                    <small>平均 {{ bandwidthSummary?.rxAverage ?? '--' }}</small>
-                    <small>峰值 {{ bandwidthSummary?.rxPeak ?? '--' }}</small>
+                <v-card class="v3-monitor-traffic-card network-card" rounded="xl" elevation="1">
+                  <div class="v3-rates">
+                    <span>↓ 接收 RX　{{ currentRate?.rx || '--' }}</span>
+                    <span>↑ 发送 TX　{{ currentRate?.tx || '--' }}</span>
                   </div>
-                  <div>
-                    <span>发送 TX · 当前</span>
-                    <strong>{{ currentRate?.tx || '--' }}</strong>
-                    <small>平均 {{ bandwidthSummary?.txAverage ?? '--' }}</small>
-                    <small>峰值 {{ bandwidthSummary?.txPeak ?? '--' }}</small>
+                  <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
+                    :series="rxTxSeries" unit=" KB/s" title="实时网络带宽曲线"/>
+                  <p v-else class="v3-monitor-unknown">
+                    {{ telemetryError || '正在等待至少两次真实流量采样，不显示模拟曲线。' }}
+                  </p>
+                </v-card>
+                <h3 class="v3-design-a-section-title">系统运行</h3>
+                <div class="v3-feature-list v3-design-a-entry-list">
+                  <button type="button" @click="launchV3Tool('trends')">
+                    <v-icon icon="mdi-chart-line" color="primary"/>
+                    <span><strong>长期趋势</strong><small>30 天有效本机采样</small></span>
+                    <v-icon icon="mdi-chevron-right"/>
+                  </button>
+                  <button type="button" :aria-expanded="monitorLoadExpanded"
+                    @click="monitorLoadExpanded = !monitorLoadExpanded">
+                    <v-icon icon="mdi-chart-bell-curve-cumulative" color="primary"/>
+                    <span><strong>系统负载</strong><small>1 / 5 / 15 分钟负载</small></span>
+                    <v-icon :icon="monitorLoadExpanded ? 'mdi-chevron-up' : 'mdi-chevron-right'"/>
+                  </button>
+                </div>
+                <v-card v-if="monitorLoadExpanded" rounded="xl" variant="outlined"
+                  class="network-card mt-3">
+                  <RealtimeChart v-if="loadHistory.length" :samples="loadHistory"
+                    :series="loadSeries" title="系统负载历史曲线"/>
+                  <p v-else class="muted-hint">正在采集 system.info 负载信息</p>
+                  <div class="details mt-3">
+                    <div><span>在线终端数</span><strong>{{ snapshot.users }}</strong></div>
+                    <div><span>CPU 平均负载</span><strong>{{ snapshot.load }}</strong></div>
+                    <div><span>温度</span><strong>{{ snapshot.temperature }}</strong></div>
                   </div>
-                </div>
-                <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
-                  :series="rxTxSeries" unit=" KB/s" title="实时网络带宽曲线"/>
-                <v-alert v-else class="mt-3" type="info" density="compact" variant="tonal">
-                  {{ telemetryError || '正在采集接口字节计数器，至少需要两个采样点才能计算速率' }}
-                </v-alert>
-              </v-card>
-              <v-card class="network-card mt-4" rounded="xl" elevation="1">
-                <div class="section-heading"><h2>系统负载历史</h2>
-                  <v-chip variant="tonal" size="small">1 / 5 / 15 分钟</v-chip>
-                </div>
-                <RealtimeChart v-if="loadHistory.length" :samples="loadHistory"
-                  :series="loadSeries" title="系统负载历史曲线"/>
-                <p v-else class="muted-hint">正在采集 system.info 负载信息</p>
-              </v-card>
+                </v-card>
+                <details class="v3-monitor-interface-selector">
+                  <summary>选择采样接口 <span>{{ chosenInterface || '自动选择' }}</span>
+                    <v-icon icon="mdi-chevron-down" size="18"/></summary>
+                  <v-select v-model="chosenInterface" label="网络接口" variant="outlined"
+                    density="compact" hide-details="auto" :items="availableInterfaces"
+                    item-title="title" item-value="value" class="mt-2"
+                    :disabled="!availableInterfaces.length"/>
+                </details>
+                <p class="v3-monitor-sampling-note">APP 未运行或未连接时不会补造历史样本。</p>
+              </section>
             </template>
 
-            <v-card v-if="snapshot && activeTab === 'statistics'" class="mt-4 network-card" rounded="xl" elevation="1">
-              <h2>系统与连接</h2>
-              <div class="details">
-                <div><span>在线终端数</span><strong>{{ snapshot.users }}</strong></div>
-                <div><span>CPU 平均负载</span><strong>{{ snapshot.load }}</strong></div>
-                <div><span>温度</span><strong>{{ snapshot.temperature }}</strong></div>
-                <div><span>LAN IP</span><strong>{{ snapshot.lanIp }}</strong></div>
-                <div><span>WAN IP</span><strong>{{ snapshot.wanIp }}</strong></div>
-              </div>
-            </v-card>
             <v-skeleton-loader v-if="!snapshot" type="card,article,article"/>
           </template>
 
