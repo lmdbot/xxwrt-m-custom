@@ -463,7 +463,7 @@ test('read-only QoS service can never pass an edit operation', async () => {
   const original = await readTerminalSettings(api, device)
   const settings = selectTerminalQosBackend(original, 'sqm')
   await assert.rejects(saveTerminalRateLimit(api, device, settings,
-    { upload: '100', download: '200' }), /当前路由器没有可用|没有可用的终端/)
+    { upload: '100', download: '200' }), /暂不支持按终端配置|没有可用的终端/)
   assert.equal(api.calls.filter(x => x.object === 'uci' &&
     ['add', 'set', 'delete', 'commit'].includes(x.method)).length, 0)
 })
