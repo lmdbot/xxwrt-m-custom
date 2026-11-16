@@ -3,7 +3,7 @@ name: XX-WRT Material Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [feature/material-ui, main]
+    branches: [feature/material-ui, feature/xxwrt-v3-redesign, main]
     paths:
       - "ui/material-prototype/**"
       - "docs/releases/**"
@@ -229,6 +229,9 @@ jobs:
           retention-days: 30
 
       - name: Publish Material APK release
+        # V3 feature branch builds a signed APK artifact for acceptance testing,
+        # but must not create a public release before it is merged to main.
+        if: github.ref_name != 'feature/xxwrt-v3-redesign'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
