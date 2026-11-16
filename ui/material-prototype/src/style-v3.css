@@ -931,3 +931,28 @@
   .xxwrt-v3 .v3-monitor-kpis>div{padding:9px 5px}
   .xxwrt-v3 .v3-monitor-kpis strong{font-size:12px}
 }
+
+
+/* My: the prototype uses a compact text-only gradient hero, then grouped rows. */
+.xxwrt-v3 .v3-me-profile{display:flex;align-items:center;
+  min-height:82px;padding:15px!important;border-radius:20px!important;
+  background:linear-gradient(128deg,#daefff,#e6e6ff)!important;
+  border:1px solid var(--ui-border);
+  box-shadow:0 10px 30px rgba(36,74,120,.05)}
+.xxwrt-v3 .v3-me-profile h2{font-size:17px;font-weight:700;line-height:1.4;
+  color:#183150}
+.xxwrt-v3 .v3-me-profile p{font-size:12px;line-height:1.55;color:#627994}
+.xxwrt-v3 .v3-me-page .v3-me-directory{border-radius:18px;
+  border:1px solid var(--ui-border);overflow:hidden;background:var(--ui-surface)}
+.xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-item{
+  min-height:65px;padding:9px 6px;gap:12px}
+.xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-icon{
+  width:40px;height:40px;min-width:40px;display:grid;place-items:center;
+  border-radius:13px;background:var(--ui-surface-2);color:var(--ui-primary)}
+.xxwrt-v3 .v3-me-page .more-menu-copy strong{font-size:13px;font-weight:700}
+.xxwrt-v3 .v3-me-page .more-menu-copy small{font-size:11px;line-height:1.4}
+.xxwrt-v3 .v3-me-session-actions{margin:16px 0 0}
+.xxwrt-v3.theme-is-dark .v3-me-profile{
+  background:linear-gradient(128deg,#25486c,#27344f)!important}
+.xxwrt-v3.theme-is-dark .v3-me-profile h2{color:#eef7ff}
+.xxwrt-v3.theme-is-dark .v3-me-profile p{color:#aab9ce}
