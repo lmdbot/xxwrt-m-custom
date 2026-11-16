@@ -2641,13 +2641,35 @@ onUnmounted(() => {
                 ]" v-show="option.id !== 'offline' || option.count > 0 || terminalOnlineFilter === 'offline'" :key="option.id" type="button"
                   :class="{ 'is-selected': terminalOnlineFilter === option.id }"
                   :aria-pressed="terminalOnlineFilter === option.id"
-                  @click="terminalOnlineFilter = option.id">{{ option.label }} {{ option.count }}</button>
+                  @click="terminalOnlineFilter = option.id">{{ option.label }}</button>
               </div>
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
                 aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
                 @click:clear="clientSearch = ''"
                 @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
+              <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="已发现终端列表">
+                <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip || item.ip6"
+                  :item="item" design-a @click="openTerminal(item)"/>
+              </div>
+              <v-empty-state v-else-if="clientSearch || terminalOnlineFilter !== 'all'" icon="mdi-magnify-close"
+                title="没有匹配的终端" text="请调整在线状态、数据来源或搜索条件"/>
+              <v-alert v-else-if="terminalView === 'wireless' && !wifiClientData.available"
+                type="info" variant="tonal" density="compact">
+                无法读取 Wi-Fi 关联信息：路由器可能没有无线射频，或当前账号缺少 iwinfo RPC 权限。
+              </v-alert>
+              <v-alert v-else-if="terminalView === 'oaf' && !appFilterUsers.available"
+                type="info" variant="tonal" density="compact">
+                无法读取应用用户：请检查 OpenAppFilter 是否安装，以及当前账号的 RPC 权限。
+              </v-alert>
+              <v-empty-state v-else icon="mdi-devices"
+                :title="terminalView === 'all' ? '暂无已发现终端' : '此来源暂无终端'"
+                :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
+                  ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
+                  : '没有对应来源的记录；租约不等于在线状态'"/>
+              <p class="v3-client-evidence-note">在线状态基于无线关联与邻居可达等证据，DHCP 租约不代表设备在线。</p>
+              <details class="v3-client-source-details">
+                <summary>数据来源筛选 <span>{{ terminalCategories.find(c => c.value === terminalView)?.label || '全部终端' }}</span><v-icon icon="mdi-chevron-down" size="18"/></summary>
               <div class="terminal-category-grid" role="group" aria-label="终端来源分类">
                 <v-btn
                   v-for="category in terminalCategories"
@@ -2680,26 +2702,7 @@ onUnmounted(() => {
                   </div>
                 </v-btn>
               </div>
-              <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="已发现终端列表">
-                <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip || item.ip6"
-                  :item="item" @click="openTerminal(item)"/>
-              </div>
-              <v-empty-state v-else-if="clientSearch || terminalOnlineFilter !== 'all'" icon="mdi-magnify-close"
-                title="没有匹配的终端" text="请调整在线状态、数据来源或搜索条件"/>
-              <v-alert v-else-if="terminalView === 'wireless' && !wifiClientData.available"
-                type="info" variant="tonal" density="compact">
-                无法读取 Wi-Fi 关联信息：路由器可能没有无线射频，或当前账号缺少 iwinfo RPC 权限。
-              </v-alert>
-              <v-alert v-else-if="terminalView === 'oaf' && !appFilterUsers.available"
-                type="info" variant="tonal" density="compact">
-                无法读取应用用户：请检查 OpenAppFilter 是否安装，以及当前账号的 RPC 权限。
-              </v-alert>
-              <v-empty-state v-else icon="mdi-devices"
-                :title="terminalView === 'all' ? '暂无已发现终端' : '此来源暂无终端'"
-                :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
-                  ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
-                  : '没有对应来源的记录；租约不等于在线状态'"/>
-              <p class="v3-client-evidence-note">在线状态基于无线关联与邻居可达等证据，DHCP 租约不代表设备在线。</p>
+              </details>
             </div>
             <div class="v3-section-label v3-client-management-title">设备管理</div>
             <div class="v3-feature-list v3-client-management v3-inline-links">
@@ -2776,11 +2779,6 @@ onUnmounted(() => {
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
               <div class="app-hub">
-                <div class="app-launcher-heading">
-                  <h2>工具箱</h2>
-                  <p>{{ installedRouterAppsLoading ? '正在检查插件能力…' : '常用快捷入口 · 插件 · 系统管理 · 安全诊断' }}</p>
-                </div>
-
                 <v-text-field v-model="appSearch" class="app-hub-search"
                   aria-label="搜索应用或功能" placeholder="搜索功能、插件或配置"
                   clearable hide-details variant="outlined" density="compact"/>
@@ -2810,7 +2808,7 @@ onUnmounted(() => {
                         aria-label="编辑常用应用" @click="favoriteEditorOpen = true">编辑</v-btn>
                     </div>
                     <div class="app-favorites-grid">
-                      <button v-for="tool in favoriteTools" :key="tool.id" type="button"
+                      <button v-for="tool in favoriteTools.slice(0, 4)" :key="tool.id" type="button"
                         class="app-favorite-tile" :aria-label="'打开' + tool.title"
                         @click="launchV3Tool(tool.id)">
                         <v-avatar rounded="lg" size="44" color="primary" variant="tonal">
@@ -2818,15 +2816,9 @@ onUnmounted(() => {
                         </v-avatar>
                         <span>{{ tool.title }}</span>
                       </button>
-                      <button type="button" class="app-favorite-tile is-more"
-                        aria-label="展开全部应用" @click="expandAllAppCategories">
-                        <v-avatar rounded="lg" size="44" color="secondary" variant="tonal">
-                          <v-icon icon="mdi-apps" size="23"/>
-                        </v-avatar>
-                        <span>全部应用</span>
-                      </button>
                     </div>
                     <p v-if="!favoriteTools.length" class="app-hub-hint">暂无常用应用，点击编辑添加。</p>
+                    <p v-if="favoriteTools.length > 4" class="app-hub-hint">其余常用功能可从分类工具或搜索进入。</p>
                   </section>
 
                   <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
