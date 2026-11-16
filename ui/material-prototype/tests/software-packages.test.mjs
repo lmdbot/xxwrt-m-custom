@@ -96,6 +96,25 @@ test('only supported commands reach the fixed package-manager executable', async
   assert.equal(calls.length, 1)
 })
 
+
+test('advanced package-manager flags only accept LuCI-approved destructive options', async () => {
+  const calls = []
+  const client = { callTimed: async (_obj, _method, args) => {
+    calls.push(args.params)
+    return { code: 0, stdout: '{"code":0,"stdout":"OK"}' }
+  } }
+  await runPackageAction(client, 'install', ['luci-app-demo'], 'opkg', ['--force-overwrite'])
+  await runPackageAction(client, 'remove', ['luci-app-demo'], 'opkg',
+    ['--autoremove', '--force-removal-of-dependent-packages'])
+  assert.deepEqual(calls[0], ['install', '--force-overwrite', 'luci-app-demo'])
+  assert.deepEqual(calls[1],
+    ['remove', '--autoremove', '--force-removal-of-dependent-packages', 'luci-app-demo'])
+  await assert.rejects(() => runPackageAction(client, 'install', ['x'], 'opkg', ['--force-depends']))
+  await assert.rejects(() => runPackageAction(client, 'update', [], 'opkg', ['--force-overwrite']))
+  await assert.rejects(() => runPackageAction(client, 'remove', ['x'], 'opkg', ['--autoremove','--autoremove']))
+  assert.equal(calls.length, 2)
+})
+
 test('nonzero package-manager exit codes and malformed results never report success', async () => {
   const client = { callTimed: async () => ({
     code: 0, stdout: '{"code":1,"stderr":"packages not found"}'
