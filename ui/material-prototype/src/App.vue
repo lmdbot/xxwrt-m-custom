@@ -33,6 +33,7 @@ import NetworkInterfacesPanel from './components/NetworkInterfacesPanel.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
+import AboutPage from './components/AboutPage.vue'
 import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
@@ -158,6 +159,10 @@ const isNative = Capacitor.isNativePlatform()
 const UiChrome = registerPlugin('UiChrome')
 const ApkDownloader = registerPlugin('ApkDownloader')
 const installedVersion = ref(packageInfo.version)
+const installedBuild = ref('')
+const installedPackageId = ref('com.lmdbot.xxwrt.materialpreview')
+const versionDetailsDialog = ref(false)
+const privacyDialog = ref(false)
 const latestRelease = shallowRef(null)
 const updateChecking = ref(false)
 const updateChecked = ref(false)
@@ -260,6 +265,29 @@ async function cancelApkDownload() {
   if (!downloadBusy.value || !isNative) return
   try { await ApkDownloader.cancel() }
   catch (error) { updateError.value = '无法取消下载：' + shortError(error) }
+}
+
+async function copyAboutVersion() {
+  const details = ['XX-WRT v' + installedVersion.value,
+    installedBuild.value ? 'Build ' + installedBuild.value : '',
+    installedPackageId.value].filter(Boolean).join('\n')
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(details)
+    else {
+      const field = document.createElement('textarea')
+      field.value = details
+      field.style.position = 'fixed'
+      field.style.opacity = '0'
+      document.body.appendChild(field)
+      field.select()
+      try {
+        if (!document.execCommand('copy')) throw new Error('clipboard unavailable')
+      } finally { field.remove() }
+    }
+    updateNotice.value = '已复制 APP 版本信息'
+  } catch (_) {
+    updateNotice.value = '复制失败，可在版本详情中长按选择文字'
+  }
 }
 
 async function checkAppUpdates({ automatic = false } = {}) {
@@ -1124,6 +1152,8 @@ function onDrawerEdgeTouchEnd(event) {
 async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
   if (releaseNotesDialog.value) { releaseNotesDialog.value = false; return 'dialog' }
+  if (versionDetailsDialog.value) { versionDetailsDialog.value = false; return 'dialog' }
+  if (privacyDialog.value) { privacyDialog.value = false; return 'dialog' }
   if (openSourceDialog.value) { openSourceDialog.value = false; return 'dialog' }
   if (factoryDialog.value) { factoryDialog.value = false; return 'dialog' }
   if (confirmReboot.value) { confirmReboot.value = false; return 'dialog' }
@@ -1815,6 +1845,8 @@ onMounted(() => {
       try {
         const appInfo = await CapacitorApp.getInfo()
         if (parseAppVersion(appInfo.version)) installedVersion.value = appInfo.version
+        if (appInfo.build) installedBuild.value = String(appInfo.build)
+        if (appInfo.id) installedPackageId.value = String(appInfo.id)
       } catch (_) { /* The embedded package version is the fallback. */ }
     }
     await checkAppUpdates({ automatic: true })
@@ -2098,56 +2130,25 @@ onUnmounted(() => {
             </template>
 
             <template v-else-if="settingsCategory === 'about'">
-              <v-card rounded="xl" elevation="1" class="settings-option-card">
-                <div class="settings-option-heading">
-                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-update" size="23"/></v-avatar>
-                  <div><h2>版本与更新</h2><p>优先检查阿里云正式版，服务不可用时使用 GitHub 备用接口。</p></div>
-                </div>
-                <div class="settings-detail-row"><span>当前安装版本</span><strong>v{{ installedVersion }}</strong></div>
-                <div v-if="latestRelease" class="settings-detail-row"><span>最新正式版本</span><strong>v{{ latestRelease.version }}</strong></div>
-                <div v-if="latestRelease" class="settings-detail-row"><span>更新来源</span><strong>{{ latestRelease.source === 'mirror' ? '阿里云' : 'GitHub 备用' }}</strong></div>
-                <v-alert v-if="!updateError && updateAvailable && latestRelease?.apkUrl" type="success" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，可下载正式版 APK。</v-alert>
-                <v-alert v-else-if="!updateError && updateAvailable" type="warning" variant="tonal" density="compact" class="mb-3">发现新版本 v{{ latestRelease.version }}，但此 Release 暂无匹配的 Material APK。</v-alert>
-                <v-alert v-else-if="!updateError && updateChecked" type="info" variant="tonal" density="compact" class="mb-3">{{ latestRelease ? '当前已是最新版' : '暂未找到有效的正式 Release' }}</v-alert>
-                <div v-if="downloadBusy" class="mt-3 mb-2" role="status">
-                  <div class="d-flex justify-space-between mb-2">
-                    <span>正在下载并校验更新包</span><strong>{{ downloadPercent }}%</strong>
-                  </div>
-                  <v-progress-linear :model-value="downloadPercent" height="9" rounded color="primary"/>
-                  <p class="text-caption text-medium-emphasis mt-2">{{ downloadProgressText }}</p>
-                </div>
-                <div class="settings-actions">
-                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" :loading="updateChecking" :disabled="downloadBusy" @click="checkAppUpdates">检查更新</v-btn>
-                  <v-btn v-if="updateAvailable && latestRelease?.apkUrl" color="primary" prepend-icon="mdi-download"
-                    :disabled="downloadBusy" @click="downloadLatestApk">{{ isNative ? '下载并安装' : '下载最新 APK' }}</v-btn>
-                  <v-btn v-if="downloadBusy && isNative" variant="outlined" color="warning" @click="cancelApkDownload">取消下载</v-btn>
-                  <v-btn v-if="downloadedApkReady && isNative && !downloadBusy" variant="outlined"
-                    prepend-icon="mdi-package-up" @click="installDownloadedApk">重新打开安装</v-btn>
-                  <v-btn variant="outlined" prepend-icon="mdi-text-box-outline" :loading="releaseNotesLoading"
-                     @click="showLatestReleaseNotes">版本日志</v-btn>
-                </div>
-              </v-card>
-              <v-card rounded="xl" elevation="1" class="settings-option-card">
-                <div class="settings-option-heading">
-                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-help-circle-outline" size="23"/></v-avatar>
-                  <div><h2>帮助与反馈</h2><p>查看已知问题、反馈故障或提出功能建议。</p></div>
-                </div>
-                <v-btn variant="outlined" block prepend-icon="mdi-bug-outline" @click="showIssuesPage">查看问题与反馈（Issues）</v-btn>
-              </v-card>
-              <v-card rounded="xl" elevation="1" class="settings-option-card">
-                <div class="settings-option-heading">
-                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-scale-balance" size="23"/></v-avatar>
-                  <div><h2>开源许可证</h2><p>原创代码采用 MIT License，第三方组件保留各自授权声明。</p></div>
-                </div>
-                <v-btn variant="outlined" block prepend-icon="mdi-text-box-multiple-outline" @click="openSourceDialog = true">查看开源许可证</v-btn>
-              </v-card>
-              <v-card rounded="xl" elevation="1" class="settings-option-card">
-                <div class="settings-option-heading">
-                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-heart-outline" size="23"/></v-avatar>
-                  <div><h2>支持项目</h2><p>查看源代码、提交问题或参与项目改进。</p></div>
-                </div>
-                <v-btn variant="outlined" block prepend-icon="mdi-github" @click="showProjectPage">打开 GitHub 项目</v-btn>
-              </v-card>
+              <AboutPage :installed-version="installedVersion" :installed-build="installedBuild"
+                :update-state="{
+                  latestRelease, available: updateAvailable, checking: updateChecking,
+                  checked: updateChecked, error: updateError, notice: updateNotice,
+                  downloading: downloadBusy, percent: downloadPercent,
+                  progressText: downloadProgressText, downloadedApkReady,
+                  releaseNotesLoading, isNative
+                }"
+                @show-version-details="versionDetailsDialog = true"
+                @copy-version="copyAboutVersion"
+                @check-updates="checkAppUpdates()"
+                @download-latest="downloadLatestApk"
+                @cancel-download="cancelApkDownload"
+                @install-downloaded="installDownloadedApk"
+                @show-release-notes="showLatestReleaseNotes"
+                @show-project="showProjectPage"
+                @show-issues="showIssuesPage"
+                @show-licenses="openSourceDialog = true"
+                @show-privacy="privacyDialog = true"/>
             </template>
           </section>
         </template>
@@ -2770,6 +2771,45 @@ onUnmounted(() => {
       </div>
     </div>
     <OpenSourceLicensesDialog v-model="openSourceDialog"/>
+    <v-dialog v-model="versionDetailsDialog" max-width="440" aria-label="应用版本详情">
+      <v-card rounded="xl" class="about-info-dialog">
+        <v-card-title class="d-flex align-center ga-2">
+          <v-icon icon="mdi-information-outline" color="primary"/>应用版本详情
+        </v-card-title>
+        <v-card-text>
+          <div class="settings-detail-row"><span>应用名称</span><strong>XX-WRT</strong></div>
+          <div class="settings-detail-row"><span>版本号</span><strong>v{{ installedVersion }}</strong></div>
+          <div class="settings-detail-row"><span>构建号</span><strong>{{ installedBuild || '仅 Android 安装包可查询' }}</strong></div>
+          <div class="settings-detail-row"><span>应用包名</span><strong class="about-package-id" data-localize-ignore>{{ installedPackageId }}</strong></div>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" prepend-icon="mdi-content-copy" @click="copyAboutVersion">复制版本信息</v-btn>
+          <v-spacer/>
+          <v-btn color="primary" variant="tonal" @click="versionDetailsDialog = false">关闭</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="privacyDialog" max-width="560" scrollable aria-label="隐私与免责声明">
+      <v-card rounded="xl" class="about-info-dialog">
+        <v-card-title class="d-flex align-center ga-2">
+          <v-icon icon="mdi-shield-check-outline" color="primary"/>隐私与免责声明
+        </v-card-title>
+        <v-card-text class="about-privacy-copy">
+          <h3>本地存储</h3>
+          <p>已保存路由器的名称、管理地址、用户名及界面偏好保存在本机。Android 版仅在用户选择记住密码时，通过系统安全存储保存密码；不会把路由器密码写入普通的本地存储。</p>
+          <h3>网络访问</h3>
+          <p>路由器状态查询及管理操作通过用户配置的路由器地址进行。更新检查会访问阿里云版本服务，在不可用时访问 GitHub；点击项目或反馈入口会打开相应网站。</p>
+          <h3>安全提示</h3>
+          <p>使用 HTTP 管理地址、忽略 TLS 证书错误或开放远程管理入口均可能增加风险。涉及路由器配置修改时，请确认权限并提前备份。下载更新后仍需经过 Android 系统安装确认。</p>
+          <h3>免责声明</h3>
+          <p>本应用按现状提供路由管理功能，操作效果取决于设备固件、插件及授权。使用前请核实操作影响；第三方组件分别遵守其开源许可与使用条款。</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn color="primary" variant="tonal" @click="privacyDialog = false">关闭</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
     <v-dialog v-model="selectedClient" max-width="480" :persistent="terminalSaving">
       <v-card v-if="selectedClient" rounded="xl">
         <v-card-title class="d-flex align-center ga-2">
