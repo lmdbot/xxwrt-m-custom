@@ -291,16 +291,66 @@ export async function saveHqosClient(client, device, settings, input) {
     : 'HQoS 客户端限额已清除；其他客户端规则保持不变', status: result }
 }
 
-export async function readTerminalSettings(client, device) {
+
+// All detected backend entries are kept separate. A configured service is
+// NOT necessarily running: missing runtime information remains "unknown".
+const QOS_LABELS = {
+  hqos: 'QWRT HQoS', 'nft-limiter': 'NFT Limiter',
+  eqos: 'EQOS', 'nft-qos': 'NFT QoS', sqm: 'SQM / CAKE',
+  qosify: 'QoSify', qos: 'QoS Scripts'
+}
+const QOS_ORDER = ['hqos', 'nft-limiter', 'eqos', 'nft-qos', 'sqm', 'qosify', 'qos']
+
+function otherEnabledBackends(backends, selected) {
+  return (backends || []).filter(item => item.id !== selected && item.enabled)
+    .map(item => item.label)
+}
+
+// A selected editor can never be used to write to a different UCI backend.
+// "Detected but not writable" backends remain selectable for inspection.
+export function selectTerminalQosBackend(settings, choice = '') {
+  const entries = settings.qosBackends || []
+  const byId = new Map(entries.map(entry => [entry.id, entry]))
+  const selected = choice && byId.has(choice) ? choice : choice ? '' : (settings.recommendedBackend || '')
+  const current = byId.get(selected)
+  return {
+    ...settings,
+    selectedBackend: selected,
+    backend: current?.writable ? current.id : '',
+    backendWritable: Boolean(current?.writable),
+    backendLabel: current?.label || '',
+    rates: current?.rates || { upload: null, download: null },
+    connections: current?.connections ?? null,
+    reason: current?.reason || (current ? '此后端只提供状态检测，请到 Web 管理界面编辑'
+      : '未检测到可管理的单终端 QoS 后端'),
+    conflicts: otherEnabledBackends(entries, selected),
+    qosUnit: current?.unit || '',
+    qosSelectedStatus: current || null
+  }
+}
+
+function configuredService(config) {
+  return Boolean(config?.values && Object.values(config.values).some(v => v && typeof v === 'object' && v['.type']))
+}
+
+function genericEnabled(config, service) {
+  if (service?.running === true) return true
+  return Boolean(config?.values && Object.values(config.values).some(
+    v => v && typeof v === 'object' && (v.enabled === '1' || v.enable === '1')))
+}
+
+export async function readTerminalSettings(client, device, preferredBackend = '') {
   const mac = validMac(device?.mac)
   const ip = ipv4Number(device?.ip) == null ? '' : String(device.ip)
-  const [dhcp, eqos, nftLimiter, nftQos, hqos, network, leases, services] = await client.batch([
+  const [dhcp, eqos, nftLimiter, nftQos, hqos, sqm, qosify, qos, network, leases, services] = await client.batch([
     ['uci', 'get', { config: 'dhcp' }],
     ['uci', 'get', { config: 'eqos' }],
     ['uci', 'get', { config: 'nft-limiter' }],
     ['uci', 'get', { config: 'nft-qos' }],
-    // QWRT's independent MAC-based HQoS backend: discover, never mutate.
     ['uci', 'get', { config: 'hqos' }],
+    ['uci', 'get', { config: 'sqm' }],
+    ['uci', 'get', { config: 'qosify' }],
+    ['uci', 'get', { config: 'qos' }],
     ['network.interface', 'dump'],
     ['luci-rpc', 'getDHCPLeases'],
     ['rc', 'list']
@@ -345,59 +395,87 @@ export async function readTerminalSettings(client, device) {
       hqosStatus.error = String(error?.message || error).slice(0, 450)
     }
   }
-  // Choose an already configured and enabled backend. Never silently switch
-  // the router's traffic control subsystem or enable it behind the user's back.
-  let backend = ''
-  let reason = '未检测到受支持的单终端限速服务（nft-limiter / EQOS / nft-qos）'
-  let qosConfig = null
-  if (configSections(nftLimiter, 'nft-limiter').length) {
-    if (services?.['nft-limiter']?.running === true) {
-      backend = 'nft-limiter'
-      qosConfig = nftLimiter
-    } else reason = 'NFT Limiter 已安装但未运行，请先在路由器 Web 端启用'
-  } else if (eqosGlobal) {
-    if (String(eqosGlobal.enabled) === '1') {
-      backend = 'eqos'
-      qosConfig = eqos
-    } else reason = 'EQOS 服务未启用，请先在 Web 管理端开启'
-  } else if (nftDefault) {
-    if (String(nftDefault.limit_enable) !== '1') reason = 'nft-qos 单终端限速未启用'
-    else if (String(nftDefault.limit_type || 'static') !== 'static') reason = 'nft-qos 当前使用动态模式，不支持编辑单终端静态规则'
-    else {
-      backend = 'nft-qos'
-      qosConfig = nftQos
-    }
-  }
-  // HQoS is MAC-based and can coexist with older IP-based packages. If
-  // globally enabled it wins; when disabled prefer an active legacy backend.
-  if (hqosStatus.installed && (hqosStatus.enabled || !backend)) {
-    if (hqosStatus.rpcReady && hqosStatus.supported && hqosStatus.maxRate > 0) {
-      backend = 'hqos'
-      reason = hqosStatus.enabled ? '' :
-        'HQoS 当前未启用；保存非零规则会自动启用全局 HQoS，需二次确认'
-    } else {
-      backend = ''
-      reason = hqosStatus.error
-        ? '已安装 HQoS，但无法读取原生 RPC：' + hqosStatus.error
-        : '已安装 HQoS，但所选硬件/CPU 后端不可用，请检查 Web 端后端设置'
-    }
-  }
   const activeIP = host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
-  const rates = backend === 'hqos'
-    ? { upload: hqosRule?.upload ?? 0, download: hqosRule?.download ?? 0 }
-    : backend && activeIP ? readableRates(qosConfig, backend, activeIP)
-      : { upload: null, download: null }
-  return {
+  const nftLimiterInstalled = configSections(nftLimiter, 'nft-limiter').length > 0
+  const eqosInstalled = Boolean(eqosGlobal)
+  const nftQosInstalled = Boolean(nftDefault)
+  const nftLimiterRunning = services?.['nft-limiter']?.running === true
+  const nftQosEnabled = String(nftDefault?.limit_enable || '0') === '1'
+  const nftQosStatic = String(nftDefault?.limit_type || 'static') === 'static'
+
+  const descriptors = []
+  if (hqosStatus.installed) {
+    const writable = hqosStatus.rpcReady && hqosStatus.supported && hqosStatus.maxRate > 0
+    descriptors.push({
+      id: 'hqos', label: QOS_LABELS.hqos, installed: true,
+      enabled: hqosStatus.enabled, running: hqosStatus.running,
+      runtimeKnown: true, writable, unit: 'kbps', macBased: true,
+      maxRate: hqosStatus.maxRate, connections: hqosRule?.connections ?? 0,
+      rates: { upload: hqosRule?.upload ?? 0, download: hqosRule?.download ?? 0 },
+      reason: !writable
+        ? (hqosStatus.error || 'HQoS 原生 RPC 不可用或选定内核后端不支持')
+        : hqosStatus.enabled ? '' : 'HQoS 未启用，保存非零限额会开启全局服务'
+    })
+  }
+  if (nftLimiterInstalled) descriptors.push({
+    id: 'nft-limiter', label: QOS_LABELS['nft-limiter'],
+    installed: true, enabled: nftLimiterRunning, running: nftLimiterRunning,
+    runtimeKnown: true, writable: nftLimiterRunning, unit: 'Mbps', macBased: false,
+    rates: activeIP ? readableRates(nftLimiter, 'nft-limiter', activeIP) : { upload: null, download: null },
+    reason: nftLimiterRunning ? '' : 'NFT Limiter 当前未运行，请在 Web 端启用'
+  })
+  if (eqosInstalled) descriptors.push({
+    id: 'eqos', label: QOS_LABELS.eqos, installed: true,
+    enabled: String(eqosGlobal.enabled) === '1',
+    running: services?.eqos?.running === true,
+    runtimeKnown: typeof services?.eqos?.running === 'boolean',
+    writable: String(eqosGlobal.enabled) === '1', unit: 'Mbps', macBased: false,
+    rates: activeIP ? readableRates(eqos, 'eqos', activeIP) : { upload: null, download: null },
+    reason: String(eqosGlobal.enabled) === '1' ? '' : 'EQOS 配置为关闭，请在 Web 端开启'
+  })
+  if (nftQosInstalled) descriptors.push({
+    id: 'nft-qos', label: QOS_LABELS['nft-qos'], installed: true,
+    enabled: nftQosEnabled,
+    running: services?.['nft-qos']?.running === true,
+    runtimeKnown: typeof services?.['nft-qos']?.running === 'boolean',
+    writable: nftQosEnabled && nftQosStatic, unit: 'Mbps', macBased: false,
+    rates: activeIP ? readableRates(nftQos, 'nft-qos', activeIP) : { upload: null, download: null },
+    reason: !nftQosEnabled ? 'nft-qos 未启用' : nftQosStatic ? '' :
+      'nft-qos 使用动态限速模式，无法在此编辑静态终端规则'
+  })
+  for (const [id, config, service] of [
+    ['sqm', sqm, services?.sqm], ['qosify', qosify, services?.qosify], ['qos', qos, services?.qos]
+  ]) {
+    if (!configuredService(config) && !service) continue
+    const enabled = genericEnabled(config, service)
+    descriptors.push({
+      id, label: QOS_LABELS[id], installed: true, enabled,
+      running: service?.running === true, runtimeKnown: typeof service?.running === 'boolean',
+      writable: false, unit: '', macBased: false, connections: null,
+      rates: { upload: null, download: null },
+      reason: id === 'sqm' ? 'SQM 主要负责接口队列管理，暂不支持按终端配置'
+        : '已检测到服务，但此 App 暂无该后端的终端规则编辑接口'
+    })
+  }
+  descriptors.sort((a, b) => QOS_ORDER.indexOf(a.id) - QOS_ORDER.indexOf(b.id))
+  // Prefer actively running AND writable engines; distinguish configuration
+  // from verified runtime. When runtime is not exposed, enabled is a fallback.
+  const recommended = descriptors.find(x => x.writable && x.running && x.enabled) ||
+    descriptors.find(x => x.writable && x.enabled) ||
+    descriptors.find(x => x.id === 'hqos' && x.writable) ||
+    descriptors.find(x => x.writable) || null
+  const qosBackends = descriptors
+  const settings = {
     mac, ip, activeIP, host,
     hosts: hosts.map(h => ({ ...h, mac: macMatches(h.mac, mac) ? mac : normalizeMac(h.mac).toUpperCase() })),
     leases: leaseList, networks: knownNetworks(network),
-    backend, backendLabel: { hqos: 'QWRT HQoS', 'nft-limiter': 'NFT Limiter',
-      eqos: 'EQOS', 'nft-qos': 'NFT QoS' }[backend] || '',
-    hqosStatus, hqosRule, connections: backend === 'hqos'
-      ? hqosRule?.connections ?? 0 : null, reason, rates,
+    hqosStatus, hqosRule,
+    qosBackends, recommendedBackend: recommended?.id || '',
+    activeQosBackends: descriptors.filter(x => x.enabled).map(x => x.label),
     staticEnabled: Boolean(host?.ip && ipv4Number(host.ip) != null),
     staticIP: host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
   }
+  return selectTerminalQosBackend(settings, preferredBackend)
 }
 
 function assertDedicatedHost(host, mac) {
