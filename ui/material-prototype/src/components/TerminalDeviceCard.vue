@@ -78,9 +78,11 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
             title="随机/私有 MAC，无法通过 MAC 前缀可靠识别厂商">随机 MAC</v-chip>
         </div>
       </div>
-      <div v-if="item.ip || item.ip6 || item.mac" class="terminal-address-line">
+      <div class="terminal-address-line">
         <span v-if="item.ip || item.ip6" class="terminal-ip terminal-ip6">{{ item.ip || item.ip6 }}</span>
-        <span v-if="item.mac" class="terminal-mac">{{ item.mac }}</span>
+        <span v-else-if="item.mac" class="terminal-ip terminal-ip6">{{ item.mac }}</span>
+        <span v-if="sourceLabels.length || item.kind" class="terminal-source-text">· {{ sourceLabels[0] || item.kind }}</span>
+        <span class="terminal-list-state">· {{ onlineState === 'unknown' ? '待确认' : onlineTitle }}</span>
       </div>
       <div v-if="sourceLabels.length > 1 || item.wifi" class="terminal-tags">
         <v-chip
