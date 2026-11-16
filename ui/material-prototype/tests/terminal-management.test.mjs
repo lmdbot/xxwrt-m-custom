@@ -175,3 +175,101 @@ test('a failed service reload does not falsely claim settings were applied', asy
   assert.equal(Object.keys(api.configs.dhcp).length, 1)
 })
 
+
+test('disabled HQoS is detected and requires explicit global-enable confirmation', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan'
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.backend, 'hqos')
+  assert.equal(settings.hqosStatus.enabled, false)
+  assert.equal(settings.hqosStatus.rpcReady, true)
+  assert.equal(settings.hqosStatus.supported, true)
+  assert.equal(settings.hqosStatus.maxRate, 10000000)
+  assert.deepEqual(settings.rates, { upload: 0, download: 0 })
+  assert.equal(settings.connections, 0)
+  const input = { upload: '1024', download: '2048', connections: '50' }
+  await assert.rejects(saveTerminalRateLimit(api, device, settings, input), /自动启用全局/)
+  assert.equal(api.calls.filter(x => x.object === 'hqos' && x.method === 'set').length, 0)
+  const result = await saveTerminalRateLimit(api, device, settings, { ...input, allowEnable: true })
+  assert.equal(result.applied, true)
+  assert.deepEqual(api.calls.find(x => x.object === 'hqos' && x.method === 'set').args, {
+    mac: MAC.toLowerCase(), name: 'Phone', upload: 1024, download: 2048, connections: 50
+  })
+  assert.equal(api.configs.hqos.global.enabled, '1')
+  assert.equal(api.calls.filter(x => x.object === 'uci' &&
+    ['set', 'add', 'delete', 'commit'].includes(x.method)).length, 0)
+})
+
+test('enabled HQoS reads existing MAC rule and clears all three limits', async () => {
+  const api = mockRouter({
+    hqos: { global: { '.type': 'hqos', enabled: '1', backend: 'cpu', interface: 'br-lan' } },
+    hqosRpc: { rule: {
+      mac: MAC.toLowerCase(), name: 'My NAS', enabled: true,
+      upload: 500, download: 1200, connections: 200
+    } }
+  })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.backend, 'hqos')
+  assert.deepEqual(settings.rates, { upload: 500, download: 1200 })
+  assert.equal(settings.connections, 200)
+  const result = await saveTerminalRateLimit(api, device, settings,
+    { upload: '0', download: '0', connections: '0' })
+  assert.match(result.message, /已清除/)
+  assert.equal(api.calls.find(x => x.object === 'hqos' && x.method === 'set').args.name, 'My NAS')
+})
+
+test('HQoS enforces its live maximum rates and the 65535 connection limit', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '1', backend: 'cpu', interface: 'br-lan'
+  } }, hqosRpc: { status: {
+    enabled: true, supported: true, backend: 'cpu', capabilities: { max_rate: 8000 }
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.hqosStatus.maxRate, 8000)
+  for (const input of [
+    { upload: '8001', download: 0, connections: 0 },
+    { upload: '0', download: '-1', connections: 0 },
+    { upload: 'abc', download: 0, connections: 0 },
+    { upload: 0, download: 0, connections: 65536 }
+  ]) await assert.rejects(saveTerminalRateLimit(api, device, settings, input))
+  assert.equal(api.calls.filter(x => x.object === 'hqos' && x.method === 'set').length, 0)
+  assert.equal(parseHqosLimit('65535', 65535, '连接'), 65535)
+  assert.throws(() => parseHqosLimit('01', 65535, '连接'), /非负整数/)
+})
+
+test('HQoS RPC errors or unsupported backend do not claim writable status', async () => {
+  const config = { global: { '.type': 'hqos', enabled: '1', backend: 'cpu', interface: 'br-lan' } }
+  const failed = mockRouter({ hqos: config, hqosRpc: { error: 'Permission denied' } })
+  const settings = await readTerminalSettings(failed, device)
+  assert.equal(settings.backend, '')
+  assert.match(settings.reason, /Permission denied/)
+  const unsupported = mockRouter({ hqos: config, hqosRpc: { status: {
+    enabled: true, supported: false, backend: 'cpu', capabilities: null
+  } } })
+  assert.equal((await readTerminalSettings(unsupported, device)).backend, '')
+})
+
+test('HQoS rejects concurrent edits before updating the MAC rule', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '1', backend: 'cpu', interface: 'br-lan'
+  } }, hqosRpc: { rule: {
+    mac: MAC.toLowerCase(), name: 'Phone', enabled: true, upload: 100, download: 200, connections: 3
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  // The saved form becomes stale relative to the backend's current values.
+  settings.hqosRule.upload = 999
+  await assert.rejects(saveTerminalRateLimit(api, device, settings,
+    { upload: 10, download: 10, connections: 0 }), /其他会话修改/)
+  assert.equal(api.calls.filter(x => x.object === 'hqos' && x.method === 'set').length, 0)
+})
+
+test('legacy EQOS remains active if HQoS is installed but globally disabled', async () => {
+  const api = mockRouter({
+    eqos: { global: { '.type': 'eqos', enabled: '1' } },
+    hqos: { global: { '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan' } }
+  })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.backend, 'eqos')
+  assert.equal(settings.hqosStatus.installed, true)
+})
