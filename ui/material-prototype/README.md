@@ -1,4 +1,4 @@
-# XX-WRT Material 2.0.36 — QWRT / OpenWrt 移动管理
+# XX-WRT Material 2.0.41 — QWRT / OpenWrt 移动管理
 
 这是 `main` 的 Android 应用源码。Vue 3 + Vite + Vuetify 3 + Capacitor 8 构建 Material / Liquid Glass 界面，数据来自登录路由器的真实 ubus JSON-RPC、UCI 与授权的插件接口，不使用假终端数据。
 
@@ -6,7 +6,7 @@
 
 - Material 包名：`com.lmdbot.xxwrt.materialpreview`
 - Material 应用名称：`XX-WRT管理器`
-- 版本：`2.0.36`（Android versionCode 从版本号生成，保持单调递增）
+- 版本：`2.0.41`（Android versionCode 从版本号生成，保持单调递增）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
 - 保留 Material 主线应用信息与 Capacitor 构建流程；启动器图标使用蓝色二次元 Q 版 OpenWrt 路由器少女设计，并提供传统、圆形及自适应图标。
 - 正式 APK 使用 `XX-WRT-Material-vx.x.x.apk` 命名，构建版本自动取自 `package.json`。
@@ -68,3 +68,9 @@ APK 构建由 `.github/workflows/ui-android-preview.yml` 通过 GitHub Actions �
 - Android 原生插件通过系统文件选择器选择保存位置，使用私有临时文件、64MB 大小限制和 gzip 完整性校验，不将归档当作文本 JSON，也无需额外存储权限。
 - 与已有 UCI JSON 快照功能严格区分；系统备份不是固件镜像或整盘克隆，备份的文件范围由目标固件决定。
 - 接口缺失、ACL 未授权时明确提示，不通过任意 Shell 权限绕过。原生备份可能包含密码和私钥，需要保密保存。
+
+## 界面动效增强（v2.0.41）
+
+- 主页面、设备列表和详情、设置分类、应用功能列表和子页面采用 270ms 内可中断的方向性页面动效。动画不重建组件，不影响滚动位置恢复、表单输入和后台 RPC。
+- 终端和网络分类切换、设备列表增删和位置变化、应用分类展开收起、常用应用与侧栏项目增加简短过渡、有限错峰入场、选中状态和按压反馈。
+- 继续由“设置 → 显示 → 界面动效”统一控制；系统“减少动态效果”具有优先级，关闭时即时停止 Web Animations。CPU、带宽、连接数的周期刷新不触发场景动画。

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme } from 'vuetify'
+import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -902,9 +903,18 @@ function applyNetworkHardwareRates(data) {
 
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
 watch(motionEnabled, enabled => localStorage.setItem(storage.motion, String(enabled)))
+let sceneAnimation = null
+let sectionAnimation = null
+function cancelMotionAnimations() {
+  sceneAnimation?.cancel()
+  sectionAnimation?.cancel()
+  sceneAnimation = null
+  sectionAnimation = null
+}
 watch(effectiveMotion, enabled => {
-  // documentElement also covers Vuetify overlays teleported outside <v-app>.
   document.documentElement.dataset.xxwrtMotion = enabled ? 'on' : 'off'
+  // CSS animation overrides do not cancel Web Animations.
+  if (!enabled) cancelMotionAnimations()
 }, { immediate: true })
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
 watch(appLocale, async value => {
@@ -988,10 +998,34 @@ watch([activeTab,toolPanel,viewMode,settingsOpen,settingsCategory,selectedDevice
     }
     requestAnimationFrame(()=>{
       restore()
-      // Native WebView sometimes lays out the content in a second frame.
-      requestAnimationFrame(restore)
+      requestAnimationFrame(()=>{
+        restore()
+        if (sequence !== pageScrollSequence || !effectiveMotion.value || document.hidden) return
+        const motion = describeNavigationMotion(previous,next)
+        if (!motion) return
+        sceneAnimation?.cancel()
+        // The content DOM is never recreated: router RPC state and scroll survive.
+        sceneAnimation = playInterfaceMotion(
+          document.querySelector('.main-container'),motion,effectiveMotion.value)
+      })
     })
   },{flush:'sync'})
+// Only explicit view-category changes trigger these transitions, never polling.
+watch([terminalView,networkView],async ([newTerminal,newNetwork],[oldTerminal,oldNetwork])=>{
+  if (!effectiveMotion.value || document.hidden) return
+  await nextTick()
+  requestAnimationFrame(()=>{
+    if (!effectiveMotion.value || document.hidden) return
+    let target=null
+    if (activeTab.value==='clients' && newTerminal!==oldTerminal)
+      target=document.querySelector('.terminal-screen .terminal-grid, .terminal-screen .v-empty-state, .terminal-screen .v-alert')
+    if (activeTab.value==='network' && newNetwork!==oldNetwork)
+      target=document.querySelector('.xxwrt-network-view')
+    if (!target) return
+    sectionAnimation?.cancel()
+    sectionAnimation=playInterfaceMotion(target,{kind:'section'},true)
+  })
+})
 function navigateBottomTab(tab) {
   // Vuetify may emit null when the already selected navigation button is
   // tapped. Ignore deselection; a tab must always remain selected.
@@ -1837,6 +1871,7 @@ onMounted(() => {
   }, METRIC_INTERVAL_MS)
 })
 onUnmounted(() => {
+  cancelMotionAnimations()
   localizationController?.dispose()
   if (nativeBackSubscription) void nativeBackSubscription.remove()
   if (nativeResumeSubscription) void nativeResumeSubscription.remove()
@@ -2146,14 +2181,14 @@ onUnmounted(() => {
             <v-icon icon="mdi-router-network" size="30" color="secondary"/>
             <span>此筛选条件下暂无设备</span>
           </div>
-          <div v-else class="saved-device-grid" :class="{ 'saved-device-grid-compact': routerListLayout === 'list' }">
+          <TransitionGroup v-else name="xxwrt-list" tag="div" class="saved-device-grid" :class="{ 'saved-device-grid-compact': routerListLayout === 'list' }">
             <SavedRouterCard v-for="device in displayedDevices" :key="device.id"
               :device="device" :index="devices.findIndex(d => d.id === device.id)"
               :summary="deviceSummaries[device.id] || null"
               :status="deviceStatuses[device.id] || 'checking'"
               :layout="routerListLayout" :show-names="showHostnames" :show-address="showIp"
               @open="openDevice" @edit="showDeviceDialog" @remove="askDeleteDevice"/>
-          </div>
+          </TransitionGroup>
           
         </template>
         <template v-else>
@@ -2430,6 +2465,7 @@ onUnmounted(() => {
                 </div>
               </v-btn>
             </div>
+            <div class="xxwrt-network-view">
             <template v-if="networkView === 'interfaces'">
               <NetworkInterfacesPanel v-if="client" ref="networkInterfacesPanel"
                 :client="client" :interfaces="networkInterfaces"
@@ -2448,6 +2484,7 @@ onUnmounted(() => {
               </v-card>
               <v-alert v-if="!networkHardware.wireless.length" type="info" variant="tonal" density="compact">暂未获取到无线设备。</v-alert>
             </template>
+            </div>
           </template>
 
           <template v-if="activeTab === 'apps'">
@@ -2523,6 +2560,7 @@ onUnmounted(() => {
                         <v-icon :icon="expandedAppCategories.includes(category.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                           size="20" class="app-tool-chevron"/>
                       </button>
+                      <v-expand-transition>
                       <div v-if="expandedAppCategories.includes(category.id)"
                         :id="'app-category-' + category.id" class="app-tool-list">
                         <button v-for="tool in category.tools" :key="tool.id" type="button"
@@ -2533,6 +2571,7 @@ onUnmounted(() => {
                           <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
                         </button>
                       </div>
+                      </v-expand-transition>
                     </div>
                   </section>
                 </template>
