@@ -2,8 +2,8 @@ const { test, expect } = require('@playwright/test')
 
 async function openAbout(page) {
   await page.goto('/')
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
-  await page.getByRole('button', { name: '打开关于设置' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '打开关于' }).click()
   await expect(page.getByTestId('about-page')).toBeVisible()
 }
 
@@ -44,13 +44,14 @@ test('About uses the actual Android launcher artwork and preserves update action
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('关于')
 })
 
-test('About follows the existing English and Traditional Chinese language settings', async ({ page }) => {
+test('About follows English and Traditional Chinese through More → Settings', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开语言设置' }).click()
   await page.getByRole('radio', { name: 'English' }).check()
-  await page.getByRole('button', { name: 'Open sidebar menu' }).click()
-  await page.locator('.settings-category-card').filter({ hasText: 'About' }).click()
+  await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.locator('.more-menu-item').filter({ hasText: 'About' }).click()
   await expect(page.getByText('App information')).toBeVisible()
   await expect(page.getByText('Version & updates')).toBeVisible()
   await expect(page.getByText('Related links')).toBeVisible()
@@ -58,10 +59,11 @@ test('About follows the existing English and Traditional Chinese language settin
   await expect(page.getByText('Local storage', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Close', exact: true }).last().click()
 
-  await page.getByRole('button', { name: 'Open sidebar menu' }).click()
-  await page.locator('.settings-category-card').filter({ hasText: 'Language' }).click()
+  await page.getByRole('button', { name: 'More', exact: true }).click()
+  await page.locator('.more-menu-item').filter({ hasText: 'Settings' }).click()
+  await page.locator('.more-menu-item').filter({ hasText: 'Language' }).click()
   await page.getByRole('radio', { name: '繁體中文' }).check()
-  await page.getByRole('button', { name: '打開側欄菜單' }).click()
-  await page.locator('.settings-category-card').filter({ hasText: '關於' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.locator('.more-menu-item').filter({ hasText: '關於' }).click()
   await expect(page.getByText('隱私與免責聲明', { exact: true })).toBeVisible()
 })
