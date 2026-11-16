@@ -156,6 +156,104 @@ async function readHqosState(client, mac) {
   return { status, rule, rates: validateHqosReadLimits(rule), maxRate: cap }
 }
 
+
+const HQOS_GLOBAL_BACKENDS = new Set(['auto', 'mtk-ppe', 'airoha-ppe', 'cpu'])
+const HQOS_INTERFACE_RE = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/
+
+function hqosGlobalValues(config) {
+  const global = config?.values?.global
+  if (!global || global['.type'] !== 'hqos')
+    throw new Error('QWRT 未提供可写的 hqos.global 配置')
+  return {
+    enabled: String(global.enabled || '0'),
+    backend: String(global.backend || 'auto'),
+    interface: String(global.interface || 'br-lan')
+  }
+}
+
+function hqosPendingChanges(result) {
+  if (!result || typeof result !== 'object' || !('changes' in result))
+    throw new Error('无法确认 HQoS 是否存在其他待应用修改，已取消写入')
+  const changes = result.changes
+  return Array.isArray(changes) ? changes.length > 0 :
+    changes && typeof changes === 'object' ? Object.keys(changes).length > 0 : false
+}
+
+async function applyHqosGlobalService(client) {
+  // Fixed binary and argv; never derive a shell command from user input.
+  const result = await client.call('file', 'exec', {
+    command: '/usr/sbin/hqos', params: ['apply'], env: null
+  })
+  if (!result || Number(result.code) !== 0) {
+    throw new Error(String(result?.stderr || result?.stdout ||
+      'HQoS apply 未返回成功结果').slice(-800))
+  }
+  const text = String(result.stdout || '').trim()
+  if (text) {
+    let parsed
+    try { parsed = JSON.parse(text) } catch { throw new Error('HQoS apply 返回的状态不是合法 JSON') }
+    hqosRpcResult(parsed, 'apply')
+    if (parsed.error) throw new Error('HQoS apply 出错：' + parsed.error)
+  }
+}
+
+export async function saveHqosGlobal(client, oldSettings, input) {
+  if (!oldSettings?.hqosStatus?.installed || !oldSettings.hqosStatus.rpcReady)
+    throw new Error('原生 HQoS RPC 不可用，无法修改全局设置')
+  if (!HQOS_GLOBAL_BACKENDS.has(input.backend))
+    throw new Error('无效的 HQoS 后端选项')
+  const interfaceName = String(input.interface || '')
+  if (!HQOS_INTERFACE_RE.test(interfaceName) ||
+      (input.backend !== 'cpu' && input.backend !== 'auto' &&
+        !['lan', 'br-lan'].includes(interfaceName))) {
+    throw new Error('QoS 接口无效；硬件后端只能使用 LAN / br-lan')
+  }
+  const desired = {
+    enabled: input.enabled ? '1' : '0',
+    backend: input.backend,
+    interface: interfaceName
+  }
+  const config = await client.call('uci', 'get', { config: 'hqos' })
+  const original = hqosGlobalValues(config)
+  // Refuse stale forms and concurrent LuCI edits. A commit must not include
+  // unrelated pending UCI edits from the same rpcd session.
+  if (Object.keys(original).some(key =>
+    original[key] !== (key === 'enabled'
+      ? (oldSettings.hqosStatus.enabled ? '1' : '0')
+      : key === 'backend' ? oldSettings.hqosStatus.mode : oldSettings.hqosStatus.interface))) {
+    throw new Error('HQoS 全局配置已变化，请刷新页面后重试')
+  }
+  const pending = await client.call('uci', 'changes', { config: 'hqos' })
+  if (hqosPendingChanges(pending))
+    throw new Error('HQoS 存在其他未提交的配置更改，请先在 Web 端处理')
+  if (Object.keys(desired).every(key => original[key] === desired[key])) {
+    return { applied: true, message: 'HQoS 全局设置没有变化' }
+  }
+  let committed = false
+  try {
+    await client.call('uci', 'set', { config: 'hqos', section: 'global', values: desired })
+    await client.call('uci', 'commit', { config: 'hqos' })
+    committed = true
+    await applyHqosGlobalService(client)
+    return { applied: true, message: 'HQoS 全局配置已保存并应用' }
+  } catch (error) {
+    if (!committed) {
+      try { await client.call('uci', 'revert', { config: 'hqos' }) } catch (_) {}
+      throw error
+    }
+    let restored = false
+    try {
+      await client.call('uci', 'set', { config: 'hqos', section: 'global', values: original })
+      await client.call('uci', 'commit', { config: 'hqos' })
+      await applyHqosGlobalService(client)
+      restored = true
+    } catch (_) {}
+    throw new Error('HQoS 全局设置应用失败：' +
+      String(error?.message || error) + (restored
+        ? '；已恢复原始配置和服务' : '；自动恢复失败，请立即检查 Web 端 HQoS 配置'))
+  }
+}
+
 export async function saveHqosClient(client, device, settings, input) {
   const mac = hqosUnicastMac(device?.mac)
   if (mac.toUpperCase() !== settings?.mac) throw new Error('终端 MAC 信息已变化，请重新打开')
