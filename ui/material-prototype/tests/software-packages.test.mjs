@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   PACKAGE_CALL, PACKAGE_PAGE_SIZE, MAX_UPLOAD_BYTES, PACKAGE_CONFIGS,
   parsePackageList, comparePackageVersions, packageCollections,
-  visiblePackages, validatePackageTarget, runPackageAction,
+  visiblePackages, validatePackageTarget, runPackageAction, readPackageListing,
   readPackageConfigs, savePackageConfig, uploadLocalPackage,
   deleteUploadedPackage
 } from '../src/services/softwarePackages.js'
@@ -146,4 +146,28 @@ test('local IPK is uploaded in base64 RPC chunks with append, and cleaned on err
   await assert.rejects(() => uploadLocalPackage(client, { name: 'evil.sh', size: 2 }, 'opkg'))
   await assert.rejects(() => uploadLocalPackage(client,
     { name: 'huge.ipk', size: MAX_UPLOAD_BYTES + 1 }, 'opkg'))
+})
+
+test('LuCI streaming CGI is preferred for large lists; falls back to ubus on failure', async () => {
+  let direct = 0, fallback = 0
+  const client = {
+    async cgiPackageList() { direct++; return INSTALLED },
+    async callTimed() { fallback++; return { code: 0, stdout: INSTALLED } }
+  }
+  const directResult = await readPackageListing(client, 'list-installed')
+  assert.equal(directResult.source, 'cgi-io')
+  assert.equal(direct, 1)
+  assert.equal(fallback, 0)
+  client.cgiPackageList = async () => { throw Error('cgi not available') }
+  const fallbackResult = await readPackageListing(client, 'list-installed')
+  assert.equal(fallbackResult.source, 'ubus')
+  assert.equal(fallback, 1)
+  await assert.rejects(() => readPackageListing(client, 'install'))
+})
+
+test('apk-tools official file-size property is retained', () => {
+  const items = parsePackageList(JSON.stringify([
+    { name: 'curl', version: '8.1-r0', 'file-size': 7890, 'installed-size': 15000 }
+  ]))
+  assert.equal(items[0].size, 7890)
 })
