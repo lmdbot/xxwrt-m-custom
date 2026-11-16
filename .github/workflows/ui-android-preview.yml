@@ -3,7 +3,7 @@ name: XX-WRT Material Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [feature/material-ui, main]
+    branches: [feature/material-ui, feature/more-bottom-tab-v2.0.44, main]
     paths:
       - "ui/material-prototype/**"
       - "docs/releases/**"
@@ -229,6 +229,7 @@ jobs:
           retention-days: 30
 
       - name: Publish Material APK release
+        if: github.ref_name == 'main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
