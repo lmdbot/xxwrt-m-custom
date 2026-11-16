@@ -11,11 +11,12 @@ const lan = { interface: [{ interface: 'lan',
 const lease = { dhcp_leases: [{ macaddr: MAC, ipaddr: device.ip },
   { macaddr: '02:12:34:56:78:90', ipaddr: '192.168.100.60' }] }
 
-function mockRouter({ dhcp = {}, eqos = null, limiter = null, nftQos = null, runtime = {},
-  applyCode = 0 } = {}) {
+function mockRouter({ dhcp = {}, eqos = null, limiter = null, nftQos = null, hqos = null,
+  runtime = {}, applyCode = 0 } = {}) {
   const configs = {
     dhcp: structuredClone(dhcp), eqos: structuredClone(eqos),
-    'nft-limiter': structuredClone(limiter), 'nft-qos': structuredClone(nftQos)
+    'nft-limiter': structuredClone(limiter), 'nft-qos': structuredClone(nftQos),
+    hqos: structuredClone(hqos)
   }
   const calls = []
   let counter = 0
@@ -152,4 +153,39 @@ test('a failed service reload does not falsely claim settings were applied', asy
   assert.equal(outcome.applied, false)
   assert.match(outcome.message, /无法确认/)
   assert.equal(Object.keys(api.configs.dhcp).length, 1)
+})
+
+test('QWRT HQoS is identified as installed but disabled without modifying UCI', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan'
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.backend, '')
+  assert.deepEqual(settings.hqosStatus, {
+    installed: true, enabled: false, mode: 'auto', interface: 'br-lan'
+  })
+  assert.match(settings.reason, /HQoS.*禁用/)
+  assert.equal(api.calls.filter(x => x.object === 'uci' && ['add', 'set', 'delete', 'commit'].includes(x.method)).length, 0)
+})
+test('enabled HQoS never enters unsupported IP-based writer', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '1', backend: 'cpu', interface: 'br-lan'
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.backend, '')
+  assert.equal(settings.hqosStatus.enabled, true)
+  assert.match(settings.reason, /MAC 规则/)
+  await assert.rejects(
+    saveTerminalRateLimit(api, device, settings, { upload: '1000', download: '2000' }),
+    /HQoS/
+  )
+})
+test('enabled EQOS remains usable when disabled HQoS is also installed', async () => {
+  const api = mockRouter({
+    eqos: { global: { '.type': 'eqos', enabled: '1' } },
+    hqos: { global: { '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan' } }
+  })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.backend, 'eqos')
+  assert.equal(settings.hqosStatus.installed, true)
 })

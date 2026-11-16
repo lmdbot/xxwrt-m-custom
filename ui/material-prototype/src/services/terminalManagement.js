@@ -109,11 +109,13 @@ function readableRates(response, backend, ip) {
 export async function readTerminalSettings(client, device) {
   const mac = validMac(device?.mac)
   const ip = ipv4Number(device?.ip) == null ? '' : String(device.ip)
-  const [dhcp, eqos, nftLimiter, nftQos, network, leases, services] = await client.batch([
+  const [dhcp, eqos, nftLimiter, nftQos, hqos, network, leases, services] = await client.batch([
     ['uci', 'get', { config: 'dhcp' }],
     ['uci', 'get', { config: 'eqos' }],
     ['uci', 'get', { config: 'nft-limiter' }],
     ['uci', 'get', { config: 'nft-qos' }],
+    // QWRT's independent MAC-based HQoS backend: discover, never mutate.
+    ['uci', 'get', { config: 'hqos' }],
     ['network.interface', 'dump'],
     ['luci-rpc', 'getDHCPLeases'],
     ['rc', 'list']
@@ -131,6 +133,12 @@ export async function readTerminalSettings(client, device) {
   }))
   const nftDefault = configSections(nftQos, 'default')[0]
   const eqosGlobal = configSections(eqos, 'eqos')[0]
+  const hqosGlobal = configSections(hqos, 'hqos')[0] || null
+  const hqosStatus = hqosGlobal ? {
+    installed: true, enabled: String(hqosGlobal.enabled) === '1',
+    mode: String(hqosGlobal.backend || 'auto'),
+    interface: String(hqosGlobal.interface || '')
+  } : { installed: false, enabled: false, mode: '', interface: '' }
   // Choose an already configured and enabled backend. Never silently switch
   // the router's traffic control subsystem or enable it behind the user's back.
   let backend = ''
@@ -154,6 +162,11 @@ export async function readTerminalSettings(client, device) {
       qosConfig = nftQos
     }
   }
+  if (!backend && hqosStatus.installed) {
+    reason = hqosStatus.enabled
+      ? '已检测到 QWRT HQoS 且配置为启用；当前 App 尚未适配其 MAC 规则与并发连接数写入，暂不修改原有配置'
+      : '已检测到 QWRT HQoS，但当前处于禁用状态；请在 Web 端按需启用，App 暂未适配 HQoS 规则编辑'
+  }
   const activeIP = host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
   const rates = backend && activeIP ? readableRates(qosConfig, backend, activeIP) : { upload: null, download: null }
   return {
@@ -161,7 +174,7 @@ export async function readTerminalSettings(client, device) {
     hosts: hosts.map(h => ({ ...h, mac: macMatches(h.mac, mac) ? mac : normalizeMac(h.mac).toUpperCase() })),
     leases: leaseList, networks: knownNetworks(network),
     backend, backendLabel: { 'nft-limiter': 'NFT Limiter', eqos: 'EQOS', 'nft-qos': 'NFT QoS' }[backend] || '',
-    reason, rates,
+    hqosStatus, reason, rates,
     staticEnabled: Boolean(host?.ip && ipv4Number(host.ip) != null),
     staticIP: host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
   }

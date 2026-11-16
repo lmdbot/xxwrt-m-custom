@@ -2539,6 +2539,12 @@ onUnmounted(() => {
               <v-icon icon="mdi-speedometer" color="primary"/>
               <strong>终端网速限制</strong>
             </div>
+            <v-alert v-if="terminalSettings.hqosStatus?.installed" type="info" density="compact" variant="tonal" class="mb-3">
+              QWRT HQoS 已安装，{{ terminalSettings.hqosStatus.enabled ? '配置为启用' : '当前未启用' }}。
+              后端：{{ terminalSettings.hqosStatus.mode }}；
+              接口：{{ terminalSettings.hqosStatus.interface || '未指定' }}。
+              HQoS 使用按 MAC 配置的独立规则，当前版本只读取状态，不会误写旧的 IP 限速配置。
+            </v-alert>
             <template v-if="terminalSettings.backend">
               <v-chip size="x-small" color="primary" variant="tonal" class="mb-3">
                 {{ terminalSettings.backendLabel }}
