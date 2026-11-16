@@ -1288,6 +1288,64 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '收起维护与备份' }).click()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toHaveCount(0)
 
+  if (captureDesignScreens) {
+    const additional = [
+      ['09-dns-dhcp', 'DNS / DHCP'],
+      ['10-ddns', 'DDNS 管理'],
+      ['13-services', '服务管理'],
+      ['14-software-packages', '软件包'],
+      ['15-logs', '日志中心'],
+      ['16-diagnostics', '网络诊断'],
+      ['17-security', '安全分析'],
+      ['18-backup', '配置备份恢复']
+    ]
+    await captureDesignExtraPages(page, additional)
+    await page.getByRole('button', { name: '我的', exact: true }).click()
+    await captureDesignA(page, '04-me')
+    await page.getByRole('button', { name: '打开关于' }).click()
+    await captureDesignA(page, '20-about')
+    await page.getByRole('button', { name: '返回上一页' }).click()
+    await page.getByRole('button', { name: '打开设置' }).click()
+    await page.getByRole('button', { name: '打开显示设置' }).click()
+    await page.getByRole('button', { name: '浅色主题' }).click()
+    await expect(page.locator('.material-demo.theme-is-dark')).toHaveCount(0)
+    await captureDesignA(page, '19-settings')
+
+    // Second visual pass: all roots and B1-B11 representative pages in light
+    // mode, using exactly the same deterministic RPC fixture as the dark pass.
+    await page.getByRole('button', { name: '我的', exact: true }).click()
+    await captureDesignA(page, '04-me')
+    await page.getByRole('button', { name: '打开关于' }).click()
+    await captureDesignA(page, '20-about')
+    await page.getByRole('button', { name: '返回上一页' }).click()
+    await page.getByRole('button', { name: '概览', exact: true }).click()
+    await captureDesignA(page, '00-overview')
+    await page.getByRole('button', { name: '详细监控', exact: true }).click()
+    await captureDesignA(page, '05-monitor')
+    await page.getByRole('button', { name: '概览', exact: true }).click()
+    await page.getByRole('button', { name: '设备', exact: true }).click()
+    await page.getByRole('button', { name: /全部终端/ }).click()
+    await captureDesignA(page, '01-devices')
+    await page.getByText('Phone', { exact: true }).click()
+    await captureDesignA(page, '06-terminal-detail')
+    await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
+    await page.getByRole('button', { name: '网络', exact: true }).click()
+    await captureDesignA(page, '02-network')
+    await page.locator('.v3-network-home .v3-feature-list button').filter({ hasText: '网络接口' }).click()
+    await captureDesignA(page, '07-network-interfaces')
+    await page.getByRole('button', { name: '返回上一页' }).click()
+    await page.getByRole('button', { name: '工具', exact: true }).click()
+    await captureDesignA(page, '03-tools')
+    await captureDesignExtraPages(page, [
+      ['08-firewall', '防火墙'],
+      ['09-dns-dhcp', 'DNS / DHCP'],
+      ['10-ddns', 'DDNS 管理'],
+      ['11-zerotier', 'ZeroTier'],
+      ['12-plugin-lucky', 'Lucky'],
+      ...additional.filter(([key]) => !['09-dns-dhcp', '10-ddns'].includes(key))
+    ])
+  }
+
   await page.getByRole('button', { name: '我的', exact: true }).click()
   await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开显示设置' }).click()
