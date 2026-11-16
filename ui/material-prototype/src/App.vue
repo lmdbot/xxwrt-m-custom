@@ -2719,21 +2719,18 @@ onUnmounted(() => {
           <template v-if="activeTab === 'network'">
             <section v-if="networkSection === 'hub'" class="v3-network-home">
               <header class="v3-network-status">
-                <h2>网络管理</h2>
-                <p>集中查看接口、物理设备和路由服务</p>
-                <div class="v3-network-kpis">
-                  <div><small>LAN IPv4</small><strong>{{ snapshot?.lanIp || '--' }}</strong></div>
-                  <div><small>WAN IPv4</small><strong>{{ snapshot?.wanIp || '--' }}</strong></div>
-                  <div><small>WAN IPv6</small><strong>{{ snapshot?.wan6Ip || '--' }}</strong></div>
-                </div>
+                <h2>网络连接状态</h2>
+                <p class="v3-network-status-summary">
+                  WAN · {{ overviewWanState }} · LAN · {{ snapshot?.lanIp || '未获取' }} · IPv6 · {{ overviewIpv6State }}
+                </p>
               </header>
               <div class="v3-section-label">接口与连接</div>
               <div class="v3-feature-list">
-                <button type="button" @click="openNetworkSection('interfaces')"><v-icon icon="mdi-lan" color="primary"/><span><strong>网络接口</strong><small>WAN / LAN / PPPoE / IPv4 / IPv6 / DHCP</small></span><v-icon icon="mdi-chevron-right"/></button>
-                <button type="button" @click="openNetworkSection('devices')"><v-icon icon="mdi-ethernet" color="primary"/><span><strong>物理设备</strong><small>以太网端口、物理网络设备</small></span><v-icon icon="mdi-chevron-right"/></button>
-                <button type="button" @click="openNetworkSection('wireless')"><v-icon icon="mdi-wifi" color="primary"/><span><strong>无线设备</strong><small>当前无线硬件与网络状态（只读）</small></span><v-icon icon="mdi-chevron-right"/></button>
+                <button type="button" @click="openNetworkSection('interfaces')"><v-icon icon="mdi-lan" color="primary"/><span><strong>网络接口</strong><small>WAN / LAN / WAN6 / PPPoE</small></span><v-icon icon="mdi-chevron-right"/></button>
+                <button type="button" @click="openNetworkSection('devices')"><v-icon icon="mdi-ethernet" color="primary"/><span><strong>物理设备</strong><small>以太网 / 网桥 / 端口</small></span><v-icon icon="mdi-chevron-right"/></button>
+                <button type="button" @click="openNetworkSection('wireless')"><v-icon icon="mdi-wifi" color="primary"/><span><strong>无线设备</strong><small>SSID / 频道 / 信号（只读）</small></span><v-icon icon="mdi-chevron-right"/></button>
               </div>
-              <div class="v3-section-label">路由、DNS 与安全</div>
+              <div class="v3-section-label">网络服务与策略</div>
               <div class="v3-feature-list">
                 <button v-for="tool in networkFeatureTools" :key="tool.id" type="button" @click="launchV3Tool(tool.id)">
                   <v-icon :icon="tool.icon" color="primary"/><span><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span><v-icon icon="mdi-chevron-right"/>
