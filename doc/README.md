@@ -22,6 +22,7 @@
 | [04-设计系统](04-design-system.md) | 色板、排版、尺寸、组件、深浅色与适配 |
 | [05-交互与安全规范](05-interactions-and-states.md) | 搜索、加载、失败、风险操作、权限/离线及状态模型 |
 | [06-实施计划与验收](06-delivery-plan.md) | 阶段任务、代码映射、测试与验收标准 |
+| [07-逐屏像素差异与真机验收](07-visual-acceptance.md) | 对照清单、截图采集、叠加差异、真机证据及关闭条件 |
 | [效果图：五个主页面](visuals/primary-pages.svg) | SVG 高保真示意（示例数据，非真实运行截图） |
 | [效果图：重点二级页面](visuals/secondary-pages.svg) | SVG 高保真示意（示例数据） |
 | [导航结构可视化](visuals/navigation-map.svg) | 可在 GitHub 中直接查看的 SVG |
