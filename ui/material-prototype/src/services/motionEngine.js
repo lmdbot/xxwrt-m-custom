@@ -1,5 +1,5 @@
 // Motion primitives for user-driven navigation. Never triggered by telemetry.
-export const TAB_ORDER = Object.freeze(['home', 'statistics', 'clients', 'network', 'apps'])
+export const TAB_ORDER = Object.freeze(['home', 'clients', 'network', 'apps', 'more'])
 export const MOTION_DURATIONS = Object.freeze({ navigation: 270, section: 210 })
 export const MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 
