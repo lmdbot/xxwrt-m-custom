@@ -160,6 +160,7 @@ const UiChrome = registerPlugin('UiChrome')
 const ApkDownloader = registerPlugin('ApkDownloader')
 const installedVersion = ref(packageInfo.version)
 const installedBuild = ref('')
+const installedBuildDate = new Date(__XXWRT_BUILD_AT__).toLocaleString('zh-CN', { hour12: false })
 const installedPackageId = ref('com.lmdbot.xxwrt.materialpreview')
 const versionDetailsDialog = ref(false)
 const privacyDialog = ref(false)
@@ -270,6 +271,7 @@ async function cancelApkDownload() {
 async function copyAboutVersion() {
   const details = ['XX-WRT v' + installedVersion.value,
     installedBuild.value ? 'Build ' + installedBuild.value : '',
+    'Built ' + installedBuildDate,
     installedPackageId.value].filter(Boolean).join('\n')
   try {
     if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(details)
@@ -2780,6 +2782,7 @@ onUnmounted(() => {
           <div class="settings-detail-row"><span>应用名称</span><strong>XX-WRT</strong></div>
           <div class="settings-detail-row"><span>版本号</span><strong>v{{ installedVersion }}</strong></div>
           <div class="settings-detail-row"><span>构建号</span><strong>{{ installedBuild || '仅 Android 安装包可查询' }}</strong></div>
+          <div class="settings-detail-row"><span>构建日期</span><strong>{{ installedBuildDate }}</strong></div>
           <div class="settings-detail-row"><span>应用包名</span><strong class="about-package-id" data-localize-ignore>{{ installedPackageId }}</strong></div>
         </v-card-text>
         <v-card-actions>
