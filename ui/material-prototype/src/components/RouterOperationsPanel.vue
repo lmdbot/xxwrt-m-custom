@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
-import { saveConfigSnapshotFile } from '../services/configFileExport.js'
+import { saveConfigSnapshotFile, saveRouterSystemBackup } from '../services/configFileExport.js'
 import { readAuditRecords } from '../services/managementCore.js'
 import {
   APPLY_TIMEOUT, SNAPSHOT_CONFIGS, CRITICAL_SERVICES,
@@ -111,6 +111,23 @@ async function saveBackup() {
   } catch (e) {
     // Keep the generated JSON available for retry/copy after any save error.
     notify('快照已生成，但文件保存失败：' + shortError(e) + '。请点击“保存 JSON 文件”重试。', true)
+  }
+}
+async function exportSystemBackup() {
+  if (busy.value || restorePending.value) return
+  busy.value = true
+  try {
+    const result = await saveRouterSystemBackup(props.client)
+    if (result.status === 'cancelled') {
+      notify('已取消原生备份保存；路由器配置未发生修改。')
+    } else {
+      notify('系统配置备份已保存（' + (result.bytes / 1024).toFixed(1) +
+        ' KiB）。tar.gz 可能包含账号、证书及私钥，请妥善保管。')
+    }
+  } catch (error) {
+    notify('系统原生备份导出失败：' + shortError(error), true)
+  } finally {
+    busy.value = false
   }
 }
 async function exportBackup() {
@@ -327,12 +344,26 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
     <template v-else-if="kind === 'backup'">
       <h3 class="mb-1">配置备份与恢复</h3>
       <v-alert type="info" density="compact" variant="tonal" class="my-3">
-        此处是可移植的 UCI 配置快照，不是 sysupgrade 全量系统归档。
-        恢复时仅修改目标路由器现有同名、同类型配置节的字段，不删除其他配置节。
-        快照可能包含宽带账号密码，请安全保存。
+        提供与 LuCI 一样的系统原生配置备份（tar.gz）及可选配置项的 UCI JSON 快照。
+        tar.gz 是固件指定的配置归档，不是固件镜像或整盘备份。
       </v-alert>
+      <div class="mb-4">
+        <strong>系统原生配置备份（LuCI 兼容）</strong>
+        <p class="text-body-2 text-medium-emphasis mt-2 mb-3">
+          调用路由器现有的 cgi-backup 接口生成 tar.gz，直接保存到手机选定位置。
+          保存前验证压缩包完整性；不修改路由器配置、不触发恢复或固件升级。
+        </p>
+        <v-btn color="primary" variant="tonal" block :loading="busy"
+          :disabled="busy || restorePending" @click="exportSystemBackup">
+          <v-icon start>mdi-download-outline</v-icon>生成并保存原生备份（tar.gz）
+        </v-btn>
+        <p class="text-caption text-medium-emphasis mt-2">
+          需路由器支持并授权 LuCI 备份接口；归档可能包含密码、证书和私钥，请勿公开分享。
+        </p>
+      </div>
+      <v-divider class="my-4"/>
       <div class="d-flex align-center ga-2 mb-2">
-        <strong>系统原生备份文件清单</strong>
+        <strong>系统原生备份包含的文件</strong>
         <v-spacer/>
         <v-btn size="small" variant="text" :loading="busy" @click="loadBackup">刷新</v-btn>
       </div>
@@ -348,7 +379,10 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
-      <strong>创建 UCI 配置快照</strong>
+      <strong>UCI 配置快照（JSON）</strong>
+      <p class="text-caption text-medium-emphasis mt-2 mb-3">
+        可选择 network、dhcp、firewall、system 等配置用于局部恢复；与上方的原生 tar.gz 备份不同。
+      </p>
       <v-checkbox v-for="config in SNAPSHOT_CONFIGS" :key="config"
         v-model="backupConfigs" :value="config" :label="config"
         density="compact" hide-details/>

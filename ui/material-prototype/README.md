@@ -1,4 +1,4 @@
-# XX-WRT Material 2.0.35 — QWRT / OpenWrt 移动管理
+# XX-WRT Material 2.0.36 — QWRT / OpenWrt 移动管理
 
 这是 `main` 的 Android 应用源码。Vue 3 + Vite + Vuetify 3 + Capacitor 8 构建 Material / Liquid Glass 界面，数据来自登录路由器的真实 ubus JSON-RPC、UCI 与授权的插件接口，不使用假终端数据。
 
@@ -6,7 +6,7 @@
 
 - Material 包名：`com.lmdbot.xxwrt.materialpreview`
 - Material 应用名称：`XX-WRT管理器`
-- 版本：`2.0.35`（Android versionCode 从版本号生成，保持单调递增）
+- 版本：`2.0.36`（Android versionCode 从版本号生成，保持单调递增）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
 - 保留 Material 主线应用信息与 Capacitor 构建流程；启动器图标使用蓝色二次元 Q 版 OpenWrt 路由器少女设计，并提供传统、圆形及自适应图标。
 - 正式 APK 使用 `XX-WRT-Material-vx.x.x.apk` 命名，构建版本自动取自 `package.json`。
@@ -59,3 +59,12 @@ APK 构建由 `.github/workflows/ui-android-preview.yml` 通过 GitHub Actions �
 - “生成并保存 JSON”打开安卓系统的“另存为”文件选择器，由用户自主选择存储位置和文件名；只有完成磁盘写入后显示保存成功。
 - 取消或保存失败不会丢失已生成 JSON，可重新使用“保存 JSON 文件”按钮，也可复制文本。
 - 此功能导出的是所选 UCI 配置（network、dhcp、firewall、system），不是 sysupgrade 原生全量备份；生成的配置可能含密码或密钥，请妥善保管。
+
+
+## OpenWrt / QWRT 系统原生配置备份（Android）
+
+- 在「应用 → 配置备份与恢复」点击「生成并保存原生备份（tar.gz）」。
+- 调用路由器 LuCI 的 cgi-backup 接口，以已登录的 rpcd Session 创建固件兼容的配置备份归档。
+- Android 原生插件通过系统文件选择器选择保存位置，使用私有临时文件、64MB 大小限制和 gzip 完整性校验，不将归档当作文本 JSON，也无需额外存储权限。
+- 与已有 UCI JSON 快照功能严格区分；系统备份不是固件镜像或整盘克隆，备份的文件范围由目标固件决定。
+- 接口缺失、ACL 未授权时明确提示，不通过任意 Shell 权限绕过。原生备份可能包含密码和私钥，需要保密保存。
