@@ -924,8 +924,12 @@ function toggleAppCategory(id) {
 async function expandAllAppCategories() {
   expandedAppCategories.value = appCategories.value.map(group => group.id)
   await nextTick()
+  // Expand-all changes the height of multiple lists. A smooth scroll here
+  // can continue *after* the user sets a new scroll position, then the route
+  // saves that unintended offset on entry to a tool detail (82px in CI).
+  // Keep the jump immediate; regular manual scrolling and page motion remain.
   document.getElementById('app-category-list')?.scrollIntoView({
-    behavior: motionScrollBehavior(effectiveMotion.value), block: 'start'
+    behavior: 'instant', block: 'start'
   })
 }
 const showHomeDetector = computed(() => {
@@ -1063,22 +1067,20 @@ function stopPendingHubScrollRestore(){
   cancelPendingHubScrollRestore?.()
   cancelPendingHubScrollRestore=null
 }
-// The Tools hub can be shorter during its first frames: expanded categories,
-// asynchronous metadata and web fonts may settle well after Vue's nextTick.
-// Keep reapplying the saved position for a bounded stabilization window.
-// Cancel immediately on navigation or user input so this never overrides a
-// deliberate touch/wheel/keyboard scroll.
+// App categories animate their height when re-mounted. A two-frame restore
+// can be clamped against the temporarily short page and remain 60-100px off.
+// Follow actual hub size changes, but stop on navigation or manual interaction
+// so we never drag the user back after they begin scrolling.
 function keepHubScrollRestored(position,sequence){
-  if(position<=0)return
+  if(position<=0||typeof ResizeObserver==='undefined')return
   const hub=document.querySelector('.app-hub')
   if(!hub)return
-  let stopped=false,frame=0,lastRestore=0
+  let stopped=false,scheduled=false
   const userEvents=['touchstart','wheel','pointerdown','keydown']
   const stop=()=>{
     if(stopped)return
     stopped=true
-    if(frame)cancelAnimationFrame(frame)
-    observer?.disconnect()
+    observer.disconnect()
     clearTimeout(timeout)
     for(const event of userEvents)window.removeEventListener(event,stop)
     if(cancelPendingHubScrollRestore===stop)cancelPendingHubScrollRestore=null
@@ -1087,27 +1089,21 @@ function keepHubScrollRestored(position,sequence){
     if(stopped||sequence!==pageScrollSequence){stop();return}
     restorePageScroll(position)
   }
-  // ResizeObserver handles asynchronous category expansion; the short
-  // animation-frame poll also catches scrolling-container height changes
-  // that do not resize the hub itself.
-  const observer=typeof ResizeObserver==='undefined' ? null
-    : new ResizeObserver(restore)
-  const follow=timestamp=>{
-    if(stopped||sequence!==pageScrollSequence){stop();return}
-    if(timestamp-lastRestore>=48){
+  const observer=new ResizeObserver(()=>{
+    if(stopped||scheduled)return
+    scheduled=true
+    requestAnimationFrame(()=>{
+      scheduled=false
       restore()
-      lastRestore=timestamp
-    }
-    frame=requestAnimationFrame(follow)
-  }
-  const timeout=setTimeout(()=>{restore();stop()},1800)
+    })
+  })
+  const timeout=setTimeout(()=>{
+    restore()
+    stop()
+  },600)
   for(const event of userEvents)window.addEventListener(event,stop,{passive:true})
   cancelPendingHubScrollRestore=stop
-  observer?.observe(hub)
-  const container=document.querySelector('.main-container')
-  if(container)observer?.observe(container)
-  restore()
-  frame=requestAnimationFrame(follow)
+  observer.observe(hub)
 }
 function currentScrollNodes(){
   return [...new Set([document.scrollingElement,document.documentElement,
