@@ -28,7 +28,7 @@ import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
-import { readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit, saveHqosGlobal } from './services/terminalManagement.js'
+import { readTerminalSettings, selectTerminalQosBackend, saveTerminalStaticIP, saveTerminalRateLimit, saveHqosGlobal } from './services/terminalManagement.js'
 import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
 import {
   readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
@@ -522,7 +522,7 @@ const terminalSaving = ref(false)
 const terminalError = ref('')
 const terminalNotice = ref('')
 const terminalForm = reactive({ staticEnabled: false, staticIp: '', name: '', download: '', upload: '', connections: '0' })
-const hqosEnableDialog = ref(false)
+const qosWriteConfirm = ref(false)
 const hqosGlobalDialog = ref(false)
 const hqosGlobalConfirm = ref(false)
 const hqosGlobalBusy = ref(false)
@@ -551,6 +551,16 @@ function applyTerminalSettings(settings) {
   terminalForm.upload = settings.rates.upload == null ? '' : String(settings.rates.upload)
   terminalForm.connections = String(settings.connections ?? 0)
 }
+function changeTerminalQosBackend(backendId) {
+  if (terminalSaving.value || hqosGlobalBusy.value || !terminalSettings.value) return
+  const selected = selectTerminalQosBackend(terminalSettings.value, backendId)
+  terminalSettings.value = selected
+  terminalForm.download = selected.rates.download == null ? '' : String(selected.rates.download)
+  terminalForm.upload = selected.rates.upload == null ? '' : String(selected.rates.upload)
+  terminalForm.connections = String(selected.connections ?? 0)
+  terminalError.value = ''
+  terminalNotice.value = ''
+}
 async function openTerminal(item) {
   if (terminalSaving.value) return
   selectedClient.value = item
@@ -573,7 +583,8 @@ async function openTerminal(item) {
 }
 async function refreshTerminalSettings() {
   if (!selectedClient.value || !client.value) return
-  const settings = await readTerminalSettings(client.value, selectedClient.value)
+  const settings = await readTerminalSettings(client.value, selectedClient.value,
+    terminalSettings.value?.selectedBackend || '')
   applyTerminalSettings(settings)
 }
 async function saveTerminalStatic() {
@@ -608,7 +619,8 @@ async function persistHqosGlobalSettings() {
   terminalError.value = ''
   terminalNotice.value = ''
   try {
-    const result = await saveHqosGlobal(client.value, terminalSettings.value, hqosGlobalForm)
+    const result = await saveHqosGlobal(client.value, terminalSettings.value,
+      { ...hqosGlobalForm, allowConflict: true })
     terminalNotice.value = result.message
     hqosGlobalDialog.value = false
     await refreshTerminalSettings()
@@ -618,13 +630,16 @@ async function persistHqosGlobalSettings() {
     hqosGlobalBusy.value = false
   }
 }
-async function saveTerminalQos(allowEnable = false) {
+async function saveTerminalQos(confirmedRisks = false) {
   const settings = terminalSettings.value
   if (!settings?.backend || !client.value || terminalSaving.value) return
-  if (settings.backend === 'hqos' && !settings.hqosStatus.enabled &&
-      !allowEnable && [terminalForm.upload, terminalForm.download, terminalForm.connections]
-        .some(value => Number(value) > 0)) {
-    hqosEnableDialog.value = true
+  const wantsRule = [terminalForm.upload, terminalForm.download,
+    settings.backend === 'hqos' ? terminalForm.connections : null]
+    .some(value => value != null && String(value).trim() !== '' && Number(value) > 0)
+  const enablesHqos = settings.backend === 'hqos' &&
+    !settings.hqosStatus.enabled && wantsRule
+  if (!confirmedRisks && (enablesHqos || (wantsRule && settings.conflicts?.length))) {
+    qosWriteConfirm.value = true
     return
   }
   terminalSaving.value = true
@@ -637,7 +652,7 @@ async function saveTerminalQos(allowEnable = false) {
         name: terminalSettings.value.backend === 'hqos'
           ? terminalSettings.value.hqosRule?.name || selectedClient.value?.displayName ||
             selectedClient.value?.name || '' : '',
-        allowEnable })
+        allowEnable: confirmedRisks, allowConflict: confirmedRisks })
     terminalNotice.value = result.message
     await refreshTerminalSettings()
   } catch (error) {
@@ -993,7 +1008,7 @@ async function handleBack() {
     hqosGlobalDialog.value = false
     return 'dialog'
   }
-  if (hqosEnableDialog.value) { hqosEnableDialog.value = false; return 'dialog' }
+  if (qosWriteConfirm.value) { qosWriteConfirm.value = false; return 'dialog' }
   if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
@@ -2612,6 +2627,27 @@ onUnmounted(() => {
             <v-btn v-if="terminalSettings.hqosStatus?.rpcReady" size="small" variant="outlined"
               class="mb-3" prepend-icon="mdi-cog-outline" :disabled="terminalSaving"
               @click="openHqosGlobalSettings">HQoS 全局设置</v-btn>
+            <v-select v-if="terminalSettings.qosBackends?.length"
+              label="管理 QoS 后端" :model-value="terminalSettings.selectedBackend"
+              :items="terminalSettings.qosBackends.map(item => ({
+                value: item.id,
+                title: item.label + ' · ' + (item.running ? '运行中' :
+                  item.enabled ? '配置已启用' : '未启用') +
+                  (item.writable ? '' : '（只读）')
+              }))" item-title="title" item-value="value"
+              variant="outlined" density="comfortable" class="mt-2"
+              :disabled="terminalSaving || terminalSettingsBusy"
+              @update:model-value="changeTerminalQosBackend"/>
+            <v-alert v-if="terminalSettings.activeQosBackends?.length > 1"
+              type="warning" variant="tonal" density="compact" class="mb-3">
+              检测到多个配置启用的 QoS 服务：{{ terminalSettings.activeQosBackends.join('、') }}。
+              这些服务可能操作同一接口或流量，实际是否冲突取决于接口和规则。
+            </v-alert>
+            <v-alert v-if="terminalSettings.selectedBackend && terminalSettings.conflicts?.length"
+              type="warning" variant="tonal" density="compact" class="mb-3">
+              其他已启用的服务：{{ terminalSettings.conflicts.join('、') }}。
+              新增限速前请确认不会与现有队列或硬件加速冲突。
+            </v-alert>
             <template v-if="terminalSettings.backend">
               <v-chip size="x-small" color="primary" variant="tonal" class="mb-3">
                 {{ terminalSettings.backendLabel }}
@@ -2703,7 +2739,7 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="hqosEnableDialog" max-width="430" persistent>
+    <v-dialog v-model="qosWriteConfirm" max-width="430" persistent>
       <v-card rounded="xl">
         <v-card-title>确认启用全局 HQoS？</v-card-title>
         <v-card-text>
@@ -2712,9 +2748,9 @@ onUnmounted(() => {
           <p class="mt-2">请确认已了解对其他客户端和网络性能的影响。</p>
         </v-card-text>
         <v-card-actions>
-          <v-btn variant="text" @click="hqosEnableDialog = false">取消</v-btn>
+          <v-btn variant="text" @click="qosWriteConfirm = false">取消</v-btn>
           <v-spacer/>
-          <v-btn color="warning" :loading="terminalSaving" @click="hqosEnableDialog = false; saveTerminalQos(true)">确认启用并保存</v-btn>
+          <v-btn color="warning" :loading="terminalSaving" @click="qosWriteConfirm = false; saveTerminalQos(true)">确认启用并保存</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
