@@ -28,6 +28,7 @@ const sourceLabels = computed(() => {
   if (props.item.sources?.includes('dhcp4')) labels.push('DHCPv4')
   if (props.item.sources?.includes('dhcp6')) labels.push('DHCPv6')
   if (props.item.sources?.includes('wireless')) labels.push('无线')
+  if (props.item.sources?.includes('oaf')) labels.push('应用用户')
   return labels
 })
 const title = computed(() => '查看终端 ' + (props.item.displayName || props.item.name || '未知设备'))
