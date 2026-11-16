@@ -166,6 +166,25 @@ function closeEditor() {
   editorOpen.value = false
   editor.value = null
 }
+// Called by the parent Android Back/gesture handler before route navigation.
+// The panel owns its dialogs, so it must consume the Back action first.
+function handleBack() {
+  if (editorOpen.value) {
+    if (pending.value) {
+      alert('网络配置正在等待确认，请先选择“确认保留配置”或“立即回滚”', 'warning')
+      return 'busy'
+    }
+    if (busy.value) return 'busy'
+    closeEditor()
+    return 'dialog'
+  }
+  if (runtimeTarget.value) {
+    if (busy.value) return 'busy'
+    runtimeTarget.value = null
+    return 'dialog'
+  }
+  return null
+}
 watch(() => props.client, () => {
   loadToken++
   loading.value = false
@@ -177,7 +196,7 @@ watch(() => props.client, () => {
   void load()
 })
 onMounted(() => { void load() })
-defineExpose({ refreshAction })
+defineExpose({ refreshAction, handleBack })
 </script>
 
 <template>

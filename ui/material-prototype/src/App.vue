@@ -936,6 +936,12 @@ async function handleBack() {
   if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
+  // A nested network editor is a separate Vuetify overlay. Consume Android
+  // Back in the editor before navigating away from the router detail screen.
+  if (viewMode.value === 'detail' && activeTab.value === 'network' && !settingsOpen.value) {
+    const handled = networkInterfacesPanel.value?.handleBack?.()
+    if (handled) return handled
+  }
   if (drawerOpen.value) { drawerOpen.value = false; return 'drawer' }
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
 
