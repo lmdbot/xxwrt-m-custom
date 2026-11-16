@@ -14,7 +14,7 @@ import {
 } from './services/motionPreferences.js'
 import { compareAppVersions, parseAppVersion } from './services/appReleases.js'
 import {
-  APP_FAVORITES_LIMIT, DEFAULT_APP_FAVORITES, readAppFavorites,
+  APP_FAVORITES_LIMIT, APP_FAVORITES_STORAGE_KEY, readAppFavorites,
   writeAppFavorites,
   sortFavoriteTools, toggleAppFavorite, moveAppFavorite, isDangerousApp
 } from './services/appLauncher.js'
@@ -910,7 +910,21 @@ const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
 const appSearch = ref('')
 const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
-const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
+// The design prototype's four default shortcuts. Persisted per-router choices
+// still take precedence, including deliberately empty selections.
+const DESIGN_A_DEFAULT_FAVORITES = Object.freeze(['diagnostics', 'backup', 'logs', 'services'])
+function readDesignAFavorites(deviceId) {
+  try {
+    const data = JSON.parse(localStorage.getItem(APP_FAVORITES_STORAGE_KEY) || '{}')
+    if (deviceId && Object.prototype.hasOwnProperty.call(data || {}, deviceId)) {
+      return readAppFavorites(localStorage, deviceId)
+    }
+  } catch (_) {
+    // Storage errors fall back to the safe Design A defaults.
+  }
+  return [...DESIGN_A_DEFAULT_FAVORITES]
+}
+const appFavoriteIds = ref([...DESIGN_A_DEFAULT_FAVORITES])
 // V3 information architecture: a feature has one canonical home. The
 // favorites/search still accept legacy IDs, so existing per-router shortcuts
 // continue working after the redesign without changing RPC handlers.
@@ -975,7 +989,7 @@ function openDesignAOperation(entry) {
 // Device IDs remain stable if the router's name or IP changes. Preferences
 // stay local to this device; router-side UCI and installed packages are untouched.
 watch(() => selectedDevice.value?.id, id => {
-  appFavoriteIds.value = readAppFavorites(localStorage, id)
+  appFavoriteIds.value = readDesignAFavorites(id)
   favoriteEditorOpen.value = false
   appSearch.value = ''
   expandedAppCategories.value = []
