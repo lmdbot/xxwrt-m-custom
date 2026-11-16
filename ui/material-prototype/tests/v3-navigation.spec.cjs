@@ -1,0 +1,47 @@
+const { test, expect } = require('@playwright/test')
+
+test('v3 bottom navigation has exactly five planned sections on 360dp Android', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 })
+  await page.goto('/')
+  const tabs = page.locator('.standard-bottom .v-btn')
+  await expect(tabs).toHaveCount(5)
+  for (const label of ['概览', '设备', '网络', '工具', '我的']) {
+    await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible()
+  }
+  await expect(page.getByRole('button', { name: '设备', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '工具', exact: true })).toBeDisabled()
+  await expect(page.locator('.material-side-drawer')).toHaveCount(0)
+  await expect(page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2))
+    .resolves.toBeTruthy()
+})
+
+test('v3 Me groups router, settings, About and links to original controls', async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 852 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '我的', exact: true }).click()
+  await expect(page.locator('.v3-me-profile')).toContainText('XX-WRT')
+  await expect(page.getByRole('button', { name: '打开路由器管理' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '打开显示设置' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '打开隐私设置' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '打开刷新设置' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '打开语言设置' })).toBeVisible()
+  await page.getByRole('button', { name: '打开关于' }).click()
+  await expect(page.getByTestId('about-page')).toBeVisible()
+  await expect(page.getByRole('img', { name: '开发者头像' })).toHaveAttribute('src', /developer-avatar/)
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  await page.getByRole('button', { name: '打开路由器管理' }).click()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
+})
+
+test('v3 language can be changed from direct Me preference without a drawer', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: '我的', exact: true }).click()
+  await page.getByRole('button', { name: '打开语言设置' }).click()
+  await page.getByRole('radio', { name: 'English' }).check()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await page.getByRole('button', { name: 'Me', exact: true }).click()
+  await expect(page.locator('.v3-me-profile')).toBeVisible()
+  await page.getByRole('button', { name: 'Overview', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Router management' })).toBeVisible()
+})
