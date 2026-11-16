@@ -74,23 +74,29 @@ test('English also localizes dropdowns and notification overlays created after c
 })
 
 
-test('v3 Me has seven direct entries and Settings retains five categories', async ({ page }) => {
+test('v3 Me uses five concise entries and Settings retains five categories', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
   await expect(page.getByRole('button', { name: '我的', exact: true })).toBeVisible()
   await expect(page.locator('.material-side-drawer')).toHaveCount(0)
   await page.getByRole('button', { name: '我的', exact: true }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
-  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
+  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(5)
   await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
 
-  for (const category of ['路由器', '设置', '关于']) {
-    await page.getByRole('button', { name: '打开' + category, exact: true }).click()
-    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText(category)
-    await expect(page.getByRole('button', { name: '返回上一页' })).toHaveCount(1)
-    await page.getByRole('button', { name: '返回上一页' }).click()
-    await expect(page.getByTestId('more-page')).toBeVisible()
-  }
+  await page.getByRole('button', { name: '打开帮助与反馈' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('帮助与反馈')
+  await expect(page.getByRole('button', { name: '查看使用说明' })).toBeVisible()
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  await page.getByRole('button', { name: '打开隐私设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私')
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  await page.getByRole('button', { name: '打开关于' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('关于')
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByTestId('more-page')).toBeVisible()
 
   await page.getByRole('button', { name: '打开设置' }).click()
   await expect(page.locator('.settings-page .more-menu-item')).toHaveCount(5)
