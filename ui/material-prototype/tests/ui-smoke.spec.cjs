@@ -1185,9 +1185,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开ShadowSocksR Plus+' })).toBeVisible()
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部应用' }).click()
-  // Keep the expanded app count aligned with the five P0 management entries in v2.0.33.
-  await expect(page.locator('.app-tool-row')).toHaveCount(22)
-  for (const title of ['网络诊断', '日志中心', '配置备份恢复', 'DNS / DHCP', '服务管理']) {
+  // Seven P1/P2 and platform entries extend the v2.0.33 launcher from 22 to 29.
+  await expect(page.locator('.app-tool-row')).toHaveCount(29)
+  for (const title of ['网络诊断', '日志中心', '配置备份恢复', 'DNS / DHCP', '服务管理',
+    'DDNS 管理', '系统定时任务', '系统能力识别', '操作记录', '长期趋势', '设备拓扑', '安全分析']) {
     await expect(page.getByRole('button', { name: '打开' + title })).toBeVisible()
   }
   await expect(page.getByRole('button', { name: '打开软件包' })).toBeVisible()

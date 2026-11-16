@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
+import { readAuditRecords } from '../services/managementCore.js'
 import {
   APPLY_TIMEOUT, SNAPSHOT_CONFIGS, CRITICAL_SERVICES,
   runNetworkDiagnostic, readRouterLogs, filterLogLines,
@@ -60,9 +61,18 @@ async function loadLogs() {
   logOutput.value = ''
   logSource.value = ''
   try {
-    const result = await readRouterLogs(props.client, logKind.value)
-    logOutput.value = result.output || ''
-    logSource.value = result.source
+    if (logKind.value === 'audit') {
+      const store = typeof localStorage !== 'undefined' ? localStorage : null
+      const records = readAuditRecords(store, props.client.baseUrl)
+      logOutput.value = records.map(x =>
+        [new Date(x.time).toLocaleString('zh-CN',{hour12:false}), x.action,
+          x.resource, x.status].filter(Boolean).join(' · ')).join('\n')
+      logSource.value = 'APP 本地脱敏操作记录'
+    } else {
+      const result = await readRouterLogs(props.client, logKind.value)
+      logOutput.value = result.output || ''
+      logSource.value = result.source
+    }
     notify('已读取日志：' + (logOutput.value ? '成功' : '目前无日志'))
   } catch (e) { outputError(e) }
   finally { busy.value = false }
@@ -293,12 +303,13 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
       </template>
     </template>
     <template v-else-if="kind === 'logs'">
-      <h3 class="mb-1">系统日志中心</h3>
+      <h3 class="mb-1">日志与操作记录中心</h3>
       <p class="text-caption text-medium-emphasis mb-3">日志从路由器实时读取，不进行本地长期存储。</p>
       <v-btn-toggle v-model="logKind" mandatory density="compact" color="primary"
         variant="tonal" class="mb-3" @update:model-value="loadLogs">
         <v-btn value="system">系统日志</v-btn>
         <v-btn value="kernel">内核日志</v-btn>
+        <v-btn value="audit">操作审计</v-btn>
       </v-btn-toggle>
       <v-text-field v-model="logSearch" label="搜索日志" prepend-inner-icon="mdi-magnify"
         density="compact" variant="outlined" clearable/>

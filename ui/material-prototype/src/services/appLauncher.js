@@ -10,11 +10,11 @@ export const DEFAULT_APP_FAVORITES = Object.freeze([
 
 export const APP_CATEGORIES = Object.freeze([
   { id: 'network', title: '网络与安全', icon: 'mdi-shield-lock-outline',
-    ids: ['parental', 'ssr', 'openclash', 'zerotier', 'firewall', 'diagnostics', 'dnsdhcp'] },
+    ids: ['parental', 'ssr', 'openclash', 'zerotier', 'firewall', 'diagnostics', 'dnsdhcp', 'ddns', 'topology', 'security'] },
   { id: 'services', title: '服务与插件', icon: 'mdi-puzzle-outline',
     ids: ['lucky', 'vlmcsd', 'wechatpush', 'detector', 'carbon'] },
   { id: 'system', title: '系统工具', icon: 'mdi-tools',
-    ids: ['routes', 'process', 'startup', 'services', 'logs', 'backup', 'wol', 'packages'] },
+    ids: ['routes', 'process', 'startup', 'services', 'logs', 'backup', 'cron', 'trends', 'capabilities', 'audit', 'wol', 'packages'] },
   { id: 'maintenance', title: '设备维护', icon: 'mdi-cog-outline',
     ids: ['reboot', 'reset'] }
 ])

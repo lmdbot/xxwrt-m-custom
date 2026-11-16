@@ -1,4 +1,5 @@
 import { macFromDuid, normalizeMac } from './deviceIdentity.js'
+import { recordRpcAudit } from './managementCore.js'
 import { formatRouterUptime } from './routerUptime.js'
 import { extractLuciCookie, describeLuciHttpFailure, isSsrUpgradeEndpoint, ssrLuciReadTimeout } from './luciHttp.js'
 import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core'
@@ -189,7 +190,22 @@ export class RouterClient {
 
   async call(object, method, args = {}, optional = false) {
     if (!this.session) throw new Error('尚未登录')
-    return this.unpack(await this.request(this.envelope(object, method, args)), optional)
+    let response
+    try {
+      response = await this.request(this.envelope(object, method, args))
+    } catch (error) {
+      // An interrupted write may have reached the router.
+      recordRpcAudit(this.baseUrl, object, method, args, 'unknown')
+      throw error
+    }
+    try {
+      const data = this.unpack(response, optional)
+      recordRpcAudit(this.baseUrl, object, method, args, data == null ? 'unknown' : 'success')
+      return data
+    } catch (error) {
+      recordRpcAudit(this.baseUrl, object, method, args, 'error')
+      throw error
+    }
   }
 
   /**
@@ -221,7 +237,21 @@ export class RouterClient {
   async callTimed(object, method, args = {}, readTimeout = 120000) {
     if (!this.session) throw new Error('尚未登录')
     const timeout = Math.max(12000, Math.min(180000, Number(readTimeout) || 120000))
-    return this.unpack(await this.request(this.envelope(object, method, args), { readTimeout: timeout }))
+    let response
+    try {
+      response = await this.request(this.envelope(object, method, args), { readTimeout: timeout })
+    } catch (error) {
+      recordRpcAudit(this.baseUrl, object, method, args, 'unknown')
+      throw error
+    }
+    try {
+      const data = this.unpack(response)
+      recordRpcAudit(this.baseUrl, object, method, args, 'success')
+      return data
+    } catch (error) {
+      recordRpcAudit(this.baseUrl, object, method, args, 'error')
+      throw error
+    }
   }
 
   async batch(entries) {

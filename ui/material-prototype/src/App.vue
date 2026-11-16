@@ -20,6 +20,8 @@ import LuckyPanel from './components/LuckyPanel.vue'
 import VlmcsdPanel from './components/VlmcsdPanel.vue'
 import SoftwarePackagesPanel from './components/SoftwarePackagesPanel.vue'
 import RouterOperationsPanel from './components/RouterOperationsPanel.vue'
+import AdvancedManagementPanel from './components/AdvancedManagementPanel.vue'
+import { METRIC_INTERVAL_MS, recordMetricSample } from './services/routerInsights.js'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import NetworkInterfacesPanel from './components/NetworkInterfacesPanel.vue'
@@ -462,6 +464,8 @@ const toolbarSection = computed(() => {
 })
 function closeAppTool() {
   if (routerOperationsToolIds.includes(toolPanel.value) && routerOperationsPanel.value?.handleBack?.()) return
+  if (advancedToolIds.includes(toolPanel.value) && advancedManagementPanel.value?.handleBack?.()) return
+  if (routerAppToolIds.includes(toolPanel.value) && routerAppsPanel.value?.handleBack?.()) return
   toolPanel.value = ''
   toolMessage.value = ''
   resetPageScroll()
@@ -670,6 +674,8 @@ const vlmcsdPanel = ref(null)
 const softwarePackagesPanel = ref(null)
 const routerOperationsPanel = ref(null)
 const routerOperationsToolIds = ['diagnostics', 'logs', 'backup', 'dnsdhcp', 'services']
+const advancedManagementPanel = ref(null)
+const advancedToolIds = ['ddns', 'cron', 'capabilities', 'audit', 'trends', 'topology', 'security']
 const installedRouterApps = ref(null)
 const installedRouterAppsLoading = ref(false)
 let installedRouterAppsRequest = 0
@@ -747,6 +753,13 @@ const legacyTools = [
   { id: 'backup', title: '配置备份恢复', subtitle: 'UCI 配置快照、差异预览和安全恢复', icon: 'mdi-backup-restore' },
   { id: 'dnsdhcp', title: 'DNS / DHCP', subtitle: '本地域名映射和静态租约', icon: 'mdi-dns' },
   { id: 'services', title: '服务管理', subtitle: '服务运行与开机自启控制', icon: 'mdi-cog-sync-outline' },
+  { id: 'ddns', title: 'DDNS 管理', subtitle: '动态域名服务、IPv6 与更新日志', icon: 'mdi-earth' },
+  { id: 'cron', title: '系统定时任务', subtitle: 'Cron 计划启停与安全预设', icon: 'mdi-calendar-clock-outline' },
+  { id: 'capabilities', title: '系统能力识别', subtitle: 'OpenWrt / QWRT 插件与 RPC 能力', icon: 'mdi-shield-check-outline' },
+  { id: 'audit', title: '操作记录', subtitle: '脱敏的统一变更审计日志', icon: 'mdi-clipboard-text-clock-outline' },
+  { id: 'trends', title: '长期趋势', subtitle: '30 天本地历史采样与曲线', icon: 'mdi-chart-line' },
+  { id: 'topology', title: '设备拓扑', subtitle: 'LLDP、Wi-Fi 与邻居链路可视化', icon: 'mdi-lan-connect' },
+  { id: 'security', title: '安全分析', subtitle: '认证失败、防火墙及扫描事件', icon: 'mdi-security' },
   { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
   { id: 'lucky', title: 'Lucky', subtitle: '运行状态、访问规则与备份维护', icon: 'mdi-clover' },
   { id: 'vlmcsd', title: 'Vlmcsd KMS', subtitle: '服务开关、自动激活与配置文件', icon: 'mdi-server-network' },
@@ -845,7 +858,7 @@ const resourceCards = computed(() => {
     { label: '连接数', value: snap.connPercent == null ? '--' : snap.connPercent + '%', detail: snap.connDetail || '--', icon: 'mdi-lan-connect', progress: snap.connPercent || 0 }
   ]
 })
-let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer, processTimer
+let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
 let processRefreshBusy = false
 let hardwareSampleAt = 0
@@ -927,6 +940,14 @@ function navigateBottomTab(tab) {
   // Vuetify may emit null when the already selected navigation button is
   // tapped. Ignore deselection; a tab must always remain selected.
   if (!pages.some(page => page.id === tab)) return
+  if (activeTab.value === 'apps' && toolPanel.value) {
+    const blocked = advancedToolIds.includes(toolPanel.value)
+      ? advancedManagementPanel.value?.handleBack?.() :
+      routerOperationsToolIds.includes(toolPanel.value)
+        ? routerOperationsPanel.value?.handleBack?.() :
+        routerAppToolIds.includes(toolPanel.value) ? routerAppsPanel.value?.handleBack?.() : null
+    if (blocked) return
+  }
   if (tab === activeTab.value) {
     if (tab === 'apps' && toolPanel.value) {
       toolPanel.value = ''
@@ -1031,10 +1052,12 @@ async function handleBack() {
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
 
   if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
-    if (routerOperationsToolIds.includes(toolPanel.value)) {
-      const blocked = routerOperationsPanel.value?.handleBack?.()
-      if (blocked) return blocked
-    }
+    const blocked = routerOperationsToolIds.includes(toolPanel.value)
+      ? routerOperationsPanel.value?.handleBack?.() :
+      advancedToolIds.includes(toolPanel.value)
+        ? advancedManagementPanel.value?.handleBack?.() :
+        routerAppToolIds.includes(toolPanel.value) ? routerAppsPanel.value?.handleBack?.() : null
+    if (blocked) return blocked
     closeAppTool()
     return 'page'
   }
@@ -1374,6 +1397,10 @@ async function refreshDashboard() {
     ])
     if (dashboardResult.status === 'rejected') throw dashboardResult.reason
     snapshot.value = dashboardResult.value
+    if (selectedDeviceId.value) {
+      try { recordMetricSample(localStorage, selectedDeviceId.value, snapshot.value) }
+      catch (_) { /* Private mode or storage quota: never block dashboard refresh. */ }
+    }
     if (!installedRouterApps.value && !installedRouterAppsLoading.value) {
       void refreshInstalledRouterApps(client.value)
     }
@@ -1475,7 +1502,7 @@ async function showLegacyTool(toolId, { force = false } = {}) {
   if (toolId === 'wol') wolLoadStatus.value = 'loading'
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (toolId === 'parental' || toolId === 'lucky' || toolId === 'vlmcsd' || toolId === 'packages' || routerOperationsToolIds.includes(toolId) || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
+  if (toolId === 'parental' || toolId === 'lucky' || toolId === 'vlmcsd' || toolId === 'packages' || routerOperationsToolIds.includes(toolId) || advancedToolIds.includes(toolId) || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
   toolLoading.value = true
   try {
     if (toolId === 'startup') {
@@ -1521,6 +1548,10 @@ async function showLegacyTool(toolId, { force = false } = {}) {
 }
 
 function refreshCurrentTool() {
+  if (advancedToolIds.includes(toolPanel.value)) {
+    void advancedManagementPanel.value?.refreshAction()
+    return
+  }
   if (routerOperationsToolIds.includes(toolPanel.value)) {
     void routerOperationsPanel.value?.refreshAction()
     return
@@ -1726,6 +1757,17 @@ onMounted(() => {
   refreshTimer = setInterval(() => {
     if (viewMode.value === 'detail' && connected.value && activeTab.value === 'home' && !refreshing.value) refreshDashboard()
   }, 12000)
+  // Sample even when the user is reading other app tabs; do not run in the
+  // background or imply continuous historical collection with the app closed.
+  historyTimer = setInterval(() => {
+    if (viewMode.value !== 'detail' || !connected.value || !client.value || document.hidden) return
+    const api = client.value, routerId = selectedDeviceId.value
+    if (!routerId) return
+    void readDashboard(api).then(data => {
+      if (api !== client.value || routerId !== selectedDeviceId.value) return
+      try { recordMetricSample(localStorage, routerId, data) } catch (_) {}
+    }).catch(() => {})
+  }, METRIC_INTERVAL_MS)
 })
 onUnmounted(() => {
   localizationController?.dispose()
@@ -1739,6 +1781,7 @@ onUnmounted(() => {
   }
   mediaQuery?.removeEventListener?.('change', systemListener)
   if (refreshTimer) clearInterval(refreshTimer)
+  if (historyTimer) clearInterval(historyTimer)
   if (probeTimer) clearInterval(probeTimer)
   if (telemetryTimer) clearInterval(telemetryTimer)
   if (processTimer) clearInterval(processTimer)
@@ -2545,6 +2588,8 @@ onUnmounted(() => {
               <SoftwarePackagesPanel v-if="toolPanel === 'packages' && client" ref="softwarePackagesPanel" :client="client"/>
               <RouterOperationsPanel v-if="routerOperationsToolIds.includes(toolPanel) && client"
                 ref="routerOperationsPanel" :client="client" :kind="toolPanel"/>
+              <AdvancedManagementPanel v-if="advancedToolIds.includes(toolPanel) && client"
+                ref="advancedManagementPanel" :client="client" :kind="toolPanel" :device-id="selectedDeviceId"/>
               </v-card>
             </template>
           </template>

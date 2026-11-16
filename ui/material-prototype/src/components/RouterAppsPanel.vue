@@ -11,8 +11,11 @@ import {
   deleteDeviceAlias, validateDeviceAliasText
 } from '../services/wechatDeviceAliases.js'
 import { CapacitorHttp } from '@capacitor/core'
+import AdvancedManagementPanel from './AdvancedManagementPanel.vue'
+import { assertCleanUci } from '../services/managementCore.js'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
+const advancedSubpanel = ref(null)
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref(''), warning = ref('')
 const readyKind = ref('')
 const manualRefreshing = ref(false)
@@ -234,15 +237,21 @@ async function getUci(config) { return props.client.call('uci', 'get', { config 
 async function setUci(config, section, values) {
   if (!section) throw new Error('找不到对应 UCI 配置段')
   if (Object.keys(values).length) {
+    if (['network', 'dhcp', 'firewall', 'openclash'].includes(config))
+      await assertCleanUci(props.client, [config])
     await props.client.call('uci', 'set', { config, section, values })
     await props.client.call('uci', 'commit', { config })
   }
 }
 async function addUci(config, type, values) {
+  if (['network', 'dhcp', 'firewall', 'openclash'].includes(config))
+    await assertCleanUci(props.client, [config])
   await props.client.call('uci', 'add', { config, type, values })
   await props.client.call('uci', 'commit', { config })
 }
 async function delUci(config, section) {
+  if (['network', 'dhcp', 'firewall', 'openclash'].includes(config))
+    await assertCleanUci(props.client, [config])
   await props.client.call('uci', 'delete', { config, section })
   await props.client.call('uci', 'commit', { config })
 }
@@ -1261,7 +1270,8 @@ async function refreshAction() {
     manualRefreshing.value = false
   }
 }
-defineExpose({ refresh, refreshAction })
+function handleBack() { return advancedSubpanel.value?.handleBack?.() || null }
+defineExpose({ refresh, refreshAction, handleBack })
 </script>
 
 <template>
@@ -1535,7 +1545,8 @@ defineExpose({ refresh, refreshAction })
         <v-switch density="compact" inset :model-value="oc.enable_udp_proxy === '1'" label="UDP 代理" color="primary" hide-details @update:model-value="oc.enable_udp_proxy = $event ? '1' : '0'"/>
         <v-switch density="compact" inset :model-value="oc.router_self_proxy === '1'" label="路由器自身流量代理" color="primary" hide-details @update:model-value="oc.router_self_proxy = $event ? '1' : '0'"/>
         <div class="d-flex flex-wrap ga-2 mt-3"><v-btn color="primary" variant="tonal" :disabled="busy" @click="saveOpenClash">保存配置并重启</v-btn><v-btn variant="outlined" :disabled="busy" @click="run(() => service('openclash','start'),'OpenClash 已启动')">启动</v-btn><v-btn variant="outlined" :disabled="busy" @click="run(() => service('openclash','stop'),'OpenClash 已停止')">停止</v-btn><v-btn variant="outlined" :disabled="busy" @click="run(() => service('openclash','restart'),'OpenClash 已重启')">重启</v-btn></div>
-        <p class="muted-hint mt-2">这里只修改 OpenClash 全局 UCI 选项，不改写 YAML 订阅、节点、规则集和自定义覆写。</p>
+        <p class="muted-hint mt-2">全局选项由原页面管理；订阅开关与现有配置文件选择可在下方受保护地操作。</p>
+        <AdvancedManagementPanel ref="advancedSubpanel" :client="client" kind="openclashPlus"/>
       </template>
     </template>
     <template v-else-if="kind === 'detector'">
@@ -1703,6 +1714,7 @@ defineExpose({ refresh, refreshAction })
           {{ fw.rules.length ? '没有符合筛选条件的防火墙规则。' : '当前没有普通防火墙规则。' }}
         </v-alert>
         <v-btn class="mt-3" variant="outlined" :disabled="busy" @click="run(reloadFirewall,'防火墙已重载')">重载防火墙</v-btn><p class="muted-hint mt-2">修改区域策略或端口转发会提交 UCI 并重载防火墙。请谨慎修改 WAN 区域 INPUT / FORWARD，错误配置可能导致远程管理中断。</p>
+        <AdvancedManagementPanel ref="advancedSubpanel" :client="client" kind="firewallPlus"/>
       </template>
       <v-dialog v-model="fwRuleConfirm" max-width="420">
         <v-card rounded="xl">
