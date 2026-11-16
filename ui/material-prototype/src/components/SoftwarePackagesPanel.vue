@@ -224,8 +224,6 @@ defineExpose({ refreshAction: load })
 
     <div class="package-manager-heading">
       <div><h3>软件包</h3><p class="muted-hint">OpenWrt 系统软件包 · {{ manager }}</p></div>
-      <v-btn size="small" variant="tonal" prepend-icon="mdi-refresh" :disabled="busy" :loading="loading"
-        @click="load">刷新</v-btn>
     </div>
     <v-progress-linear v-if="loading" indeterminate color="primary" class="my-2"/>
     <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
