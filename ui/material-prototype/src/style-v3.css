@@ -8,7 +8,7 @@
   --ui-success:#14aa65;--ui-warning:#d9981f;--ui-error:#dc505b;--ui-unknown:#8797a9;
   --v3-border:var(--ui-border);--v3-tint:rgba(45,114,231,.075);
   --v3-muted:var(--ui-muted);--v3-radius:20px}
-.xxwrt-v3 .main-container{max-width:760px;padding:20px 16px calc(110px + env(safe-area-inset-bottom,0px))}
+.xxwrt-v3 .main-container{max-width:760px;padding:20px 18px calc(110px + env(safe-area-inset-bottom,0px))}
 .xxwrt-v3 .top-bar{background:rgba(var(--v-theme-surface),.95)!important;
   border-bottom:1px solid var(--v3-border)!important;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 .xxwrt-v3 .top-bar .router-toolbar-name{font-weight:750;letter-spacing:-.025em}
@@ -103,7 +103,7 @@
 .xxwrt-v3.theme-is-dark .v3-me-profile{background:linear-gradient(135deg,rgba(64,117,204,.22),transparent),rgb(var(--v-theme-surface))}
 .xxwrt-v3.theme-is-dark .v3-health-heading p{color:#c5d2e5;opacity:1}
 @media(max-width:390px){
-  .xxwrt-v3 .main-container{padding:15px 12px calc(110px + env(safe-area-inset-bottom,0px))}
+  .xxwrt-v3 .main-container{padding:15px 16px calc(110px + env(safe-area-inset-bottom,0px))}
   .xxwrt-v3 .v3-health-card{padding:14px 11px}
   .xxwrt-v3 .v3-health-metrics{gap:6px}
   .xxwrt-v3 .v3-metric{padding:9px 5px}
