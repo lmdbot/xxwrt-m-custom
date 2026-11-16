@@ -969,7 +969,7 @@ const overviewResources = computed(() => {
     { label: '存储', value: disk ? disk.percent + '%' : '--',
       progress: disk?.percent ?? 0, icon: 'mdi-harddisk' },
     { label: '终端', value: snapshot.value?.users ?? '--',
-      progress: 0, icon: 'mdi-devices' }]
+      progress: null, icon: 'mdi-devices' }]
 })
 const overviewWanState = computed(() => {
   const wan = snapshot.value?.interfaces?.find(item => item.interface === 'wan')
@@ -2416,15 +2416,15 @@ onUnmounted(() => {
                 @keydown.enter.prevent="homeDetailsExpanded = !homeDetailsExpanded"
                 @keydown.space.prevent="homeDetailsExpanded = !homeDetailsExpanded">
                 <div class="v3-health-heading">
-                  <v-icon icon="mdi-check-circle-outline" color="success" size="30"/>
+                  <v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-progress-clock'" :color="connected ? 'success' : 'warning'" size="30"/>
                   <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
                     <p>{{ snapshot?.board?.model || 'OpenWrt / QWRT' }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
-                  <v-chip size="small" color="success" variant="tonal">在线</v-chip>
+                  <v-chip size="small" :color="connected ? 'success' : 'warning'" variant="tonal">{{ connected ? '在线' : '检测中' }}</v-chip>
                 </div>
                 <div class="v3-health-metrics">
                   <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
                     <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
-                    <v-progress-linear :model-value="item.progress" color="primary" height="4" rounded/>
+                    <v-progress-linear v-if="item.progress != null" :model-value="item.progress" color="primary" height="4" rounded/>
                   </div>
                 </div>
               </div>
