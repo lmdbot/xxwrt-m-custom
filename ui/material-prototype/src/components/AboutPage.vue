@@ -19,8 +19,8 @@ const updateStatus = computed(() => {
   if (state.error) return state.error
   if (state.available) {
     return state.latestRelease?.apkUrl
-      ? '发现新版本，可下载正式版 APK'
-      : '发现新版本，但当前 Release 暂无可用的安装包'
+      ? '发现新版本 v' + state.latestRelease.version + '，可下载正式版 APK'
+      : '发现新版本 v' + state.latestRelease.version + '，但当前 Release 暂无可用的安装包'
   }
   if (state.checked) return state.latestRelease ? '当前已是最新版' : '未找到可用的正式版本'
   return '支持在线检查更新'
@@ -117,7 +117,7 @@ const updateStatus = computed(() => {
           <div class="about-entry-copy"><strong>GitHub</strong><small>查看源代码与项目进展</small></div>
           <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
         </button>
-        <button type="button" class="about-entry" aria-label="查看问题与反馈" @click="emit('show-issues')">
+        <button type="button" class="about-entry" aria-label="查看问题与反馈（Issues）" @click="emit('show-issues')">
           <div class="about-entry-icon"><v-icon icon="mdi-lifebuoy" size="23"/></div>
           <div class="about-entry-copy"><strong>帮助与反馈</strong><small>提交问题和功能建议</small></div>
           <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
