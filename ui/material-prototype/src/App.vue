@@ -586,6 +586,7 @@ const toolbarSection = computed(() => {
   if (settingsOpen.value || activeTab.value === 'more') return ''
   if (viewMode.value !== 'detail' || !connected.value) return ''
   if (toolPanel.value) return legacyTools.find(x => x.id === toolPanel.value)?.title || '工具详情'
+  if (activeTab.value === 'home' && homeDetailsExpanded.value) return '系统详情'
   if (activeTab.value === 'network' && networkSection.value !== 'hub') return networkSectionTitle.value
   return ''
 })
@@ -1397,6 +1398,10 @@ async function handleBack() {
     if (handled) return handled
   }
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
+  if (activeTab.value === 'home' && homeDetailsExpanded.value) {
+    homeDetailsExpanded.value = false
+    return 'page'
+  }
   if (activeTab.value === 'statistics') {
     activeTab.value = 'home'
     return 'page'
@@ -2191,7 +2196,7 @@ onUnmounted(() => {
 <template>
   <v-app class="material-demo xxwrt-v3" :class="{ 'theme-is-dark': dark, 'app-motion-enabled': effectiveMotion }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
-      <v-btn v-if="settingsOpen || !!toolPanel || activeTab === 'statistics' || (activeTab === 'network' && networkSection !== 'hub')"
+      <v-btn v-if="settingsOpen || !!toolPanel || activeTab === 'statistics' || (activeTab === 'home' && homeDetailsExpanded) || (activeTab === 'network' && networkSection !== 'hub')"
         icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
@@ -2520,17 +2525,12 @@ onUnmounted(() => {
           <!-- Connected page errors are shown in the fixed bottom snackbar. -->
 
           <template v-if="activeTab === 'home' || activeTab === 'statistics'">
-            <section v-if="activeTab === 'home'" class="v3-overview">
-              <div class="v3-health-card" role="button" tabindex="0"
-                :aria-expanded="homeDetailsExpanded" aria-label="查看系统与硬件详情"
-                @click="homeDetailsExpanded = !homeDetailsExpanded"
-                @keydown.enter.prevent="homeDetailsExpanded = !homeDetailsExpanded"
-                @keydown.space.prevent="homeDetailsExpanded = !homeDetailsExpanded">
+            <section v-if="activeTab === 'home' && !homeDetailsExpanded" class="v3-overview">
+              <div class="v3-health-card">
                 <div class="v3-health-heading">
                   <v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-progress-clock'" :color="connected ? 'success' : 'warning'" size="30"/>
                   <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
                     <p>{{ snapshot?.board?.model || 'OpenWrt / QWRT' }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
-                  <v-chip size="small" :color="connected ? 'success' : 'warning'" variant="tonal">{{ connected ? '在线' : '检测中' }}</v-chip>
                 </div>
                 <div class="v3-health-metrics">
                   <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
@@ -2561,19 +2561,13 @@ onUnmounted(() => {
                 <button class="v3-shortcut" @click="launchV3Tool('ddns')"><v-icon icon="mdi-earth"/>DDNS</button>
                 <button class="v3-shortcut" @click="launchV3Tool('diagnostics')"><v-icon icon="mdi-lan-check"/>诊断</button>
               </div>
-              <div class="v3-module-heading"><h2>网络状态</h2></div>
-              <div class="v3-overview-network-state" aria-label="网络状态摘要">
-                <div><span>WAN</span><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong></div>
-                <div><span>IPv6</span><strong :class="{ 'v3-status-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</strong></div>
-                <div><span>终端</span><strong>{{ snapshot?.users ?? '--' }} 台</strong></div>
-              </div>
-              <div class="v3-module-heading">
-                <h2>系统与硬件详情</h2>
-                <v-btn size="small" variant="text"
-                  :append-icon="homeDetailsExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-                  :aria-expanded="homeDetailsExpanded"
-                  :aria-label="homeDetailsExpanded ? '收起系统与硬件详情' : '展开系统与硬件详情'"
-                  @click="homeDetailsExpanded = !homeDetailsExpanded">{{ homeDetailsExpanded ? '收起' : '展开' }}</v-btn>
+              <div class="v3-module-heading"><h2>系统与硬件</h2></div>
+              <div class="v3-feature-list v3-home-system-entry">
+                <button type="button" aria-label="打开系统详情" @click="homeDetailsExpanded = true">
+                  <v-icon icon="mdi-cpu-64-bit" color="primary"/>
+                  <span><strong>系统详情</strong><small>系统信息、运行时间、硬盘使用情况</small></span>
+                  <v-icon icon="mdi-chevron-right"/>
+                </button>
               </div>
             </section>
             <div v-if="homeDetailsExpanded && activeTab === 'home'" class="v3-home-details">
