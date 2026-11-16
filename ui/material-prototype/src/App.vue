@@ -966,17 +966,21 @@ const favoriteEditorTools = computed(() => [
  * Live router forms remain in the existing panels, one level deeper. */
 const designAOperationOpen = ref(false)
 const designAOperationName = ref('')
+const designARiskDialog = ref(false)
 watch(toolPanel, () => {
   designAOperationOpen.value = false
   designAOperationName.value = ''
+  designARiskDialog.value = false
 })
 const designASecondaryInfo = computed(() => {
   const id = toolPanel.value
   const tool = visibleLegacyTools.value.find(item => item.id === id)
   const definition = {
     backup: { title: '配置备份恢复', subtitle: '注意：配置可能含账号和密钥', warning: true,
+      warningText: '备份可能包含账号、密钥等敏感信息。恢复前应核对差异、备份原配置并确认回滚方式。',
       entries: [['配置备份', '导出 UCI JSON'], ['系统原生备份', '导出 tar.gz'], ['恢复配置', '差异预览、限时回滚'], ['备份文件', '查看已保存文件']] },
     firewall: { title: '防火墙', subtitle: '修改规则可能影响管理连接', warning: true,
+      warningText: '修改区域策略、规则或端口转发可能中断当前管理连接。操作前请确认恢复访问的方法。',
       entries: [['区域策略', 'WAN / LAN 默认行为'], ['通信规则', '允许与拒绝规则'], ['端口转发', 'DNAT 目标与端口'], ['NAT', '源地址转换']] },
     dnsdhcp: { title: 'DNS / DHCP', subtitle: '本地域名、地址分配和静态租约',
       entries: [['本地域名', '自定义 DNS 解析'], ['静态租约', 'MAC 与 IP 绑定'], ['DHCP 配置', '地址分配与租期']] },
@@ -2868,6 +2872,19 @@ onUnmounted(() => {
               </div>
             </section>
             <template v-else>
+            <v-dialog v-model="designARiskDialog" max-width="330">
+              <v-card class="v3-design-a-risk-modal" rounded="xl">
+                <v-card-title class="v3-design-a-risk-title">⚠ 网络配置风险</v-card-title>
+                <v-card-text>
+                  接口地址、网关或 DNS 修改可能中断当前管理连接。
+                  请先确认备份和回滚方式；继续仅打开配置页面，不会直接写入路由器。
+                </v-card-text>
+                <v-card-actions class="v3-design-a-risk-actions">
+                  <v-btn variant="tonal" color="primary" @click="designARiskDialog = false">取消</v-btn>
+                  <v-btn color="error" variant="flat" @click="designARiskDialog = false; designANetworkPanelOpen = true">继续查看配置</v-btn>
+                </v-card-actions>
+              </v-card>
+            </v-dialog>
             <section v-if="!designANetworkPanelOpen" class="v3-design-a-index" aria-label="网络管理入口">
               <header class="v3-design-a-hero">
                 <h2>{{ designANetworkInfo.title }}</h2>
@@ -2888,6 +2905,8 @@ onUnmounted(() => {
               <div class="v3-design-a-actions">
                 <button type="button" class="v3-design-a-primary"
                   @click="designANetworkPanelOpen = true">查看网络配置</button>
+                <button v-if="networkSection === 'interfaces'" type="button" class="v3-design-a-danger"
+                  @click="designARiskDialog = true">操作风险确认</button>
               </div>
             </section>
             <div v-show="designANetworkPanelOpen" class="v3-design-a-network-editor">
@@ -3045,6 +3064,19 @@ onUnmounted(() => {
               </v-dialog>
             </template>
             <template v-else>
+              <v-dialog v-model="designARiskDialog" max-width="330">
+                <v-card class="v3-design-a-risk-modal" rounded="xl">
+                  <v-card-title class="v3-design-a-risk-title">⚠ 操作风险确认</v-card-title>
+                  <v-card-text>
+                    当前操作可能改变路由器配置、网络连接或管理权限。
+                    请先核实备份和恢复方案。此确认不会直接提交任何配置。
+                  </v-card-text>
+                  <v-card-actions class="v3-design-a-risk-actions">
+                    <v-btn variant="tonal" color="primary" @click="designARiskDialog = false">取消</v-btn>
+                    <v-btn color="error" variant="flat" @click="designARiskDialog = false; openDesignAOperation('配置管理')">继续查看配置</v-btn>
+                  </v-card-actions>
+                </v-card>
+              </v-dialog>
               <section v-if="!designAOperationOpen" class="v3-design-a-index" aria-label="功能管理入口">
                 <header class="v3-design-a-hero">
                   <h2>{{ designASecondaryInfo.title }}</h2>
@@ -3060,10 +3092,12 @@ onUnmounted(() => {
                   </button>
                 </div>
                 <p class="v3-design-a-notice" :class="{ 'is-warning': designASecondaryInfo.warning }">
-                  以下入口连接真实路由器功能；只有通过设备能力及权限检查后才允许修改配置。
+                  {{ designASecondaryInfo.warningText || '以下入口连接真实路由器功能；只有通过设备能力及权限检查后才允许修改配置。' }}
                 </p>
                 <div class="v3-design-a-actions">
-                  <button type="button" class="v3-design-a-primary" @click="openDesignAOperation('运行状态')">查看实际功能</button>
+                  <button type="button" class="v3-design-a-primary" @click="openDesignAOperation(designASecondaryInfo.warning ? '配置详情' : '运行状态')">{{ designASecondaryInfo.warning ? '查看配置' : '查看实际功能' }}</button>
+                  <button v-if="designASecondaryInfo.warning" type="button" class="v3-design-a-danger"
+                    @click="designARiskDialog = true">操作风险确认</button>
                 </div>
               </section>
               <!-- The existing RPC/UCI management panels are unchanged. -->
