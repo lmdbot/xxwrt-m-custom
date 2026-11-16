@@ -1207,6 +1207,11 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     return window.scrollY||document.scrollingElement.scrollTop
   })
   expect(hubScroll).toBeGreaterThan(80)
+  // Expand-all must not leave an in-flight smooth-scroll that overrides a
+  // deliberate scrollTo immediately before navigating into a tool.
+  await page.waitForTimeout(350)
+  await expect.poll(async()=>Math.abs((await page.evaluate(()=>
+    window.scrollY||document.scrollingElement.scrollTop))-hubScroll)).toBeLessThan(2)
   await page.evaluate(()=>{
     const button=document.querySelector('button[aria-label="打开日志中心"]')
     if(!button)throw new Error('日志中心入口缺失')

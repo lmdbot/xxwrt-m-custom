@@ -924,8 +924,12 @@ function toggleAppCategory(id) {
 async function expandAllAppCategories() {
   expandedAppCategories.value = appCategories.value.map(group => group.id)
   await nextTick()
+  // Expand-all changes the height of multiple lists. A smooth scroll here
+  // can continue *after* the user sets a new scroll position, then the route
+  // saves that unintended offset on entry to a tool detail (82px in CI).
+  // Keep the jump immediate; regular manual scrolling and page motion remain.
   document.getElementById('app-category-list')?.scrollIntoView({
-    behavior: motionScrollBehavior(effectiveMotion.value), block: 'start'
+    behavior: 'instant', block: 'start'
   })
 }
 const showHomeDetector = computed(() => {
