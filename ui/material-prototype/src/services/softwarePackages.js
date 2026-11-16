@@ -188,9 +188,44 @@ export async function runPackageAction(client, action, targets = [], manager = '
   return output
 }
 
+/**
+ * LuCI uses cgi-io for multi-megabyte indexes. Prefer that transport
+ * (same authenticated rpcd session) and fall back to ordinary ubus file.exec.
+ */
+export async function readPackageListing(client, action) {
+  if (!['list-available', 'list-installed'].includes(action))
+    throw new Error('只允许读取软件包列表')
+  if (typeof client.cgiPackageList === 'function') {
+    try {
+      const raw = await client.cgiPackageList(action)
+      if (typeof raw === 'string' && /^\s*(?:Package:|\[|\{)/.test(raw))
+        return { code: 0, stdout: raw, source: 'cgi-io' }
+    } catch (_) {
+      // Router may omit cgi-io or deny the separate cgi-io permission.
+      // The same command remains available via regular ubus if authorized.
+    }
+  }
+  return { ...(await runPackageAction(client, action)), source: 'ubus' }
+}
+
+function allowedConfigPath(manager, path) {
+  if (PACKAGE_CONFIGS[manager]?.includes(path)) return true
+  return manager === 'opkg'
+    ? /^\/etc\/opkg\/[A-Za-z0-9_.-]+\.conf$/.test(path)
+    : manager === 'apk' && /^\/etc\/apk\/repositories\.d\/[A-Za-z0-9_.-]+\.list$/.test(path)
+}
+
 export async function readPackageConfigs(client, manager) {
-  const files = PACKAGE_CONFIGS[manager] || PACKAGE_CONFIGS.opkg
-  return Promise.all(files.map(async path => {
+  const paths = [...(PACKAGE_CONFIGS[manager] || PACKAGE_CONFIGS.opkg)]
+  const directory = manager === 'apk' ? '/etc/apk/repositories.d' : '/etc/opkg'
+  const listing = await client.call('file', 'list', { path: directory }, true).catch(() => null)
+  const entries = Array.isArray(listing?.entries) ? listing.entries : []
+  for (const item of entries) {
+    const path = directory + '/' + item.name
+    if (item.type === 'file' && allowedConfigPath(manager, path) && !paths.includes(path))
+      paths.push(path)
+  }
+  return Promise.all(paths.map(async path => {
     try {
       const result = await client.call('file', 'read', { path })
       return { path, content: stringify(result?.data), exists: true }
@@ -199,7 +234,7 @@ export async function readPackageConfigs(client, manager) {
 }
 
 export async function savePackageConfig(client, manager, path, content) {
-  if (!PACKAGE_CONFIGS[manager]?.includes(path)) throw new Error('不允许修改该配置文件')
+  if (!allowedConfigPath(manager, path)) throw new Error('不允许修改该配置文件')
   const normalized = stringify(content).replace(/\r\n/g, '\n')
   if (new TextEncoder().encode(normalized).length > 64 * 1024)
     throw new Error('配置文件不能超过 64 KiB')
