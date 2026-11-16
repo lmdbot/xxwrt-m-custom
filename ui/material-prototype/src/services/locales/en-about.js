@@ -34,6 +34,7 @@ export default {
   "打开 GitHub 项目": "Open GitHub project",
   "查看源代码与项目进展": "Source code and project activity",
   "查看问题与反馈": "View issues and feedback",
+  "查看问题与反馈（Issues）": "View issues and feedback (Issues)",
   "帮助与反馈": "Help & feedback",
   "提交问题和功能建议": "Report bugs and suggest features",
   "查看开源许可证": "View open-source licenses",
