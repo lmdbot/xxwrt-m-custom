@@ -521,7 +521,8 @@ const terminalSettingsBusy = ref(false)
 const terminalSaving = ref(false)
 const terminalError = ref('')
 const terminalNotice = ref('')
-const terminalForm = reactive({ staticEnabled: false, staticIp: '', name: '', download: '', upload: '' })
+const terminalForm = reactive({ staticEnabled: false, staticIp: '', name: '', download: '', upload: '', connections: '0' })
+const hqosEnableDialog = ref(false)
 let terminalRequestId = 0
 
 function applyTerminalSettings(settings) {
@@ -533,6 +534,7 @@ function applyTerminalSettings(settings) {
     ? dhcpName : ''
   terminalForm.download = settings.rates.download == null ? '' : String(settings.rates.download)
   terminalForm.upload = settings.rates.upload == null ? '' : String(settings.rates.upload)
+  terminalForm.connections = String(settings.connections ?? 0)
 }
 async function openTerminal(item) {
   if (terminalSaving.value) return
@@ -576,14 +578,26 @@ async function saveTerminalStatic() {
     terminalSaving.value = false
   }
 }
-async function saveTerminalQos() {
-  if (!terminalSettings.value?.backend || !client.value || terminalSaving.value) return
+async function saveTerminalQos(allowEnable = false) {
+  const settings = terminalSettings.value
+  if (!settings?.backend || !client.value || terminalSaving.value) return
+  if (settings.backend === 'hqos' && !settings.hqosStatus.enabled &&
+      !allowEnable && [terminalForm.upload, terminalForm.download, terminalForm.connections]
+        .some(value => Number(value) > 0)) {
+    hqosEnableDialog.value = true
+    return
+  }
   terminalSaving.value = true
   terminalError.value = ''
   terminalNotice.value = ''
   try {
     const result = await saveTerminalRateLimit(client.value, selectedClient.value, terminalSettings.value,
-      { upload: terminalForm.upload, download: terminalForm.download })
+      { upload: terminalForm.upload, download: terminalForm.download,
+        connections: terminalForm.connections,
+        name: terminalSettings.value.backend === 'hqos'
+          ? terminalSettings.value.hqosRule?.name || selectedClient.value?.displayName ||
+            selectedClient.value?.name || '' : '',
+        allowEnable })
     terminalNotice.value = result.message
     await refreshTerminalSettings()
   } catch (error) {
@@ -933,6 +947,7 @@ async function handleBack() {
   if (confirmReboot.value) { confirmReboot.value = false; return 'dialog' }
   if (wolDeleteDialog.value) { wolDeleteDialog.value = false; return 'dialog' }
   if (deleteDialog.value) { deleteDialog.value = false; return 'dialog' }
+  if (hqosEnableDialog.value) { hqosEnableDialog.value = false; return 'dialog' }
   if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
@@ -2539,31 +2554,55 @@ onUnmounted(() => {
               <v-icon icon="mdi-speedometer" color="primary"/>
               <strong>终端网速限制</strong>
             </div>
-            <v-alert v-if="terminalSettings.hqosStatus?.installed" type="info" density="compact" variant="tonal" class="mb-3">
-              QWRT HQoS 已安装，{{ terminalSettings.hqosStatus.enabled ? '配置为启用' : '当前未启用' }}。
-              后端：{{ terminalSettings.hqosStatus.mode }}；
-              接口：{{ terminalSettings.hqosStatus.interface || '未指定' }}。
-              HQoS 使用按 MAC 配置的独立规则，当前版本只读取状态，不会误写旧的 IP 限速配置。
+            <v-alert v-if="terminalSettings.hqosStatus?.installed"
+              :type="terminalSettings.hqosStatus.error ? 'warning' : 'info'"
+              density="compact" variant="tonal" class="mb-3">
+              QWRT HQoS：{{ terminalSettings.hqosStatus.enabled ? '已启用' : '未启用' }}；
+              {{ terminalSettings.hqosStatus.running ? '引擎运行中' : '引擎未运行' }}；
+              后端 {{ terminalSettings.hqosStatus.effectiveBackend || terminalSettings.hqosStatus.mode }}；
+              接口 {{ terminalSettings.hqosStatus.interface || '未指定' }}。
+              <span v-if="terminalSettings.hqosStatus.error">{{ terminalSettings.hqosStatus.error }}</span>
             </v-alert>
             <template v-if="terminalSettings.backend">
               <v-chip size="x-small" color="primary" variant="tonal" class="mb-3">
                 {{ terminalSettings.backendLabel }}
               </v-chip>
               <div class="d-flex ga-2">
-                <v-text-field v-model.trim="terminalForm.download" label="下载限速 (Mbps)"
-                  placeholder="不限速" type="number" min="1" max="10000" step="1" variant="outlined"
-                  density="compact" :disabled="terminalSaving" hide-details="auto"/>
-                <v-text-field v-model.trim="terminalForm.upload" label="上传限速 (Mbps)"
-                  placeholder="不限速" type="number" min="1" max="10000" step="1" variant="outlined"
-                  density="compact" :disabled="terminalSaving" hide-details="auto"/>
+                <v-text-field v-model.trim="terminalForm.download"
+                  :label="terminalSettings.backend === 'hqos' ? '下载限速 (kbps)' : '下载限速 (Mbps)'"
+                  :placeholder="terminalSettings.backend === 'hqos' ? '0 表示不限速' : '不限速'"
+                  type="number" :min="terminalSettings.backend === 'hqos' ? 0 : 1"
+                  :max="terminalSettings.backend === 'hqos' ? terminalSettings.hqosStatus.maxRate : 10000"
+                  step="1" variant="outlined" density="compact" :disabled="terminalSaving" hide-details="auto"/>
+                <v-text-field v-model.trim="terminalForm.upload"
+                  :label="terminalSettings.backend === 'hqos' ? '上传限速 (kbps)' : '上传限速 (Mbps)'"
+                  :placeholder="terminalSettings.backend === 'hqos' ? '0 表示不限速' : '不限速'"
+                  type="number" :min="terminalSettings.backend === 'hqos' ? 0 : 1"
+                  :max="terminalSettings.backend === 'hqos' ? terminalSettings.hqosStatus.maxRate : 10000"
+                  step="1" variant="outlined" density="compact" :disabled="terminalSaving" hide-details="auto"/>
               </div>
-              <p class="muted-hint my-2">
+              <template v-if="terminalSettings.backend === 'hqos'">
+                <v-text-field v-model.trim="terminalForm.connections" label="并发连接数"
+                  placeholder="0 表示不限" type="number" min="0" max="65535" step="1"
+                  variant="outlined" density="compact" class="mt-3"
+                  :disabled="terminalSaving" hide-details="auto"/>
+                <p class="muted-hint my-2">
+                  与 Web 端 HQoS 使用同一套 MAC 规则，IPv4 / IPv6 共享上传、下载及连接数额度。
+                  单位 kbps，0 表示不限速；三项均为 0 可清除该 MAC 的 QoS 规则。
+                  {{ terminalSettings.hqosStatus.enabled ? '' : '当前 HQoS 未启用，保存非零限额将自动启用全局 HQoS，操作前再次确认。' }}
+                  <span v-if="terminalSettings.hqosRule?.enabled === false">
+                    原规则已禁用，重新保存非零额度会将其启用。
+                  </span>
+                </p>
+              </template>
+              <p v-else class="muted-hint my-2">
                 留空表示不限速，清空两项并保存可取消规则。
                 {{ terminalSettings.backend === 'eqos' ? 'EQOS 需要上下行同时设置。' : '' }}
                 限速按 IPv4 生效，建议先绑定静态 IP，避免 DHCP 续租后限制到其他设备。
               </p>
               <v-btn color="primary" variant="tonal" block :loading="terminalSaving"
-                :disabled="terminalSettingsBusy || !terminalSettings.activeIP" @click="saveTerminalQos">保存终端限速</v-btn>
+                :disabled="terminalSettingsBusy || (terminalSettings.backend !== 'hqos' && !terminalSettings.activeIP)"
+                  @click="saveTerminalQos()">保存终端限速</v-btn>
             </template>
             <v-alert v-else type="info" density="compact" variant="tonal" class="mt-2">
               {{ terminalSettings.reason }}。静态 IP 绑定仍可独立使用。
@@ -2572,6 +2611,21 @@ onUnmounted(() => {
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" :disabled="terminalSaving"
           @click="selectedClient = null; terminalRequestId++">关闭</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="hqosEnableDialog" max-width="430" persistent>
+      <v-card rounded="xl">
+        <v-card-title>确认启用全局 HQoS？</v-card-title>
+        <v-card-text>
+          当前 QWRT 的 HQoS 处于关闭状态。保存此 MAC 的非零限速或连接数后，
+          路由器的原生 hqos.set 会自动开启全局 QoS，并可能修改网络转发和硬件加速行为。
+          <p class="mt-2">请确认已了解对其他客户端和网络性能的影响。</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="hqosEnableDialog = false">取消</v-btn>
+          <v-spacer/>
+          <v-btn color="warning" :loading="terminalSaving" @click="hqosEnableDialog = false; saveTerminalQos(true)">确认启用并保存</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="deviceDialog" max-width="430">
