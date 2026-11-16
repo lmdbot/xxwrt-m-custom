@@ -27,9 +27,11 @@ permissions:
   contents: read
 
 jobs:
-  material-ui:
+  # The version/logic suite and production web bundle have no dependency on
+  # browser interactions. Start them immediately, in parallel with UI shards.
+  quality-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: ui/material-prototype
@@ -42,24 +44,22 @@ jobs:
         with:
           node-version: "22"
 
-      # package-lock.json is not committed yet; cache npm's content-addressed
-      # downloads by the currently pinned package.json without caching node_modules.
       - name: Cache npm downloads
         uses: actions/cache@v4
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
 
-      - name: Install open-source UI dependencies
+      - name: Install UI dependencies
         run: npm install --no-audit --no-fund --prefer-offline
 
-      - name: Verify stable release manifest and version handling
+      - name: Verify stable releases and version handling
         run: npm run test:versions
 
       - name: Run application and router logic regression tests
         run: npm run test:logic
 
-      - name: Verify per-version release notes needed by main publishing
+      - name: Verify structured release notes
         shell: bash
         run: |
           set -euo pipefail
@@ -71,38 +71,73 @@ jobs:
             exit 1
           }
 
-      - name: Build Vuetify + Liquid Glass prototype
+      - name: Build production web bundle
         run: npm run build
 
-      # Pre-merge checks should exercise the same Playwright suite used by
-      # main's signed APK workflow. Avoid re-running it on main itself.
-      - name: Cache Playwright Chromium
-        if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
-
-      - name: Install Chromium for pre-merge UI regression checks
-        if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
-        run: npx playwright install --with-deps chromium
-
-      - name: Verify V3 navigation, settings and locale smoke first
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/xxwrt-v3-redesign'
-        run: npx playwright test tests/v3-navigation.spec.cjs --retries=0
-
-      - name: Verify pre-merge Android-sized UI interactions
-        if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
-        run: npm run test:ui
-
-      - name: Show slowest Playwright cases
-        if: always() && (github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29')
-        run: node scripts/report_playwright_timing.cjs
-
-      - name: Upload static prototype (not an Android APK)
+      - name: Upload static prototype
         uses: actions/upload-artifact@v4
         with:
           name: xxwrt-material-ui-web-prototype
           path: ui/material-prototype/dist/
           if-no-files-found: error
           retention-days: 30
+
+  # Split the existing Playwright suite across independent runners. A shard
+  # executes each selected test exactly once; no test files or assertions are
+  # added/removed. Playwright starts its own Vite webServer, so build is not a
+  # prerequisite and this job must NOT depend on quality-and-build.
+  ui-interactions:
+    if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: ui/material-prototype
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
+
+      - name: Install UI dependencies
+        run: npm install --no-audit --no-fund --prefer-offline
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run existing Android-sized UI suite (shard ${{ matrix.shard }}/3)
+        # Two workers per runner × three independent shards = six concurrent
+        # Playwright browser workers without overloading a single runner.
+        run: npm run test:ui -- --shard=${{ matrix.shard }}/3 --workers=2 --retries=1
+
+      - name: Show slowest cases in shard
+        if: always()
+        run: node scripts/report_playwright_timing.cjs
+
+      - name: Upload Playwright failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-failure-shard-${{ matrix.shard }}
+          path: ui/material-prototype/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
