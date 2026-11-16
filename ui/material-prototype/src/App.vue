@@ -1089,7 +1089,9 @@ function scrollCurrentPageToTop(){
 }
 function scrollRouteKey([tab,tool,mode,settings,category,device,netSection]){
   if(settings)return 'settings:'+String(category||'root')
-  if(tab==='more')return 'more:root'
+  // Me and More are root pages even when no router has been selected.
+  // Otherwise the device list's previous scroll offset leaks into Me.
+  if(tab==='me'||tab==='more')return tab+':root'
   if(mode==='list')return 'device-list'
   return ['router',String(device||'unknown'),String(tab||'home'),
     tab==='apps'?(tool||'hub'):tab==='network'?(netSection||'hub'):'root'].join(':')
