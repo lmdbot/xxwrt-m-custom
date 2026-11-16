@@ -1,6 +1,35 @@
 const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
 
+// The detailed visual review is opt-in; the ordinary 24-test CI stays fast.
+// Reference drawings include demo metrics, so screenshots require visual
+// review and must never be treated as an automatically approved baseline.
+const captureDesignScreens = process.env.DESIGN_VISUAL_AUDIT === '1'
+async function captureDesignA(page, viewId) {
+  if (!captureDesignScreens) return
+  const previousSize = page.viewportSize()
+  const scroll = await page.evaluate(() => window.scrollY)
+  const theme = await page.locator('.material-demo.theme-is-dark').count() ? 'dark' : 'light'
+  for (const [width, height] of [[360, 800], [393, 852], [430, 932]]) {
+    await page.setViewportSize({ width, height })
+    await page.evaluate(() => window.scrollTo({top:0, behavior:'instant'}))
+    const folder = `test-results/design-a/actual/${width}/${theme}`
+    fs.mkdirSync(folder, { recursive: true })
+    await page.screenshot({path:`${folder}/${viewId}.png`, fullPage:false, animations:'disabled'})
+  }
+  if (previousSize) await page.setViewportSize(previousSize)
+  await page.evaluate(y => window.scrollTo({top:y, behavior:'instant'}),scroll)
+}
+async function captureDesignExtraPages(page, entries) {
+  for (const [key, title] of entries) {
+    await openApplication(page, title)
+    await expect(page.getByRole('button', { name: '返回上一页' })).toBeVisible()
+    await page.waitForTimeout(120)
+    await captureDesignA(page, key)
+    await page.getByRole('button', { name: '返回上一页' }).click()
+  }
+}
+
 const appGroups = {
   "ShadowSocksR Plus+": "插件中心", "OpenClash": "插件中心",
   "Lucky": "插件中心", "Vlmcsd KMS": "插件中心",
@@ -505,6 +534,7 @@ test('v3 keeps five tabs before login and preserves settings hierarchy', async (
 })
 
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
+  if (captureDesignScreens) test.setTimeout(300000)
   const errors = []
   page.on('pageerror', e => errors.push(e.message))
   page.on('console', m => {
