@@ -120,7 +120,7 @@ function hqosUnicastMac(raw) {
 export function parseHqosLimit(raw, limit, label) {
   const value = String(raw ?? '').trim()
   // HQoS LuCI and rpcd both use 0 for unlimited.
-  if (!/^(0|[1-9]\\d*)$/.test(value)) throw new Error(label + '必须是非负整数')
+  if (!/^(0|[1-9]\d*)$/.test(value)) throw new Error(label + '必须是非负整数')
   const number = Number(value)
   if (!Number.isSafeInteger(number) || number > limit)
     throw new Error(label + '不能超过 ' + limit)
