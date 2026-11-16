@@ -1,7 +1,13 @@
 /* XX-WRT 3.0 / Material 3 + restrained glass.
  * Network data and editors use solid surfaces for readability. */
-.xxwrt-v3{--v3-border:rgba(93,121,172,.14);--v3-tint:rgba(45,114,231,.075);
-  --v3-muted:#61718b;--v3-radius:20px}
+.xxwrt-v3{
+  /* Authoritative Design A colors: doc/04-design-system.md */
+  --ui-primary:#2477ee;--ui-secondary:#23a2cf;--ui-teal:#168e8b;
+  --ui-bg:#f3f7fd;--ui-surface:#ffffff;--ui-surface-2:#eaf1fc;
+  --ui-text:#12233f;--ui-muted:#63758e;--ui-border:#dce6f4;
+  --ui-success:#14aa65;--ui-warning:#d9981f;--ui-error:#dc505b;--ui-unknown:#8797a9;
+  --v3-border:var(--ui-border);--v3-tint:rgba(45,114,231,.075);
+  --v3-muted:var(--ui-muted);--v3-radius:20px}
 .xxwrt-v3 .main-container{max-width:760px;padding:20px 16px calc(110px + env(safe-area-inset-bottom,0px))}
 .xxwrt-v3 .top-bar{background:rgba(var(--v-theme-surface),.95)!important;
   border-bottom:1px solid var(--v3-border)!important;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
@@ -85,7 +91,13 @@
 .xxwrt-v3 .app-subpage{min-height:180px}
 .xxwrt-v3 .network-card,.xxwrt-v3 .device-card{border-radius:19px!important}
 .xxwrt-v3 .v-btn:focus-visible,.xxwrt-v3 button:focus-visible{outline:2px solid rgb(var(--v-theme-primary));outline-offset:2px}
-.xxwrt-v3.theme-is-dark{--v3-border:rgba(174,194,231,.16);--v3-tint:rgba(152,190,255,.13)}
+.xxwrt-v3.theme-is-dark{
+  --ui-primary:#83b6ff;--ui-secondary:#4acbe2;--ui-teal:#62cec0;
+  --ui-bg:#0f1727;--ui-surface:#182437;--ui-surface-2:#23324a;
+  --ui-text:#f2f7ff;--ui-muted:#a9b7cc;--ui-border:#34445c;
+  --ui-success:#56d59b;--ui-warning:#f4be65;--ui-error:#ff8790;--ui-unknown:#98a7bb;
+  --v3-border:var(--ui-border);--v3-tint:rgba(152,190,255,.13);
+  --v3-muted:var(--ui-muted)}
 .xxwrt-v3.theme-is-dark .v3-health-card,.xxwrt-v3.theme-is-dark .v3-network-status{
   background:linear-gradient(135deg,rgba(55,105,181,.21),rgba(22,75,91,.11)),rgb(var(--v-theme-surface))}
 .xxwrt-v3.theme-is-dark .v3-me-profile{background:linear-gradient(135deg,rgba(64,117,204,.22),transparent),rgb(var(--v-theme-surface))}
@@ -189,7 +201,7 @@
 .xxwrt-v3 .v3-home-details>.v-card{margin-top:0!important}
 .xxwrt-v3 .v3-terminal-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
   gap:5px;padding:5px;background:var(--design-subtle);border-radius:15px;margin:4px 0 13px}
-.xxwrt-v3 .v3-terminal-status button{min-width:0;min-height:39px;
+.xxwrt-v3 .v3-terminal-status button{min-width:0;min-height:48px;
   border-radius:11px;font-size:11px;font-weight:650;letter-spacing:0;
   background:transparent;color:var(--design-text);cursor:pointer}
 .xxwrt-v3 .v3-terminal-status button.is-selected{
@@ -217,7 +229,7 @@
 .xxwrt-v3 .v3-me-page .v3-me-directory{margin-top:0}
 .xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-item{min-height:68px}
 .xxwrt-v3 .v3-router-switch.v-btn{flex:0 1 auto;max-width:124px;min-width:48px;
-  margin:0 5px 0 2px;padding:0 7px!important;height:39px!important;
+  margin:0 5px 0 2px;padding:0 7px!important;height:48px!important;
   letter-spacing:0;text-transform:none;border-radius:13px}
 .xxwrt-v3 .v3-router-switch .v-btn__content{max-width:100%;min-width:0}
 .xxwrt-v3 .v3-router-switch-label{display:block;max-width:78px;
@@ -243,4 +255,17 @@
 @media(prefers-reduced-motion:reduce){
  .xxwrt-v3 .v3-shortcut{transition:none}
  .xxwrt-v3 .standard-bottom{backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+
+/* Design A compact screen: preserve readable 22–28sp metrics on 360–430dp. */
+@media(max-width:430px){
+  .xxwrt-v3 .v3-health-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .xxwrt-v3 .v3-metric strong{font-size:23px;overflow-wrap:anywhere}
+  .xxwrt-v3 .v3-health-card{padding:16px}
+}
+.xxwrt-v3 .v3-health-card[role="button"],
+.xxwrt-v3 .v3-live-card[role="button"]{cursor:pointer}
+.xxwrt-v3 .v3-health-card:focus-visible,
+.xxwrt-v3 .v3-live-card:focus-visible{
+  outline:2px solid var(--ui-primary);outline-offset:3px
 }
