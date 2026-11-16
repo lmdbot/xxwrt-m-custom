@@ -534,7 +534,9 @@ test('v3 keeps five tabs before login and preserves settings hierarchy', async (
 })
 
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
-  if (captureDesignScreens) test.setTimeout(300000)
+  // This end-to-end scenario spans many live-RPC-mock pages; three parallel
+  // workers can briefly contend for CPU. Do not loosen individual assertions.
+  test.setTimeout(captureDesignScreens ? 300000 : 120000)
   const errors = []
   page.on('pageerror', e => errors.push(e.message))
   page.on('console', m => {
@@ -677,14 +679,16 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.storage-card').getByText('25%', { exact: true })).toBeVisible()
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
   // Leave the statistics screen unopened while background sampling builds history.
-  await page.waitForTimeout(7200)
+  // Observe the actual two-sample chart prerequisite rather than sleeping
+  // unconditionally for 7.2 seconds after earlier pages already sampled.
+  await expect.poll(() => page.evaluate(() => window.__xxwrtTestTelemetrySampleCount()),
+    { timeout: 15000 }).toBeGreaterThanOrEqual(2)
   await page.getByRole('button', { name: '详细监控', exact: true }).click()
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
   await expect(page.getByText('实时带宽')).toBeVisible()
   await expect(page.getByText('系统负载历史')).toBeVisible()
   await expect(page.locator('.realtime-chart')).toHaveCount(2, { timeout: 3000 })
-  await page.waitForTimeout(1200)
   await expect(page.locator('.realtime-chart')).toHaveCount(2)
   await page.screenshot({ path: 'test-results/screenshots/actual-traffic-history.png', fullPage: true })
   await captureDesignA(page, '05-monitor')
