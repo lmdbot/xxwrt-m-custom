@@ -24,7 +24,7 @@ test('about displays newer official APK and filters prereleases', async ({ page 
   await openAbout(page)
   await expect(page.getByText('发现新版本 v2.21.0',{exact:false})).toBeVisible()
   await expect(page.getByRole('button',{name:'下载最新 APK'})).toBeEnabled()
-  await expect(page.getByText('v'+localAppVersion,{exact:true})).toBeVisible()
+  await expect(page.getByText('v'+localAppVersion,{exact:true}).first()).toBeVisible()
 })
 test('older release does not show update', async ({ page }) => {
   await page.route('https://update.12130812.xyz/version.json',route=>

@@ -964,3 +964,15 @@ html[data-xxwrt-motion="off"] *::after{
     box-shadow:0 8px 22px rgba(30,57,106,.12);
   }
 }
+
+
+/* About screen detail dialogs share the existing Material theme. */
+.about-info-dialog .v-card-title{font-size:17px;font-weight:700;line-height:1.45;white-space:normal}
+.about-info-dialog .settings-detail-row{font-size:13px}
+.about-info-dialog .about-package-id{user-select:text;word-break:break-all}
+.about-privacy-copy{font-size:13px;line-height:1.75}
+.about-privacy-copy h3{font-size:14px;font-weight:700;margin:15px 0 6px}
+.about-privacy-copy h3:first-child{margin-top:0}
+.about-privacy-copy p{margin-bottom:9px;color:rgb(var(--v-theme-on-surface))}
+.about-info-dialog .v-card-actions{flex-wrap:wrap;gap:4px;padding:8px 12px 12px}
+@media(max-width:380px){.about-info-dialog .v-card-title{font-size:16px}.about-info-dialog .v-card-actions .v-btn{font-size:12px}}
