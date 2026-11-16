@@ -2731,6 +2731,12 @@ onUnmounted(() => {
           启用状态：{{ hqosGlobalForm.enabled ? '启用' : '禁用' }}。
           后端：{{ hqosGlobalForm.backend }}；接口：{{ hqosGlobalForm.interface }}。
           保存后会应用原生 HQoS 服务，失败时尝试自动恢复原配置。
+          <v-alert v-if="hqosGlobalForm.enabled && terminalSettings?.qosBackends?.some(item => item.id !== 'hqos' && item.enabled)"
+            type="warning" variant="tonal" density="compact" class="mt-3">
+            其他 QoS 服务正在配置为启用：
+            {{ terminalSettings.qosBackends.filter(item => item.id !== 'hqos' && item.enabled).map(item => item.label).join('、') }}。
+            可能存在重复整形或硬件加速冲突；确认后只更改 HQoS 全局配置。
+          </v-alert>
         </v-card-text>
         <v-card-actions>
           <v-btn variant="text" @click="hqosGlobalConfirm = false">取消</v-btn>
@@ -2741,16 +2747,26 @@ onUnmounted(() => {
     </v-dialog>
     <v-dialog v-model="qosWriteConfirm" max-width="430" persistent>
       <v-card rounded="xl">
-        <v-card-title>确认启用全局 HQoS？</v-card-title>
+        <v-card-title>确认 QoS 变更风险</v-card-title>
         <v-card-text>
-          当前 QWRT 的 HQoS 处于关闭状态。保存此 MAC 的非零限速或连接数后，
-          路由器的原生 hqos.set 会自动开启全局 QoS，并可能修改网络转发和硬件加速行为。
-          <p class="mt-2">请确认已了解对其他客户端和网络性能的影响。</p>
+          <p v-if="terminalSettings?.backend === 'hqos' && !terminalSettings.hqosStatus.enabled">
+            当前 HQoS 已关闭。设置此 MAC 的非零限额会由原生 hqos.set 自动启用全局 HQoS，
+            可能影响其他客户端、转发路径与硬件加速。
+          </p>
+          <v-alert v-if="terminalSettings?.conflicts?.length" type="warning" variant="tonal"
+            density="compact" class="my-3">
+            其他已启用的 QoS 服务：{{ terminalSettings.conflicts.join('、') }}。
+            不同服务可能在同一接口或相同数据流上重复整形。
+            请先核对服务的作用接口和规则；确认后才会向所选后端写入限额。
+          </v-alert>
+          <p class="mt-2">本操作只修改当前选择的 {{ terminalSettings?.backendLabel }} 后端规则，
+            不会自动关闭或迁移其他 QoS 配置。</p>
         </v-card-text>
         <v-card-actions>
           <v-btn variant="text" @click="qosWriteConfirm = false">取消</v-btn>
           <v-spacer/>
-          <v-btn color="warning" :loading="terminalSaving" @click="qosWriteConfirm = false; saveTerminalQos(true)">确认启用并保存</v-btn>
+          <v-btn color="warning" :loading="terminalSaving"
+            @click="qosWriteConfirm = false; saveTerminalQos(true)">确认风险并保存</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
