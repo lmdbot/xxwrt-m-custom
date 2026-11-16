@@ -1451,8 +1451,9 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await page.getByRole('button', { name: '进入 QWRT 多 QoS 测试' }).click()
     await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
     await page.getByRole('button', { name: '登录并进入' }).click()
-    await page.getByRole('button', { name: '网络' }).click()
-    await page.getByText('Phone', { exact: true }).click()
+    await page.getByRole('button', { name: '终端' }).click()
+    await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
+    await page.locator('.terminal-tile').filter({ hasText: 'Phone' }).first().click()
 
     const modal = page.getByRole('dialog').filter({ hasText: '终端管理' })
     const select = modal.getByRole('combobox', { name: '管理 QoS 后端' })
