@@ -19,6 +19,10 @@ on:
       - ".github/workflows/ui-prototype.yml"
       - ".github/workflows/ui-android-preview.yml"
 
+concurrency:
+  group: material-ui-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
