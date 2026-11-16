@@ -42,8 +42,16 @@ jobs:
         with:
           node-version: "22"
 
+      # package-lock.json is not committed yet; cache npm's content-addressed
+      # downloads by the currently pinned package.json without caching node_modules.
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
+
       - name: Install open-source UI dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --prefer-offline
 
       - name: Verify stable release manifest and version handling
         run: npm run test:versions
@@ -68,6 +76,13 @@ jobs:
 
       # Pre-merge checks should exercise the same Playwright suite used by
       # main's signed APK workflow. Avoid re-running it on main itself.
+      - name: Cache Playwright Chromium
+        if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
+
       - name: Install Chromium for pre-merge UI regression checks
         if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
         run: npx playwright install --with-deps chromium
@@ -79,6 +94,10 @@ jobs:
       - name: Verify pre-merge Android-sized UI interactions
         if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
         run: npm run test:ui
+
+      - name: Show slowest Playwright cases
+        if: always() && (github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29')
+        run: node scripts/report_playwright_timing.cjs
 
       - name: Upload static prototype (not an Android APK)
         uses: actions/upload-artifact@v4
