@@ -1353,6 +1353,16 @@ test('theme survives reload and refresh keeps existing cards mounted without che
 
 test('software packages shows opkg lists, filters and protects installation actions', async ({ page }) => {
   await page.route('**/ubus', handler)
+  // Mock LuCI's streaming cgi-io path used for large indexes (>7000 packages).
+  await page.route('**/cgi-bin/cgi-exec', route => {
+    const command = new URLSearchParams(route.request().postData() || '').get('command') || ''
+    const action = command.endsWith('list-installed') ? 'list-installed' : 'list-available'
+    const output = dataFor('file', 'exec', {
+      command: '/usr/libexec/package-manager-call', params: [action]
+    })
+    return route.fulfill({ status: 200, contentType: 'text/plain',
+      headers: { 'Access-Control-Allow-Origin': '*' }, body: output.stdout })
+  })
   await page.goto('/')
   await page.getByRole('button', { name: '添加', exact: true }).click()
   await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('QWRT 包管理测试')
@@ -1377,9 +1387,9 @@ test('software packages shows opkg lists, filters and protects installation acti
   await expect(page.locator('.package-entry')).toContainText('当前 1.35.0-1')
   await page.getByRole('button', { name: '升级…' }).click()
   await expect(page.getByText('升级核心软件包可能与当前固件不兼容')).toBeVisible()
-  await page.getByRole('button', { name: '取消' }).last().click()
+  await page.getByRole('dialog').getByRole('button', { name: '取消' }).click()
   await page.getByRole('button', { name: '更新列表' }).click()
   await page.getByRole('button', { name: '确认执行' }).click()
   await expect(page.locator('.package-exec-output')).toContainText('Package operation completed')
-  await page.getByRole('button', { name: '关闭' }).last().click()
+  await page.getByRole('dialog').getByRole('button', { name: '关闭' }).click()
 })
