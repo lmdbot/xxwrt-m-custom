@@ -1147,7 +1147,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开ShadowSocksR Plus+' })).toBeVisible()
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部应用' }).click()
-  await expect(page.locator('.app-tool-row')).toHaveCount(16)
+  // The package manager adds one more system utility to the expanded launcher.
+  await expect(page.locator('.app-tool-row')).toHaveCount(17)
+  await expect(page.getByRole('button', { name: '打开软件包' })).toBeVisible()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toBeVisible()
   await page.getByRole('button', { name: '收起设备维护' }).click()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toHaveCount(0)
