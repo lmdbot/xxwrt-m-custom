@@ -178,7 +178,7 @@ export async function saveHqosClient(client, device, settings, input) {
     throw new Error('HQoS 规则已被其他会话修改，请刷新终端信息后重新编辑')
   }
   const name = String(input.name || snapshot.rule.name || device.displayName ||
-    device.name || mac).replace(/[\\x00-\\x1f\\x7f]/g, '').slice(0, 128)
+    device.name || mac).replace(/[\x00-\x1f\x7f]/g, '').slice(0, 128)
   // manager.set performs validation, isolated UCI commit, live apply and
   // rollback on failure; do not duplicate its transactional logic here.
   const result = hqosRpcResult(await client.call('hqos', 'set', {
