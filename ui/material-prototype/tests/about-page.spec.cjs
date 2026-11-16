@@ -24,6 +24,7 @@ test('About uses the actual Android launcher artwork and preserves update action
   await expect(page.getByRole('dialog', { name: '应用版本详情' })).toBeVisible()
   await expect(page.getByText('com.lmdbot.xxwrt.materialpreview')).toBeVisible()
   await expect(page.getByText('构建号')).toBeVisible()
+  await expect(page.getByText('构建日期')).toBeVisible()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('dialog')
   await expect(page.getByRole('dialog', { name: '应用版本详情' })).toHaveCount(0)
 
