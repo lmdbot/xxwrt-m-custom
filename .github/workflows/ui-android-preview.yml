@@ -3,7 +3,7 @@ name: XX-WRT Material Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [feature/material-ui, feature/more-bottom-tab-v2.0.44, main]
+    branches: [feature/material-ui, main]
     paths:
       - "ui/material-prototype/**"
       - "docs/releases/**"
@@ -116,7 +116,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Verify Material rendering, touch controls, and scroll
-        run: npm run test:ui -- --max-failures=1 --retries=0
+        run: npm run test:ui
 
       - name: Upload mobile UI screenshots
         if: always()
@@ -229,7 +229,6 @@ jobs:
           retention-days: 30
 
       - name: Publish Material APK release
-        if: github.ref_name == 'main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
