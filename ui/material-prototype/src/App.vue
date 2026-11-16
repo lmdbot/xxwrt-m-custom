@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
-import { useTheme } from 'vuetify'
+import { useTheme, useDisplay } from 'vuetify'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -55,6 +55,7 @@ import {
 } from './services/router.js'
 
 const theme = useTheme()
+const { smAndDown } = useDisplay()
 function formatInterfaceUptime(rawSeconds) {
   if (rawSeconds === null || rawSeconds === undefined || rawSeconds === '') return '--'
   const value = Number(rawSeconds)
@@ -3024,8 +3025,8 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="selectedClient" max-width="480" :persistent="terminalSaving">
-      <v-card v-if="selectedClient" rounded="xl">
+    <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog">
+      <v-card v-if="selectedClient" rounded="xl" class="v3-terminal-detail">
         <v-card-title class="d-flex align-center ga-2">
           <v-icon icon="mdi-devices" color="primary"/>
           <span>终端管理</span>
