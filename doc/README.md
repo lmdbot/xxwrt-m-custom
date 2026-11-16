@@ -25,7 +25,7 @@
 | [效果图：五个主页面](visuals/primary-pages.svg) | SVG 高保真示意（示例数据，非真实运行截图） |
 | [效果图：重点二级页面](visuals/secondary-pages.svg) | SVG 高保真示意（示例数据） |
 | [导航结构可视化](visuals/navigation-map.svg) | 可在 GitHub 中直接查看的 SVG |
-| [交互预览 HTML](prototype.html) | 无构建依赖的本地可交互原型（离线打开） |
+| [交互预览 HTML](prototype.html) | 无构建依赖的可交互原型；GitHub 只展示 HTML 源码，需下载后在浏览器中本地打开 |
 
 ## 设计执行边界
 
@@ -40,6 +40,17 @@
 ![五个一级页面](visuals/primary-pages.svg)
 
 ![重点二级页面](visuals/secondary-pages.svg)
+
+## 预览链接与打开方式
+
+以下设计素材已提交至 `main/doc/`。在 GitHub 的 `doc/README.md` 中，Markdown 文档和图片可以使用上面的相对路径正常跳转；如移动端的 SVG 内嵌预览未显示，可以直接打开原始 SVG：
+
+- [五个主页面 SVG · 原图直达](https://raw.githubusercontent.com/lmdbot/xxwrt-m-custom/main/doc/visuals/primary-pages.svg)
+- [重点二级页面 SVG · 原图直达](https://raw.githubusercontent.com/lmdbot/xxwrt-m-custom/main/doc/visuals/secondary-pages.svg)
+- [整体导航结构 SVG · 原图直达](https://raw.githubusercontent.com/lmdbot/xxwrt-m-custom/main/doc/visuals/navigation-map.svg)
+- [交互原型 HTML · GitHub 文件](https://github.com/lmdbot/xxwrt-m-custom/blob/main/doc/prototype.html)
+
+**交互原型打开方式**：GitHub 不会直接执行仓库中的 HTML。进入 `prototype.html` 文件页，选择 **Raw / Download raw file** 保存文件，再使用 Chrome / Edge 等浏览器本地打开；无需服务器或安装依赖。此原型仅演示布局和交互，不连接真实路由器、不执行配置操作。
 
 ## 验收口径
 
