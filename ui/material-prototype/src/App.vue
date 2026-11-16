@@ -657,6 +657,27 @@ const factoryBusy = ref(false)
 const factoryError = ref('')
 const actionBusy = ref(false)
 const selectedClient = ref(null)
+// Design A terminal detail separates evidence/operations from dangerous editors.
+const terminalEditorSection = ref('')
+const terminalDetailTitle = computed(() => selectedClient.value?.displayName || selectedClient.value?.name || '未知终端')
+function closeTerminalDetail() {
+  if (terminalSaving.value) return
+  if (terminalEditorSection.value) {
+    terminalEditorSection.value = ''
+  } else {
+    selectedClient.value = null
+    terminalRequestId++
+  }
+}
+function openTerminalSection(section) {
+  if (section === 'wol') {
+    selectedClient.value = null
+    terminalRequestId++
+    launchV3Tool('wol')
+    return
+  }
+  terminalEditorSection.value = section
+}
 const terminalSettings = ref(null)
 const terminalSettingsBusy = ref(false)
 const terminalSaving = ref(false)
@@ -705,6 +726,7 @@ function changeTerminalQosBackend(backendId) {
 async function openTerminal(item) {
   if (terminalSaving.value) return
   selectedClient.value = item
+  terminalEditorSection.value = ''
   terminalSettings.value = null
   terminalError.value = ''
   terminalNotice.value = ''
@@ -1388,7 +1410,7 @@ async function handleBack() {
     return 'dialog'
   }
   if (qosWriteConfirm.value) { qosWriteConfirm.value = false; return 'dialog' }
-  if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
+  if (selectedClient.value) { closeTerminalDetail(); return 'dialog' }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
   // A nested network editor is a separate Vuetify overlay. Consume Android
@@ -3250,12 +3272,53 @@ onUnmounted(() => {
       </v-card>
     </v-dialog>
     <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog">
-      <v-card v-if="selectedClient" rounded="xl" class="v3-terminal-detail">
-        <v-card-title class="d-flex align-center ga-2">
-          <v-icon icon="mdi-devices" color="primary"/>
-          <span>终端管理</span>
+      <v-card v-if="selectedClient" rounded="xl" class="v3-terminal-detail v3-terminal-design-detail">
+        <v-card-title class="v3-terminal-detail-toolbar">
+          <v-btn icon="mdi-arrow-left" variant="text" aria-label="返回上一页"
+            @click="closeTerminalDetail"/>
+          <strong>{{ terminalEditorSection === 'static' ? '固定 IP' : terminalEditorSection === 'qos' ? '限速设置' : terminalDetailTitle }}</strong>
+          <v-btn icon="mdi-theme-light-dark" variant="text" aria-label="切换深浅主题"
+            @click="colorMode = dark ? 'light' : 'dark'"/>
         </v-card-title>
-        <v-card-text>
+        <v-card-text v-if="!terminalEditorSection" class="v3-terminal-detail-overview">
+          <header class="v3-design-a-hero v3-terminal-detail-hero">
+            <div class="v3-terminal-detail-hero-title">
+              <h2>{{ terminalDetailTitle }}</h2>
+              <span class="v3-terminal-detail-chip"
+                :class="{ 'is-unknown': !selectedClient.online && !selectedClient.onlineKnown }">
+                {{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '待确认' }}
+              </span>
+            </div>
+            <p>状态依据：Wi-Fi 关联、邻居可达或 DHCP 租约</p>
+          </header>
+          <h3 class="v3-design-a-section-title">基础信息</h3>
+          <div class="v3-terminal-detail-facts">
+            <div><span>IP 地址</span><strong>{{ selectedClient.ip || selectedClient.ip6 || '--' }}</strong></div>
+            <div><span>MAC</span><strong>{{ selectedClient.mac || '--' }}</strong></div>
+            <div><span>连接方式</span><strong>{{ selectedClient.wifi ? 'Wi-Fi' : (selectedClient.kind || '待确认') }}</strong></div>
+            <div><span>数据来源</span><strong>{{ (selectedClient.sources || []).join(' / ') || '未获取' }}</strong></div>
+          </div>
+          <h3 class="v3-design-a-section-title">终端操作</h3>
+          <div class="v3-feature-list v3-design-a-entry-list">
+            <button type="button" @click="openTerminalSection('qos')">
+              <v-icon icon="mdi-speedometer" color="primary"/>
+              <span><strong>限速设置</strong><small>下载、上传限速</small></span>
+              <v-icon icon="mdi-chevron-right"/>
+            </button>
+            <button type="button" @click="openTerminalSection('static')">
+              <v-icon icon="mdi-ip-network" color="primary"/>
+              <span><strong>固定 IP</strong><small>DHCP 静态租约</small></span>
+              <v-icon icon="mdi-chevron-right"/>
+            </button>
+            <button type="button" @click="openTerminalSection('wol')">
+              <v-icon icon="mdi-lan-connect" color="primary"/>
+              <span><strong>网络唤醒</strong><small>设备支持时才允许发送</small></span>
+              <v-icon icon="mdi-chevron-right"/>
+            </button>
+          </div>
+          <p class="v3-monitor-sampling-note">终端在线状态由实际证据判定，不能仅凭 DHCP 租约推断在线。</p>
+        </v-card-text>
+        <v-card-text v-show="!!terminalEditorSection" class="v3-terminal-editors">
           <div class="details">
             <div><span>名称</span><strong>{{ selectedClient.displayName || selectedClient.name || '未知终端' }}</strong></div>
             <div><span>IPv4</span><strong>{{ selectedClient.ip || '--' }}</strong></div>
@@ -3368,8 +3431,9 @@ onUnmounted(() => {
             </v-alert>
           </template>
         </v-card-text>
-        <v-card-actions><v-spacer/><v-btn variant="text" :disabled="terminalSaving"
-          @click="selectedClient = null; terminalRequestId++">关闭</v-btn></v-card-actions>
+        <v-card-actions v-if="terminalEditorSection">
+          <v-spacer/><v-btn variant="text" :disabled="terminalSaving" @click="closeTerminalDetail">返回管理入口</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="hqosGlobalDialog" max-width="540" persistent>
