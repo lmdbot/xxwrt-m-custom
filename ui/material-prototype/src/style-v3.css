@@ -1039,3 +1039,80 @@
 .v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero h2{color:#eef7ff}
 .v3-terminal-detail-dialog.v-theme--dark .v3-design-a-hero p,
 .v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero p{color:#aab9ce}
+
+
+/* Design A device directory and tools: match prototype .section/.seg/.search/
+ * .card.group/.item/.grouphead rather than independent Material tiles. */
+.xxwrt-v3 .v3-client-directory .terminal-header{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:0 3px 11px;min-height:24px}
+.xxwrt-v3 .v3-client-directory .terminal-header h2{
+  font-size:16px;line-height:23px;font-weight:750;margin:0}
+.xxwrt-v3 .v3-client-status-chip{font-size:11px;font-weight:750;
+  min-width:0;max-width:60%;white-space:nowrap}
+.xxwrt-v3 .v3-terminal-status{display:flex;gap:4px;padding:4px;
+  border-radius:14px;background:var(--ui-surface-2);margin-bottom:12px}
+.xxwrt-v3 .v3-terminal-status button{flex:1;min-width:0;min-height:36px;
+  border-radius:11px;font-size:11px;white-space:nowrap}
+.xxwrt-v3 .v3-terminal-status button.is-selected{
+  background:var(--ui-primary);color:#fff;font-weight:700}
+.xxwrt-v3 .v3-client-directory .terminal-search{margin-bottom:13px!important}
+.xxwrt-v3 .v3-client-directory .terminal-search .v-field{
+  min-height:46px;background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border);border-radius:13px!important;
+  box-shadow:none!important}
+.xxwrt-v3 .v3-client-directory .terminal-grid{
+  display:flex!important;flex-direction:column;gap:0!important;
+  padding:0 12px!important;background:var(--ui-surface);
+  border:1px solid var(--ui-border);border-radius:18px;
+  box-shadow:0 10px 30px rgba(36,74,120,.05)}
+.xxwrt-v3 .v3-client-directory .terminal-design-a-item{
+  min-height:65px;border-bottom:1px solid var(--ui-border);
+  border-radius:0;background:transparent;box-shadow:none;
+  padding:9px 6px;gap:12px}
+.xxwrt-v3 .v3-client-directory .terminal-design-a-item:last-child{border-bottom:0}
+.xxwrt-v3 .terminal-design-a-icon{width:40px;height:40px;
+  flex:0 0 40px;border-radius:13px;background:var(--ui-surface-2);
+  color:var(--ui-primary);display:grid;place-items:center}
+.xxwrt-v3 .terminal-design-a-main{min-width:0;flex:1}
+.xxwrt-v3 .terminal-design-a-main strong{font-size:13px;line-height:1.45;font-weight:700}
+.xxwrt-v3 .terminal-design-a-main small{font-size:11px;line-height:1.4;
+  color:var(--ui-muted);margin-top:5px}
+.xxwrt-v3 .terminal-design-a-arrow{flex:none;color:var(--ui-muted)}
+.xxwrt-v3 .app-hub-search .v-field{background:var(--ui-surface);
+  border:1px solid var(--ui-border);box-shadow:none}
+.xxwrt-v3 .app-hub-section-heading strong{font-size:16px;line-height:23px;font-weight:750}
+.xxwrt-v3 .app-favorites-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.xxwrt-v3 .app-favorite-tile{min-height:77px;padding:13px 4px;
+  border:1px solid var(--ui-border);background:var(--ui-surface);
+  border-radius:15px;gap:8px;box-shadow:none}
+.xxwrt-v3 .app-favorite-tile .v-avatar{
+  width:auto!important;height:26px!important;
+  background:transparent!important;border-radius:0!important}
+.xxwrt-v3 .app-favorite-tile .v-avatar .v-icon{
+  font-size:23px!important;color:var(--ui-primary)}
+.xxwrt-v3 .app-favorite-tile>span:last-child{font-size:11px;font-weight:700;
+  text-align:center;line-height:1.35}
+.xxwrt-v3 .app-category-card{border-radius:18px;padding:0 12px;
+  overflow:hidden;margin-bottom:12px}
+.xxwrt-v3 .app-category-toggle{min-height:48px;padding:12px 2px;
+  display:flex;align-items:center;gap:8px}
+.xxwrt-v3 .app-category-copy{flex:1;min-width:0;display:flex;
+  align-items:center;justify-content:space-between;gap:8px}
+.xxwrt-v3 .app-category-copy strong{font-size:15px;font-weight:750}
+.xxwrt-v3 .app-category-copy small{font-size:11px;font-weight:600;
+  color:var(--ui-muted);white-space:nowrap}
+.xxwrt-v3 .app-category-card .app-tool-list{border-top:1px solid var(--ui-border)}
+.xxwrt-v3 .app-category-card .app-tool-row{min-height:65px;
+  border-bottom:1px solid var(--ui-border);padding:9px 2px;gap:12px}
+.xxwrt-v3 .app-category-card .app-tool-row:last-child{border-bottom:0}
+.xxwrt-v3 .app-category-card .app-tool-icon{width:40px;height:40px;
+  flex:0 0 40px;border-radius:13px;background:var(--ui-surface-2);
+  color:var(--ui-primary);display:grid;place-items:center}
+.xxwrt-v3 .app-category-card .app-tool-copy strong{font-size:13px;font-weight:700}
+.xxwrt-v3 .app-category-card .app-tool-copy small{font-size:11px;line-height:1.4}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-client-directory .terminal-grid{padding:0 10px!important}
+  .xxwrt-v3 .v3-client-directory .terminal-header{gap:5px}
+  .xxwrt-v3 .v3-client-status-chip{font-size:10px}
+}
