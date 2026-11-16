@@ -10,7 +10,9 @@ const props = defineProps({
   series: { type: Array, default: () => [] },
   samples: { type: Array, default: () => [] },
   unit: { type: String, default: '' },
-  title: { type: String, default: '实时曲线' }
+  title: { type: String, default: '实时曲线' },
+  // Design A overview uses a sparkline; detailed monitoring keeps axes/legend.
+  compact: { type: Boolean, default: false }
 })
 const root = ref(null)
 const motionEnabled = inject('xxwrt-motion-enabled', ref(true))
@@ -32,16 +34,23 @@ function render() {
     animationDurationUpdate: motionEnabled.value ? 180 : 0,
     animationEasing: 'cubicOut',
     animationEasingUpdate: 'cubicOut',
-    // Give mobile traffic and load graphs more room on both sides.
-    grid: { top: 38, bottom: 30, left: 24, right: 6, containLabel: false },
-    legend: { top: 2, icon: 'roundRect', itemWidth: 13, textStyle: { fontSize: 11 } },
+    color: props.compact ? ['#2477ee', '#20b99b'] : undefined,
+    grid: props.compact
+      ? { top: 8, bottom: 7, left: 2, right: 2, containLabel: false }
+      : { top: 38, bottom: 30, left: 24, right: 6, containLabel: false },
+    legend: props.compact ? { show: false }
+      : { top: 2, icon: 'roundRect', itemWidth: 13, textStyle: { fontSize: 11 } },
     tooltip: { trigger: 'axis', confine: true, valueFormatter: n => {
       return n == null ? '--' : Number(n).toFixed(1) + props.unit
     }},
     xAxis: { type: 'category', data: timeLabels, boundaryGap: false,
-      axisLabel: { fontSize: 10, interval: 'auto' }, axisLine: { lineStyle: { color: '#a1a8b6' } } },
+      axisLabel: { show: !props.compact, fontSize: 10, interval: 'auto' },
+      axisLine: { show: !props.compact, lineStyle: { color: '#a1a8b6' } },
+      axisTick: { show: !props.compact } },
     yAxis: { type: 'value', min: 0, scale: true, splitNumber: 3,
-      axisLabel: { fontSize: 10, margin: 3 }, splitLine: { lineStyle: { color: '#8795b21a' } } },
+      axisLabel: { show: !props.compact, fontSize: 10, margin: 3 },
+      axisLine: { show: !props.compact }, axisTick: { show: !props.compact },
+      splitLine: { show: !props.compact, lineStyle: { color: '#8795b21a' } } },
     series
   }, { replaceMerge: ['series'] })
 }
@@ -56,7 +65,7 @@ onMounted(async () => {
     observer.observe(root.value)
   }
 })
-watch(() => [props.samples, props.series, props.unit], render, { deep: true })
+watch(() => [props.samples, props.series, props.unit, props.compact], render, { deep: true })
 watch(motionEnabled, render)
 onUnmounted(() => {
   observer?.disconnect()
@@ -65,9 +74,10 @@ onUnmounted(() => {
 })
 </script>
 <template>
-  <div ref="root" class="realtime-chart" role="img" :aria-label="title + '（最近 ' + samples.length + ' 个采样点）'"/>
+  <div ref="root" class="realtime-chart" :class="{ 'realtime-chart--compact': compact }" role="img" :aria-label="title + '（最近 ' + samples.length + ' 个采样点）'"/>
 </template>
 <style scoped>
-.realtime-chart{height:230px;width:calc(100% + 12px);margin-inline:-6px;min-width:0;touch-action:pan-y}
-@media(max-width:390px){.realtime-chart{height:205px}}
+ .realtime-chart{height:230px;width:calc(100% + 12px);margin-inline:-6px;min-width:0;touch-action:pan-y}
+.realtime-chart--compact{height:142px;width:100%;margin-inline:0}
+@media(max-width:390px){.realtime-chart{height:205px}.realtime-chart--compact{height:136px}}
 </style>
