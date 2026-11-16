@@ -401,11 +401,11 @@ const moreCategories = [
   { id: 'help', title: '帮助与反馈', description: '使用说明与问题反馈', icon: 'mdi-help-circle-outline' }
 ]
 const settingsCategories = [
-  { id: 'display', title: '显示', description: '界面主题、导航与列表布局', icon: 'mdi-monitor' },
-  { id: 'privacy', title: '隐私', description: '主机名、IP 地址与隐私显示', icon: 'mdi-shield-lock-outline' },
-  { id: 'refresh', title: '刷新', description: '设备状态与数据更新策略', icon: 'mdi-refresh' },
-  { id: 'lab', title: '实验室', description: '高级选项与实验性功能', icon: 'mdi-flask-outline' },
-  { id: 'language', title: '语言', description: '简体中文、繁體中文和 English', icon: 'mdi-translate' }
+  { id: 'display', title: '显示与外观', description: '界面主题、导航与列表布局', icon: 'mdi-monitor' },
+  { id: 'privacy', title: '隐私与安全', description: '主机名、IP 地址与隐私显示', icon: 'mdi-shield-lock-outline' },
+  { id: 'refresh', title: '刷新与同步', description: '设备状态与数据更新策略', icon: 'mdi-refresh' },
+  { id: 'language', title: '语言', description: '简体中文、繁體中文和 English', icon: 'mdi-translate' },
+  { id: 'lab', title: '实验室', description: '高级选项与实验性功能', icon: 'mdi-flask-outline' }
 ]
 const settingsPage = computed(() =>
   [...moreCategories, ...settingsCategories].find(category => category.id === settingsCategory.value) || moreCategories[1]
@@ -2434,46 +2434,44 @@ onUnmounted(() => {
         <template v-else-if="activeTab === 'more'">
           <section class="more-page v3-me-page" data-testid="more-page">
             <header class="v3-me-profile">
-              <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
-              <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
+              <div><h2>XX-WRT 管理器</h2>
+                <p>v{{ installedVersion }} · 当前路由器 {{ selectedDevice ? displayDeviceName(selectedDevice) : '未选择' }}</p>
+              </div>
             </header>
-            <div v-if="connected" class="v3-me-session-actions">
-              <v-btn size="small" variant="text" prepend-icon="mdi-logout" aria-label="退出当前路由器"
-                @click="resetSession">退出当前路由器</v-btn>
-            </div>
             <div class="v3-section-label">路由器</div>
             <div class="more-menu-list v3-me-directory" role="group" aria-label="路由器入口">
               <button type="button" class="more-menu-item" aria-label="打开路由器管理" @click="goToDeviceList()">
                 <span class="more-menu-icon"><v-icon icon="mdi-router-wireless" size="24"/></span>
-                <span class="more-menu-copy"><strong>路由器管理</strong><small>添加、编辑和切换已保存路由器</small></span>
+                <span class="more-menu-copy"><strong>路由器管理</strong><small>添加、编辑、切换、退出登录</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
             </div>
             <div class="v3-section-label">应用设置</div>
             <div class="more-menu-list v3-me-directory" role="group" aria-label="应用设置入口">
-              <button type="button" class="more-menu-item" aria-label="打开设置" @click="openMoreSection('settings')">
-                <span class="more-menu-icon"><v-icon icon="mdi-cog-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>应用设置</strong><small>主题、语言、显示与行为</small></span>
-                <v-icon icon="mdi-chevron-right" size="21"/>
-              </button>
-              <button type="button" class="more-menu-item" aria-label="打开隐私设置" @click="openSettingsCategory('privacy', true)">
-                <span class="more-menu-icon"><v-icon icon="mdi-shield-lock-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>数据与隐私</strong><small>权限说明、隐私显示选项</small></span>
+              <button v-for="category in settingsCategories" :key="category.id" type="button"
+                class="more-menu-item" :aria-label="'打开' + category.title + '设置'"
+                @click="openSettingsCategory(category.id, true)">
+                <span class="more-menu-icon"><v-icon :icon="category.icon" size="24"/></span>
+                <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>本地应用偏好</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
             </div>
             <div class="v3-section-label">支持与更新</div>
             <div class="more-menu-list v3-me-directory" role="group" aria-label="支持与更新入口">
+              <button type="button" class="more-menu-item" aria-label="打开关于" @click="openMoreSection('about')">
+                <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="24"/></span>
+                <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本、更新、开发者与开源许可</small></span>
+                <v-icon icon="mdi-chevron-right" size="21"/>
+              </button>
               <button type="button" class="more-menu-item" aria-label="打开帮助与反馈" @click="openMoreSection('help')">
                 <span class="more-menu-icon"><v-icon icon="mdi-help-circle-outline" size="24"/></span>
                 <span class="more-menu-copy"><strong>帮助与反馈</strong><small>使用说明、问题反馈</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
-              <button type="button" class="more-menu-item" aria-label="打开关于" @click="openMoreSection('about')">
-                <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本信息、开发者与更新</small></span>
-                <v-icon icon="mdi-chevron-right" size="21"/>
-              </button>
+            </div>
+            <div v-if="connected" class="v3-me-session-actions">
+              <v-btn size="small" variant="text" prepend-icon="mdi-logout"
+                aria-label="退出当前路由器" @click="resetSession">退出当前路由器</v-btn>
             </div>
           </section>
         </template>
