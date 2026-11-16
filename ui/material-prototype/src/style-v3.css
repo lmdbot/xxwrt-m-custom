@@ -100,3 +100,6 @@
   .xxwrt-v3 .v3-network-kpis{gap:5px}
 }
 @media(prefers-reduced-motion:reduce){.xxwrt-v3 button{transition:none!important}}
+.xxwrt-v3 .v3-section-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.xxwrt-v3 .v3-heading-action{color:rgb(var(--v-theme-primary));font-size:12px;display:flex;gap:2px;
+  align-items:center;border:0;background:transparent;min-height:35px;padding:3px 8px;border-radius:9px;cursor:pointer}
