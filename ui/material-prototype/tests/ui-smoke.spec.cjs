@@ -681,7 +681,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('button', { name: /全部终端/ })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.terminal-tile')).toHaveCount(5, { timeout: 15000 })
   // One OpenAppFilter record shares Phone's MAC and must not create a duplicate.
-  await expect(page.locator('.terminal-tile').filter({ hasText: 'Phone' })).toHaveCount(1)
+  await expect(page.locator('.terminal-tile').filter({ has: page.getByText('Phone', { exact: true }) })).toHaveCount(1)
   await page.getByRole('button', { name: /DHCPv4/ }).click()
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
   await auditDarkTextContrast(page, ['.terminal-header p', '.terminal-mac', '.terminal-kind', '.terminal-source'])
