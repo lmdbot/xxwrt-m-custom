@@ -890,6 +890,53 @@ const favoriteEditorTools = computed(() => [
   ...favoriteCandidates.value.filter(tool => !activeFavoriteIds.value.includes(tool.id))
 ])
 
+/* Secondary tools open on the Design A information/management landing.
+ * Live router forms remain in the existing panels, one level deeper. */
+const designAOperationOpen = ref(false)
+const designAOperationName = ref('')
+watch(toolPanel, () => {
+  designAOperationOpen.value = false
+  designAOperationName.value = ''
+})
+const designASecondaryInfo = computed(() => {
+  const id = toolPanel.value
+  const tool = visibleLegacyTools.value.find(item => item.id === id)
+  const definition = {
+    backup: { title: '配置备份恢复', subtitle: '注意：配置可能含账号和密钥', warning: true,
+      entries: [['配置备份', '导出 UCI JSON'], ['系统原生备份', '导出 tar.gz'], ['恢复配置', '差异预览、限时回滚'], ['备份文件', '查看已保存文件']] },
+    firewall: { title: '防火墙', subtitle: '修改规则可能影响管理连接', warning: true,
+      entries: [['区域策略', 'WAN / LAN 默认行为'], ['通信规则', '允许与拒绝规则'], ['端口转发', 'DNAT 目标与端口'], ['NAT', '源地址转换']] },
+    dnsdhcp: { title: 'DNS / DHCP', subtitle: '本地域名、地址分配和静态租约',
+      entries: [['本地域名', '自定义 DNS 解析'], ['静态租约', 'MAC 与 IP 绑定'], ['DHCP 配置', '地址分配与租期']] },
+    ddns: { title: 'DDNS', subtitle: '动态域名和 IPv6 地址更新',
+      entries: [['运行状态', '更新结果与最近一次执行'], ['域名配置', '服务提供商与记录'], ['任务日志', '查看真实更新记录']] },
+    zerotier: { title: 'ZeroTier', subtitle: '虚拟组网与网络成员',
+      entries: [['运行状态', '服务启停与连接'], ['已加入网络', '网络 ID 与授权状态'], ['网络信息', '路由与接口信息']] },
+    lucky: { title: 'Lucky', subtitle: '反代与访问规则',
+      entries: [['运行状态', '查看插件与进程状态'], ['管理入口', '打开 Lucky Web 管理'], ['配置与日志', '查看当前可用管理能力']] },
+    services: { title: '服务管理', subtitle: '运行状态与自启动项',
+      entries: [['运行状态', '已安装服务及当前状态'], ['服务管理', '启动、停止与自启'], ['系统信息', '服务与权限状态']] },
+    packages: { title: '软件包', subtitle: '软件安装、更新和卸载',
+      entries: [['已安装软件包', '查看当前软件列表'], ['软件包管理', '安装与卸载'], ['执行结果', '查看任务反馈']] },
+    logs: { title: '日志中心', subtitle: '系统与内核日志',
+      entries: [['系统日志', '路由器实时系统消息'], ['内核日志', '内核事件与错误'], ['日志操作', '查看、复制与检索']] },
+    diagnostics: { title: '网络诊断', subtitle: 'Ping / Traceroute / DNS',
+      entries: [['诊断工具', '选择网络检测方式'], ['执行结果', '查看路由器真实返回'], ['诊断日志', '复制检测信息']] },
+    security: { title: '安全分析', subtitle: '认证与阻断事件',
+      entries: [['运行状态', '查看安全能力'], ['安全事件', '查看认证和阻断记录'], ['分析详情', '检查原始事件']] }
+  }[id]
+  return definition || {
+    title: tool?.title || toolbarSection.value || '功能详情',
+    subtitle: tool?.subtitle || '基于路由器实际功能与权限显示可用操作',
+    entries: [['运行状态', '查看服务、接口或系统信息'], ['配置与管理', '可用操作取决于当前账号权限'], ['诊断日志', '查看和复制实际记录']]
+  }
+})
+function openDesignAOperation(entry) {
+  designAOperationName.value = entry
+  designAOperationOpen.value = true
+}
+
+
 // Device IDs remain stable if the router's name or IP changes. Preferences
 // stay local to this device; router-side UCI and installed packages are untouched.
 watch(() => selectedDevice.value?.id, id => {
@@ -1313,6 +1360,11 @@ async function handleBack() {
     return 'page'
   }
 
+  if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value && designAOperationOpen.value) {
+    designAOperationOpen.value = false
+    designAOperationName.value = ''
+    return 'page'
+  }
   if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
     const blocked = routerOperationsToolIds.includes(toolPanel.value)
       ? routerOperationsPanel.value?.handleBack?.() :
@@ -2890,8 +2942,34 @@ onUnmounted(() => {
               </v-dialog>
             </template>
             <template v-else>
-              <!-- Back and refresh moved into the top app toolbar. -->
-              <v-card rounded="xl" elevation="1" class="network-card app-subpage">
+              <section v-if="!designAOperationOpen" class="v3-design-a-index" aria-label="功能管理入口">
+                <header class="v3-design-a-hero">
+                  <h2>{{ designASecondaryInfo.title }}</h2>
+                  <p>{{ designASecondaryInfo.subtitle }}</p>
+                </header>
+                <h3 class="v3-design-a-section-title">管理入口</h3>
+                <div class="v3-feature-list v3-design-a-entry-list">
+                  <button v-for="(entry, idx) in designASecondaryInfo.entries" :key="idx"
+                    type="button" :aria-label="'查看' + entry[0]" @click="openDesignAOperation(entry[0])">
+                    <v-icon icon="mdi-view-dashboard-outline" color="primary"/>
+                    <span><strong>{{ entry[0] }}</strong><small>{{ entry[1] }}</small></span>
+                    <v-icon icon="mdi-chevron-right"/>
+                  </button>
+                </div>
+                <p class="v3-design-a-notice" :class="{ 'is-warning': designASecondaryInfo.warning }">
+                  以下入口连接真实路由器功能；只有通过设备能力及权限检查后才允许修改配置。
+                </p>
+                <div class="v3-design-a-actions">
+                  <button type="button" class="v3-design-a-primary" @click="openDesignAOperation('运行状态')">查看实际功能</button>
+                </div>
+              </section>
+              <!-- The existing RPC/UCI management panels are unchanged. -->
+              <v-card v-show="designAOperationOpen" rounded="xl" elevation="1" class="network-card app-subpage">
+                <div v-if="designAOperationOpen" class="v3-design-a-operation-heading">
+                  <v-btn icon="mdi-arrow-left" size="small" variant="text" aria-label="返回管理入口"
+                    @click="designAOperationOpen = false"/>
+                  <strong>{{ designAOperationName || designASecondaryInfo.title }}</strong>
+                </div>
 
                 <v-progress-linear v-if="toolLoading" indeterminate class="mb-3"/>
                 <v-alert v-if="['process','startup','routes'].includes(toolPanel) && legacyLoadStatus[toolPanel] === 'loading'"
