@@ -147,7 +147,7 @@ const updateStatus = computed(() => {
 .about-app-icon{display:block;width:104px;height:104px;object-fit:contain;border-radius:24px;box-shadow:0 8px 22px rgba(17,43,78,.13)}
 .about-app-name{font-size:30px;font-weight:750;line-height:1.25;letter-spacing:-.7px;margin:18px 0 8px}
 .about-version-actions{display:flex;align-items:center;gap:3px}
-.about-version-pill{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:99px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary));font:600 12px/1.5 inherit;font-size:12px;font-weight:650;padding:5px 10px;cursor:pointer}
+.about-version-pill{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:99px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary));font-family:inherit;line-height:1.5;font-size:12px;font-weight:650;padding:5px 10px;cursor:pointer}
 .about-tagline{margin:14px 0 6px;font-size:14px;font-weight:650;line-height:1.55}
 .about-summary{max-width:370px;font-size:12px;line-height:1.75;color:var(--ui-text-muted)}
 .about-section{margin:12px 0 23px}
