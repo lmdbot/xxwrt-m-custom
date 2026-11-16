@@ -2233,7 +2233,8 @@ onUnmounted(() => {
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
         class="router-list-add-topbar" color="primary" rounded="xl"
         size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen
+        && (!!toolPanel || activeTab === 'statistics' || (activeTab === 'network' && networkSection !== 'hub') || homeDetailsExpanded)"
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
