@@ -109,6 +109,7 @@ test('all changes to repository files are restricted to known configuration path
   const saved = []
   const client = { call: async (_obj, method, values) => {
     if (method === 'read') return { data: 'src/gz openwrt https://example.com/feed\n' }
+    if (method === 'list') return { entries: [] }
     saved.push(values)
     return {}
   }}
