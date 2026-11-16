@@ -4,8 +4,8 @@ export const PACKAGE_PAGE_SIZE = 100
 const COMMANDS = ['/bin/opkg', '/usr/bin/opkg']
 export const PACKAGE_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9+_.-]{0,127}$/
 export function validatePackageName(name) {
-  const value = String(name || '').trim()
-  if (!PACKAGE_NAME_RE.test(value)) throw new Error('软件包名称不合法；只允许字母、数字、+、_、. 和 -')
+  const value = String(name || '')
+  if (value !== value.trim() || !PACKAGE_NAME_RE.test(value)) throw new Error('软件包名称不合法；只允许字母、数字、+、_、. 和 -')
   return value
 }
 export function parseOpkgList(output) {
