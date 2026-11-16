@@ -473,7 +473,8 @@ export async function readTerminalSettings(client, device, preferredBackend = ''
   const recommended = descriptors.find(x => x.writable && x.running && x.enabled) ||
     descriptors.find(x => x.writable && x.enabled) ||
     descriptors.find(x => x.id === 'hqos' && x.writable) ||
-    descriptors.find(x => x.writable) || null
+    descriptors.find(x => x.writable) ||
+    descriptors.find(x => x.id === 'hqos') || descriptors[0] || null
   const qosBackends = descriptors
   const settings = {
     mac, ip, activeIP, host,
