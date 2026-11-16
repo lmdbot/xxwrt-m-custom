@@ -351,7 +351,7 @@ async function downloadLatestApk() {
 }
 
 function syncNativeChrome(isDark) {
-  const color = isDark ? '#101826' : '#F5F8FE'
+  const color = isDark ? '#0F1727' : '#F3F7FD'
   document.documentElement.style.backgroundColor = color
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
   if (isNative) {
@@ -423,7 +423,7 @@ const terminalDevices = computed(() => {
   const byMac = new Map()
   const add = (raw, source) => {
     const mac = String(raw.mac || raw.macaddr || '').toUpperCase()
-    const key = mac || String(raw.ip || raw.ip6addr || raw.address || raw.name || Math.random())
+    const key = mac || String(raw.ip || raw.ip6addr || raw.address || raw.name || `${source}:${raw.sourceIndex ?? byMac.size}`)
     let item = byMac.get(key)
     if (!item) {
       item = { ...raw, mac, sources: new Set(), wifi: null }
@@ -457,6 +457,16 @@ const terminalDevices = computed(() => {
       ip6: hint.ip6addrs?.[0] || '', online: true, onlineKnown: true
     }, 'wireless')
   })
+  // OpenAppFilter users are another discovery source, not proof of being online.
+  // Merge by MAC so one terminal does not appear twice across DHCP, Wi-Fi and apps.
+  appFilterUsers.value.users.forEach((user, index) => add({
+    ...user,
+    name: user.nickname || user.name || user.hostname || '',
+    ip: user.ip || user.ipaddr || '',
+    sourceIndex: index,
+    online: false,
+    onlineKnown: false
+  }, 'oaf'))
   return [...byMac.values()].map(item => {
     const identity = identifyDevice(item.identityName || item.name || item.hostname, item.mac)
     return {
@@ -474,15 +484,17 @@ const terminalDevices = computed(() => {
 })
 const filteredClients = computed(() => {
   const term = String(clientSearch.value || '').trim().toLowerCase()
-  const list = terminalView.value === 'dhcp6'
-    ? terminalDevices.value.filter(item => item.sources.includes('dhcp6'))
-    : terminalView.value === 'wireless'
-      ? terminalDevices.value.filter(item => item.sources.includes('wireless'))
-      : terminalDevices.value.filter(item => item.sources.includes('dhcp4'))
-  if (!term) return list
-  return list.filter(item =>
-    [item.displayName, item.kind, item.ip, item.ip6, item.mac, item.identity.brand?.n]
-      .some(value => String(value || '').toLowerCase().includes(term)))
+  const sourceList = terminalView.value === 'all' ? terminalDevices.value
+    : terminalDevices.value.filter(item => item.sources.includes(terminalView.value))
+  return sourceList.filter(item => {
+    const online = item.online === true
+    const offline = !online && item.onlineKnown === true
+    if (terminalOnlineFilter.value === 'online' && !online) return false
+    if (terminalOnlineFilter.value === 'offline' && !offline) return false
+    if (terminalOnlineFilter.value === 'unknown' && (online || offline)) return false
+    return !term || [item.displayName, item.kind, item.ip, item.ip6, item.mac, item.identity.brand?.n]
+      .some(value => String(value || '').toLowerCase().includes(term))
+  })
 })
 function onlineStateForMac(mac) {
   const normalized = String(mac || '').toUpperCase()
@@ -493,6 +505,8 @@ function onlineStateForMac(mac) {
 }
 const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
+const networkOriginTab = ref('') // preserve originating tab for network quick actions
+const homeDetailsExpanded = ref(false)
 const previousContentTab = ref('home')
 // V3 keeps legacy panel identifiers/RPC flows, while the visible navigation
 // follows the feature's real home section instead of forcing the Tools tab.
@@ -500,7 +514,8 @@ const toolOriginTab = ref('')
 const networkSection = ref('hub')
 const currentNavTab = computed(() =>
   (activeTab.value === 'statistics' || toolOriginTab.value === 'statistics')
-    ? 'home' : (toolOriginTab.value || activeTab.value))
+    ? 'home' : activeTab.value === 'network' && networkOriginTab.value
+      ? networkOriginTab.value : (toolOriginTab.value || activeTab.value))
 const networkSectionTitle = computed(() => ({
   interfaces: '网络接口', devices: '物理设备', wireless: '无线设备'
 })[networkSection.value] || '网络')
@@ -514,6 +529,12 @@ function openNetworkSection(section) {
   if (!['interfaces', 'devices', 'wireless'].includes(section)) return
   networkSection.value = section
   networkView.value = section
+}
+function openOverviewInterfaces() {
+  if (!connected.value) return
+  networkOriginTab.value = 'home'
+  openNetworkSection('interfaces')
+  activeTab.value = 'network'
 }
 function launchV3Tool(id) {
   if (!connected.value || toolLoading.value) return
@@ -556,14 +577,16 @@ const snapshot = ref(null)
 const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
 const clientsPrefetching = ref(false)
 let clientFetchToken = 0
-const terminalView = ref('dhcp4')
+const terminalView = ref('all')
+const terminalOnlineFilter = ref('all')
 const wifiClientData = ref({ available: false, stations: [] })
 const appFilterUsers = ref({ available: false, users: [] })
 const terminalCategories = computed(() => [
+  { value: 'all', label: '全部终端', count: terminalDevices.value.length, icon: 'mdi-devices' },
   { value: 'dhcp4', label: 'DHCPv4', count: clientData.value.data.length, icon: 'mdi-laptop' },
   { value: 'dhcp6', label: 'DHCPv6', count: clientData.value.ipv6.length, icon: 'mdi-ip-network' },
   { value: 'wireless', label: '无线终端', count: wifiClientData.value.stations.length, icon: 'mdi-wifi' },
-  { value: 'oaf', label: '应用用户', count: appFilterUsers.value.users.length, icon: 'mdi-account-group-outline' }
+  { value: 'oaf', label: '应用用户', count: terminalDevices.value.filter(item => item.sources.includes('oaf')).length, icon: 'mdi-account-group-outline' }
 ])
 const diskData = ref({ available: false, partitions: [], primary: null, temporary: null })
 const chosenInterface = ref('')
@@ -944,7 +967,9 @@ const overviewResources = computed(() => {
   const disk = diskData.value.primary
   return [...resourceCards.value.slice(0, 2),
     { label: '存储', value: disk ? disk.percent + '%' : '--',
-      progress: disk?.percent ?? 0, icon: 'mdi-harddisk' }]
+      progress: disk?.percent ?? 0, icon: 'mdi-harddisk' },
+    { label: '终端', value: snapshot.value?.users ?? '--',
+      progress: null, icon: 'mdi-devices' }]
 })
 const overviewWanState = computed(() => {
   const wan = snapshot.value?.interfaces?.find(item => item.interface === 'wan')
@@ -952,7 +977,7 @@ const overviewWanState = computed(() => {
 })
 const overviewIpv6State = computed(() => {
   const address = String(snapshot.value?.wan6Ip || '')
-  return address && address !== '--' ? '正常' : '未获取'
+  return address && address !== '--' ? '已分配' : '未获取'
 })
 let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
@@ -1189,6 +1214,7 @@ function navigateBottomTab(tab) {
       return
     }
     if (tab === 'network' && networkSection.value !== 'hub') {
+      networkOriginTab.value = ''
       networkSection.value = 'hub'
       return
     }
@@ -1205,6 +1231,7 @@ function navigateBottomTab(tab) {
   settingsOpen.value = false
   settingsTrail.length = 0
   toolOriginTab.value = ''
+  networkOriginTab.value = ''
   if (tab === 'network') networkSection.value = 'hub'
   activeTab.value = tab
 }
@@ -1275,7 +1302,10 @@ async function handleBack() {
     return 'page'
   }
   if (activeTab.value === 'network' && networkSection.value !== 'hub') {
+    const origin = networkOriginTab.value
+    networkOriginTab.value = ''
     networkSection.value = 'hub'
+    if (origin) activeTab.value = origin
     return 'page'
   }
 
@@ -1533,6 +1563,7 @@ async function goToDeviceList() {
   settingsTrail.length = 0
   viewMode.value = 'list'
   toolOriginTab.value = ''
+  networkOriginTab.value = ''
   networkSection.value = 'hub'
   activeTab.value = 'home'
   toolPanel.value = ''
@@ -2057,7 +2088,6 @@ onUnmounted(() => {
           <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
             class="router-toolbar-name router-list-toolbar-heading">路由器管理</h1>
           <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : (toolbarSection || pageTitle) }}</span>
-          <span v-if="connected && !settingsOpen && activeTab !== 'more'" class="router-toolbar-context" :title="displayDeviceName(selectedDevice)">· {{ displayDeviceName(selectedDevice) }}</span>
         </div>
       </v-toolbar-title>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
@@ -2070,8 +2100,11 @@ onUnmounted(() => {
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && activeTab !== 'more'"
-        icon="mdi-swap-horizontal" size="small" variant="text" aria-label="切换路由器" @click="requestRouterSwitch"/>
+      <v-btn v-if="viewMode === 'detail' && connected"
+        class="v3-router-switch" size="small" variant="tonal" color="primary"
+        append-icon="mdi-chevron-down" aria-label="切换路由器" @click="requestRouterSwitch">
+        <span class="v3-router-switch-label">{{ displayDeviceName(selectedDevice) }}</span>
+      </v-btn>
     </v-app-bar>
 
     <v-main>
@@ -2295,13 +2328,16 @@ onUnmounted(() => {
               <v-btn size="small" variant="text" prepend-icon="mdi-logout" aria-label="退出当前路由器"
                 @click="resetSession">退出当前路由器</v-btn>
             </div>
-            <div class="v3-section-label">管理与设置</div>
-            <div class="more-menu-list v3-me-directory" role="group" aria-label="我的功能入口">
+            <div class="v3-section-label">路由器</div>
+            <div class="more-menu-list v3-me-directory" role="group" aria-label="路由器入口">
               <button type="button" class="more-menu-item" aria-label="打开路由器管理" @click="goToDeviceList()">
                 <span class="more-menu-icon"><v-icon icon="mdi-router-wireless" size="24"/></span>
                 <span class="more-menu-copy"><strong>路由器管理</strong><small>添加、编辑和切换已保存路由器</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
+            </div>
+            <div class="v3-section-label">应用设置</div>
+            <div class="more-menu-list v3-me-directory" role="group" aria-label="应用设置入口">
               <button type="button" class="more-menu-item" aria-label="打开设置" @click="openMoreSection('settings')">
                 <span class="more-menu-icon"><v-icon icon="mdi-cog-outline" size="24"/></span>
                 <span class="more-menu-copy"><strong>应用设置</strong><small>主题、语言、显示与行为</small></span>
@@ -2312,6 +2348,9 @@ onUnmounted(() => {
                 <span class="more-menu-copy"><strong>数据与隐私</strong><small>权限说明、隐私显示选项</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
+            </div>
+            <div class="v3-section-label">支持与更新</div>
+            <div class="more-menu-list v3-me-directory" role="group" aria-label="支持与更新入口">
               <button type="button" class="more-menu-item" aria-label="打开帮助与反馈" @click="openMoreSection('help')">
                 <span class="more-menu-icon"><v-icon icon="mdi-help-circle-outline" size="24"/></span>
                 <span class="more-menu-copy"><strong>帮助与反馈</strong><small>使用说明、问题反馈</small></span>
@@ -2371,23 +2410,30 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'home' || activeTab === 'statistics'">
             <section v-if="activeTab === 'home'" class="v3-overview">
-              <div class="v3-health-card">
+              <div class="v3-health-card" role="button" tabindex="0"
+                :aria-expanded="homeDetailsExpanded" aria-label="查看系统与硬件详情"
+                @click="homeDetailsExpanded = !homeDetailsExpanded"
+                @keydown.enter.prevent="homeDetailsExpanded = !homeDetailsExpanded"
+                @keydown.space.prevent="homeDetailsExpanded = !homeDetailsExpanded">
                 <div class="v3-health-heading">
-                  <v-icon icon="mdi-check-circle-outline" color="success" size="30"/>
+                  <v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-progress-clock'" :color="connected ? 'success' : 'warning'" size="30"/>
                   <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
                     <p>{{ snapshot?.board?.model || 'OpenWrt / QWRT' }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
-                  <v-chip size="small" color="success" variant="tonal">在线</v-chip>
+                  <v-chip size="small" :color="connected ? 'success' : 'warning'" variant="tonal">{{ connected ? '在线' : '检测中' }}</v-chip>
                 </div>
                 <div class="v3-health-metrics">
                   <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
                     <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
-                    <v-progress-linear :model-value="item.progress" color="primary" height="4" rounded/>
+                    <v-progress-linear v-if="item.progress != null" :model-value="item.progress" color="primary" height="4" rounded/>
                   </div>
                 </div>
               </div>
               <div class="v3-module-heading"><h2>实时网络流量</h2>
                 <v-btn size="small" variant="text" append-icon="mdi-chevron-right" @click="openDetailedMonitor">详细监控</v-btn></div>
-              <v-card variant="flat" rounded="xl" class="v3-live-card">
+              <v-card variant="flat" rounded="xl" class="v3-live-card"
+                role="button" tabindex="0" aria-label="查看详细监控"
+                @click="openDetailedMonitor" @keydown.enter.prevent="openDetailedMonitor"
+                @keydown.space.prevent="openDetailedMonitor">
                 <div class="v3-rates">
                   <span><v-icon icon="mdi-arrow-down" color="primary" size="17"/> RX {{ currentRate?.rx || '等待采样' }}</span>
                   <span><v-icon icon="mdi-arrow-up" color="secondary" size="17"/> TX {{ currentRate?.tx || '等待采样' }}</span>
@@ -2396,21 +2442,29 @@ onUnmounted(() => {
                   :series="rxTxSeries" unit=" KB/s" title="实时流量趋势"/>
                 <p v-else class="muted-hint">正在等待路由器接口的实际流量采样，不显示模拟数据。</p>
               </v-card>
-              <div class="v3-module-heading"><h2>网络状态</h2></div>
-              <div class="v3-overview-network-state" aria-label="网络状态摘要">
-                <div><span>WAN</span><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong></div>
-                <div><span>IPv6</span><strong :class="{ 'v3-status-good': overviewIpv6State === '正常' }">{{ overviewIpv6State }}</strong></div>
-                <div><span>终端</span><strong>{{ snapshot?.users ?? '--' }} 台</strong></div>
-              </div>
               <div class="v3-module-heading"><h2>快捷操作</h2></div>
               <div class="v3-shortcuts">
-                <button class="v3-shortcut" @click="navigateBottomTab('network');openNetworkSection('interfaces')"><v-icon icon="mdi-lan"/>接口</button>
+                <button class="v3-shortcut" @click="openOverviewInterfaces"><v-icon icon="mdi-lan"/>接口</button>
                 <button class="v3-shortcut" @click="launchV3Tool('firewall')"><v-icon icon="mdi-shield-outline"/>防火墙</button>
                 <button class="v3-shortcut" @click="launchV3Tool('ddns')"><v-icon icon="mdi-earth"/>DDNS</button>
                 <button class="v3-shortcut" @click="launchV3Tool('diagnostics')"><v-icon icon="mdi-lan-check"/>诊断</button>
               </div>
-              <div class="v3-module-heading"><h2>系统与硬件详情</h2></div>
+              <div class="v3-module-heading"><h2>网络状态</h2></div>
+              <div class="v3-overview-network-state" aria-label="网络状态摘要">
+                <div><span>WAN</span><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong></div>
+                <div><span>IPv6</span><strong :class="{ 'v3-status-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</strong></div>
+                <div><span>终端</span><strong>{{ snapshot?.users ?? '--' }} 台</strong></div>
+              </div>
+              <div class="v3-module-heading">
+                <h2>系统与硬件详情</h2>
+                <v-btn size="small" variant="text"
+                  :append-icon="homeDetailsExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                  :aria-expanded="homeDetailsExpanded"
+                  :aria-label="homeDetailsExpanded ? '收起系统与硬件详情' : '展开系统与硬件详情'"
+                  @click="homeDetailsExpanded = !homeDetailsExpanded">{{ homeDetailsExpanded ? '收起' : '展开' }}</v-btn>
+              </div>
             </section>
+            <div v-if="homeDetailsExpanded && activeTab === 'home'" class="v3-home-details">
             <v-card v-if="snapshot && activeTab === 'home'" rounded="xl" elevation="1" class="device-card">
               <div class="device-heading">
                 <v-avatar color="primary" variant="tonal" rounded="lg" size="52"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
@@ -2500,9 +2554,10 @@ onUnmounted(() => {
                 </div>
               </template>
               <v-alert v-else type="info" variant="tonal" density="compact">
-                无法读取磁盘分区信息。检查 QWRT 是否允许 file.exec 执行只读 df 命令。
+                无法读取磁盘分区信息。请检查 luci.getMountPoints RPC 与账号读取权限。
               </v-alert>
             </v-card>
+            </div>
 
             <template v-if="snapshot && activeTab === 'statistics'">
               <div class="v3-monitor-subnav">
@@ -2568,10 +2623,21 @@ onUnmounted(() => {
             </div>
             <div class="terminal-screen">
               <div class="terminal-header">
-                <div><h2>终端设备</h2><p>在线状态按 QWRT 邻居可达性和无线关联判断；灰色表示未确认</p></div>
-                <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ clientData.data.length }} 台</v-chip>
+                <div><h2>终端设备</h2><p>无线关联和邻居可达是在线证据；DHCP 租约不代表在线</p></div>
+                <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ terminalDevices.length }} 台</v-chip>
               </div>
-              <div class="terminal-category-grid" role="group" aria-label="终端分类">
+              <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
+                <button v-for="option in [
+                  { id: 'all', label: '全部', count: terminalDevices.length },
+                  { id: 'online', label: '在线', count: terminalDevices.filter(i => i.online).length },
+                  { id: 'offline', label: '离线', count: terminalDevices.filter(i => !i.online && i.onlineKnown).length },
+                  { id: 'unknown', label: '待确认', count: terminalDevices.filter(i => !i.online && !i.onlineKnown).length }
+                ]" :key="option.id" type="button"
+                  :class="{ 'is-selected': terminalOnlineFilter === option.id }"
+                  :aria-pressed="terminalOnlineFilter === option.id"
+                  @click="terminalOnlineFilter = option.id">{{ option.label }} {{ option.count }}</button>
+              </div>
+              <div class="terminal-category-grid" role="group" aria-label="终端来源分类">
                 <v-btn
                   v-for="category in terminalCategories"
                   :key="category.value"
@@ -2603,55 +2669,30 @@ onUnmounted(() => {
                   </div>
                 </v-btn>
               </div>
-              <template v-if="terminalView === 'dhcp4'">
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
                 aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
                 @click:clear="clientSearch = ''"
                 @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
-              <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="DHCP 终端设备">
-                <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip"
+              <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="已发现终端列表">
+                <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip || item.ip6"
                   :item="item" @click="openTerminal(item)"/>
               </div>
-              <v-empty-state v-else-if="clientData.data.length && clientSearch" icon="mdi-magnify-close"
-                title="没有匹配的终端" text="请尝试设备名称、IP 地址或 MAC 地址"/>
+              <v-empty-state v-else-if="clientSearch || terminalOnlineFilter !== 'all'" icon="mdi-magnify-close"
+                title="没有匹配的终端" text="请调整在线状态、数据来源或搜索条件"/>
+              <v-alert v-else-if="terminalView === 'wireless' && !wifiClientData.available"
+                type="info" variant="tonal" density="compact">
+                无法读取 Wi-Fi 关联信息：路由器可能没有无线射频，或当前账号缺少 iwinfo RPC 权限。
+              </v-alert>
+              <v-alert v-else-if="terminalView === 'oaf' && !appFilterUsers.available"
+                type="info" variant="tonal" density="compact">
+                无法读取应用用户：请检查 OpenAppFilter 是否安装，以及当前账号的 RPC 权限。
+              </v-alert>
               <v-empty-state v-else icon="mdi-devices"
-                :title="clientData.leasesAvailable ? '暂无 DHCP 租约' : '无法获取 DHCP 租约'"
-                text="确认 QWRT 的 luci-rpc.getDHCPLeases 接口具有读取权限"/>
-              </template>
-              <div v-if="terminalView === 'dhcp6'" class="terminal-grid">
-                <TerminalDeviceCard v-for="item in filteredClients" :key="'dhcp6-'+(item.mac || item.ip)"
-                  :item="item" @click="openTerminal(item)"/>
-                <p v-if="!filteredClients.length" class="muted-hint">没有匹配的 DHCPv6 终端。</p>
-              </div>
-              <div v-if="terminalView === 'wireless'">
-                <div class="terminal-grid" v-if="filteredClients.length">
-                  <TerminalDeviceCard v-for="item in filteredClients" :key="'wifi-'+(item.mac || item.ip)"
-                    :item="item" @click="openTerminal(item)"/>
-                </div>
-                <v-alert v-else type="info" variant="tonal" density="compact">
-                  {{ wifiClientData.available ? '当前没有已关联的无线终端' : 'QWRT 未开放 iwinfo RPC 或当前路由器没有 Wi-Fi 射频' }}
-                </v-alert>
-              </div>
-              <div v-if="terminalView === 'oaf'">
-                <div class="terminal-grid" v-if="appFilterUsers.users.length">
-                  <v-card v-for="(item,index) in appFilterUsers.users" :key="'oaf-'+index" variant="outlined" rounded="lg" class="terminal-tile">
-                    <v-avatar size="42" color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-shield-account-outline" size="22"/></v-avatar>
-                    <div class="terminal-meta">
-                      <div class="terminal-name-line">
-                        <span class="terminal-online-dot" :class="'is-' + onlineStateForMac(item.mac)"
-                          :title="onlineStateForMac(item.mac) === 'online' ? '在线' : onlineStateForMac(item.mac) === 'offline' ? '离线' : '状态未知'"/>
-                        <div class="terminal-name">{{ item.nickname || item.hostname || item.mac || '未知用户' }}</div>
-                      </div>
-                      <div class="terminal-ip">{{ item.ip || item.ipaddr || '--' }}</div>
-                      <div class="terminal-mac">{{ item.mac || '--' }} · {{ item.appname || item.app_name || '暂无应用记录' }}</div>
-                    </div>
-                  </v-card>
-                </div>
-                <v-alert v-else type="info" variant="tonal" density="compact">
-                  {{ appFilterUsers.available ? '应用过滤用户列表为空' : '未安装 OpenAppFilter，或当前账号没有 appfilter RPC 权限' }}
-                </v-alert>
-              </div>
+                :title="terminalView === 'all' ? '暂无已发现终端' : '此来源暂无终端'"
+                :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
+                  ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
+                  : '没有对应来源的记录；租约不等于在线状态'"/>
             </div>
           </template>
 
@@ -2691,29 +2732,7 @@ onUnmounted(() => {
                 <div><span>DNS</span><strong>{{ snapshot.dns }}</strong></div>
               </div>
             </v-card>
-            <div class="terminal-category-grid network-category-grid" role="group" aria-label="网络分类">
-              <v-btn v-for="category in networkCategories" :key="category.value"
-                :variant="networkView === category.value ? 'tonal' : 'outlined'"
-                :color="networkView === category.value ? 'primary' : undefined"
-                :class="{ 'is-selected': networkView === category.value }"
-                :aria-pressed="networkView === category.value"
-                :aria-label="category.label + '，' + category.count + ' 条'"
-                class="terminal-category-card" @click="networkView = category.value">
-                <div class="terminal-category-card__inner">
-                  <v-avatar size="42" rounded="lg" color="primary" variant="tonal" class="terminal-category-card__icon">
-                    <v-icon :icon="category.icon" size="22"/>
-                  </v-avatar>
-                  <div class="terminal-category-card__meta">
-                    <span class="terminal-category-card__title">{{ category.label }}</span>
-                    <v-chip size="x-small" color="primary" variant="tonal" class="terminal-category-card__count">
-                      {{ category.count }} 条
-                    </v-chip>
-                  </div>
-                  <v-icon v-if="networkView === category.value" icon="mdi-check-circle" size="20"
-                    color="primary" class="terminal-category-card__check"/>
-                </div>
-              </v-btn>
-            </div>
+            <!-- The Network hub is the single level of interface/hardware selection. -->
             <div class="xxwrt-network-view">
             <template v-if="networkView === 'interfaces'">
               <NetworkInterfacesPanel v-if="client" ref="networkInterfacesPanel"
@@ -2741,7 +2760,7 @@ onUnmounted(() => {
             <template v-if="!toolPanel">
               <div class="app-hub">
                 <div class="app-launcher-heading">
-                  <h2>工具中心</h2>
+                  <h2>工具箱</h2>
                   <p>{{ installedRouterAppsLoading ? '正在检查插件能力…' : '常用快捷入口 · 插件 · 系统管理 · 安全诊断' }}</p>
                 </div>
 
@@ -2770,7 +2789,7 @@ onUnmounted(() => {
                 <template v-else>
                   <section class="app-hub-favorites" aria-label="常用应用">
                     <div class="app-hub-section-heading">
-                      <strong>常用应用</strong>
+                      <strong>我的快捷</strong>
                       <v-btn size="small" variant="text" prepend-icon="mdi-pencil-outline"
                         aria-label="编辑常用应用" @click="favoriteEditorOpen = true">编辑</v-btn>
                     </div>
