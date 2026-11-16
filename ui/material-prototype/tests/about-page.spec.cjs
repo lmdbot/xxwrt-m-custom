@@ -19,7 +19,7 @@ test('About uses the actual Android launcher artwork and preserves update action
   await expect.poll(() => avatar.evaluate(img => img.naturalWidth)).toBe(160)
   await expect(page.getByRole('button', { name: '查看开发者与项目' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'XX-WRT' })).toBeVisible()
-  await expect(page.getByText(/v3\\.0\\.0/).first()).toBeVisible()
+  await expect(page.getByText(/v3\.0\.0/).first()).toBeVisible()
   await expect(page.getByRole('button', { name: '检查更新' })).toBeVisible()
   await expect(page.getByRole('button', { name: '版本日志' })).toBeVisible()
   await expect(page.getByRole('button', { name: '查看开源许可证' })).toBeVisible()
@@ -60,7 +60,7 @@ test('About follows English and Traditional Chinese through More → Settings', 
   await page.getByRole('button', { name: 'Close', exact: true }).last().click()
 
   await page.getByRole('button', { name: 'Me', exact: true }).click()
-  await page.locator('.more-menu-item').filter({ hasText: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Open settings' }).click()
   await page.locator('.more-menu-item').filter({ hasText: 'Language' }).click()
   await page.getByRole('radio', { name: '繁體中文' }).check()
   await page.getByRole('button', { name: '我的', exact: true }).click()
