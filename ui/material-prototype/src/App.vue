@@ -2988,7 +2988,7 @@ onUnmounted(() => {
                         :aria-controls="'app-category-' + category.id"
                         :aria-label="(expandedAppCategories.includes(category.id) ? '收起' : '展开') + category.title"
                         @click="toggleAppCategory(category.id)">
-                        <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项　⌄</small></span>
+                        <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项</small></span>
                         <v-icon :icon="expandedAppCategories.includes(category.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                           size="20" class="app-tool-chevron"/>
                       </button>
