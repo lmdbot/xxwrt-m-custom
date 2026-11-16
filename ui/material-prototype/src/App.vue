@@ -1494,6 +1494,24 @@ async function refreshDeviceStatuses() {
   }
 }
 
+// Switching routers must honor the same pending-edit and dialog guards as
+// Android Back. The previous direct goToDeviceList call bypassed nested panels.
+async function requestRouterSwitch() {
+  if (viewMode.value !== 'detail' || !connected.value) return
+  if (factoryBusy.value || connecting.value || actionBusy.value) return
+  if (activeTab.value === 'network' && networkSection.value !== 'hub') {
+    const handled = networkInterfacesPanel.value?.handleBack?.()
+    if (handled) return
+  }
+  if (toolPanel.value || selectedClient.value) {
+    // First close or reject the active editor; require another explicit
+    // switch action to leave the router, rather than discarding a draft.
+    await handleBack()
+    return
+  }
+  await goToDeviceList()
+}
+
 async function goToDeviceList() {
   settingsOpen.value = false
   settingsTrail.length = 0
@@ -2037,7 +2055,7 @@ onUnmounted(() => {
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
       <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && activeTab !== 'more'"
-        icon="mdi-swap-horizontal" size="small" variant="text" aria-label="切换路由器" @click="goToDeviceList"/>
+        icon="mdi-swap-horizontal" size="small" variant="text" aria-label="切换路由器" @click="requestRouterSwitch"/>
     </v-app-bar>
 
     <v-main>
