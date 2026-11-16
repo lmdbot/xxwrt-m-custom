@@ -254,6 +254,13 @@
  .xxwrt-v3 .standard-bottom{backdrop-filter:none;-webkit-backdrop-filter:none}
 }
 
+/* The older dark-mode class in style.css has higher specificity than the
+ * shared alias selector; enforce the exact document-muted tone in dark mode. */
+.xxwrt-v3.theme-is-dark{
+  --ui-text-muted:var(--ui-muted);
+  --ui-text-subtle:var(--ui-muted);
+}
+
 /* Design A compact screen: preserve readable 22–28sp metrics on 360–430dp. */
 @media(max-width:430px){
   .xxwrt-v3 .v3-health-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
