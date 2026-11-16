@@ -2,7 +2,7 @@
 
 **面向 QWRT / OpenWrt 的 Android 路由器管理应用**。提供多设备管理、系统监控、终端与网络信息查看，以及常用路由器服务和插件的集中管理。界面基于 Material Design，支持标准与 Liquid Glass 两种底部导航样式。
 
-当前 `main` 对应 **Material 3.0 的 Design A UI/UX 实施版（v3.0.2）**；功能依据 `doc/` 详细设计，仍需针对目标固件和插件进行真机兼容性验证，应用通过路由器的 **ubus JSON-RPC、UCI 及已授权的插件接口**获取数据和执行操作。可用功能取决于路由器固件、已安装插件和 RPC 权限。
+当前 `main` 对应 **Material 3.0 的 Design A UI/UX 实施版（v3.0.3）**；功能依据 `doc/` 详细设计，仍需针对目标固件和插件进行真机兼容性验证，应用通过路由器的 **ubus JSON-RPC、UCI 及已授权的插件接口**获取数据和执行操作。可用功能取决于路由器固件、已安装插件和 RPC 权限。
 
 ## 项目宣传图
 
@@ -14,8 +14,8 @@
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 应用版本 | **3.0.2（Design A UI/UX 实施版）** |
-| Android `versionCode` | `3000002` |
+| 应用版本 | **3.0.3（Design A 视觉验收工具与 CI 优化版）** |
+| Android `versionCode` | `3000003` |
 | 应用名称 | `XX-WRT管理器` |
 | Android 包名 | `com.lmdbot.xxwrt.materialpreview` |
 | 技术栈 | Vue 3 · Vite 7 · Vuetify 3 · Capacitor 8 · ECharts 5 |
@@ -36,11 +36,13 @@
 
 点击图片可查看对应截图。
 
-## Design A 重设计实现（v3.0.2）
+## Design A 重设计实现（v3.0.2 起）
 
 依据 [完整 UI/UX 设计方案](doc/README.md) 与 [实施记录](doc/implementation-v3.0.2.md) 收敛主要路径：概览四项 KPI / 实时流量 / 折叠硬件详情，终端多来源合并与在线证据筛选，网络接口直达，工具收藏/分类及「我的」三组设置。保留现有 28 项功能和操作保护；不会把交互 HTML 原型直接用于生产环境。
 
 [一级页面效果图](doc/visuals/primary-pages.svg) · [二级页面效果图](doc/visuals/secondary-pages.svg) · [导航结构](doc/visuals/navigation-map.svg) · [交互原型](doc/prototype.html)（均为设计示意）
+
+v3.0.3 新增[逐屏像素差异与真机验收流程](doc/07-visual-acceptance.md)及 CI 提速；126 组自动截图已生成，但尚不能据此宣称 100% 像素一致或 Android 真机已验收。
 
 ## 功能概览
 
