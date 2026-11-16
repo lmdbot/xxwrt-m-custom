@@ -397,7 +397,8 @@ const settingsTrail = []
 const moreCategories = [
   { id: 'router', title: '路由器', description: '设备管理、连接与系统信息', icon: 'mdi-router-wireless' },
   { id: 'settings', title: '设置', description: '显示、隐私、刷新、实验室、语言', icon: 'mdi-cog-outline' },
-  { id: 'about', title: '关于', description: '帮助、反馈与版本', icon: 'mdi-information-outline' }
+  { id: 'about', title: '关于', description: '帮助、反馈与版本', icon: 'mdi-information-outline' },
+  { id: 'help', title: '帮助与反馈', description: '使用说明与问题反馈', icon: 'mdi-help-circle-outline' }
 ]
 const settingsCategories = [
   { id: 'display', title: '显示', description: '界面主题、导航与列表布局', icon: 'mdi-monitor' },
@@ -937,6 +938,21 @@ const resourceCards = computed(() => {
     { label: '内存缓存', value: snap.cachePercent == null ? '--' : snap.cachePercent + '%', detail: snap.cacheDetail || '--', icon: 'mdi-chart-timeline-variant', progress: snap.cachePercent || 0 },
     { label: '连接数', value: snap.connPercent == null ? '--' : snap.connPercent + '%', detail: snap.connDetail || '--', icon: 'mdi-lan-connect', progress: snap.connPercent || 0 }
   ]
+})
+// Overview information comes from actual router telemetry, without estimates.
+const overviewResources = computed(() => {
+  const disk = diskData.value.primary
+  return [...resourceCards.value.slice(0, 2),
+    { label: '存储', value: disk ? disk.percent + '%' : '--',
+      progress: disk?.percent ?? 0, icon: 'mdi-harddisk' }]
+})
+const overviewWanState = computed(() => {
+  const wan = snapshot.value?.interfaces?.find(item => item.interface === 'wan')
+  return !wan ? '未知' : wan.up ? '已连接' : '未连接'
+})
+const overviewIpv6State = computed(() => {
+  const address = String(snapshot.value?.wan6Ip || '')
+  return address && address !== '--' ? '正常' : '未获取'
 })
 let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
@@ -2227,6 +2243,25 @@ onUnmounted(() => {
               </v-card>
             </template>
 
+            <template v-else-if="settingsCategory === 'help'">
+              <section class="v3-help-center">
+                <header class="v3-help-intro"><v-icon icon="mdi-help-circle-outline" color="primary" size="34"/>
+                  <div><h2>帮助与反馈</h2><p>查阅项目说明，或向开发者反馈问题和建议。</p></div>
+                </header>
+                <div class="more-menu-list">
+                  <button type="button" class="more-menu-item" aria-label="查看使用说明" @click="showProjectPage">
+                    <span class="more-menu-icon"><v-icon icon="mdi-book-open-page-variant-outline" size="23"/></span>
+                    <span class="more-menu-copy"><strong>使用说明</strong><small>打开 XX-WRT 项目与使用文档</small></span>
+                    <v-icon icon="mdi-open-in-new" size="20"/>
+                  </button>
+                  <button type="button" class="more-menu-item" aria-label="提交问题反馈" @click="showIssuesPage">
+                    <span class="more-menu-icon"><v-icon icon="mdi-message-alert-outline" size="23"/></span>
+                    <span class="more-menu-copy"><strong>问题反馈</strong><small>在 GitHub Issues 提交问题或建议</small></span>
+                    <v-icon icon="mdi-open-in-new" size="20"/>
+                  </button>
+                </div>
+              </section>
+            </template>
             <template v-else-if="settingsCategory === 'about'">
               <AboutPage :installed-version="installedVersion" :installed-build="installedBuild"
                 :update-state="{
@@ -2256,38 +2291,35 @@ onUnmounted(() => {
               <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
               <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
             </header>
-            <div class="v3-section-label v3-section-row"><span>路由器</span>
-              <button type="button" class="v3-heading-action" aria-label="打开路由器" @click="openMoreSection('router')">全部 <v-icon icon="mdi-chevron-right" size="17"/></button>
+            <div v-if="connected" class="v3-me-session-actions">
+              <v-btn size="small" variant="text" prepend-icon="mdi-logout" aria-label="退出当前路由器"
+                @click="resetSession">退出当前路由器</v-btn>
             </div>
-            <div class="more-menu-list">
-              <button class="more-menu-item" type="button" aria-label="打开路由器管理" @click="goToDeviceList()">
-                <span class="more-menu-icon"><v-icon icon="mdi-router-wireless" size="25"/></span>
-                <span class="more-menu-copy"><strong>{{ connected ? displayDeviceName(selectedDevice) : '路由器管理' }}</strong><small>{{ connected ? displayRouterAddress(selectedDevice?.address) : '添加、编辑和切换已保存路由器' }}</small></span>
-                <v-icon icon="mdi-chevron-right" size="22"/>
-              </button>
-              <button v-if="connected" class="more-menu-item" type="button" aria-label="退出当前路由器" @click="resetSession">
-                <span class="more-menu-icon"><v-icon icon="mdi-logout" size="23"/></span>
-                <span class="more-menu-copy"><strong>退出当前路由器</strong><small>结束本次登录会话，保留已保存的路由器</small></span>
-                <v-icon icon="mdi-chevron-right" size="22"/>
-              </button>
-            </div>
-            <div class="v3-section-label v3-section-row"><span>应用设置</span>
-              <button type="button" class="v3-heading-action" aria-label="打开设置" @click="openMoreSection('settings')">全部 <v-icon icon="mdi-chevron-right" size="17"/></button>
-            </div>
-            <div class="more-menu-list">
-              <button v-for="category in settingsCategories" :key="category.id" type="button"
-                class="more-menu-item" :aria-label="'打开' + category.title + '设置'"
-                @click="openSettingsCategory(category.id, true)">
-                <span class="more-menu-icon"><v-icon :icon="category.icon" size="23"/></span>
-                <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
+            <div class="v3-section-label">管理与设置</div>
+            <div class="more-menu-list v3-me-directory" role="group" aria-label="我的功能入口">
+              <button type="button" class="more-menu-item" aria-label="打开路由器管理" @click="goToDeviceList()">
+                <span class="more-menu-icon"><v-icon icon="mdi-router-wireless" size="24"/></span>
+                <span class="more-menu-copy"><strong>路由器管理</strong><small>添加、编辑和切换已保存路由器</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
-            </div>
-            <div class="v3-section-label">支持与更新</div>
-            <div class="more-menu-list">
-              <button class="more-menu-item" type="button" aria-label="打开关于" @click="openMoreSection('about')">
-                <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="23"/></span>
-                <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本检查、开发者、反馈及开源许可</small></span>
+              <button type="button" class="more-menu-item" aria-label="打开设置" @click="openMoreSection('settings')">
+                <span class="more-menu-icon"><v-icon icon="mdi-cog-outline" size="24"/></span>
+                <span class="more-menu-copy"><strong>应用设置</strong><small>主题、语言、显示与行为</small></span>
+                <v-icon icon="mdi-chevron-right" size="21"/>
+              </button>
+              <button type="button" class="more-menu-item" aria-label="打开隐私设置" @click="openSettingsCategory('privacy', true)">
+                <span class="more-menu-icon"><v-icon icon="mdi-shield-lock-outline" size="24"/></span>
+                <span class="more-menu-copy"><strong>数据与隐私</strong><small>权限说明、隐私显示选项</small></span>
+                <v-icon icon="mdi-chevron-right" size="21"/>
+              </button>
+              <button type="button" class="more-menu-item" aria-label="打开帮助与反馈" @click="openMoreSection('help')">
+                <span class="more-menu-icon"><v-icon icon="mdi-help-circle-outline" size="24"/></span>
+                <span class="more-menu-copy"><strong>帮助与反馈</strong><small>使用说明、问题反馈</small></span>
+                <v-icon icon="mdi-chevron-right" size="21"/>
+              </button>
+              <button type="button" class="more-menu-item" aria-label="打开关于" @click="openMoreSection('about')">
+                <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="24"/></span>
+                <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本信息、开发者与更新</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
             </div>
@@ -2347,12 +2379,10 @@ onUnmounted(() => {
                   <v-chip size="small" color="success" variant="tonal">在线</v-chip>
                 </div>
                 <div class="v3-health-metrics">
-                  <div v-for="item in resourceCards.slice(0, 3)" :key="item.label" class="v3-metric">
+                  <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
                     <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
                     <v-progress-linear :model-value="item.progress" color="primary" height="4" rounded/>
                   </div>
-                  <div class="v3-metric"><small>在线终端</small>
-                    <strong>{{ snapshot?.users ?? '--' }}</strong><span class="v3-metric-note">网络客户端</span></div>
                 </div>
               </div>
               <div class="v3-module-heading"><h2>实时网络流量</h2>
@@ -2366,6 +2396,12 @@ onUnmounted(() => {
                   :series="rxTxSeries" unit=" KB/s" title="实时流量趋势"/>
                 <p v-else class="muted-hint">正在等待路由器接口的实际流量采样，不显示模拟数据。</p>
               </v-card>
+              <div class="v3-module-heading"><h2>网络状态</h2></div>
+              <div class="v3-overview-network-state" aria-label="网络状态摘要">
+                <div><span>WAN</span><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong></div>
+                <div><span>IPv6</span><strong :class="{ 'v3-status-good': overviewIpv6State === '正常' }">{{ overviewIpv6State }}</strong></div>
+                <div><span>终端</span><strong>{{ snapshot?.users ?? '--' }} 台</strong></div>
+              </div>
               <div class="v3-module-heading"><h2>快捷操作</h2></div>
               <div class="v3-shortcuts">
                 <button class="v3-shortcut" @click="navigateBottomTab('network');openNetworkSection('interfaces')"><v-icon icon="mdi-lan"/>接口</button>

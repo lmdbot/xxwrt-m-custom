@@ -29,9 +29,9 @@
 .xxwrt-v3 .v3-health-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:16px}
 .xxwrt-v3 .v3-metric{border:1px solid var(--v3-border);background:rgba(var(--v-theme-surface),.78);
   border-radius:13px;min-width:0;padding:10px 8px;display:flex;flex-direction:column;gap:7px}
-.xxwrt-v3 .v3-metric small{font-size:11px;color:var(--ui-text-muted)}
+.xxwrt-v3 .v3-metric small{font-size:11px;color:var(--v3-muted)}
 .xxwrt-v3 .v3-metric strong{font-size:17px;line-height:1.4;white-space:nowrap}
-.xxwrt-v3 .v3-metric-note{font-size:10px;color:var(--ui-text-muted)}
+.xxwrt-v3 .v3-metric-note{font-size:10px;color:var(--v3-muted)}
 .xxwrt-v3 .v3-module-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:1px 2px -5px}
 .xxwrt-v3 .v3-module-heading h2{font-size:16px;font-weight:750;margin:0}
 .xxwrt-v3 .v3-live-card{padding:14px 12px 8px!important;border:1px solid var(--v3-border)!important;overflow:hidden}
@@ -55,11 +55,11 @@
   background:linear-gradient(145deg,rgba(57,141,230,.12),rgba(80,185,198,.025)),
   rgb(var(--v-theme-surface));padding:16px}
 .xxwrt-v3 .v3-network-status h2{font-size:18px;font-weight:760;margin:0}
-.xxwrt-v3 .v3-network-status p{font-size:12px;color:var(--ui-text-muted);margin:4px 0 14px}
+.xxwrt-v3 .v3-network-status p{font-size:12px;color:var(--v3-muted);margin:4px 0 14px}
 .xxwrt-v3 .v3-network-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .xxwrt-v3 .v3-network-kpis>div{border:1px solid var(--v3-border);
   border-radius:12px;padding:10px 8px;background:rgba(var(--v-theme-surface),.77);min-width:0}
-.xxwrt-v3 .v3-network-kpis small{display:block;color:var(--ui-text-muted);font-size:11px;margin-bottom:6px}
+.xxwrt-v3 .v3-network-kpis small{display:block;color:var(--v3-muted);font-size:11px;margin-bottom:6px}
 .xxwrt-v3 .v3-network-kpis strong{font-size:12px;font-weight:700;overflow-wrap:anywhere;line-height:1.5}
 .xxwrt-v3 .v3-feature-list{border-radius:17px;border:1px solid var(--v3-border);
   background:rgb(var(--v-theme-surface));overflow:hidden}
@@ -69,14 +69,14 @@
 .xxwrt-v3 .v3-feature-list button:last-child{border-bottom:0}
 .xxwrt-v3 .v3-feature-list button>span{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
 .xxwrt-v3 .v3-feature-list button strong{font-size:14px;font-weight:720}
-.xxwrt-v3 .v3-feature-list button small{font-size:12px;line-height:1.45;color:var(--ui-text-muted)}
-.xxwrt-v3 .v3-feature-list button>.v-icon:last-child{color:var(--ui-text-muted)}
+.xxwrt-v3 .v3-feature-list button small{font-size:12px;line-height:1.45;color:var(--v3-muted)}
+.xxwrt-v3 .v3-feature-list button>.v-icon:last-child{color:var(--v3-muted)}
 .xxwrt-v3 .v3-me-profile{display:flex;align-items:center;gap:15px;padding:19px 15px;
   border:1px solid rgba(52,126,227,.18);border-radius:19px;
   background:linear-gradient(130deg,rgba(71,153,239,.12),rgba(158,207,255,.05)),rgb(var(--v-theme-surface))}
 .xxwrt-v3 .v3-me-profile img{width:64px;height:64px;border-radius:16px;object-fit:cover;flex:none}
 .xxwrt-v3 .v3-me-profile h2{font-size:18px;font-weight:760;margin:0}
-.xxwrt-v3 .v3-me-profile p{font-size:12px;margin:4px 0;color:var(--ui-text-muted)}
+.xxwrt-v3 .v3-me-profile p{font-size:12px;margin:4px 0;color:var(--v3-muted)}
 .xxwrt-v3 .v3-me-page .more-menu-list{border-radius:17px;overflow:hidden}
 .xxwrt-v3 .v3-me-page .more-menu-item{min-height:72px}
 .xxwrt-v3 .app-category-card{border-radius:16px;margin-bottom:10px}
@@ -120,3 +120,32 @@
   .v3-network-editor-dialog .v-card-actions,.v3-terminal-detail-dialog .v-card-actions{
     flex:0 0 auto;border-top:1px solid rgba(103,127,173,.15);background:rgb(var(--v-theme-surface))}
 }
+
+/* Poster-aligned 3.0.1: actual CPU/memory/storage, network summary and concise Me. */
+.xxwrt-v3 .v3-health-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+.xxwrt-v3 .v3-overview-network-state{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;border:1px solid var(--v3-border);background:rgb(var(--v-theme-surface));
+  border-radius:17px;padding:12px}
+.xxwrt-v3 .v3-overview-network-state>div{display:flex;min-width:0;flex-direction:column;
+  align-items:center;justify-content:center;gap:5px;border-radius:12px;
+  padding:12px 7px;background:rgba(var(--v-theme-primary),.045)}
+.xxwrt-v3 .v3-overview-network-state span{font-size:12px;color:var(--v3-muted)}
+.xxwrt-v3 .v3-overview-network-state strong{font-size:13px;font-weight:750;
+  overflow-wrap:anywhere;text-align:center}
+.xxwrt-v3 .v3-overview-network-state .v3-status-good{color:rgb(var(--v-theme-success))}
+.xxwrt-v3 .v3-me-directory{margin-top:1px}
+.xxwrt-v3 .v3-me-directory .more-menu-item{min-height:76px}
+.xxwrt-v3 .v3-me-directory .more-menu-icon{border-radius:13px}
+.xxwrt-v3 .v3-help-intro{display:flex;align-items:center;gap:13px;
+  padding:16px;margin-bottom:13px;border:1px solid var(--v3-border);
+  border-radius:18px;background:linear-gradient(130deg,rgba(67,151,238,.10),transparent),
+  rgb(var(--v-theme-surface))}
+.xxwrt-v3 .v3-help-intro h2{font-size:17px;line-height:1.5;margin:0;font-weight:750}
+.xxwrt-v3 .v3-help-intro p{font-size:12px;color:var(--v3-muted);margin:3px 0}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-overview-network-state{gap:6px;padding:9px}
+  .xxwrt-v3 .v3-overview-network-state>div{padding:10px 4px}
+}
+
+.xxwrt-v3 .v3-me-session-actions{display:flex;justify-content:flex-end;margin-top:-5px;margin-bottom:9px}
+.xxwrt-v3 .v3-me-session-actions .v-btn{font-size:12px}

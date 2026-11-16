@@ -3,7 +3,7 @@ name: XX-WRT Material Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [feature/material-ui, feature/xxwrt-v3-redesign, main]
+    branches: [feature/material-ui, feature/xxwrt-v3-redesign, feature/xxwrt-v3-poster-alignment, main]
     paths:
       - "ui/material-prototype/**"
       - "docs/releases/**"
