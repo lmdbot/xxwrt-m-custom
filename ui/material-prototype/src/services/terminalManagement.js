@@ -130,6 +130,10 @@ export function parseHqosLimit(raw, limit, label) {
 function hqosRpcResult(result, method) {
   if (!result || typeof result !== 'object' || Array.isArray(result))
     throw new Error('HQoS ' + method + ' RPC 未返回有效数据；检查 rpcd ACL 授权')
+  // HQoS status may legitimately contain an engine health "error" while
+  // still returning enabled/supported/capabilities. Do not confuse it with
+  // the rpcd wrapper { error: "Lua exception" }.
+  if (method === 'status' && ('supported' in result || 'enabled' in result)) return result
   if (result.error) throw new Error('HQoS ' + method + ' 失败：' + String(result.error).slice(0, 450))
   return result
 }
