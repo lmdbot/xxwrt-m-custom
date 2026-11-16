@@ -1143,3 +1143,33 @@
   padding:0 16px 16px!important}
 .xxwrt-v3 .v3-design-a-risk-actions .v-btn{
   flex:1;min-width:0;min-height:44px;border-radius:12px!important;font-size:12px}
+
+
+/* Design A: the generic detail-page status sits between hero and section list. */
+.xxwrt-v3 .v3-design-a-status-card{
+  background:var(--ui-surface);border:1px solid var(--ui-border);
+  border-radius:18px;padding:15px;margin-top:12px;
+  box-shadow:0 10px 30px rgba(36,74,120,.04)}
+.xxwrt-v3 .v3-design-a-status-card .v-chip{font-size:11px;font-weight:750}
+.xxwrt-v3 .v3-design-a-status-card p{
+  font-size:12px;line-height:1.7;color:var(--ui-muted);margin:10px 0 0}
+.xxwrt-v3.theme-is-dark .v3-design-a-status-card{box-shadow:0 10px 30px rgba(0,0,0,.16)}
+
+/* Vuetify dialogs teleport to the overlay root outside .xxwrt-v3.
+ * Scope this exception to our dialog class so Design A modal styles apply. */
+.v3-design-a-risk-modal{
+  border-radius:22px!important;
+  background:rgb(var(--v-theme-surface))!important;
+  color:rgb(var(--v-theme-on-surface))!important;padding:4px}
+.v3-design-a-risk-modal .v3-design-a-risk-title{
+  font-size:17px!important;font-weight:750;line-height:1.4;
+  padding:16px 16px 4px!important}
+.v3-design-a-risk-modal .v-card-text{
+  font-size:13px;line-height:1.8;
+  color:rgba(var(--v-theme-on-surface),.72);
+  padding:8px 16px 16px!important}
+.v3-design-a-risk-modal .v3-design-a-risk-actions{
+  display:flex;gap:10px;padding:0 16px 16px!important}
+.v3-design-a-risk-modal .v3-design-a-risk-actions .v-btn{
+  flex:1;min-width:0;min-height:44px;
+  border-radius:12px!important;font-size:12px}
