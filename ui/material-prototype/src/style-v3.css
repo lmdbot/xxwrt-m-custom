@@ -993,3 +993,49 @@
   border-top:1px solid var(--ui-border)}
 .v3-terminal-detail-dialog .v3-terminal-editors{background:var(--ui-bg)}
 .v3-terminal-detail-dialog .v3-terminal-detail-chip{color:var(--ui-success)}
+
+
+/* Dialogs are teleported by Vuetify; they do not inherit .xxwrt-v3 tokens. */
+.v3-terminal-detail-dialog{
+  --ui-primary:#2477ee;--ui-bg:#edf4fd;--ui-surface:#fff;
+  --ui-surface-2:#e9f2ff;--ui-border:#dae6f5;
+  --ui-text:#152743;--ui-muted:#627994;--ui-success:#13a568;
+}
+.v3-terminal-detail-dialog.v-theme--dark,
+.v-theme--dark .v3-terminal-detail-dialog{
+  --ui-primary:#83b6ff;--ui-bg:#11192a;--ui-surface:#1b2940;
+  --ui-surface-2:#293c57;--ui-border:#354963;
+  --ui-text:#f0f5ff;--ui-muted:#aab9ce;--ui-success:#65dba9;
+}
+.v3-terminal-detail-dialog .v3-design-a-hero{
+  border-radius:20px;padding:15px;border:1px solid var(--ui-border);
+  background:linear-gradient(128deg,#daefff,#e6e6ff)}
+.v3-terminal-detail-dialog .v3-design-a-hero h2{font-size:17px;line-height:1.4;
+  color:#183150;font-weight:700}
+.v3-terminal-detail-dialog .v3-design-a-hero p{font-size:12px;line-height:1.6;
+  color:#627994;margin:0}
+.v3-terminal-detail-dialog .v3-design-a-section-title{
+  font-size:16px;line-height:23px;font-weight:750;margin:23px 3px 11px}
+.v3-terminal-detail-dialog .v3-design-a-entry-list{
+  padding:0 12px;border:1px solid var(--ui-border);background:var(--ui-surface);
+  border-radius:18px;overflow:hidden}
+.v3-terminal-detail-dialog .v3-design-a-entry-list button{
+  display:flex;align-items:center;width:100%;gap:12px;min-height:65px;
+  padding:9px 6px;border:0;border-bottom:1px solid var(--ui-border);
+  color:var(--ui-text);text-align:left;background:transparent}
+.v3-terminal-detail-dialog .v3-design-a-entry-list button:last-child{border-bottom:0}
+.v3-terminal-detail-dialog .v3-design-a-entry-list button>.v-icon:first-child{
+  width:40px;height:40px;box-sizing:border-box;flex:none;padding:9px;
+  border-radius:13px;background:var(--ui-surface-2);color:var(--ui-primary)!important}
+.v3-terminal-detail-dialog .v3-design-a-entry-list button span{
+  display:flex;flex:1;flex-direction:column;gap:5px;min-width:0}
+.v3-terminal-detail-dialog .v3-design-a-entry-list button strong{font-size:13px}
+.v3-terminal-detail-dialog .v3-design-a-entry-list button small{font-size:11px;color:var(--ui-muted)}
+.v3-terminal-detail-dialog .v3-design-a-entry-list button>.v-icon:last-child{color:var(--ui-muted)}
+.v3-terminal-detail-dialog.v-theme--dark .v3-design-a-hero,
+.v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero{
+  background:linear-gradient(128deg,#25486c,#27344f)}
+.v3-terminal-detail-dialog.v-theme--dark .v3-design-a-hero h2,
+.v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero h2{color:#eef7ff}
+.v3-terminal-detail-dialog.v-theme--dark .v3-design-a-hero p,
+.v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero p{color:#aab9ce}
