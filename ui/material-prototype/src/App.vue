@@ -2429,11 +2429,11 @@ onUnmounted(() => {
                 <div class="v3-health-metrics">
                   <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
                     <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
-                    <v-progress-linear v-if="item.progress != null" :model-value="item.progress" color="primary" height="4" rounded/>
+                    <!-- Overview is a compact four-metric row; detailed resource bars live below. -->
                   </div>
                 </div>
               </div>
-              <div class="v3-module-heading"><h2>实时网络流量</h2>
+              <div class="v3-module-heading"><h2>实时流量</h2>
                 <v-btn size="small" variant="text" append-icon="mdi-chevron-right" @click="openDetailedMonitor">详细监控</v-btn></div>
               <v-card variant="flat" rounded="xl" class="v3-live-card"
                 role="button" tabindex="0" aria-label="查看详细监控"
@@ -2444,7 +2444,8 @@ onUnmounted(() => {
                   <span><v-icon icon="mdi-arrow-up" color="secondary" size="17"/> TX {{ currentRate?.tx || '等待采样' }}</span>
                 </div>
                 <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
-                  :series="rxTxSeries" unit=" KB/s" title="实时流量趋势"/>
+                  :series="rxTxSeries" unit=" KB/s" title="实时流量趋势" compact/>
+                <p v-if="bandwidthHistory.length" class="v3-traffic-hint">来自路由器的真实流量采样</p>
                 <p v-else class="muted-hint">正在等待路由器接口的实际流量采样，不显示模拟数据。</p>
               </v-card>
               <div class="v3-module-heading"><h2>快捷操作</h2></div>
@@ -2794,7 +2795,7 @@ onUnmounted(() => {
                 <template v-else>
                   <section class="app-hub-favorites" aria-label="常用应用">
                     <div class="app-hub-section-heading">
-                      <strong>我的快捷</strong>
+                      <strong>常用快捷</strong>
                       <v-btn size="small" variant="text" prepend-icon="mdi-pencil-outline"
                         aria-label="编辑常用应用" @click="favoriteEditorOpen = true">编辑</v-btn>
                     </div>
@@ -2820,7 +2821,7 @@ onUnmounted(() => {
 
                   <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
                     <div class="app-hub-section-heading">
-                      <strong>全部功能</strong>
+                      <strong>分类工具</strong>
                       <small>{{ appCategories.reduce((count, group) => count + group.tools.length, 0) }} 项</small>
                     </div>
                     <div v-for="category in appCategories" :key="category.id" class="app-category-card">
