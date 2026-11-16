@@ -522,7 +522,9 @@ function launchV3Tool(id) {
   const home = ['parental', 'wol'].includes(id) ? 'clients'
     : ['routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'].includes(id) ? 'network'
     : id === 'trends' ? 'home' : 'apps'
-  toolOriginTab.value = home === 'apps' ? '' : home
+  // Back returns to the invoking page, not an unrelated tool catalog.
+  // Canonical feature ownership is expressed by its single list entry.
+  toolOriginTab.value = activeTab.value === 'apps' ? '' : activeTab.value
   activeTab.value = 'apps'
   void showLegacyTool(id)
 }
