@@ -1063,20 +1063,22 @@ function stopPendingHubScrollRestore(){
   cancelPendingHubScrollRestore?.()
   cancelPendingHubScrollRestore=null
 }
-// App categories animate their height when re-mounted. A two-frame restore
-// can be clamped against the temporarily short page and remain 60-100px off.
-// Follow actual hub size changes, but stop on navigation or manual interaction
-// so we never drag the user back after they begin scrolling.
+// The Tools hub can be shorter during its first frames: expanded categories,
+// asynchronous metadata and web fonts may settle well after Vue's nextTick.
+// Keep reapplying the saved position for a bounded stabilization window.
+// Cancel immediately on navigation or user input so this never overrides a
+// deliberate touch/wheel/keyboard scroll.
 function keepHubScrollRestored(position,sequence){
-  if(position<=0||typeof ResizeObserver==='undefined')return
+  if(position<=0)return
   const hub=document.querySelector('.app-hub')
   if(!hub)return
-  let stopped=false,scheduled=false
+  let stopped=false,frame=0,lastRestore=0
   const userEvents=['touchstart','wheel','pointerdown','keydown']
   const stop=()=>{
     if(stopped)return
     stopped=true
-    observer.disconnect()
+    if(frame)cancelAnimationFrame(frame)
+    observer?.disconnect()
     clearTimeout(timeout)
     for(const event of userEvents)window.removeEventListener(event,stop)
     if(cancelPendingHubScrollRestore===stop)cancelPendingHubScrollRestore=null
@@ -1085,21 +1087,27 @@ function keepHubScrollRestored(position,sequence){
     if(stopped||sequence!==pageScrollSequence){stop();return}
     restorePageScroll(position)
   }
-  const observer=new ResizeObserver(()=>{
-    if(stopped||scheduled)return
-    scheduled=true
-    requestAnimationFrame(()=>{
-      scheduled=false
+  // ResizeObserver handles asynchronous category expansion; the short
+  // animation-frame poll also catches scrolling-container height changes
+  // that do not resize the hub itself.
+  const observer=typeof ResizeObserver==='undefined' ? null
+    : new ResizeObserver(restore)
+  const follow=timestamp=>{
+    if(stopped||sequence!==pageScrollSequence){stop();return}
+    if(timestamp-lastRestore>=48){
       restore()
-    })
-  })
-  const timeout=setTimeout(()=>{
-    restore()
-    stop()
-  },600)
+      lastRestore=timestamp
+    }
+    frame=requestAnimationFrame(follow)
+  }
+  const timeout=setTimeout(()=>{restore();stop()},1800)
   for(const event of userEvents)window.addEventListener(event,stop,{passive:true})
   cancelPendingHubScrollRestore=stop
-  observer.observe(hub)
+  observer?.observe(hub)
+  const container=document.querySelector('.main-container')
+  if(container)observer?.observe(container)
+  restore()
+  frame=requestAnimationFrame(follow)
 }
 function currentScrollNodes(){
   return [...new Set([document.scrollingElement,document.documentElement,
