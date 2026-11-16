@@ -2031,6 +2031,7 @@ onMounted(() => {
     window.__xxwrtTestBack = handleBack
     window.__xxwrtTestRefreshDevices = refreshDeviceStatuses
     window.__xxwrtTestRefreshDashboard = refreshDashboard
+    window.__xxwrtTestTelemetrySampleCount = () => Math.min(bandwidthHistory.value.length, loadHistory.value.length)
   }
   motionMediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
   systemReducedMotion.value = motionMediaQuery.matches
