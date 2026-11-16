@@ -2702,7 +2702,7 @@ onUnmounted(() => {
               <p class="v3-client-evidence-note">在线状态基于无线关联与邻居可达等证据，DHCP 租约不代表设备在线。</p>
             </div>
             <div class="v3-section-label v3-client-management-title">设备管理</div>
-            <div class="v3-feature-list v3-client-management">
+            <div class="v3-feature-list v3-client-management v3-inline-links">
               <button type="button" @click="launchV3Tool('parental')">
                 <v-icon icon="mdi-shield-account-outline" color="primary"/>
                 <span><strong>家长控制</strong><small>访问规则与上网时段</small></span>
