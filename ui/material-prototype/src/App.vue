@@ -19,6 +19,7 @@ import RouterAppsPanel from './components/RouterAppsPanel.vue'
 import LuckyPanel from './components/LuckyPanel.vue'
 import VlmcsdPanel from './components/VlmcsdPanel.vue'
 import SoftwarePackagesPanel from './components/SoftwarePackagesPanel.vue'
+import RouterOperationsPanel from './components/RouterOperationsPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import NetworkInterfacesPanel from './components/NetworkInterfacesPanel.vue'
@@ -460,6 +461,7 @@ const toolbarSection = computed(() => {
   return legacyTools.find(x => x.id === toolPanel.value)?.title || '应用详情'
 })
 function closeAppTool() {
+  if (routerOperationsToolIds.includes(toolPanel.value) && routerOperationsPanel.value?.handleBack?.()) return
   toolPanel.value = ''
   toolMessage.value = ''
   resetPageScroll()
@@ -666,6 +668,8 @@ const routerAppsPanel = ref(null)
 const luckyPanel = ref(null)
 const vlmcsdPanel = ref(null)
 const softwarePackagesPanel = ref(null)
+const routerOperationsPanel = ref(null)
+const routerOperationsToolIds = ['diagnostics', 'logs', 'backup', 'dnsdhcp', 'services']
 const installedRouterApps = ref(null)
 const installedRouterAppsLoading = ref(false)
 let installedRouterAppsRequest = 0
@@ -738,6 +742,11 @@ const legacyTools = [
   { id: 'startup', title: '启动项', subtitle: '开机启动服务', icon: 'mdi-power-plug-outline' },
   { id: 'wol', title: '网络唤醒', subtitle: '远程唤醒终端', icon: 'mdi-lan-connect' },
   { id: 'packages', title: '软件包', subtitle: '安装、卸载、更新与软件源配置', icon: 'mdi-package-variant-closed' },
+  { id: 'diagnostics', title: '网络诊断', subtitle: 'Ping、路由追踪和 DNS 解析', icon: 'mdi-lan-check' },
+  { id: 'logs', title: '日志中心', subtitle: '系统 / 内核日志搜索与复制', icon: 'mdi-text-box-search-outline' },
+  { id: 'backup', title: '配置备份恢复', subtitle: 'UCI 配置快照、差异预览和安全恢复', icon: 'mdi-backup-restore' },
+  { id: 'dnsdhcp', title: 'DNS / DHCP', subtitle: '本地域名映射和静态租约', icon: 'mdi-dns' },
+  { id: 'services', title: '服务管理', subtitle: '服务运行与开机自启控制', icon: 'mdi-cog-sync-outline' },
   { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
   { id: 'lucky', title: 'Lucky', subtitle: '运行状态、访问规则与备份维护', icon: 'mdi-clover' },
   { id: 'vlmcsd', title: 'Vlmcsd KMS', subtitle: '服务开关、自动激活与配置文件', icon: 'mdi-server-network' },
@@ -1022,6 +1031,10 @@ async function handleBack() {
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
 
   if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
+    if (routerOperationsToolIds.includes(toolPanel.value)) {
+      const blocked = routerOperationsPanel.value?.handleBack?.()
+      if (blocked) return blocked
+    }
     closeAppTool()
     return 'page'
   }
@@ -1462,7 +1475,7 @@ async function showLegacyTool(toolId, { force = false } = {}) {
   if (toolId === 'wol') wolLoadStatus.value = 'loading'
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (toolId === 'parental' || toolId === 'lucky' || toolId === 'vlmcsd' || toolId === 'packages' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
+  if (toolId === 'parental' || toolId === 'lucky' || toolId === 'vlmcsd' || toolId === 'packages' || routerOperationsToolIds.includes(toolId) || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
   toolLoading.value = true
   try {
     if (toolId === 'startup') {
@@ -1508,6 +1521,10 @@ async function showLegacyTool(toolId, { force = false } = {}) {
 }
 
 function refreshCurrentTool() {
+  if (routerOperationsToolIds.includes(toolPanel.value)) {
+    void routerOperationsPanel.value?.refreshAction()
+    return
+  }
   if (toolPanel.value === 'packages') {
     void softwarePackagesPanel.value?.refreshAction()
     return
@@ -2526,6 +2543,8 @@ onUnmounted(() => {
               <LuckyPanel v-if="toolPanel === 'lucky' && client" ref="luckyPanel" :client="client"/>
               <VlmcsdPanel v-if="toolPanel === 'vlmcsd' && client" ref="vlmcsdPanel" :client="client"/>
               <SoftwarePackagesPanel v-if="toolPanel === 'packages' && client" ref="softwarePackagesPanel" :client="client"/>
+              <RouterOperationsPanel v-if="routerOperationsToolIds.includes(toolPanel) && client"
+                ref="routerOperationsPanel" :client="client" :kind="toolPanel"/>
               </v-card>
             </template>
           </template>
