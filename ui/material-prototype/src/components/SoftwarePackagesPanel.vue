@@ -30,6 +30,7 @@ const outputDialog = ref(false)
 const outputTitle = ref('')
 const outputText = ref('')
 const configDialog = ref(false)
+const configSaveConfirm = ref(false)
 const configFiles = ref([])
 const configPath = ref('')
 const configText = ref('')
@@ -195,7 +196,7 @@ function chooseConfig(path) {
 }
 async function saveConfig() {
   if (busy.value || !configDirty.value || !activeFile.value) return
-  if (!window.confirm('将覆盖路由器上的 ' + configPath.value + '。配置错误可能导致软件源无法使用，确认保存吗？')) return
+  configSaveConfirm.value = false
   busy.value = true
   try {
     await savePackageConfig(props.client, manager.value, configPath.value, configText.value)
@@ -362,7 +363,20 @@ defineExpose({ refreshAction: load })
         <v-card-actions>
           <v-spacer/><v-btn variant="text" @click="configDialog = false">关闭</v-btn>
           <v-btn color="primary" :disabled="busy || !activeFile?.exists || !configDirty"
-            :loading="busy" @click="saveConfig">保存配置</v-btn>
+            :loading="busy" @click="configSaveConfirm = true">保存配置</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="configSaveConfirm" max-width="430">
+      <v-card rounded="xl">
+        <v-card-title>确认覆盖软件源配置？</v-card-title>
+        <v-card-text>
+          将修改路由器上的 <strong style="overflow-wrap:anywhere">{{ configPath }}</strong>。
+          配置错误可能导致软件包更新和安装失败，请确保已备份原配置。
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/><v-btn variant="text" @click="configSaveConfirm = false">取消</v-btn>
+          <v-btn color="warning" :disabled="busy" @click="saveConfig">确认保存配置</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
