@@ -1,4 +1,4 @@
-# XX-WRT Material 2.0.42 — QWRT / OpenWrt 移动管理
+# XX-WRT Material 2.0.43 — QWRT / OpenWrt 移动管理
 
 这是 `main` 的 Android 应用源码。Vue 3 + Vite + Vuetify 3 + Capacitor 8 构建 Material / Liquid Glass 界面，数据来自登录路由器的真实 ubus JSON-RPC、UCI 与授权的插件接口，不使用假终端数据。
 
@@ -6,7 +6,7 @@
 
 - Material 包名：`com.lmdbot.xxwrt.materialpreview`
 - Material 应用名称：`XX-WRT管理器`
-- 版本：`2.0.42`（Android versionCode `2000042`）
+- 版本：`2.0.43`（Android versionCode `2000043`）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
 - 保留 Material 主线应用信息与 Capacitor 构建流程；启动器图标使用蓝色二次元 Q 版 OpenWrt 路由器少女设计，并提供传统、圆形及自适应图标。
 - 正式 APK 使用 `XX-WRT-Material-vx.x.x.apk` 命名，构建版本自动取自 `package.json`。
@@ -75,9 +75,13 @@ APK 构建由 `.github/workflows/ui-android-preview.yml` 通过 GitHub Actions �
 - 终端和网络分类切换、设备列表增删和位置变化、应用分类展开收起、常用应用与侧栏项目增加简短过渡、有限错峰入场、选中状态和按压反馈。
 - 继续由“设置 → 显示 → 界面动效”统一控制；系统“减少动态效果”具有优先级，关闭时即时停止 Web Animations。CPU、带宽、连接数的周期刷新不触发场景动画。
 
-## 关于页面优化（v2.0.42）
+## 关于页面优化（v2.0.43）
 
 - 页面顶部使用与当前 Android APP 启动图标同源的既有 Q 版路由器形象，不使用新设计的 Logo；居中展示应用名称、当前安装版本和简要介绍。
 - “应用信息 / 版本与更新 / 相关链接”分组提供项目说明、版本检查与日志、下载/安装、GitHub、Issues、开源许可及隐私/免责声明入口。
 - 点击版本标签可查看原生构建号（Android）、前端真实构建时间及包名，支持复制；主题及简中/繁中/英文沿用现有设置。
 - 本次仅修改关于页面和相关信息展示，保留原应用更新、Android 签名、原生安装器及路由管理权限逻辑。
+
+## 开发者头像（v2.0.43）
+
+“设置 → 关于 → 开发者与项目”显示用户提供的头像，资源随 APK 打包（`assets/developer-avatar.webp`，160×160），不向 GitHub 或第三方头像 CDN 发起网络请求；点击列表仍打开现有项目页面。应用启动图标不变。
