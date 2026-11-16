@@ -11,7 +11,7 @@ export const V3_TABS = Object.freeze([
   { id: 'network', label: '网络', icon: 'mdi-lan' },
   { id: 'apps', label: '工具', icon: 'mdi-apps' },
   { id: 'me', label: '我的', icon: 'mdi-account-circle-outline' },
-  { id: 'more', label: '更多', icon: 'mdi-dots-grid' }
+  { id: 'more', label: '更多', icon: 'mdi-dots-horizontal' }
 ])
 export const V3_NETWORK_FEATURE_IDS = Object.freeze([
   'routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'
