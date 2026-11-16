@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   V3_TABS, V3_TOOL_GROUPS, V3_FEATURE_HOME, V3_NETWORK_FEATURE_IDS,
   V3_DEVICE_FEATURE_IDS, V3_OVERVIEW_FEATURE_IDS,
-  groupV3Tools, networkV3Tools, featureHome
+  groupV3Tools, networkV3Tools, searchV3Features, featureHome
 } from '../src/services/featureCatalogV3.js'
 
 test('Material 3.0 has exactly five primary tabs in approved order', () => {
@@ -41,4 +41,18 @@ test('tool group ordering is stable, filters unavailable plugins and protects ri
   assert.deepEqual(groupV3Tools(tools).at(-1).tools.map(tool => tool.id), ['backup','reset'])
   assert.deepEqual(networkV3Tools(tools).map(tool => tool.id), ['firewall'])
   assert.deepEqual(groupV3Tools([]), [])
+})
+
+test('V3 feature search matches new category labels without changing legacy favorites', () => {
+  const all = [
+    { id: 'lucky', title: 'Lucky', subtitle: 'proxy service' },
+    { id: 'cron', title: '系统定时任务', subtitle: 'Cron schedule' },
+    { id: 'firewall', title: '防火墙', subtitle: 'zone rules' },
+    { id: 'parental', title: '家长控制', subtitle: 'access filter' }
+  ]
+  assert.deepEqual(searchV3Features(all, '插件中心').map(tool => tool.id), ['lucky'])
+  assert.deepEqual(searchV3Features(all, '系统管理').map(tool => tool.id), ['cron'])
+  assert.deepEqual(searchV3Features(all, '网络').map(tool => tool.id), ['firewall'])
+  assert.deepEqual(searchV3Features(all, '家长').map(tool => tool.id), ['parental'])
+  assert.deepEqual(searchV3Features(all, '  ').map(tool => tool.id), [])
 })
