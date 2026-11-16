@@ -28,7 +28,7 @@ import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
-import { readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit } from './services/terminalManagement.js'
+import { readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit, saveHqosGlobal } from './services/terminalManagement.js'
 import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
 import {
   readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
@@ -523,6 +523,21 @@ const terminalError = ref('')
 const terminalNotice = ref('')
 const terminalForm = reactive({ staticEnabled: false, staticIp: '', name: '', download: '', upload: '', connections: '0' })
 const hqosEnableDialog = ref(false)
+const hqosGlobalDialog = ref(false)
+const hqosGlobalConfirm = ref(false)
+const hqosGlobalBusy = ref(false)
+const hqosGlobalForm = reactive({ enabled: false, backend: 'auto', interface: 'br-lan' })
+const hqosBackendOptions = [
+  { title: '自动', value: 'auto' },
+  { title: '联发科 PPE / QDMA', value: 'mtk-ppe' },
+  { title: 'Airoha PPE / QDMA', value: 'airoha-ppe' },
+  { title: 'CPU / 软件 Flow Offloading', value: 'cpu' }
+]
+const hqosInterfaceOptions = computed(() => Array.from(new Set([
+  'br-lan', 'lan', terminalSettings.value?.hqosStatus?.interface,
+  ...(snapshot.value?.interfaces || []).flatMap(nic =>
+    [nic.device, nic.l3_device, nic.interface].filter(Boolean))
+].filter(Boolean))))
 let terminalRequestId = 0
 
 function applyTerminalSettings(settings) {
@@ -576,6 +591,31 @@ async function saveTerminalStatic() {
     terminalError.value = shortError(error)
   } finally {
     terminalSaving.value = false
+  }
+}
+function openHqosGlobalSettings() {
+  const status = terminalSettings.value?.hqosStatus
+  if (!status?.rpcReady) return
+  hqosGlobalForm.enabled = status.enabled
+  hqosGlobalForm.backend = status.mode
+  hqosGlobalForm.interface = status.interface || 'br-lan'
+  hqosGlobalDialog.value = true
+}
+async function persistHqosGlobalSettings() {
+  if (hqosGlobalBusy.value || !terminalSettings.value || !client.value) return
+  hqosGlobalConfirm.value = false
+  hqosGlobalBusy.value = true
+  terminalError.value = ''
+  terminalNotice.value = ''
+  try {
+    const result = await saveHqosGlobal(client.value, terminalSettings.value, hqosGlobalForm)
+    terminalNotice.value = result.message
+    hqosGlobalDialog.value = false
+    await refreshTerminalSettings()
+  } catch (error) {
+    terminalError.value = shortError(error)
+  } finally {
+    hqosGlobalBusy.value = false
   }
 }
 async function saveTerminalQos(allowEnable = false) {
@@ -947,6 +987,12 @@ async function handleBack() {
   if (confirmReboot.value) { confirmReboot.value = false; return 'dialog' }
   if (wolDeleteDialog.value) { wolDeleteDialog.value = false; return 'dialog' }
   if (deleteDialog.value) { deleteDialog.value = false; return 'dialog' }
+  if (hqosGlobalConfirm.value) { hqosGlobalConfirm.value = false; return 'dialog' }
+  if (hqosGlobalDialog.value) {
+    if (hqosGlobalBusy.value) return 'busy'
+    hqosGlobalDialog.value = false
+    return 'dialog'
+  }
   if (hqosEnableDialog.value) { hqosEnableDialog.value = false; return 'dialog' }
   if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
@@ -2563,6 +2609,9 @@ onUnmounted(() => {
               接口 {{ terminalSettings.hqosStatus.interface || '未指定' }}。
               <span v-if="terminalSettings.hqosStatus.error">{{ terminalSettings.hqosStatus.error }}</span>
             </v-alert>
+            <v-btn v-if="terminalSettings.hqosStatus?.rpcReady" size="small" variant="outlined"
+              class="mb-3" prepend-icon="mdi-cog-outline" :disabled="terminalSaving"
+              @click="openHqosGlobalSettings">HQoS 全局设置</v-btn>
             <template v-if="terminalSettings.backend">
               <v-chip size="x-small" color="primary" variant="tonal" class="mb-3">
                 {{ terminalSettings.backendLabel }}
@@ -2611,6 +2660,47 @@ onUnmounted(() => {
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" :disabled="terminalSaving"
           @click="selectedClient = null; terminalRequestId++">关闭</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="hqosGlobalDialog" max-width="540" persistent>
+      <v-card rounded="xl">
+        <v-card-title>HQoS 全局设置</v-card-title>
+        <v-card-text>
+          <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
+            这组设置影响所有客户端。更改硬件/CPU 后端和 QoS 接口可能中断转发或影响硬件加速；
+            切换前请核对路由器设备是否支持。
+          </v-alert>
+          <v-switch v-model="hqosGlobalForm.enabled" label="启用 HQoS" color="primary"
+            :disabled="hqosGlobalBusy" hide-details density="comfortable"/>
+          <v-select v-model="hqosGlobalForm.backend" label="QoS 后端"
+            :items="hqosBackendOptions" item-title="title" item-value="value"
+            density="comfortable" variant="outlined" :disabled="hqosGlobalBusy"/>
+          <v-select v-model="hqosGlobalForm.interface" label="QoS 接口"
+            :items="hqosInterfaceOptions" density="comfortable" variant="outlined"
+            :disabled="hqosGlobalBusy"/>
+          <p class="muted-hint">自动模式优先使用支持的硬件后端，否则使用 CPU。
+            如果选择硬件后端，只能使用 LAN / br-lan；CPU 模式可能需要关闭硬件流量加速。</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" :disabled="hqosGlobalBusy" @click="hqosGlobalDialog = false">取消</v-btn>
+          <v-spacer/>
+          <v-btn color="primary" :disabled="hqosGlobalBusy" @click="hqosGlobalConfirm = true">保存并应用…</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="hqosGlobalConfirm" max-width="430" persistent>
+      <v-card rounded="xl">
+        <v-card-title>确认修改所有客户端的 QoS？</v-card-title>
+        <v-card-text>
+          启用状态：{{ hqosGlobalForm.enabled ? '启用' : '禁用' }}。
+          后端：{{ hqosGlobalForm.backend }}；接口：{{ hqosGlobalForm.interface }}。
+          保存后会应用原生 HQoS 服务，失败时尝试自动恢复原配置。
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="hqosGlobalConfirm = false">取消</v-btn>
+          <v-spacer/>
+          <v-btn color="warning" @click="persistHqosGlobalSettings">确认修改</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="hqosEnableDialog" max-width="430" persistent>
