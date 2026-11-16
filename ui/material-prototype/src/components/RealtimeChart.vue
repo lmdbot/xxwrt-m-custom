@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
@@ -13,6 +13,7 @@ const props = defineProps({
   title: { type: String, default: '实时曲线' }
 })
 const root = ref(null)
+const motionEnabled = inject('xxwrt-motion-enabled', ref(true))
 let chart = null
 let observer = null
 
@@ -26,7 +27,11 @@ function render() {
     data: props.samples.map(point => point[entry.key] ?? null)
   }))
   chart.setOption({
-    animationDuration: 250,
+    animation: motionEnabled.value,
+    animationDuration: motionEnabled.value ? 240 : 0,
+    animationDurationUpdate: motionEnabled.value ? 180 : 0,
+    animationEasing: 'cubicOut',
+    animationEasingUpdate: 'cubicOut',
     // Give mobile traffic and load graphs more room on both sides.
     grid: { top: 38, bottom: 30, left: 24, right: 6, containLabel: false },
     legend: { top: 2, icon: 'roundRect', itemWidth: 13, textStyle: { fontSize: 11 } },
@@ -52,6 +57,7 @@ onMounted(async () => {
   }
 })
 watch(() => [props.samples, props.series, props.unit], render, { deep: true })
+watch(motionEnabled, render)
 onUnmounted(() => {
   observer?.disconnect()
   chart?.dispose()

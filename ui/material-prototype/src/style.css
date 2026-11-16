@@ -797,3 +797,69 @@ html,body,#app{margin:0;min-height:100%;width:100%;font-family:Roboto,"Noto Sans
 .release-notes-bullet{position:relative;padding-left:15px;margin:0 0 7px}
 .release-notes-bullet::before{content:"•";position:absolute;left:0;top:0;color:rgb(var(--v-theme-primary))}
 .release-notes-paragraph{margin:0 0 10px}
+
+
+/*
+ * Motion audit (app-wide, including Vuetify teleport overlays):
+ * - Screen entry: a single 180-220ms opacity/8px transform transition.
+ * - Navigation/list cards: quick feedback without continuous movement.
+ * - Drawer, dialogs, menus, snackbars, expansion panels, skeletons and
+ *   progress indicators: Vuetify transitions respect the global kill switch.
+ * - ECharts and imperative scroll are controlled in JavaScript separately.
+ * - Reduced motion from Android/OS overrides the user's enabled switch.
+ */
+@keyframes xxwrt-screen-enter{
+  from{opacity:.72;transform:translate3d(0,8px,0)}
+  to{opacity:1;transform:translate3d(0,0,0)}
+}
+@media (prefers-reduced-motion:no-preference){
+  html[data-xxwrt-motion="on"] .app-motion-enabled .settings-page,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-hub,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .terminal-screen,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-subpage,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .router-list-toolbar,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .device-card,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .network-card{
+    animation:xxwrt-screen-enter 200ms cubic-bezier(.2,.7,.25,1) both;
+  }
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-tool-row,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-favorite-tile,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-category-toggle,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .glass-tab,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .standard-bottom .v-btn{
+    transition:background-color 150ms ease, color 150ms ease,
+      box-shadow 150ms ease, transform 150ms ease;
+  }
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-tool-row:active,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-favorite-tile:active,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .app-category-toggle:active{
+    transform:scale(.985);
+  }
+  html[data-xxwrt-motion="on"] .app-motion-enabled .glass-tab:active,
+  html[data-xxwrt-motion="on"] .app-motion-enabled .standard-bottom .v-btn:active{
+    transform:scale(.97);
+  }
+}
+/* Use a near-zero duration rather than cancelling Vuetify transition hooks:
+ * leave component enter/leave lifecycle and event handling functional. */
+html[data-xxwrt-motion="off"],
+html[data-xxwrt-motion="off"] *,
+html[data-xxwrt-motion="off"] *::before,
+html[data-xxwrt-motion="off"] *::after{
+  animation-duration:.01ms!important;
+  animation-delay:0ms!important;
+  animation-iteration-count:1!important;
+  transition-duration:.01ms!important;
+  transition-delay:0ms!important;
+  scroll-behavior:auto!important;
+}
+@media (prefers-reduced-motion:reduce){
+  html,html *,html *::before,html *::after{
+    animation-duration:.01ms!important;
+    animation-delay:0ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+    transition-delay:0ms!important;
+    scroll-behavior:auto!important;
+  }
+}

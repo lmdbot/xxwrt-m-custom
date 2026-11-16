@@ -1,11 +1,15 @@
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme } from 'vuetify'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
 import { App as CapacitorApp } from '@capacitor/app'
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import packageInfo from '../package.json'
+import {
+  MOTION_PREFERENCE_KEY, readMotionPreference, motionAllowed,
+  motionScrollBehavior, isCurrentTabRoot
+} from './services/motionPreferences.js'
 import { compareAppVersions, parseAppVersion } from './services/appReleases.js'
 import {
   APP_FAVORITES_LIMIT, DEFAULT_APP_FAVORITES, readAppFavorites,
@@ -81,7 +85,8 @@ const storage = {
   theme: 'xxwrt_material_color_mode',
   showIp: 'xxwrt_material_list_show_ip',
   showHostname: 'xxwrt_material_list_show_hostname',
-  listLayout: 'xxwrt_material_device_list_layout'
+  listLayout: 'xxwrt_material_device_list_layout',
+  motion: MOTION_PREFERENCE_KEY
 }
 const devices = ref(loadDevices())
 const showIp = ref(localStorage.getItem(storage.showIp) !== 'false')
@@ -351,6 +356,11 @@ const form = reactive({
   showPassword: false
 })
 const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' : 'standard')
+// User setting defaults ON, but OS "Reduce motion" always takes precedence.
+const motionEnabled = ref(readMotionPreference(localStorage))
+const systemReducedMotion = ref(false)
+const effectiveMotion = computed(() => motionAllowed(motionEnabled.value, systemReducedMotion.value))
+provide('xxwrt-motion-enabled', effectiveMotion)
 const drawerOpen = ref(false)
 const appLocale = ref(savedLanguage())
 const selectedLanguage = computed(() => LANGUAGES.find(option => option.code === appLocale.value)?.name || '简体中文')
@@ -820,7 +830,9 @@ function toggleAppCategory(id) {
 async function expandAllAppCategories() {
   expandedAppCategories.value = appCategories.value.map(group => group.id)
   await nextTick()
-  document.getElementById('app-category-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  document.getElementById('app-category-list')?.scrollIntoView({
+    behavior: motionScrollBehavior(effectiveMotion.value), block: 'start'
+  })
 }
 const showHomeDetector = computed(() => {
   if (installedRouterApps.value?.detector === false) return false
@@ -856,7 +868,7 @@ const resourceCards = computed(() => {
     { label: '连接数', value: snap.connPercent == null ? '--' : snap.connPercent + '%', detail: snap.connDetail || '--', icon: 'mdi-lan-connect', progress: snap.connPercent || 0 }
   ]
 })
-let mediaQuery, systemListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
+let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
 let processRefreshBusy = false
 let hardwareSampleAt = 0
@@ -889,6 +901,11 @@ function applyNetworkHardwareRates(data) {
 }
 
 watch(navStyle, v => localStorage.setItem(storage.nav, v))
+watch(motionEnabled, enabled => localStorage.setItem(storage.motion, String(enabled)))
+watch(effectiveMotion, enabled => {
+  // documentElement also covers Vuetify overlays teleported outside <v-app>.
+  document.documentElement.dataset.xxwrtMotion = enabled ? 'on' : 'off'
+}, { immediate: true })
 watch(colorMode, v => localStorage.setItem(storage.theme, v))
 watch(appLocale, async value => {
   persistLanguage(value)
@@ -941,6 +958,13 @@ function restorePageScroll(position){
   }
   window.scrollTo(0,y)
 }
+function scrollCurrentPageToTop(){
+  const behavior=motionScrollBehavior(effectiveMotion.value)
+  const node=currentScrollNodes().find(el=>el.scrollTop>0)
+    ||document.scrollingElement||document.documentElement
+  if(typeof node?.scrollTo==='function')node.scrollTo({top:0,behavior})
+  else window.scrollTo({top:0,behavior})
+}
 function scrollRouteKey([tab,tool,mode,settings,category,device]){
   if(settings)return 'settings:'+String(category||'root')
   if(mode==='list')return 'device-list'
@@ -981,9 +1005,18 @@ function navigateBottomTab(tab) {
     if (blocked) return
   }
   if (tab === activeTab.value) {
+    // Re-tap an active root tab to return to the top. In an app subpage, the
+    // first tap must only return to the app hub and restore its last position.
     if (tab === 'apps' && toolPanel.value) {
       toolPanel.value = ''
       toolMessage.value = ''
+      return
+    }
+    if(isCurrentTabRoot(activeTab.value,tab,toolPanel.value,connected.value,settingsOpen.value)){
+      const route=scrollRouteKey([activeTab.value,toolPanel.value,viewMode.value,
+        settingsOpen.value,settingsCategory.value,selectedDeviceId.value])
+      pageScrollPositions.set(route,0)
+      scrollCurrentPageToTop()
     }
     return
   }
@@ -1775,6 +1808,10 @@ onMounted(() => {
     window.__xxwrtTestRefreshDevices = refreshDeviceStatuses
     window.__xxwrtTestRefreshDashboard = refreshDashboard
   }
+  motionMediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  systemReducedMotion.value = motionMediaQuery.matches
+  motionListener = event => { systemReducedMotion.value = event.matches }
+  motionMediaQuery.addEventListener?.('change',motionListener)
   mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
   systemDark.value = mediaQuery.matches
   systemListener = e => { systemDark.value = e.matches }
@@ -1810,6 +1847,7 @@ onUnmounted(() => {
     delete window.__xxwrtTestRefreshDashboard
   }
   mediaQuery?.removeEventListener?.('change', systemListener)
+  motionMediaQuery?.removeEventListener?.('change', motionListener)
   if (refreshTimer) clearInterval(refreshTimer)
   if (historyTimer) clearInterval(historyTimer)
   if (probeTimer) clearInterval(probeTimer)
@@ -1819,7 +1857,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <v-app class="material-demo" :class="{ 'theme-is-dark': dark }">
+  <v-app class="material-demo" :class="{ 'theme-is-dark': dark, 'app-motion-enabled': effectiveMotion }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
       <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
       <v-btn v-if="settingsOpen || viewMode === 'detail'" icon="mdi-arrow-left" size="small"
@@ -1928,6 +1966,22 @@ onUnmounted(() => {
                   <v-btn value="standard" aria-label="标准底栏"><v-icon start icon="mdi-view-agenda-outline"/>标准</v-btn>
                   <v-btn value="liquid" aria-label="液态底栏"><v-icon start icon="mdi-waves"/>液态</v-btn>
                 </v-btn-toggle>
+              </v-card>
+
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-motion-play-outline" size="23"/></v-avatar>
+                  <div><h2>界面动效</h2><p>控制页面进入、卡片反馈、弹窗、图表和滚动动画。</p></div>
+                </div>
+                <div class="settings-switch-row">
+                  <div><p>开启后使用轻量过渡；关闭时所有界面动效立即停用。系统开启“减少动态效果”时始终以系统设置为准。</p></div>
+                  <v-switch v-model="motionEnabled" inset color="primary" density="compact"
+                    hide-details label="界面动效" aria-label="界面动效"/>
+                </div>
+                <p v-if="systemReducedMotion" class="settings-footnote">
+                  <v-icon icon="mdi-information-outline" size="16"/>
+                  已检测到系统减少动态效果，当前自动禁用动画。
+                </p>
               </v-card>
 
               <v-card rounded="xl" elevation="1" class="settings-option-card">
@@ -2652,21 +2706,29 @@ onUnmounted(() => {
         <v-btn v-if="!toolWaiting" variant="text" size="small" @click="dismissToolFeedback">关闭</v-btn>
       </template>
     </v-snackbar>
-    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" mandatory :model-value="activeTab" @update:model-value="navigateBottomTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
+    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" mandatory :model-value="activeTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
-        @pointerdown.capture="item.id === 'apps' && activeTab === 'apps' && toolPanel ? navigateBottomTab('apps') : null"
         @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
     <div v-else-if="!settingsOpen && viewMode === 'detail' && connected" class="liquid-bottom">
-      <VGlass :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
+      <VGlass v-if="effectiveMotion" :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{ item.label }}</span>
           </v-btn>
         </div>
       </VGlass>
+      <div v-else class="glass-host">
+        <div class="glass-nav">
+          <v-btn v-for="item in pages" :key="item.id" class="glass-tab"
+            :class="{selected:activeTab===item.id}" variant="text" rounded="xl"
+            density="compact" :aria-label="item.label" @click="navigateBottomTab(item.id)">
+            <v-icon :icon="item.icon" size="23"/><span>{{item.label}}</span>
+          </v-btn>
+        </div>
+      </div>
     </div>
     <OpenSourceLicensesDialog v-model="openSourceDialog"/>
     <v-dialog v-model="selectedClient" max-width="480" :persistent="terminalSaving">
