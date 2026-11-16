@@ -740,12 +740,18 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('tab', { name: 'DHCP 服务端' }).click()
   await expect(page.getByText('不是上级网络的 DHCP 客户端')).toBeVisible()
   await expect(page.getByRole('spinbutton', { name: '地址池起始偏移（例如 100）' })).toHaveValue('100')
-  await page.getByRole('button', { name: '关闭接口配置' }).click()
+  // Simulate Android Back gesture while the network editor is visible.
+  // It must close only the modal, never return to the router/device list.
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('dialog')
+  await expect(page.getByText('配置网络接口 · lan')).not.toBeVisible()
+  await expect(page.locator('.interface-card')).toHaveCount(2)
   await page.getByRole('button', { name: '配置接口 wan' }).click()
   await expect(page.getByText('配置网络接口 · wan')).toBeVisible()
   await page.getByRole('tab', { name: '常规' }).click()
   await expect(page.getByText('DHCP 客户端', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '关闭接口配置' }).click()
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('dialog')
+  await expect(page.getByText('配置网络接口 · wan')).not.toBeVisible()
+  await expect(page.locator('.interface-card')).toHaveCount(2)
   await expect(page.getByRole('button', { name: '断开接口 lan' })).toBeDisabled()
   await expect(page.getByRole('button', { name: '断开接口 wan' })).toBeDisabled()
   // All network edits use timed rollback and require an explicit confirmation.
@@ -757,6 +763,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.locator('.network-interface-editor').getByText('开机自动启用接口', { exact: true }).click()
   await expect(wanAutoInput).not.toBeChecked()
   await page.getByRole('button', { name: '保存并应用（可回滚）' }).click()
+  await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
+  // A staged UCI change must not be abandoned or auto-confirmed by Back.
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('busy')
+  await expect(page.getByText('配置网络接口 · wan')).toBeVisible()
   await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
   await page.getByRole('button', { name: '确认保留配置' }).last().click()
   await expect(page.getByText('已确认保留接口配置')).toBeVisible()
