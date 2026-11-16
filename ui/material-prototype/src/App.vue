@@ -75,12 +75,11 @@ function formatInterfaceUptime(rawSeconds) {
 }
 
 const pages = [
-  { id: 'home', label: '首页', icon: 'mdi-home-outline' },
-  { id: 'statistics', label: '统计', icon: 'mdi-chart-box-outline' },
-  { id: 'clients', label: '终端', icon: 'mdi-devices' },
+  { id: 'home', label: '概览', icon: 'mdi-view-dashboard-outline' },
+  { id: 'clients', label: '设备', icon: 'mdi-devices' },
   { id: 'network', label: '网络', icon: 'mdi-lan' },
-  { id: 'apps', label: '应用', icon: 'mdi-apps' },
-  { id: 'more', label: '更多', icon: 'mdi-dots-horizontal' }
+  { id: 'apps', label: '工具', icon: 'mdi-apps' },
+  { id: 'more', label: '我的', icon: 'mdi-account-circle-outline' }
 ]
 const storage = {
   host: 'xxwrt_material_router_url',
@@ -498,14 +497,45 @@ function onlineStateForMac(mac) {
 const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
 const previousContentTab = ref('home')
+// V3 keeps legacy panel identifiers/RPC flows, while the visible navigation
+// follows the feature's real home section instead of forcing the Tools tab.
+const toolOriginTab = ref('')
+const networkSection = ref('hub')
+const currentNavTab = computed(() =>
+  activeTab.value === 'statistics' ? 'home' : (toolOriginTab.value || activeTab.value))
+const networkSectionTitle = computed(() => ({
+  interfaces: '网络接口', devices: '物理设备', wireless: '无线设备'
+})[networkSection.value] || '网络')
+function openDetailedMonitor() {
+  if (!connected.value) return
+  toolPanel.value = ''
+  toolOriginTab.value = ''
+  activeTab.value = 'statistics'
+}
+function openNetworkSection(section) {
+  if (!['interfaces', 'devices', 'wireless'].includes(section)) return
+  networkSection.value = section
+  networkView.value = section
+}
+function launchV3Tool(id) {
+  if (!connected.value) return
+  const home = ['parental', 'wol'].includes(id) ? 'clients'
+    : ['routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'].includes(id) ? 'network'
+    : id === 'trends' ? 'home' : 'apps'
+  toolOriginTab.value = home === 'apps' ? '' : home
+  activeTab.value = 'apps'
+  void showLegacyTool(id)
+}
 const systemDark = ref(false)
 const dark = computed(() => colorMode.value === 'dark' || (colorMode.value === 'system' && systemDark.value))
-const pageTitle = computed(() => pages.find(page => page.id === activeTab.value)?.label || '首页')
+const pageTitle = computed(() => activeTab.value === 'statistics' ? '详细监控'
+  : pages.find(page => page.id === currentNavTab.value)?.label || '概览')
 const toolbarSection = computed(() => {
   if (settingsOpen.value || activeTab.value === 'more') return ''
   if (viewMode.value !== 'detail' || !connected.value) return ''
-  if (activeTab.value !== 'apps' || !toolPanel.value) return pageTitle.value
-  return legacyTools.find(x => x.id === toolPanel.value)?.title || '应用详情'
+  if (toolPanel.value) return legacyTools.find(x => x.id === toolPanel.value)?.title || '工具详情'
+  if (activeTab.value === 'network' && networkSection.value !== 'hub') return networkSectionTitle.value
+  return ''
 })
 function closeAppTool() {
   if (routerOperationsToolIds.includes(toolPanel.value) && routerOperationsPanel.value?.handleBack?.()) return
@@ -513,6 +543,11 @@ function closeAppTool() {
   if (routerAppToolIds.includes(toolPanel.value) && routerAppsPanel.value?.handleBack?.()) return
   toolPanel.value = ''
   toolMessage.value = ''
+  if (toolOriginTab.value) {
+    const origin = toolOriginTab.value
+    toolOriginTab.value = ''
+    activeTab.value = origin
+  }
 }
 const client = shallowRef(null)
 const connected = ref(false)
@@ -822,6 +857,8 @@ const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 const appCategories = computed(() => groupVisibleApps(visibleLegacyTools.value))
+const networkFeatureTools = computed(() => visibleLegacyTools.value.filter(tool =>
+  ['routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'].includes(tool.id)))
 const appSearchResults = computed(() => searchAppTools(visibleLegacyTools.value, appSearch.value))
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
@@ -1052,14 +1089,14 @@ function scrollCurrentPageToTop(){
   if(typeof node?.scrollTo==='function')node.scrollTo({top:0,behavior})
   else window.scrollTo({top:0,behavior})
 }
-function scrollRouteKey([tab,tool,mode,settings,category,device]){
+function scrollRouteKey([tab,tool,mode,settings,category,device,netSection]){
   if(settings)return 'settings:'+String(category||'root')
   if(tab==='more')return 'more:root'
   if(mode==='list')return 'device-list'
   return ['router',String(device||'unknown'),String(tab||'home'),
-    tab==='apps'?(tool||'hub'):'root'].join(':')
+    tab==='apps'?(tool||'hub'):tab==='network'?(netSection||'hub'):'root'].join(':')
 }
-watch([activeTab,toolPanel,viewMode,settingsOpen,settingsCategory,selectedDeviceId],
+watch([activeTab,toolPanel,viewMode,settingsOpen,settingsCategory,selectedDeviceId,networkSection],
   async (next,previous)=>{
     const to=scrollRouteKey(next)
     const from=previous?scrollRouteKey(previous):null
@@ -1128,8 +1165,11 @@ function navigateBottomTab(tab) {
       return
     }
     if (tab === 'apps' && toolPanel.value) {
-      toolPanel.value = ''
-      toolMessage.value = ''
+      closeAppTool()
+      return
+    }
+    if (tab === 'network' && networkSection.value !== 'hub') {
+      networkSection.value = 'hub'
       return
     }
     if (isCurrentTabRoot(activeTab.value, tab, toolPanel.value, connected.value, settingsOpen.value)
@@ -1141,9 +1181,11 @@ function navigateBottomTab(tab) {
     }
     return
   }
-  if (tab === 'more') previousContentTab.value = activeTab.value
+  if (tab === 'more') previousContentTab.value = currentNavTab.value
   settingsOpen.value = false
   settingsTrail.length = 0
+  toolOriginTab.value = ''
+  if (tab === 'network') networkSection.value = 'hub'
   activeTab.value = tab
 }
 function openMoreSection(categoryId) {
@@ -1206,7 +1248,14 @@ async function handleBack() {
     if (handled) return handled
   }
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
-  if (activeTab.value === 'more') { navigateBottomTab(viewMode.value === 'list' ? 'home' : previousContentTab.value); return 'more' }
+  if (activeTab.value === 'statistics') {
+    activeTab.value = 'home'
+    return 'page'
+  }
+  if (activeTab.value === 'network' && networkSection.value !== 'hub') {
+    networkSection.value = 'hub'
+    return 'page'
+  }
 
   if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
     const blocked = routerOperationsToolIds.includes(toolPanel.value)
@@ -1314,6 +1363,8 @@ function resetSession() {
   wolData.value = { available: false, tool: '', targets: [], interfaces: [], known: [], neighbors: [] }
   wolTab.value = 'targets'
   networkView.value = 'interfaces'
+  networkSection.value = 'hub'
+  toolOriginTab.value = ''
   form.password = ''
   errorMessage.value = ''
   activeTab.value = 'home'
@@ -1441,6 +1492,8 @@ async function goToDeviceList() {
   settingsOpen.value = false
   settingsTrail.length = 0
   viewMode.value = 'list'
+  toolOriginTab.value = ''
+  networkSection.value = 'hub'
   activeTab.value = 'home'
   toolPanel.value = ''
   errorMessage.value = ''
@@ -1955,18 +2008,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <v-app class="material-demo" :class="{ 'theme-is-dark': dark, 'app-motion-enabled': effectiveMotion }">
+  <v-app class="material-demo xxwrt-v3" :class="{ 'theme-is-dark': dark, 'app-motion-enabled': effectiveMotion }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
-      <v-btn v-if="settingsOpen || viewMode === 'detail' || activeTab === 'more'"
-        icon="mdi-arrow-left" size="small"
-        :aria-label="settingsOpen ? '返回设置上一级' : activeTab === 'more' ? '返回上一个底栏页面' : activeTab === 'apps' && toolPanel ? '返回应用功能列表' : '返回上一页'"
-        @click="settingsOpen ? closeSettingsPage() : activeTab === 'more' ? navigateBottomTab(viewMode === 'list' ? 'home' : previousContentTab) : activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
+      <v-btn v-if="settingsOpen || !!toolPanel || activeTab === 'statistics' || (activeTab === 'network' && networkSection !== 'hub')"
+        icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
           <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
-            class="router-toolbar-name router-list-toolbar-heading">设备列表</h1>
-          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : activeTab === 'more' ? '更多' : displayDeviceName(selectedDevice) }}</span>
-          <span v-if="toolbarSection" class="router-toolbar-context" :title="toolbarSection">· {{ toolbarSection }}</span>
+            class="router-toolbar-name router-list-toolbar-heading">路由器管理</h1>
+          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : (toolbarSection || pageTitle) }}</span>
+          <span v-if="connected && !settingsOpen && activeTab !== 'more'" class="router-toolbar-context" :title="displayDeviceName(selectedDevice)">· {{ displayDeviceName(selectedDevice) }}</span>
         </div>
       </v-toolbar-title>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
@@ -1979,8 +2030,8 @@ onUnmounted(() => {
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
-        icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && activeTab !== 'more'"
+        icon="mdi-swap-horizontal" size="small" variant="text" aria-label="切换路由器" @click="goToDeviceList"/>
     </v-app-bar>
 
     <v-main>
@@ -2176,19 +2227,40 @@ onUnmounted(() => {
           </section>
         </template>
         <template v-else-if="activeTab === 'more'">
-          <section class="more-page" data-testid="more-page">
-            <header class="more-hero">
-              <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="72" height="72"/>
-              <h2>QWRT</h2>
-              <p>智能路由管理</p>
+          <section class="more-page v3-me-page" data-testid="more-page">
+            <header class="v3-me-profile">
+              <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
+              <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
             </header>
-            <div class="more-menu-list" role="group" aria-label="更多功能">
-              <button v-for="category in moreCategories" :key="category.id"
-                type="button" class="more-menu-item" :aria-label="'打开' + category.title"
-                @click="openMoreSection(category.id)">
-                <span class="more-menu-icon"><v-icon :icon="category.icon" size="25"/></span>
+            <div class="v3-section-label">路由器</div>
+            <div class="more-menu-list">
+              <button class="more-menu-item" type="button" aria-label="打开路由器管理" @click="goToDeviceList()">
+                <span class="more-menu-icon"><v-icon icon="mdi-router-wireless" size="25"/></span>
+                <span class="more-menu-copy"><strong>{{ connected ? displayDeviceName(selectedDevice) : '路由器管理' }}</strong><small>{{ connected ? displayRouterAddress(selectedDevice?.address) : '添加、编辑和切换已保存路由器' }}</small></span>
+                <v-icon icon="mdi-chevron-right" size="22"/>
+              </button>
+              <button v-if="connected" class="more-menu-item" type="button" aria-label="退出当前路由器" @click="resetSession">
+                <span class="more-menu-icon"><v-icon icon="mdi-logout" size="23"/></span>
+                <span class="more-menu-copy"><strong>退出当前路由器</strong><small>结束本次登录会话，保留已保存的路由器</small></span>
+                <v-icon icon="mdi-chevron-right" size="22"/>
+              </button>
+            </div>
+            <div class="v3-section-label">应用设置</div>
+            <div class="more-menu-list">
+              <button v-for="category in settingsCategories" :key="category.id" type="button"
+                class="more-menu-item" :aria-label="'打开' + category.title + '设置'"
+                @click="openSettingsCategory(category.id)">
+                <span class="more-menu-icon"><v-icon :icon="category.icon" size="23"/></span>
                 <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
-                <v-icon icon="mdi-chevron-right" size="22" class="more-menu-chevron"/>
+                <v-icon icon="mdi-chevron-right" size="21"/>
+              </button>
+            </div>
+            <div class="v3-section-label">支持与更新</div>
+            <div class="more-menu-list">
+              <button class="more-menu-item" type="button" aria-label="打开关于" @click="openMoreSection('about')">
+                <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="23"/></span>
+                <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本检查、开发者、反馈及开源许可</small></span>
+                <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
             </div>
           </section>
@@ -2238,6 +2310,43 @@ onUnmounted(() => {
           <!-- Connected page errors are shown in the fixed bottom snackbar. -->
 
           <template v-if="activeTab === 'home' || activeTab === 'statistics'">
+            <section v-if="activeTab === 'home'" class="v3-overview">
+              <div class="v3-health-card">
+                <div class="v3-health-heading">
+                  <v-icon icon="mdi-check-circle-outline" color="success" size="30"/>
+                  <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
+                    <p>{{ snapshot?.board?.model || 'OpenWrt / QWRT' }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
+                  <v-chip size="small" color="success" variant="tonal">在线</v-chip>
+                </div>
+                <div class="v3-health-metrics">
+                  <div v-for="item in resourceCards.slice(0, 3)" :key="item.label" class="v3-metric">
+                    <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
+                    <v-progress-linear :model-value="item.progress" color="primary" height="4" rounded/>
+                  </div>
+                  <div class="v3-metric"><small>在线终端</small>
+                    <strong>{{ snapshot?.users ?? '--' }}</strong><span class="v3-metric-note">网络客户端</span></div>
+                </div>
+              </div>
+              <div class="v3-module-heading"><h2>实时网络流量</h2>
+                <v-btn size="small" variant="text" append-icon="mdi-chevron-right" @click="openDetailedMonitor">详细监控</v-btn></div>
+              <v-card variant="flat" rounded="xl" class="v3-live-card">
+                <div class="v3-rates">
+                  <span><v-icon icon="mdi-arrow-down" color="primary" size="17"/> RX {{ currentRate?.rx || '等待采样' }}</span>
+                  <span><v-icon icon="mdi-arrow-up" color="secondary" size="17"/> TX {{ currentRate?.tx || '等待采样' }}</span>
+                </div>
+                <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
+                  :series="rxTxSeries" unit=" KB/s" title="实时流量趋势"/>
+                <p v-else class="muted-hint">正在等待路由器接口的实际流量采样，不显示模拟数据。</p>
+              </v-card>
+              <div class="v3-module-heading"><h2>快捷操作</h2></div>
+              <div class="v3-shortcuts">
+                <button class="v3-shortcut" @click="navigateBottomTab('network');openNetworkSection('interfaces')"><v-icon icon="mdi-lan"/>接口</button>
+                <button class="v3-shortcut" @click="launchV3Tool('firewall')"><v-icon icon="mdi-shield-outline"/>防火墙</button>
+                <button class="v3-shortcut" @click="launchV3Tool('ddns')"><v-icon icon="mdi-earth"/>DDNS</button>
+                <button class="v3-shortcut" @click="launchV3Tool('diagnostics')"><v-icon icon="mdi-lan-check"/>诊断</button>
+              </div>
+              <div class="v3-module-heading"><h2>系统与硬件详情</h2></div>
+            </section>
             <v-card v-if="snapshot && activeTab === 'home'" rounded="xl" elevation="1" class="device-card">
               <div class="device-heading">
                 <v-avatar color="primary" variant="tonal" rounded="lg" size="52"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
@@ -2383,6 +2492,11 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'clients'">
+            <div class="v3-section-label">连接终端与管理</div>
+            <div class="v3-inline-links">
+              <button type="button" class="v3-inline-action" @click="launchV3Tool('parental')"><v-icon icon="mdi-shield-account-outline"/>家长控制<v-icon icon="mdi-chevron-right" size="17"/></button>
+              <button type="button" class="v3-inline-action" @click="launchV3Tool('wol')"><v-icon icon="mdi-lan-connect"/>网络唤醒<v-icon icon="mdi-chevron-right" size="17"/></button>
+            </div>
             <div class="terminal-screen">
               <div class="terminal-header">
                 <div><h2>终端设备</h2><p>在线状态按 QWRT 邻居可达性和无线关联判断；灰色表示未确认</p></div>
@@ -2473,6 +2587,30 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'network'">
+            <section v-if="networkSection === 'hub'" class="v3-network-home">
+              <header class="v3-network-status">
+                <h2>网络管理</h2>
+                <p>集中查看接口、物理设备和路由服务</p>
+                <div class="v3-network-kpis">
+                  <div><small>LAN IPv4</small><strong>{{ snapshot?.lanIp || '--' }}</strong></div>
+                  <div><small>WAN IPv4</small><strong>{{ snapshot?.wanIp || '--' }}</strong></div>
+                  <div><small>WAN IPv6</small><strong>{{ snapshot?.wan6Ip || '--' }}</strong></div>
+                </div>
+              </header>
+              <div class="v3-section-label">接口与连接</div>
+              <div class="v3-feature-list">
+                <button type="button" @click="openNetworkSection('interfaces')"><v-icon icon="mdi-lan" color="primary"/><span><strong>网络接口</strong><small>WAN / LAN / PPPoE / IPv4 / IPv6 / DHCP</small></span><v-icon icon="mdi-chevron-right"/></button>
+                <button type="button" @click="openNetworkSection('devices')"><v-icon icon="mdi-ethernet" color="primary"/><span><strong>物理设备</strong><small>以太网端口、物理网络设备</small></span><v-icon icon="mdi-chevron-right"/></button>
+                <button type="button" @click="openNetworkSection('wireless')"><v-icon icon="mdi-wifi" color="primary"/><span><strong>无线设备</strong><small>当前无线硬件与网络状态（只读）</small></span><v-icon icon="mdi-chevron-right"/></button>
+              </div>
+              <div class="v3-section-label">路由、DNS 与安全</div>
+              <div class="v3-feature-list">
+                <button v-for="tool in networkFeatureTools" :key="tool.id" type="button" @click="launchV3Tool(tool.id)">
+                  <v-icon :icon="tool.icon" color="primary"/><span><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span><v-icon icon="mdi-chevron-right"/>
+                </button>
+              </div>
+            </section>
+            <template v-else>
             <v-card rounded="xl" elevation="1" class="network-card mb-4">
               <h2>网络概览</h2>
               <div v-if="snapshot" class="details">
@@ -2527,14 +2665,15 @@ onUnmounted(() => {
               <v-alert v-if="!networkHardware.wireless.length" type="info" variant="tonal" density="compact">暂未获取到无线设备。</v-alert>
             </template>
             </div>
+            </template>
           </template>
 
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
               <div class="app-hub">
                 <div class="app-launcher-heading">
-                  <h2>应用管理</h2>
-                  <p>{{ installedRouterAppsLoading ? '正在检查已安装应用…' : '常用快捷入口与分类管理' }}</p>
+                  <h2>工具中心</h2>
+                  <p>{{ installedRouterAppsLoading ? '正在检查插件能力…' : '常用快捷入口 · 插件 · 系统管理 · 安全诊断' }}</p>
                 </div>
 
                 <v-text-field v-model="appSearch" class="app-hub-search"
@@ -2550,7 +2689,7 @@ onUnmounted(() => {
                   <div v-if="appSearchResults.length" class="app-tool-list app-search-results">
                     <button v-for="tool in appSearchResults" :key="tool.id" type="button"
                       class="app-tool-row" :class="{ 'is-danger': isDangerousApp(tool.id) }"
-                      :aria-label="'打开' + tool.title" @click="showLegacyTool(tool.id)">
+                      :aria-label="'打开' + tool.title" @click="launchV3Tool(tool.id)">
                       <span class="app-tool-icon"><v-icon :icon="tool.icon" size="21"/></span>
                       <span class="app-tool-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
                       <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
@@ -2569,7 +2708,7 @@ onUnmounted(() => {
                     <div class="app-favorites-grid">
                       <button v-for="tool in favoriteTools" :key="tool.id" type="button"
                         class="app-favorite-tile" :aria-label="'打开' + tool.title"
-                        @click="showLegacyTool(tool.id)">
+                        @click="launchV3Tool(tool.id)">
                         <v-avatar rounded="lg" size="44" color="primary" variant="tonal">
                           <v-icon :icon="tool.icon" size="23"/>
                         </v-avatar>
@@ -2607,7 +2746,7 @@ onUnmounted(() => {
                         :id="'app-category-' + category.id" class="app-tool-list">
                         <button v-for="tool in category.tools" :key="tool.id" type="button"
                           class="app-tool-row" :class="{ 'is-danger': isDangerousApp(tool.id) }"
-                          :aria-label="'打开' + tool.title" @click="showLegacyTool(tool.id)">
+                          :aria-label="'打开' + tool.title" @click="launchV3Tool(tool.id)">
                           <span class="app-tool-icon"><v-icon :icon="tool.icon" size="21"/></span>
                           <span class="app-tool-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
                           <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
@@ -2788,7 +2927,7 @@ onUnmounted(() => {
       </template>
     </v-snackbar>
     <v-bottom-navigation v-if="(viewMode === 'list' || connected) && navStyle === 'standard'"
-      mandatory :model-value="activeTab" :height="68" grow bg-color="surface"
+      mandatory :model-value="currentNavTab" :height="68" grow bg-color="surface"
       class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
         :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
@@ -2799,7 +2938,7 @@ onUnmounted(() => {
     <div v-else-if="viewMode === 'list' || connected" class="liquid-bottom">
       <VGlass v-if="effectiveMotion" :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
-          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
+          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: currentNavTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{ item.label }}</span>
           </v-btn>
         </div>
