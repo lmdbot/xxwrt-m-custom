@@ -351,7 +351,7 @@ async function downloadLatestApk() {
 }
 
 function syncNativeChrome(isDark) {
-  const color = isDark ? '#11141B' : '#F5F6FB'
+  const color = isDark ? '#101826' : '#F5F8FE'
   document.documentElement.style.backgroundColor = color
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
   if (isNative) {
