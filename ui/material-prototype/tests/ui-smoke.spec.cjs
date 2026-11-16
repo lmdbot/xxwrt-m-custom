@@ -1458,7 +1458,9 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     const modal = page.getByRole('dialog').filter({ hasText: '终端管理' })
     const select = modal.getByRole('combobox', { name: '管理 QoS 后端' })
     await expect(select).toBeVisible()
-    await expect(select).toContainText('EQOS')
+    // Vuetify VSelect renders its selected item in the combobox input value,
+    // not as a text child, so check the actual input value.
+    await expect(select).toHaveValue(/EQOS/)
     await expect(modal.getByRole('spinbutton', { name: '下载限速 (Mbps)' })).toBeVisible()
 
     // Selecting HQoS must switch units and load that MAC's native rule.
