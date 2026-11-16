@@ -2291,6 +2291,10 @@ onUnmounted(() => {
               <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
               <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
             </header>
+            <div v-if="connected" class="v3-me-session-actions">
+              <v-btn size="small" variant="text" prepend-icon="mdi-logout" aria-label="退出当前路由器"
+                @click="resetSession">退出当前路由器</v-btn>
+            </div>
             <div class="v3-section-label">管理与设置</div>
             <div class="more-menu-list v3-me-directory" role="group" aria-label="我的功能入口">
               <button type="button" class="more-menu-item" aria-label="打开路由器管理" @click="goToDeviceList()">
