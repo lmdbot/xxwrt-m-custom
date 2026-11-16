@@ -163,21 +163,18 @@
 .xxwrt-v3 .v3-me-session-actions .v-btn{font-size:12px}
 
 /* Design A implementation · doc/04-design-system.md · 2026-11-17.
- * Solid content surfaces retain contrast; translucency is only for chrome. */
+ * One set of semantic colors drives the Vuetify shell, secondary components
+ * and legacy style aliases in both light and dark modes. */
 .xxwrt-v3{
-  --design-primary:#2477ee;--design-secondary:#23a2cf;--design-teal:#168e8b;
-  --design-bg:#f3f7fd;--design-surface:#fff;--design-subtle:#eaf1fc;
-  --design-text:#12233f;--design-muted:#63758e;--design-border:#dce6f4;
-  --design-success:#14aa65;--design-warning:#d9981f;--design-error:#dc505b;
-  --v3-border:rgba(93,121,172,.17);--v3-muted:var(--design-muted);
+  --design-primary:var(--ui-primary);--design-secondary:var(--ui-secondary);
+  --design-teal:var(--ui-teal);--design-bg:var(--ui-bg);
+  --design-surface:var(--ui-surface);--design-subtle:var(--ui-surface-2);
+  --design-text:var(--ui-text);--design-muted:var(--ui-muted);
+  --design-border:var(--ui-border);--design-success:var(--ui-success);
+  --design-warning:var(--ui-warning);--design-error:var(--ui-error);
+  --ui-text-muted:var(--ui-muted);--ui-text-subtle:var(--ui-muted);
+  --v3-border:var(--ui-border);--v3-muted:var(--ui-muted);
   --v3-radius:20px;
-}
-.xxwrt-v3.theme-is-dark{
-  --design-primary:#83b6ff;--design-secondary:#4acbe2;--design-teal:#62cec0;
-  --design-bg:#0f1727;--design-surface:#182437;--design-subtle:#23324a;
-  --design-text:#f2f7ff;--design-muted:#a9b7cc;--design-border:#34445c;
-  --design-success:#56d59b;--design-warning:#f4be65;--design-error:#ff8790;
-  --v3-border:rgba(174,194,231,.21);--v3-muted:var(--design-muted);
 }
 .xxwrt-v3 .main-container{max-width:760px}
 .xxwrt-v3 .v3-health-card,.xxwrt-v3 .v3-network-status,.xxwrt-v3 .v3-me-profile{
