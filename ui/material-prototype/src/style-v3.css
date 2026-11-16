@@ -717,3 +717,5 @@
   .xxwrt-v3 .v3-client-status-chip.v-chip{font-size:10px}
   .xxwrt-v3 .v3-client-directory .terminal-grid>.terminal-tile{padding:9px 10px!important;gap:9px!important}
 }
+
+.xxwrt-v3 .v3-client-management.v3-inline-links{display:block;margin-bottom:14px}
