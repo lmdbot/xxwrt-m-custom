@@ -7,12 +7,16 @@ import { TAB_ORDER, MOTION_DURATIONS, MOTION_EASING,
 const route = (tab='home', tool='', mode='detail', settings=false, category='display', device='router-1') =>
   [tab,tool,mode,settings,category,device]
 
-test('five root tabs animate in destination direction; no motion for same route',()=>{
-  assert.deepEqual(TAB_ORDER,['home','clients','network','apps','more'])
+test('six root tabs animate in destination direction; no motion for same route',()=>{
+  assert.deepEqual(TAB_ORDER,['home','clients','network','apps','me','more'])
   assert.deepEqual(describeNavigationMotion(route('home'),route('network')),
     {kind:'navigation',direction:1})
   assert.deepEqual(describeNavigationMotion(route('apps'),route('statistics')),
     {kind:'navigation',direction:-1})
+  assert.deepEqual(describeNavigationMotion(route('home'),route('me')),
+    {kind:'navigation',direction:1})
+  assert.deepEqual(describeNavigationMotion(route('me'),route('more')),
+    {kind:'navigation',direction:1})
   assert.deepEqual(describeNavigationMotion(route('home'),route('more')),
     {kind:'navigation',direction:1})
   assert.deepEqual(describeNavigationMotion(route('more'),route('clients')),

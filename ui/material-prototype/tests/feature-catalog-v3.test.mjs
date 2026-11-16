@@ -6,9 +6,9 @@ import {
   groupV3Tools, networkV3Tools, searchV3Features, featureHome
 } from '../src/services/featureCatalogV3.js'
 
-test('Material 3.0 has exactly five primary tabs in approved order', () => {
-  assert.deepEqual(V3_TABS.map(tab => tab.label), ['概览','设备','网络','工具','我的'])
-  assert.deepEqual(V3_TABS.map(tab => tab.id), ['home','clients','network','apps','more'])
+test('Material 3.0 has exactly six primary tabs in approved order', () => {
+  assert.deepEqual(V3_TABS.map(tab => tab.label), ['概览','设备','网络','工具','我的','更多'])
+  assert.deepEqual(V3_TABS.map(tab => tab.id), ['home','clients','network','apps','me','more'])
 })
 
 test('all 28 existing tools have one and only one canonical home', () => {

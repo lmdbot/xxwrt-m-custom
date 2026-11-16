@@ -1,11 +1,11 @@
 const { test, expect } = require('@playwright/test')
 
-test('v3 bottom navigation has exactly five planned sections on 360dp Android', async ({ page }) => {
+test('v3 bottom navigation has exactly six planned sections on 360dp Android', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
   const tabs = page.locator('.standard-bottom .v-btn')
-  await expect(tabs).toHaveCount(5)
-  for (const label of ['概览', '设备', '网络', '工具', '我的']) {
+  await expect(tabs).toHaveCount(6)
+  for (const label of ['概览', '设备', '网络', '工具', '我的', '更多']) {
     await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible()
   }
   await expect(page.getByRole('button', { name: '设备', exact: true })).toBeDisabled()
@@ -29,7 +29,7 @@ test('v3 Me groups router, settings, About and links to original controls', asyn
   await expect(page.getByTestId('about-page')).toBeVisible()
   await expect(page.getByRole('img', { name: '开发者头像' })).toHaveAttribute('src', /developer-avatar/)
   await page.getByRole('button', { name: '返回上一页' }).click()
-  await expect(page.getByTestId('more-page')).toBeVisible()
+  await expect(page.getByTestId('me-page')).toBeVisible()
   await page.getByRole('button', { name: '打开路由器管理' }).click()
   await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
 })
@@ -44,4 +44,31 @@ test('v3 language can be changed from direct Me preference without a drawer', as
   await expect(page.locator('.v3-me-profile')).toBeVisible()
   await page.getByRole('button', { name: 'Overview', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Router management' })).toBeVisible()
+})
+
+test('More is its own three-entry hub with a two-level Settings hierarchy', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 })
+  await page.goto('/')
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  await expect(page.locator('.v3-more-hub .more-menu-item')).toHaveCount(3)
+  for (const name of ['路由器', '设置', '关于']) {
+    await page.getByRole('button', { name: '打开' + name, exact: true }).click()
+    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText(name)
+    await page.getByRole('button', { name: '返回上一页' }).click()
+    await expect(page.getByTestId('more-page')).toBeVisible()
+  }
+  await page.getByRole('button', { name: '打开设置', exact: true }).click()
+  await expect(page.locator('.settings-page .more-menu-item')).toHaveCount(5)
+  await page.getByRole('button', { name: '打开隐私设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私')
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  await page.getByRole('button', { name: '我的', exact: true }).click()
+  await expect(page.getByTestId('me-page')).toBeVisible()
+  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(6)
+  await expect(page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2))
+    .resolves.toBeTruthy()
 })

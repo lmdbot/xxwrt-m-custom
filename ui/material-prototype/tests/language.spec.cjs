@@ -74,30 +74,25 @@ test('English also localizes dropdowns and notification overlays created after c
 })
 
 
-test('v3 Me has seven direct entries and Settings retains five categories', async ({ page }) => {
+test('six tabs keep Me shortcuts and More directory separate', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
-  await expect(page.getByRole('button', { name: '我的', exact: true })).toBeVisible()
   await expect(page.locator('.material-side-drawer')).toHaveCount(0)
+  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(6)
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await expect(page.getByTestId('more-page')).toBeVisible()
-  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
-  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
-
-  for (const category of ['路由器', '设置', '关于']) {
-    await page.getByRole('button', { name: '打开' + category, exact: true }).click()
-    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText(category)
-    await expect(page.getByRole('button', { name: '返回上一页' })).toHaveCount(1)
-    await page.getByRole('button', { name: '返回上一页' }).click()
-    await expect(page.getByTestId('more-page')).toBeVisible()
-  }
-
-  await page.getByRole('button', { name: '打开设置' }).click()
+  await expect(page.getByTestId('me-page')).toBeVisible()
+  await expect(page.locator('.v3-me-page .more-menu-item')).toHaveCount(7)
+  await page.getByRole('button', { name: '打开显示设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByTestId('me-page')).toBeVisible()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await expect(page.locator('.v3-more-hub .more-menu-item')).toHaveCount(3)
+  await page.getByRole('button', { name: '打开设置', exact: true }).click()
   await expect(page.locator('.settings-page .more-menu-item')).toHaveCount(5)
-  for (const category of ['显示', '隐私', '刷新', '实验室', '语言']) {
-    await page.getByRole('button', { name: '打开' + category + '设置' }).click()
-    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText(category)
-    await expect(page.locator('.settings-page-heading')).toHaveCount(0)
+  for (const name of ['显示', '隐私', '刷新', '实验室', '语言']) {
+    await page.getByRole('button', { name: '打开' + name + '设置' }).click()
+    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText(name)
     await page.getByRole('button', { name: '返回上一页' }).click()
     await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
   }
@@ -105,7 +100,6 @@ test('v3 Me has seven direct entries and Settings retains five categories', asyn
   await expect(page.getByTestId('more-page')).toBeVisible()
   await page.getByRole('button', { name: '概览' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('路由器管理')
-  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
   await expect(page.locator('.top-bar').getByRole('button', { name: '刷新设备状态' })).toBeVisible()
   await expect(page.locator('.top-bar').getByRole('button', { name: '添加', exact: true })).toBeVisible()
 })

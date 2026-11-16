@@ -1,6 +1,6 @@
 // Motion primitives for user-driven navigation. Never triggered by telemetry.
-// V3 has five root tabs; statistics is a detail screen under Overview.
-export const TAB_ORDER = Object.freeze(['home', 'clients', 'network', 'apps', 'more'])
+// V3 has six root tabs; statistics is a detail screen under Overview.
+export const TAB_ORDER = Object.freeze(['home', 'clients', 'network', 'apps', 'me', 'more'])
 export const MOTION_DURATIONS = Object.freeze({ navigation: 270, section: 210 })
 export const MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 

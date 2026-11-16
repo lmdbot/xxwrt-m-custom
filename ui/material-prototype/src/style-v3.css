@@ -120,3 +120,20 @@
   .v3-network-editor-dialog .v-card-actions,.v3-terminal-detail-dialog .v-card-actions{
     flex:0 0 auto;border-top:1px solid rgba(103,127,173,.15);background:rgb(var(--v-theme-surface))}
 }
+
+/* v3.0.1: six balanced bottom tabs and a dedicated More directory. */
+.xxwrt-v3 .standard-bottom .v-btn{min-width:0!important;flex:1 1 0!important}
+.xxwrt-v3 .standard-bottom .nav-label{font-size:10px;line-height:1.25;white-space:nowrap}
+.xxwrt-v3 .standard-bottom .v-btn__content{gap:3px}
+.xxwrt-v3 .glass-nav{grid-template-columns:repeat(6,minmax(0,1fr))}
+.xxwrt-v3 .glass-nav .glass-tab{min-width:0!important;padding-inline:1px!important}
+.xxwrt-v3 .glass-nav .glass-tab .v-btn__content{min-width:0}
+.xxwrt-v3 .v3-more-hub{display:flex;flex-direction:column;gap:12px}
+.xxwrt-v3 .v3-more-hub .v3-section-label{margin-bottom:0}
+.xxwrt-v3 .v3-more-hub .more-menu-item{min-height:76px}
+.xxwrt-v3 .v3-more-hero{margin-bottom:3px}
+@media(max-width:390px){
+  .xxwrt-v3 .standard-bottom .nav-label{font-size:9.5px;letter-spacing:-.02em}
+  .xxwrt-v3 .glass-nav{gap:0;padding-inline:4px}
+  .xxwrt-v3 .glass-nav .glass-tab{font-size:10px}
+}

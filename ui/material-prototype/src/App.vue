@@ -527,7 +527,7 @@ const dark = computed(() => colorMode.value === 'dark' || (colorMode.value === '
 const pageTitle = computed(() => activeTab.value === 'statistics' ? '详细监控'
   : pages.find(page => page.id === currentNavTab.value)?.label || '概览')
 const toolbarSection = computed(() => {
-  if (settingsOpen.value || activeTab.value === 'more') return ''
+  if (settingsOpen.value || ['me', 'more'].includes(activeTab.value)) return ''
   if (viewMode.value !== 'detail' || !connected.value) return ''
   if (toolPanel.value) return legacyTools.find(x => x.id === toolPanel.value)?.title || '工具详情'
   if (activeTab.value === 'network' && networkSection.value !== 'hub') return networkSectionTitle.value
@@ -1147,7 +1147,7 @@ watch([terminalView,networkView],async ([newTerminal,newNetwork],[oldTerminal,ol
 })
 function navigateBottomTab(tab) {
   if (!pages.some(page => page.id === tab)) return
-  if (viewMode.value === 'list' && tab !== 'home' && tab !== 'more') return
+  if (viewMode.value === 'list' && !['home', 'me', 'more'].includes(tab)) return
   if (activeTab.value === 'apps' && toolPanel.value) {
     const blocked = advancedToolIds.includes(toolPanel.value)
       ? advancedManagementPanel.value?.handleBack?.() :
@@ -1157,7 +1157,7 @@ function navigateBottomTab(tab) {
     if (blocked) return
   }
   if (tab === activeTab.value) {
-    if (tab === 'more' && settingsOpen.value) {
+    if (['me', 'more'].includes(tab) && settingsOpen.value) {
       settingsOpen.value = false
       settingsTrail.length = 0
       return
@@ -1177,7 +1177,7 @@ function navigateBottomTab(tab) {
       return
     }
     if (isCurrentTabRoot(activeTab.value, tab, toolPanel.value, connected.value, settingsOpen.value)
-      || tab === 'more') {
+      || tab === 'me' || tab === 'more') {
       const route = scrollRouteKey([activeTab.value, toolPanel.value, viewMode.value,
         settingsOpen.value, settingsCategory.value, selectedDeviceId.value])
       pageScrollPositions.set(route, 0)
@@ -1203,7 +1203,7 @@ function openRouterTab(tab) {
   navigateBottomTab(tab)
 }
 watch(activeTab, (tab) => {
-  if (connected.value && tab !== 'more') refreshCurrent()
+  if (connected.value && !['me', 'more'].includes(tab)) refreshCurrent()
   if (tab === 'statistics') void pollTelemetry()
   if (tab !== 'apps') toolPanel.value = ''
 })
@@ -2038,23 +2038,23 @@ onUnmounted(() => {
         icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
-          <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
+          <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab === 'home'"
             class="router-toolbar-name router-list-toolbar-heading">路由器管理</h1>
           <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : (toolbarSection || pageTitle) }}</span>
-          <span v-if="connected && !settingsOpen && activeTab !== 'more'" class="router-toolbar-context" :title="displayDeviceName(selectedDevice)">· {{ displayDeviceName(selectedDevice) }}</span>
+          <span v-if="connected && !settingsOpen && !['me', 'more'].includes(activeTab)" class="router-toolbar-context" :title="displayDeviceName(selectedDevice)">· {{ displayDeviceName(selectedDevice) }}</span>
         </div>
       </v-toolbar-title>
-      <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
+      <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab === 'home'"
         icon="mdi-refresh" size="small" variant="tonal" color="primary"
         :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
-      <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
+      <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab === 'home'"
         class="router-list-add-topbar" color="primary" rounded="xl"
         size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && !['me', 'more'].includes(activeTab)"
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
-        @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && activeTab !== 'more'"
+        @click="activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && !['me', 'more'].includes(activeTab)"
         icon="mdi-swap-horizontal" size="small" variant="text" aria-label="切换路由器" @click="requestRouterSwitch"/>
     </v-app-bar>
 
@@ -2250,8 +2250,8 @@ onUnmounted(() => {
             </template>
           </section>
         </template>
-        <template v-else-if="activeTab === 'more'">
-          <section class="more-page v3-me-page" data-testid="more-page">
+        <template v-else-if="activeTab === 'me'">
+          <section class="more-page v3-me-page" data-testid="me-page">
             <header class="v3-me-profile">
               <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
               <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
@@ -2289,6 +2289,24 @@ onUnmounted(() => {
                 <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="23"/></span>
                 <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本检查、开发者、反馈及开源许可</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
+              </button>
+            </div>
+          </section>
+        </template>
+        <template v-else-if="activeTab === 'more'">
+          <section class="more-page v3-more-hub" data-testid="more-page">
+            <header class="v3-me-profile v3-more-hero">
+              <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
+              <div><h2>更多功能</h2><p>路由器管理 · 应用设置 · 关于与更新</p></div>
+            </header>
+            <div class="v3-section-label">管理入口</div>
+            <div class="more-menu-list" role="group" aria-label="更多功能">
+              <button v-for="category in moreCategories" :key="category.id" type="button"
+                class="more-menu-item" :aria-label="'打开' + category.title"
+                @click="openMoreSection(category.id)">
+                <span class="more-menu-icon"><v-icon :icon="category.icon" size="24"/></span>
+                <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
+                <v-icon icon="mdi-chevron-right" size="22"/>
               </button>
             </div>
           </section>
@@ -2963,7 +2981,7 @@ onUnmounted(() => {
       mandatory :model-value="currentNavTab" :height="68" grow bg-color="surface"
       class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
-        :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
+        :disabled="viewMode === 'list' && !['home', 'me', 'more'].includes(item.id)"
         @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
@@ -2971,7 +2989,7 @@ onUnmounted(() => {
     <div v-else-if="viewMode === 'list' || connected" class="liquid-bottom">
       <VGlass v-if="effectiveMotion" :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
-          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: currentNavTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
+          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: currentNavTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && !['home', 'me', 'more'].includes(item.id)" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{ item.label }}</span>
           </v-btn>
         </div>
@@ -2980,7 +2998,7 @@ onUnmounted(() => {
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab"
             :class="{selected:activeTab===item.id}" variant="text" rounded="xl"
-            density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
+            density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && !['home', 'me', 'more'].includes(item.id)" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{item.label}}</span>
           </v-btn>
         </div>
