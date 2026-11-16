@@ -46,6 +46,7 @@ export default {
   "应用名称": "App name",
   "版本号": "Version",
   "构建号": "Build",
+  "构建日期": "Build date",
   "应用包名": "Package ID",
   "仅 Android 安装包可查询": "Available in Android app",
   "复制版本信息": "Copy version information",
