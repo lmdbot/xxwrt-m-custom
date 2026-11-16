@@ -959,37 +959,37 @@
 
 
 /* Terminal detail: Design A hero, key/value card and list of safe operations. */
-.xxwrt-v3 .v3-terminal-design-detail{background:var(--ui-bg)!important;
+.v3-terminal-detail-dialog .v3-terminal-design-detail{background:var(--ui-bg)!important;
   color:var(--ui-text);min-height:100%;border-radius:0!important}
-.xxwrt-v3 .v3-terminal-detail-toolbar{
+.v3-terminal-detail-dialog .v3-terminal-detail-toolbar{
   height:61px;min-height:61px;display:flex;align-items:center;gap:6px;
   padding:0 12px!important;background:var(--ui-surface);
   border-bottom:1px solid var(--ui-border)}
-.xxwrt-v3 .v3-terminal-detail-toolbar strong{
+.v3-terminal-detail-dialog .v3-terminal-detail-toolbar strong{
   flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:19px;font-weight:750}
-.xxwrt-v3 .v3-terminal-detail-overview{padding:15px!important}
-.xxwrt-v3 .v3-terminal-detail-hero{border-radius:20px}
-.xxwrt-v3 .v3-terminal-detail-hero-title{
+.v3-terminal-detail-dialog .v3-terminal-detail-overview{padding:15px!important}
+.v3-terminal-detail-dialog .v3-terminal-detail-hero{border-radius:20px}
+.v3-terminal-detail-dialog .v3-terminal-detail-hero-title{
   display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 8px}
-.xxwrt-v3 .v3-terminal-detail-hero-title h2{margin:0;font-size:17px}
-.xxwrt-v3 .v3-terminal-detail-chip{
+.v3-terminal-detail-dialog .v3-terminal-detail-hero-title h2{margin:0;font-size:17px}
+.v3-terminal-detail-dialog .v3-terminal-detail-chip{
   background:rgba(20,170,101,.12);color:#138b58;padding:5px 10px;
   border-radius:99px;font-size:11px;font-weight:750}
-.xxwrt-v3 .v3-terminal-detail-chip.is-unknown{
+.v3-terminal-detail-dialog .v3-terminal-detail-chip.is-unknown{
   background:var(--ui-surface-2);color:var(--ui-muted)}
-.xxwrt-v3 .v3-terminal-detail-facts{
+.v3-terminal-detail-dialog .v3-terminal-detail-facts{
   padding:0 12px;background:var(--ui-surface);border:1px solid var(--ui-border);
   border-radius:18px;box-shadow:0 10px 30px rgba(36,74,120,.045)}
-.xxwrt-v3 .v3-terminal-detail-facts>div{
+.v3-terminal-detail-dialog .v3-terminal-detail-facts>div{
   display:flex;justify-content:space-between;gap:9px;min-height:45px;
   padding:11px 0;border-bottom:1px solid var(--ui-border);
   font-size:12px;line-height:1.5}
-.xxwrt-v3 .v3-terminal-detail-facts>div:last-child{border-bottom:0}
-.xxwrt-v3 .v3-terminal-detail-facts span{color:var(--ui-muted);flex:none}
-.xxwrt-v3 .v3-terminal-detail-facts strong{min-width:0;font-weight:700;
+.v3-terminal-detail-dialog .v3-terminal-detail-facts>div:last-child{border-bottom:0}
+.v3-terminal-detail-dialog .v3-terminal-detail-facts span{color:var(--ui-muted);flex:none}
+.v3-terminal-detail-dialog .v3-terminal-detail-facts strong{min-width:0;font-weight:700;
   overflow-wrap:anywhere;text-align:right}
-.xxwrt-v3 .v3-terminal-design-detail>.v-card-actions{background:var(--ui-surface);
+.v3-terminal-detail-dialog .v3-terminal-design-detail>.v-card-actions{background:var(--ui-surface);
   border-top:1px solid var(--ui-border)}
-.xxwrt-v3 .v3-terminal-editors{background:var(--ui-bg)}
-.xxwrt-v3.theme-is-dark .v3-terminal-detail-chip{color:var(--ui-success)}
+.v3-terminal-detail-dialog .v3-terminal-editors{background:var(--ui-bg)}
+.v3-terminal-detail-dialog .v3-terminal-detail-chip{color:var(--ui-success)}
