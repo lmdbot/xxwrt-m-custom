@@ -2092,7 +2092,7 @@ onUnmounted(() => {
         <div class="router-toolbar-title">
           <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
             class="router-toolbar-name router-list-toolbar-heading">路由器管理</h1>
-          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : (toolbarSection || pageTitle) }}</span>
+          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : (viewMode === 'detail' && activeTab === 'home' && !toolPanel && selectedDevice ? displayDeviceName(selectedDevice) : (toolbarSection || pageTitle)) }}</span>
         </div>
       </v-toolbar-title>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
@@ -2101,15 +2101,18 @@ onUnmounted(() => {
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
         class="router-list-add-topbar" color="primary" rounded="xl"
         size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && (activeTab === 'statistics' || !!toolPanel || (activeTab === 'network' && networkSection !== 'hub'))"
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
       <v-btn v-if="viewMode === 'detail' && connected"
-        class="v3-router-switch" size="small" variant="tonal" color="primary"
-        append-icon="mdi-chevron-down" aria-label="切换路由器" @click="requestRouterSwitch">
-        <span class="v3-router-switch-label">{{ displayDeviceName(selectedDevice) }}</span>
-      </v-btn>
+        class="v3-router-switch v3-router-switch--design-a" size="small" variant="text"
+        icon="mdi-chevron-down" aria-label="切换路由器" @click="requestRouterSwitch"/>
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && !toolPanel && activeTab !== 'statistics'"
+        class="v3-theme-switch" size="small" variant="text"
+        :icon="dark ? 'mdi-weather-sunny' : 'mdi-theme-light-dark'"
+        :aria-label="dark ? '切换浅色主题' : '切换深色主题'"
+        @click="colorMode = dark ? 'light' : 'dark'"/>
     </v-app-bar>
 
     <v-main>
@@ -2622,27 +2625,29 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'clients'">
-            <div class="v3-section-label">连接终端与管理</div>
-            <div class="v3-inline-links">
-              <button type="button" class="v3-inline-action" @click="launchV3Tool('parental')"><v-icon icon="mdi-shield-account-outline"/>家长控制<v-icon icon="mdi-chevron-right" size="17"/></button>
-              <button type="button" class="v3-inline-action" @click="launchV3Tool('wol')"><v-icon icon="mdi-lan-connect"/>网络唤醒<v-icon icon="mdi-chevron-right" size="17"/></button>
-            </div>
-            <div class="terminal-screen">
+            <div class="terminal-screen v3-client-directory">
               <div class="terminal-header">
-                <div><h2>终端设备</h2><p>无线关联和邻居可达是在线证据；DHCP 租约不代表在线</p></div>
-                <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ terminalDevices.length }} 台</v-chip>
+                <h2>连接终端</h2>
+                <v-chip color="success" variant="tonal" size="small" class="v3-client-status-chip">
+                  在线 {{ terminalDevices.filter(item => item.online).length }} · 待确认 {{ terminalDevices.filter(item => !item.online && !item.onlineKnown).length }}
+                </v-chip>
               </div>
               <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
                   { id: 'online', label: '在线', count: terminalDevices.filter(i => i.online).length },
-                  { id: 'offline', label: '离线', count: terminalDevices.filter(i => !i.online && i.onlineKnown).length },
-                  { id: 'unknown', label: '待确认', count: terminalDevices.filter(i => !i.online && !i.onlineKnown).length }
-                ]" :key="option.id" type="button"
+                  { id: 'unknown', label: '待确认', count: terminalDevices.filter(i => !i.online && !i.onlineKnown).length },
+                  { id: 'offline', label: '离线', count: terminalDevices.filter(i => !i.online && i.onlineKnown).length }
+                ]" v-show="option.id !== 'offline' || option.count > 0 || terminalOnlineFilter === 'offline'" :key="option.id" type="button"
                   :class="{ 'is-selected': terminalOnlineFilter === option.id }"
                   :aria-pressed="terminalOnlineFilter === option.id"
                   @click="terminalOnlineFilter = option.id">{{ option.label }} {{ option.count }}</button>
               </div>
+              <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
+                hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
+                aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
+                @click:clear="clientSearch = ''"
+                @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
               <div class="terminal-category-grid" role="group" aria-label="终端来源分类">
                 <v-btn
                   v-for="category in terminalCategories"
@@ -2675,11 +2680,6 @@ onUnmounted(() => {
                   </div>
                 </v-btn>
               </div>
-              <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
-                hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
-                aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
-                @click:clear="clientSearch = ''"
-                @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
               <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="已发现终端列表">
                 <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip || item.ip6"
                   :item="item" @click="openTerminal(item)"/>
@@ -2699,6 +2699,20 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
+              <p class="v3-client-evidence-note">在线状态基于无线关联与邻居可达等证据，DHCP 租约不代表设备在线。</p>
+            </div>
+            <div class="v3-section-label v3-client-management-title">设备管理</div>
+            <div class="v3-feature-list v3-client-management">
+              <button type="button" @click="launchV3Tool('parental')">
+                <v-icon icon="mdi-shield-account-outline" color="primary"/>
+                <span><strong>家长控制</strong><small>访问规则与上网时段</small></span>
+                <v-icon icon="mdi-chevron-right"/>
+              </button>
+              <button type="button" @click="launchV3Tool('wol')">
+                <v-icon icon="mdi-lan-connect" color="primary"/>
+                <span><strong>网络唤醒</strong><small>已保存目标与网络邻居</small></span>
+                <v-icon icon="mdi-chevron-right"/>
+              </button>
             </div>
           </template>
 
