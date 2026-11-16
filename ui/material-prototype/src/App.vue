@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme, useDisplay } from 'vuetify'
+import { V3_TABS, groupV3Tools, networkV3Tools } from './services/featureCatalogV3.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -75,13 +76,7 @@ function formatInterfaceUptime(rawSeconds) {
   return parts.join(' ')
 }
 
-const pages = [
-  { id: 'home', label: '概览', icon: 'mdi-view-dashboard-outline' },
-  { id: 'clients', label: '设备', icon: 'mdi-devices' },
-  { id: 'network', label: '网络', icon: 'mdi-lan' },
-  { id: 'apps', label: '工具', icon: 'mdi-apps' },
-  { id: 'more', label: '我的', icon: 'mdi-account-circle-outline' }
-]
+const pages = V3_TABS
 const storage = {
   host: 'xxwrt_material_router_url',
   nav: 'xxwrt_material_nav_style',
@@ -521,9 +516,6 @@ function openNetworkSection(section) {
 }
 function launchV3Tool(id) {
   if (!connected.value) return
-  const home = ['parental', 'wol'].includes(id) ? 'clients'
-    : ['routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'].includes(id) ? 'network'
-    : id === 'trends' ? 'home' : 'apps'
   // Back returns to the invoking page, not an unrelated tool catalog.
   // Canonical feature ownership is expressed by its single list entry.
   toolOriginTab.value = activeTab.value === 'apps' ? '' : activeTab.value
@@ -863,24 +855,8 @@ const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 // V3 information architecture: a feature has one canonical home. The
 // favorites/search still accept legacy IDs, so existing per-router shortcuts
 // continue working after the redesign without changing RPC handlers.
-const V3_TOOL_GROUPS = [
-  { id: 'plugins', title: '插件中心', icon: 'mdi-puzzle-outline',
-    ids: ['ssr', 'openclash', 'lucky', 'wechatpush', 'vlmcsd', 'detector', 'carbon'] },
-  { id: 'system', title: '系统管理', icon: 'mdi-cog-outline',
-    ids: ['packages', 'services', 'process', 'startup', 'cron'] },
-  { id: 'diagnostics', title: '诊断与安全', icon: 'mdi-shield-check-outline',
-    ids: ['diagnostics', 'logs', 'security', 'audit', 'capabilities'] },
-  { id: 'maintenance', title: '维护与备份', icon: 'mdi-backup-restore',
-    ids: ['backup', 'reboot', 'reset'] }
-]
-const appCategories = computed(() => {
-  const byId = new Map(visibleLegacyTools.value.map(tool => [tool.id, tool]))
-  return V3_TOOL_GROUPS.map(group => ({
-    ...group, tools: group.ids.map(id => byId.get(id)).filter(Boolean)
-  })).filter(group => group.tools.length)
-})
-const networkFeatureTools = computed(() => visibleLegacyTools.value.filter(tool =>
-  ['routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'].includes(tool.id)))
+const appCategories = computed(() => groupV3Tools(visibleLegacyTools.value))
+const networkFeatureTools = computed(() => networkV3Tools(visibleLegacyTools.value))
 const appSearchResults = computed(() => searchAppTools(visibleLegacyTools.value, appSearch.value))
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
