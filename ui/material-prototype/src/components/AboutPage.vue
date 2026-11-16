@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue'
 import appIcon from '../../assets/qwrt-chibi-openwrt-router.webp'
-import developerAvatar from '../../assets/developer-avatar.webp'
 
 const props = defineProps({
   installedVersion: { type: String, required: true },
@@ -29,116 +28,96 @@ const updateStatus = computed(() => {
 </script>
 
 <template>
-  <div class="about-page" data-testid="about-page">
-    <header class="about-hero">
-      <img class="about-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="104" height="104"/>
-      <h2 class="about-app-name">XX-WRT</h2>
-      <div class="about-version-actions">
-        <button type="button" class="about-version-pill" aria-label="查看应用版本详情"
-          @click="emit('show-version-details')">
-          <v-icon icon="mdi-information-outline" size="15"/>
-          <span>v{{ installedVersion }}</span>
-          <v-icon icon="mdi-chevron-right" size="16"/>
-        </button>
-        <v-btn icon="mdi-content-copy" size="x-small" variant="text" color="primary"
-          aria-label="复制应用版本信息" @click="emit('copy-version')"/>
-      </div>
-      <p class="about-tagline">让 OpenWrt / QWRT 路由管理更简单</p>
-      <p class="about-summary">轻松查看路由状态、管理网络终端与常用服务。具体功能及权限以已连接路由器为准。</p>
+  <div class="about-page about-design-a" data-testid="about-page">
+    <header class="about-design-hero">
+      <h2>XX-WRT 管理器</h2>
+      <p>v{{ installedVersion }} · 路由器管理客户端</p>
     </header>
 
-    <section class="about-section" aria-labelledby="about-info-title">
-      <h3 id="about-info-title" class="about-section-title">应用信息</h3>
-      <div class="about-group">
-        <div class="about-entry about-entry-static">
-          <div class="about-entry-icon"><v-icon icon="mdi-router-wireless" size="23"/></div>
-          <div class="about-entry-copy">
-            <strong>关于 XX-WRT</strong>
-            <small>Android 路由器管理客户端</small>
-          </div>
-        </div>
-        <button type="button" class="about-entry" aria-label="查看开发者与项目"
+    <section class="about-design-section">
+      <h3>开发者与项目</h3>
+      <div class="about-design-list">
+        <button type="button" class="about-design-row" aria-label="打开 GitHub 项目"
           @click="emit('show-project')">
-          <div class="about-entry-icon about-entry-avatar"><img class="about-developer-image" :src="developerAvatar" alt="开发者头像" width="45" height="45" decoding="async"/></div>
-          <div class="about-entry-copy">
-            <strong>开发者与项目</strong>
-            <small>lmdbot · GitHub 开源项目</small>
-          </div>
-          <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
+          <span class="about-design-icon"><v-icon icon="mdi-github" size="22"/></span>
+          <span class="about-design-copy"><strong>GitHub 项目</strong><small>lmdbot/xxwrt-m-custom</small></span>
+          <v-icon icon="mdi-chevron-right" size="22" class="about-design-arrow"/>
         </button>
       </div>
     </section>
 
-    <section class="about-section" aria-labelledby="about-update-title">
-      <h3 id="about-update-title" class="about-section-title">版本与更新</h3>
-      <div class="about-group about-update-group">
+    <section class="about-design-section">
+      <h3>版本与更新</h3>
+      <div class="about-design-list">
+        <button type="button" class="about-design-row" aria-label="检查更新"
+          :disabled="updateState.checking || updateState.downloading"
+          @click="emit('check-updates')">
+          <span class="about-design-icon"><v-icon icon="mdi-refresh" size="22"/></span>
+          <span class="about-design-copy"><strong>检查更新</strong><small>阿里云优先 / GitHub 备用</small></span>
+          <v-icon icon="mdi-chevron-right" size="22" class="about-design-arrow"/>
+        </button>
+        <button type="button" class="about-design-row" aria-label="查看版本日志"
+          @click="emit('show-release-notes')">
+          <span class="about-design-icon"><v-icon icon="mdi-text-box-outline" size="22"/></span>
+          <span class="about-design-copy"><strong>版本日志</strong><small>查看正式版更新说明</small></span>
+          <v-icon icon="mdi-chevron-right" size="22" class="about-design-arrow"/>
+        </button>
+      </div>
+      <p v-if="updateState.checked || updateState.checking || updateState.error"
+        class="about-design-status" role="status">{{ updateStatus }}</p>
+      <div v-if="updateState.available && updateState.latestRelease?.apkUrl"
+        class="about-design-update-actions">
+        <v-btn color="primary" variant="tonal" prepend-icon="mdi-download"
+          :disabled="updateState.downloading" @click="emit('download-latest')">
+          {{ updateState.isNative ? '下载并安装新版本' : '下载最新 APK' }}
+        </v-btn>
+        <v-btn v-if="updateState.downloading && updateState.isNative" variant="outlined"
+          color="warning" @click="emit('cancel-download')">取消下载</v-btn>
+      </div>
+      <div v-if="updateState.downloading" class="about-download-status" role="status">
+        <div class="about-download-label"><span>正在下载并校验</span><strong>{{ updateState.percent }}%</strong></div>
+        <v-progress-linear :model-value="updateState.percent" height="8" rounded color="primary"/>
+        <small>{{ updateState.progressText }}</small>
+      </div>
+      <v-btn v-if="updateState.downloadedApkReady && updateState.isNative && !updateState.downloading"
+        class="mt-2" color="primary" variant="outlined" prepend-icon="mdi-package-up"
+        @click="emit('install-downloaded')">重新打开安装</v-btn>
+      <p v-if="updateState.notice" class="about-design-status">{{ updateState.notice }}</p>
+    </section>
+
+    <section class="about-design-section">
+      <h3>帮助与合规</h3>
+      <div class="about-design-list">
+        <button type="button" class="about-design-row" aria-label="查看开源许可证"
+          @click="emit('show-licenses')">
+          <span class="about-design-icon"><v-icon icon="mdi-text-box-outline" size="22"/></span>
+          <span class="about-design-copy"><strong>开源许可证</strong><small>离线查看声明</small></span>
+          <v-icon icon="mdi-chevron-right" size="22" class="about-design-arrow"/>
+        </button>
+        <button type="button" class="about-design-row" aria-label="查看隐私与免责声明"
+          @click="emit('show-privacy')">
+          <span class="about-design-icon"><v-icon icon="mdi-shield-outline" size="22"/></span>
+          <span class="about-design-copy"><strong>隐私与免责声明</strong><small>本地数据与连接风险</small></span>
+          <v-icon icon="mdi-chevron-right" size="22" class="about-design-arrow"/>
+        </button>
+      </div>
+    </section>
+
+    <details class="about-design-more">
+      <summary>应用图标与详细版本信息 <v-icon icon="mdi-chevron-down" size="18"/></summary>
+      <div class="about-design-more-body">
+        <img class="about-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="76" height="76"/>
         <div class="about-version-row"><span>当前安装版本</span><strong>v{{ installedVersion }}</strong></div>
         <div v-if="updateState.latestRelease" class="about-version-row">
           <span>最新正式版本</span><strong>v{{ updateState.latestRelease.version }}</strong>
         </div>
-        <div v-if="updateState.latestRelease" class="about-version-row">
-          <span>更新来源</span><strong>{{ updateState.latestRelease.source === 'mirror' ? '阿里云' : 'GitHub 备用' }}</strong>
+        <div class="about-design-more-actions">
+          <v-btn size="small" variant="tonal" @click="emit('show-version-details')">版本详情</v-btn>
+          <v-btn size="small" variant="text" prepend-icon="mdi-content-copy" @click="emit('copy-version')">复制版本信息</v-btn>
+          <v-btn size="small" variant="text" prepend-icon="mdi-lifebuoy" @click="emit('show-issues')">帮助与反馈</v-btn>
         </div>
-        <div class="about-update-status" role="status" :class="{ 'about-update-error': updateState.error }">
-          <v-icon :icon="updateState.error ? 'mdi-alert-circle-outline' : updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'" size="19"/>
-          <span>{{ updateStatus }}</span>
-        </div>
-        <p v-if="updateState.notice" class="about-update-notice" role="status">{{ updateState.notice }}</p>
-        <div v-if="updateState.downloading" class="about-download-status" role="status">
-          <div class="about-download-label">
-            <span>正在下载并校验更新包</span><strong>{{ updateState.percent }}%</strong>
-          </div>
-          <v-progress-linear :model-value="updateState.percent" height="8" rounded color="primary"/>
-          <small>{{ updateState.progressText }}</small>
-        </div>
-        <div class="about-update-actions">
-          <v-btn color="primary" variant="tonal" rounded="lg" prepend-icon="mdi-refresh"
-            :loading="updateState.checking" :disabled="updateState.downloading"
-            @click="emit('check-updates')">检查更新</v-btn>
-          <v-btn variant="text" rounded="lg" prepend-icon="mdi-text-box-outline"
-            :loading="updateState.releaseNotesLoading" @click="emit('show-release-notes')">版本日志</v-btn>
-          <v-btn v-if="updateState.available && updateState.latestRelease?.apkUrl"
-            color="primary" rounded="lg" prepend-icon="mdi-download" :disabled="updateState.downloading"
-            @click="emit('download-latest')">{{ updateState.isNative ? '下载并安装' : '下载最新 APK' }}</v-btn>
-          <v-btn v-if="updateState.downloading && updateState.isNative" variant="outlined"
-            color="warning" rounded="lg" @click="emit('cancel-download')">取消下载</v-btn>
-          <v-btn v-if="updateState.downloadedApkReady && updateState.isNative && !updateState.downloading"
-            variant="outlined" rounded="lg" prepend-icon="mdi-package-up"
-            @click="emit('install-downloaded')">重新打开安装</v-btn>
-        </div>
-        <p class="about-update-hint">正式版优先通过阿里云检查更新，服务不可用时使用 GitHub 备用接口。</p>
       </div>
-    </section>
-
-    <section class="about-section" aria-labelledby="about-links-title">
-      <h3 id="about-links-title" class="about-section-title">相关链接</h3>
-      <div class="about-group">
-        <button type="button" class="about-entry" aria-label="打开 GitHub 项目" @click="emit('show-project')">
-          <div class="about-entry-icon"><v-icon icon="mdi-github" size="23"/></div>
-          <div class="about-entry-copy"><strong>GitHub</strong><small>查看源代码与项目进展</small></div>
-          <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
-        </button>
-        <button type="button" class="about-entry" aria-label="查看问题与反馈（Issues）" @click="emit('show-issues')">
-          <div class="about-entry-icon"><v-icon icon="mdi-lifebuoy" size="23"/></div>
-          <div class="about-entry-copy"><strong>帮助与反馈</strong><small>提交问题和功能建议</small></div>
-          <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
-        </button>
-        <button type="button" class="about-entry" aria-label="查看开源许可证" @click="emit('show-licenses')">
-          <div class="about-entry-icon"><v-icon icon="mdi-scale-balance" size="23"/></div>
-          <div class="about-entry-copy"><strong>开源许可证</strong><small>项目授权及第三方组件许可</small></div>
-          <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
-        </button>
-        <button type="button" class="about-entry" aria-label="查看隐私与免责声明" @click="emit('show-privacy')">
-          <div class="about-entry-icon"><v-icon icon="mdi-shield-check-outline" size="23"/></div>
-          <div class="about-entry-copy"><strong>隐私与免责声明</strong><small>本地凭据、网络访问与操作安全</small></div>
-          <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
-        </button>
-      </div>
-    </section>
-    <footer class="about-footer">
-      <span>Made for OpenWrt · QWRT</span>
-      <span>XX-WRT · 2026</span>
-    </footer>
+    </details>
   </div>
 </template>
 
@@ -184,4 +163,48 @@ button.about-entry:active{background:rgba(var(--v-theme-primary),.11)}
 .about-footer{display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 0 2px;color:var(--ui-text-muted);font-size:11px}
 button.about-entry:focus-visible,.about-version-pill:focus-visible{outline:2px solid rgb(var(--v-theme-primary));outline-offset:-2px}
 @media(max-width:380px){.about-hero{padding-top:12px}.about-entry{padding:12px}.about-update-group{padding:13px}.about-app-icon{width:94px;height:94px}}
+
+/* Design A About page: grouped 65px entries, no oversized icon in the hero. */
+.about-design-a{max-width:760px;padding-bottom:20px}
+.about-design-hero{border-radius:20px;padding:15px;border:1px solid var(--ui-border);
+  background:linear-gradient(128deg,#daefff,#e6e6ff);
+  box-shadow:0 10px 30px rgba(36,74,120,.06);color:#183150}
+.about-design-hero h2{font-size:17px;font-weight:700;line-height:1.4;margin:0 0 8px}
+.about-design-hero p{font-size:12px;line-height:1.6;color:#627994;margin:0}
+.about-design-section{margin:23px 0 0}
+.about-design-section h3{font-size:16px;line-height:23px;margin:0 3px 11px;font-weight:750}
+.about-design-list{border-radius:18px;border:1px solid var(--ui-border);
+  background:var(--ui-surface);overflow:hidden;
+  box-shadow:0 10px 30px rgba(36,74,120,.04);padding:0 12px}
+.about-design-row{display:flex;align-items:center;gap:12px;min-height:65px;
+  padding:9px 6px;width:100%;background:transparent;border:0;
+  border-bottom:1px solid var(--ui-border);cursor:pointer;
+  color:var(--ui-text);text-align:left;font-family:inherit}
+.about-design-row:last-child{border-bottom:0}
+.about-design-row:active{background:var(--ui-surface-2)}
+.about-design-row:focus-visible{outline:2px solid var(--ui-primary);outline-offset:-2px}
+.about-design-row:disabled{opacity:.5;cursor:default}
+.about-design-icon{display:grid;place-items:center;flex:none;width:40px;height:40px;
+  border-radius:13px;background:var(--ui-surface-2);color:var(--ui-primary)}
+.about-design-copy{display:flex;flex:1;flex-direction:column;min-width:0;gap:5px}
+.about-design-copy strong{font-size:13px;line-height:1.4;font-weight:700}
+.about-design-copy small{font-size:11px;line-height:1.4;color:var(--ui-muted)}
+.about-design-arrow{color:var(--ui-muted);flex:none;margin-left:auto}
+.about-design-status{padding:11px;font-size:11px;line-height:1.6;
+  border-radius:12px;background:var(--ui-surface-2);color:var(--ui-muted);margin:10px 0 0}
+.about-design-update-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.about-design-more{margin-top:23px;color:var(--ui-muted);font-size:11px}
+.about-design-more>summary{display:flex;align-items:center;justify-content:space-between;
+  min-height:44px;padding:10px 12px;border:1px solid var(--ui-border);
+  border-radius:12px;background:var(--ui-surface);cursor:pointer;list-style:none}
+.about-design-more>summary::-webkit-details-marker{display:none}
+.about-design-more[open]>summary .v-icon{transform:rotate(180deg)}
+.about-design-more-body{margin-top:10px;padding:13px;border:1px solid var(--ui-border);
+  background:var(--ui-surface);border-radius:14px}
+.about-design-more-body .about-app-icon{width:76px;height:76px;margin:0 auto 15px}
+.about-design-more-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+:global(.theme-is-dark) .about-design-hero{
+  background:linear-gradient(128deg,#25486c,#27344f);color:#eef7ff}
+:global(.theme-is-dark) .about-design-hero p{color:#aab9ce}
+
 </style>
