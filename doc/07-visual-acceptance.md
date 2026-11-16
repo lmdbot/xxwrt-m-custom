@@ -55,6 +55,14 @@ python3 scripts/compare_design_screenshots.py
 
 > B1–B11 是**页面类别**，不是只有 11 张真实页面。代表页截图并不覆盖全部 28 项功能的所有内部 Tab、表单、确认对话框、离线与 ACL 状态。以上均**不是已签收**。
 
+## 首次自动对照记录（2026-11-17）
+
+- 视觉审查工作流：[Design A screenshot audit #43931461531](https://github.com/lmdbot/xxwrt-m-custom/actions/runs/43931461531)。
+- 已成功生成 **21 个代表页面 × 3 个宽度 × 2 个主题 = 126 组**原型/APP 对应截图；126/126 配对完整。所用源为正式 Vue 组件加模拟 RPC，而非 Android 真机。
+- 增强差异图包含示例数据和不同的系统栏；按差异通道阈值 >24 计数，差异像素比例介于 **11.485% 至 45.217%**；全部标注为 `review-required`，没有一组被批准为像素零差异。
+- 差异较明显的代表类别：网络诊断（六组平均 29.98%）、备份与恢复（29.67%）、DDNS（28.98%）、日志（27.85%）、安全（27.05%）。这些百分比**不能当作产品相似度或验收合格率**；只能帮助安排人工审阅优先级。
+- 可在 Actions Artifacts 下载 `design-a-page-by-page-review`，本地打开其中的 `report.html` 并逐屏勾选。首次结果已证实截图采集和差异算法能运行，但**未证实目标界面 100% 一致**。
+
 ## 真机验收矩阵（待执行）
 
 至少选择一台有 360–430dp 等效宽度的 Android 真机（建议另测大屏/字体放大 1.3×），使用实际签名 APK：
@@ -64,6 +72,16 @@ python3 scripts/compare_design_screenshots.py
 3. **功能层**：五个一级页面、各 B1–B11 二级页面及其内部 Tab/表单、28 项入口、跨栏目返回与滚动恢复、登录前/断线/无权限/未安装/未知状态。
 4. **风险层**：UCI 保存/90 秒回退、WAN/防火墙变更中断连接、配置恢复和恢复出厂（后者仅隔离测试设备）；未经权限或确认绝不执行生产路由器危险写入。
 5. **证据**：逐页设备截图、设备型号与 DPI、Android 版本、APK versionCode、目标路由器固件、测试用例结果、异常记录、复测时间及人工签字。
+
+### 真机截图收集工具
+
+安装好 Android Platform Tools，把真机通过 USB 调试连接并授权，确认签名 APK 已安装，在 `ui/material-prototype/` 执行：
+
+```bash
+bash scripts/capture_android_device.sh android-device-evidence
+```
+
+脚本先收集 Android 机型、版本、密度、实际像素和 APP 版本，再交互提示人工进入 21 个页面，利用 `adb exec-out screencap -p` 保存真实截图及 `checklist.csv`。此脚本**不调用** ubus/UCI、不执行网络写入，也不替用户填写通过结论；敏感数据需在分享前脱敏。
 
 ### 关闭条件
 
