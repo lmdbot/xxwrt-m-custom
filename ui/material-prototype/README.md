@@ -1,4 +1,4 @@
-# XX-WRT Material 2.0.43 — QWRT / OpenWrt 移动管理
+# XX-WRT Material 3.0 — Android OpenWrt / QWRT 管理器
 
 这是 `main` 的 Android 应用源码。Vue 3 + Vite + Vuetify 3 + Capacitor 8 构建 Material / Liquid Glass 界面，数据来自登录路由器的真实 ubus JSON-RPC、UCI 与授权的插件接口，不使用假终端数据。
 
@@ -6,7 +6,7 @@
 
 - Material 包名：`com.lmdbot.xxwrt.materialpreview`
 - Material 应用名称：`XX-WRT管理器`
-- 版本：`2.0.43`（Android versionCode `2000043`）
+- 版本：`3.0.0`（Android versionCode `3000000`）
 - 与旧版 UniApp `XX-WRT M` 的 Android package ID 不同，可同时安装。
 - 保留 Material 主线应用信息与 Capacitor 构建流程；启动器图标使用蓝色二次元 Q 版 OpenWrt 路由器少女设计，并提供传统、圆形及自适应图标。
 - 正式 APK 使用 `XX-WRT-Material-vx.x.x.apk` 命名，构建版本自动取自 `package.json`。
@@ -85,3 +85,16 @@ APK 构建由 `.github/workflows/ui-android-preview.yml` 通过 GitHub Actions �
 ## 开发者头像（v2.0.43）
 
 “设置 → 关于 → 开发者与项目”显示用户提供的头像，资源随 APK 打包（`assets/developer-avatar.webp`，160×160），不向 GitHub 或第三方头像 CDN 发起网络请求；点击列表仍打开现有项目页面。应用启动图标不变。
+
+
+## Material 3.0 整体导航重设计
+
+- 五个底栏：**概览 / 设备 / 网络 / 工具 / 我的**，替代原六入口。`设备` 指连接路由器的终端，多台路由器通过顶部切换或“我的 → 路由器管理”维护。
+- **概览** 展示路由状态、资源、真实实时流量摘要与快捷操作；点击“详细监控”进入原统计图表及历史功能。
+- **设备** 继续支持 DHCPv4、DHCPv6、无线和应用过滤用户；家长控制和网络唤醒成为终端管理入口。
+- **网络** 增设网络功能首页，接口、物理设备、无线硬件、路由表、DNS/DHCP、防火墙、DDNS 和 ZeroTier 按业务分类。
+- **工具** 保留原始每台路由器五项收藏与搜索，分类调整为插件中心、系统管理、诊断与安全、维护与备份；所有 28 项原有工具均保留实际入口。
+- **我的** 直接提供路由器管理、显示、隐私、刷新、语言、实验室和关于更新。保留原生 APK 更新器、Android KeyStore 和已有 RPC/UCI 功能。
+- 引入独立 `style-v3.css`：Material 3 卡片、轻量玻璃底栏、深浅主题及窄屏适配。网络修改、备份恢复与危险操作继续沿用现有确认/回滚保护。
+
+**迁移原则：** 优先调整信息架构及页面容器，原路由器 RPC 业务组件、权限处理、状态检测与配置安全机制保持复用。
