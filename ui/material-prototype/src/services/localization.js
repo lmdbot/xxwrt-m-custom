@@ -4,6 +4,7 @@ import englishApps from './locales/en-apps.js'
 import englishOther from './locales/en-other.js'
 import englishOverlays from './locales/en-overlays.js'
 import englishAbout from './locales/en-about.js'
+import englishV3 from './locales/en-v3.js'
 
 export const LANGUAGE_STORAGE_KEY = 'xxwrt_material_language'
 export const LANGUAGES = Object.freeze([
@@ -18,6 +19,7 @@ const ENGLISH = Object.freeze({
   ...englishOther,
   ...englishOverlays,
   ...englishAbout,
+  ...englishV3,
   '首页': 'Home', '统计': 'Statistics', '终端': 'Clients', '网络': 'Network',
   '应用': 'Apps', '显示': 'Display', '隐私': 'Privacy', '刷新': 'Refresh',
   '实验室': 'Labs', '关于': 'About', '语言': 'Language',
