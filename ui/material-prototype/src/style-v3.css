@@ -1116,3 +1116,30 @@
   .xxwrt-v3 .v3-client-directory .terminal-header{gap:5px}
   .xxwrt-v3 .v3-client-status-chip{font-size:10px}
 }
+
+
+/* Design A high-risk secondary pages: paired actions and the same rounded
+ * confirmation sheet as the standalone prototype, without demo-only controls.
+ * Confirmation navigates to an existing RPC panel and never writes config. */
+.xxwrt-v3 .v3-design-a-actions{display:flex;gap:10px;margin-top:14px}
+.xxwrt-v3 .v3-design-a-actions>button{flex:1;min-width:0;
+  min-height:44px;border-radius:12px;padding:10px 9px;
+  font-size:13px;font-weight:700;line-height:1.35;cursor:pointer}
+.xxwrt-v3 .v3-design-a-primary{border:1px solid transparent;
+  background:var(--ui-surface-2);color:var(--ui-primary)}
+.xxwrt-v3 .v3-design-a-danger{border:1px solid transparent;
+  background:var(--ui-error);color:#fff}
+.xxwrt-v3 .v3-design-a-danger:hover{filter:brightness(.95)}
+.xxwrt-v3 .v3-design-a-danger:focus-visible,
+.xxwrt-v3 .v3-design-a-primary:focus-visible{outline:2px solid var(--ui-primary);outline-offset:2px}
+.xxwrt-v3 .v3-design-a-risk-modal{
+  border-radius:22px!important;background:var(--ui-surface)!important;
+  color:var(--ui-text);padding:4px}
+.xxwrt-v3 .v3-design-a-risk-title{font-size:17px!important;font-weight:750;
+  line-height:1.4;padding:16px 16px 4px!important}
+.xxwrt-v3 .v3-design-a-risk-modal .v-card-text{
+  font-size:13px;line-height:1.8;color:var(--ui-muted);padding:8px 16px 16px!important}
+.xxwrt-v3 .v3-design-a-risk-actions{display:flex;gap:10px;
+  padding:0 16px 16px!important}
+.xxwrt-v3 .v3-design-a-risk-actions .v-btn{
+  flex:1;min-width:0;min-height:44px;border-radius:12px!important;font-size:12px}
