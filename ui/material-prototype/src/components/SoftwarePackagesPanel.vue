@@ -4,7 +4,7 @@ import { shortError } from '../services/router.js'
 import { readDiskUsage } from '../services/telemetry.js'
 import {
   PACKAGE_PAGE_SIZE, packageCollections, parsePackageList, visiblePackages,
-  runPackageAction, readPackageConfigs, savePackageConfig,
+  runPackageAction, readPackageListing, readPackageConfigs, savePackageConfig,
   uploadLocalPackage, deleteUploadedPackage, validatePackageTarget
 } from '../services/softwarePackages.js'
 
@@ -66,8 +66,8 @@ async function load() {
   checked.value = true
   try {
     const [installed, available, storage] = await Promise.allSettled([
-      runPackageAction(props.client, 'list-installed'),
-      runPackageAction(props.client, 'list-available'),
+      readPackageListing(props.client, 'list-installed'),
+      readPackageListing(props.client, 'list-available'),
       readDiskUsage(props.client)
     ])
     if (storage.status === 'fulfilled') disk.value = storage.value.primary
