@@ -75,8 +75,14 @@ jobs:
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-36" "build-tools;35.0.0"
           test -x "$SDK_ROOT/build-tools/35.0.0/zipalign"
 
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
+
       - name: Install UI dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --prefer-offline
 
       - name: Verify stable release version comparison
         run: npm run test:versions
@@ -112,11 +118,21 @@ jobs:
       - name: Build Material UI
         run: npm run build
 
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
+
       - name: Install Chromium for interaction tests
         run: npx playwright install --with-deps chromium
 
       - name: Verify Material rendering, touch controls, and scroll
         run: npm run test:ui
+
+      - name: Show slowest Playwright cases
+        if: always()
+        run: node scripts/report_playwright_timing.cjs
 
       - name: Upload mobile UI screenshots
         if: always()
@@ -180,6 +196,9 @@ jobs:
 
       - name: Inject per-router opt-in TLS certificate exception bridge
         run: python3 scripts/patch_router_tls.py
+
+      - name: Restore Gradle dependency and build caches
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Compile unsigned release APK
         run: |
