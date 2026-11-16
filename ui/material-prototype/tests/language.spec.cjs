@@ -20,7 +20,7 @@ test('More settings language switches immediately and survives restart', async (
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await expect(page.getByRole('heading', { name: 'Router management' })).toBeVisible()
   await page.getByRole('button', { name: 'Me', exact: true }).click()
-  await page.locator('.more-menu-item').filter({ hasText: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Open settings' }).click()
   await page.locator('.more-menu-item').filter({ hasText: 'Language' }).click()
   await page.getByRole('radio', { name: '繁體中文' }).check()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-TW')
@@ -29,7 +29,7 @@ test('More settings language switches immediately and survives restart', async (
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-TW')
   await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.locator('.more-menu-item').filter({ hasText: '設置' }).click()
+  await page.getByRole('button', { name: '打開設置' }).click()
   await page.locator('.more-menu-item').filter({ hasText: '語言' }).click()
   await page.getByRole('radio', { name: '简体中文' }).check()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
@@ -74,7 +74,7 @@ test('English also localizes dropdowns and notification overlays created after c
 })
 
 
-test('More has three primary entries, and Settings contains five secondary entries', async ({ page }) => {
+test('v3 Me has seven direct entries and Settings retains five categories', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
   await expect(page.getByRole('button', { name: '我的', exact: true })).toBeVisible()
