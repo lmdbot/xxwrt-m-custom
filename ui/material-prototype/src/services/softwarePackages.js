@@ -77,7 +77,8 @@ function parseApkRecords(data, installed) {
     const pkg = item?.package || item
     const name = pkg?.name ?? pkg?.package ?? pkg?.Package
     const version = pkg?.version ?? pkg?.Version
-    const size = Number(pkg?.size ?? pkg?.installed_size ?? pkg?.download_size ?? 0)
+    const size = Number(pkg?.['file-size'] ?? pkg?.['installed-size'] ??
+      pkg?.size ?? pkg?.installed_size ?? pkg?.download_size ?? 0)
     return {
       name: stringify(name), version: stringify(version),
       description: stringify(pkg?.description ?? pkg?.summary ?? pkg?.Description),
