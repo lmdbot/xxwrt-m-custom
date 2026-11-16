@@ -36,7 +36,21 @@ export function parseOpkgStatus(output) {
   }).filter(row => /installed/.test(row.status))
 }
 export function parseUpgradable(output) {
-  return parseOpkgList(output).map(row => ({ ...row, installedVersion: row.version.split(' ')[0] }))
+  return parseOpkgList(output).map(row => ({
+    ...row, installedVersion: row.version,
+    version: row.description || row.version, description: ''
+  }))
+}
+export function parsePackageInfo(output) {
+  const info = {}
+  for (const line of String(output || '').split(/\r?\n/)) {
+    const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line)
+    if (match) info[match[1]] = match[2]
+  }
+  return info
+}
+export async function readPackageInfo(client, name) {
+  return parsePackageInfo(await exec(client, ['info', validatePackageName(name)]))
 }
 export function filterPackageList(rows, search = '', page = 1, pageSize = PACKAGE_PAGE_SIZE) {
   const term = String(search || '').trim().toLowerCase()
@@ -85,7 +99,7 @@ async function exec(client, args, { timeout = 120000 } = {}) {
 }
 export async function readPackageList(client, type = 'available') {
   if (type === 'installed') return parseOpkgStatus(await readFile(client, '/usr/lib/opkg/status'))
-  if (type === 'upgradable') return parseOpkgList(await exec(client, ['list-upgradable']))
+  if (type === 'upgradable') return parseUpgradable(await exec(client, ['list-upgradable']))
   if (type !== 'available') throw new Error('未知软件包列表类型')
   return parseOpkgList(await exec(client, ['list']))
 }

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  parseOpkgList, parseOpkgStatus, filterPackageList, validatePackageName,
+  parseOpkgList, parseOpkgStatus, parseUpgradable, parsePackageInfo, filterPackageList, validatePackageName,
   validateOpkgUrl, validateConfigPath, validateFeedConfig,
   runPackageAction, readPackageList
 } from '../src/services/packageManager.js'
@@ -55,4 +55,15 @@ test('opkg actions pass an argv array, never a shell command', async () => {
 test('available list parses opkg output', async () => {
   const client = { callLong: async () => ({ code: 0, stdout: 'a - 1 - test' }) }
   assert.equal((await readPackageList(client, 'available'))[0].name, 'a')
+})
+
+test('upgradable packages show old and new version', () => {
+  assert.deepEqual(parseUpgradable('luci - 1.0 - 1.1\n'), [
+    { name: 'luci', installedVersion: '1.0', version: '1.1', description: '' }
+  ])
+})
+test('opkg info extracts download size and dependencies', () => {
+  assert.deepEqual(parsePackageInfo('Package: luci\nVersion: 1.2\nSize: 1234\nDepends: libc\n'), {
+    Package: 'luci', Version: '1.2', Size: '1234', Depends: 'libc'
+  })
 })

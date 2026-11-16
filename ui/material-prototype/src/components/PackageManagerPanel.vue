@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
 import {
   filterPackageList, installPackageUrl, readDiskSpace, readOpkgConfig,
-  readPackageList, runPackageAction, saveOpkgConfig, validatePackageName,
+  readPackageList, readPackageInfo, runPackageAction, saveOpkgConfig, validatePackageName,
   uploadPackageFile
 } from '../services/packageManager.js'
 
@@ -24,6 +24,8 @@ const configPath = ref('/etc/opkg.conf')
 const configText = ref('')
 const configLoading = ref(false)
 const confirmation = ref(null)
+const detail = ref(null)
+const detailLoading = ref(false)
 const feedback = ref('')
 const feedbackType = ref('info')
 const toast = ref(false)
@@ -65,6 +67,15 @@ async function load(kind = activeTab.value, force = false) {
 function refreshAction() { return load(activeTab.value, true) }
 function invalidate() {
   loaded.value = { available: false, installed: false, upgradable: false }
+}
+async function openDetail(item) {
+  detail.value = { ...item, info: null }
+  detailLoading.value = true
+  try {
+    const info = await readPackageInfo(props.client, item.name)
+    if (detail.value?.name === item.name) detail.value = { ...item, info }
+  } catch (e) { notify('软件包详情读取失败：' + shortError(e), 'warning') }
+  finally { detailLoading.value = false }
 }
 function requestAction(action, name = '') {
   if (busyAction.value) return
@@ -195,8 +206,11 @@ defineExpose({ refreshAction })
       <v-card-text>
         <div class="d-flex align-start justify-space-between ga-2">
           <div style="min-width:0;overflow-wrap:anywhere">
-            <strong>{{ item.name }}</strong>
-            <div class="text-caption text-medium-emphasis">{{ item.version }}</div>
+            <v-btn variant="text" density="compact" class="pa-0" style="height:auto;min-width:0;text-transform:none;letter-spacing:normal"
+              @click="openDetail(item)"><strong style="overflow-wrap:anywhere">{{ item.name }}</strong></v-btn>
+            <div class="text-caption text-medium-emphasis">
+              <span v-if="item.installedVersion">{{ item.installedVersion }} → </span>{{ item.version }}
+            </div>
           </div>
           <v-btn size="small" variant="tonal"
             :color="packageAction === 'remove' ? 'error' : 'primary'"
@@ -212,6 +226,27 @@ defineExpose({ refreshAction })
         <v-expansion-panel-text><pre style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px">{{ output }}</pre></v-expansion-panel-text>
       </v-expansion-panel>
     </v-expansion-panels>
+    <v-dialog :model-value="Boolean(detail)" max-width="560" @update:model-value="!$event && (detail = null)">
+      <v-card rounded="xl">
+        <v-card-title style="overflow-wrap:anywhere">{{ detail?.name }}</v-card-title>
+        <v-progress-linear v-if="detailLoading" indeterminate color="primary"/>
+        <v-card-text v-if="detail">
+          <div class="text-body-2 mb-2">版本：{{ detail.info?.Version || detail.version }}</div>
+          <div v-if="detail.info?.Size" class="text-body-2 mb-2">下载大小：{{ (Number(detail.info.Size) / 1024).toFixed(1) }} KiB</div>
+          <div v-if="detail.info?.['Installed-Size']" class="text-body-2 mb-2">安装大小：{{ (Number(detail.info['Installed-Size']) / 1024).toFixed(1) }} KiB</div>
+          <div v-if="detail.info?.Architecture" class="text-body-2 mb-2">架构：{{ detail.info.Architecture }}</div>
+          <div v-if="detail.info?.Depends" class="text-body-2 mb-2" style="overflow-wrap:anywhere">依赖：{{ detail.info.Depends }}</div>
+          <p class="text-body-2" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ detail.info?.Description || detail.description }}</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn variant="text" @click="detail = null">关闭</v-btn>
+          <v-btn color="primary" :disabled="busyAction" @click="requestAction(packageAction, detail.name); detail = null">
+            {{ packageAction === 'remove' ? '卸载…' : packageAction === 'upgrade' ? '更新…' : '安装…' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
     <v-dialog v-model="configOpen" max-width="620">
       <v-card rounded="xl">
         <v-card-title>配置 opkg</v-card-title>
