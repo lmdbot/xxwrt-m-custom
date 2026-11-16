@@ -1463,8 +1463,11 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await expect(select).toHaveValue(/EQOS/)
     await expect(modal.getByRole('spinbutton', { name: '下载限速 (Mbps)' })).toBeVisible()
 
-    // Selecting HQoS must switch units and load that MAC's native rule.
-    await select.click()
+    // Vuetify paints a selection text span over its native combobox input.
+    // Click the user-visible selection, not the obscured input itself.
+    const selectionText = modal.locator('.v-select__selection-text')
+    await expect(selectionText).toBeVisible()
+    await selectionText.click()
     await page.getByRole('option', { name: /QWRT HQoS/ }).click()
     const down = modal.getByRole('spinbutton', { name: '下载限速 (kbps)' })
     const up = modal.getByRole('spinbutton', { name: '上传限速 (kbps)' })
@@ -1482,7 +1485,7 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await expect(down).toHaveValue('8192')
 
     // EQOS is still independent and must retain its Mbps editor.
-    await select.click()
+    await selectionText.click()
     await page.getByRole('option', { name: /EQOS/ }).click()
     await expect(modal.getByRole('spinbutton', { name: '下载限速 (Mbps)' })).toBeVisible()
     await expect(modal.getByRole('spinbutton', { name: '并发连接数' })).toHaveCount(0)
