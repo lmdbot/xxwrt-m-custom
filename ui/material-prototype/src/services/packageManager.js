@@ -123,3 +123,22 @@ export async function readDiskSpace(client) {
 export async function installPackageUrl(client, url) {
   return exec(client, ['install', validateOpkgUrl(url)], { timeout: 180000 })
 }
+
+export async function uploadPackageFile(client, file) {
+  if (!file || !/\.ipk$/i.test(file.name)) throw new Error('请选择 .ipk 安装包')
+  if (file.size <= 0 || file.size > 8 * 1024 * 1024)
+    throw new Error('上传文件大小须在 0～8 MiB 之间')
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 16384) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 16384))
+  }
+  const path = '/tmp/xxwrt-package-' + Date.now() + '.ipk'
+  // rpcd file.write accepts base64:true and decodes data into binary bytes.
+  await client.call('file', 'write', { path, data: btoa(binary), base64: true, mode: 384 })
+  try {
+    return await exec(client, ['install', path], { timeout: 180000 })
+  } finally {
+    try { await client.call('file', 'remove', { path }) } catch { /* temporary file may remain until reboot */ }
+  }
+}

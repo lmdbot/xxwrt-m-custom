@@ -14,7 +14,7 @@ export const APP_CATEGORIES = Object.freeze([
   { id: 'services', title: '服务与插件', icon: 'mdi-puzzle-outline',
     ids: ['lucky', 'vlmcsd', 'wechatpush', 'detector', 'carbon'] },
   { id: 'system', title: '系统工具', icon: 'mdi-tools',
-    ids: ['routes', 'process', 'startup', 'wol'] },
+    ids: ['routes', 'process', 'startup', 'wol', 'packages'] },
   { id: 'maintenance', title: '设备维护', icon: 'mdi-cog-outline',
     ids: ['reboot', 'reset'] }
 ])

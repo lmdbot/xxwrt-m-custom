@@ -58,7 +58,7 @@ export class RouterClient {
     return method === 'GET' ? CapacitorHttp.get(options) : CapacitorHttp.post(options)
   }
 
-  async request(data) {
+  async request(data, readTimeout = 12000) {
     let response
     try {
       response = await this.httpRequest('POST', {
@@ -66,7 +66,7 @@ export class RouterClient {
         data,
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         connectTimeout: 8000,
-        readTimeout: 12000
+        readTimeout
       })
     } catch (e) {
       throw new Error('无法连接 ' + this.baseUrl + '：' + shortError(e))
@@ -190,6 +190,11 @@ export class RouterClient {
   async call(object, method, args = {}, optional = false) {
     if (!this.session) throw new Error('尚未登录')
     return this.unpack(await this.request(this.envelope(object, method, args)), optional)
+  }
+
+  async callLong(object, method, args = {}, readTimeout = 120000) {
+    if (!this.session) throw new Error('尚未登录')
+    return this.unpack(await this.request(this.envelope(object, method, args), readTimeout))
   }
 
   async batch(entries) {

@@ -21,6 +21,7 @@ import VlmcsdPanel from './components/VlmcsdPanel.vue'
 import CompactManagementLists from './components/CompactManagementLists.vue'
 import NetworkHardwareList from './components/NetworkHardwareList.vue'
 import NetworkInterfacesPanel from './components/NetworkInterfacesPanel.vue'
+import PackageManagerPanel from './components/PackageManagerPanel.vue'
 import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
@@ -636,6 +637,7 @@ const parentalForm = reactive({ enable: false, record_enable: false, work_mode: 
 const parentalSaving = ref(false)
 const networkHardware = ref({ wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] })
 const networkInterfacesPanel = ref(null)
+const packageManagerPanel = ref(null)
 const networkView = ref('interfaces')
 const networkInterfaces = computed(() =>
   (snapshot.value?.interfaces || []).filter(item => item.interface !== 'loopback'))
@@ -664,6 +666,7 @@ const legacyTools = [
   { id: 'parental', title: '家长控制', subtitle: '应用过滤与访问规则', icon: 'mdi-shield-account-outline' },
   { id: 'routes', title: '路由表', subtitle: '静态与运行路由', icon: 'mdi-routes' },
   { id: 'process', title: '进程', subtitle: '系统运行进程', icon: 'mdi-format-list-bulleted' },
+  { id: 'packages', title: '软件包', subtitle: 'opkg 安装、卸载、更新与配置', icon: 'mdi-package-variant-closed' },
   { id: 'startup', title: '启动项', subtitle: '开机启动服务', icon: 'mdi-power-plug-outline' },
   { id: 'wol', title: '网络唤醒', subtitle: '远程唤醒终端', icon: 'mdi-lan-connect' },
   { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
@@ -1377,7 +1380,7 @@ async function showLegacyTool(toolId, { force = false } = {}) {
   if (toolId === 'wol') wolLoadStatus.value = 'loading'
   toolPanel.value = toolId
   toolMessage.value = ''
-  if (toolId === 'parental' || toolId === 'lucky' || toolId === 'vlmcsd' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
+  if (toolId === 'parental' || toolId === 'lucky' || toolId === 'vlmcsd' || toolId === 'packages' || routerAppToolIds.includes(toolId) || (isSystemList && !needsFetch)) return
   toolLoading.value = true
   try {
     if (toolId === 'startup') {
@@ -1423,6 +1426,10 @@ async function showLegacyTool(toolId, { force = false } = {}) {
 }
 
 function refreshCurrentTool() {
+  if (toolPanel.value === 'packages') {
+    void packageManagerPanel.value?.refreshAction()
+    return
+  }
   if (toolPanel.value === 'vlmcsd') {
     void vlmcsdPanel.value?.refreshAction()
     return
@@ -2436,6 +2443,7 @@ onUnmounted(() => {
                 ref="routerAppsPanel" :client="client" :kind="toolPanel"/>
               <LuckyPanel v-if="toolPanel === 'lucky' && client" ref="luckyPanel" :client="client"/>
               <VlmcsdPanel v-if="toolPanel === 'vlmcsd' && client" ref="vlmcsdPanel" :client="client"/>
+              <PackageManagerPanel v-if="toolPanel === 'packages' && client" ref="packageManagerPanel" :client="client"/>
               </v-card>
             </template>
           </template>
