@@ -856,7 +856,25 @@ const appSearch = ref('')
 const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
-const appCategories = computed(() => groupVisibleApps(visibleLegacyTools.value))
+// V3 information architecture: a feature has one canonical home. The
+// favorites/search still accept legacy IDs, so existing per-router shortcuts
+// continue working after the redesign without changing RPC handlers.
+const V3_TOOL_GROUPS = [
+  { id: 'plugins', title: '插件中心', icon: 'mdi-puzzle-outline',
+    ids: ['ssr', 'openclash', 'lucky', 'wechatpush', 'vlmcsd', 'detector', 'carbon'] },
+  { id: 'system', title: '系统管理', icon: 'mdi-cog-outline',
+    ids: ['packages', 'services', 'process', 'startup', 'cron'] },
+  { id: 'diagnostics', title: '诊断与安全', icon: 'mdi-shield-check-outline',
+    ids: ['diagnostics', 'logs', 'security', 'audit', 'capabilities'] },
+  { id: 'maintenance', title: '维护与备份', icon: 'mdi-backup-restore',
+    ids: ['backup', 'reboot', 'reset'] }
+]
+const appCategories = computed(() => {
+  const byId = new Map(visibleLegacyTools.value.map(tool => [tool.id, tool]))
+  return V3_TOOL_GROUPS.map(group => ({
+    ...group, tools: group.ids.map(id => byId.get(id)).filter(Boolean)
+  })).filter(group => group.tools.length)
+})
 const networkFeatureTools = computed(() => visibleLegacyTools.value.filter(tool =>
   ['routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'].includes(tool.id)))
 const appSearchResults = computed(() => searchAppTools(visibleLegacyTools.value, appSearch.value))
