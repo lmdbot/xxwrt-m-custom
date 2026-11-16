@@ -978,6 +978,49 @@ watch(dark, v => {
 // tool begins at the top; returning to the app hub restores its prior position.
 const pageScrollPositions=new Map()
 let pageScrollSequence=0
+let cancelPendingHubScrollRestore=null
+function stopPendingHubScrollRestore(){
+  cancelPendingHubScrollRestore?.()
+  cancelPendingHubScrollRestore=null
+}
+// App categories animate their height when re-mounted. A two-frame restore
+// can be clamped against the temporarily short page and remain 60-100px off.
+// Follow actual hub size changes, but stop on navigation or manual interaction
+// so we never drag the user back after they begin scrolling.
+function keepHubScrollRestored(position,sequence){
+  if(position<=0||typeof ResizeObserver==='undefined')return
+  const hub=document.querySelector('.app-hub')
+  if(!hub)return
+  let stopped=false,scheduled=false
+  const userEvents=['touchstart','wheel','pointerdown','keydown']
+  const stop=()=>{
+    if(stopped)return
+    stopped=true
+    observer.disconnect()
+    clearTimeout(timeout)
+    for(const event of userEvents)window.removeEventListener(event,stop)
+    if(cancelPendingHubScrollRestore===stop)cancelPendingHubScrollRestore=null
+  }
+  const restore=()=>{
+    if(stopped||sequence!==pageScrollSequence){stop();return}
+    restorePageScroll(position)
+  }
+  const observer=new ResizeObserver(()=>{
+    if(stopped||scheduled)return
+    scheduled=true
+    requestAnimationFrame(()=>{
+      scheduled=false
+      restore()
+    })
+  })
+  const timeout=setTimeout(()=>{
+    restore()
+    stop()
+  },600)
+  for(const event of userEvents)window.addEventListener(event,stop,{passive:true})
+  cancelPendingHubScrollRestore=stop
+  observer.observe(hub)
+}
 function currentScrollNodes(){
   return [...new Set([document.scrollingElement,document.documentElement,
     document.body,document.querySelector('.v-application'),
@@ -1016,20 +1059,26 @@ watch([activeTab,toolPanel,viewMode,settingsOpen,settingsCategory,selectedDevice
     const to=scrollRouteKey(next)
     const from=previous?scrollRouteKey(previous):null
     if(from===to)return
+    stopPendingHubScrollRestore()
     // The sync watcher runs before Vue replaces the current page.
     if(from)pageScrollPositions.set(from,readPageScroll())
     resetPageScroll()
     const sequence=++pageScrollSequence
     await nextTick()
     if(sequence!==pageScrollSequence)return
+    const savedPosition=pageScrollPositions.get(to)||0
     const restore=()=>{
       if(sequence!==pageScrollSequence)return
-      restorePageScroll(pageScrollPositions.get(to)||0)
+      restorePageScroll(savedPosition)
     }
     requestAnimationFrame(()=>{
       restore()
       requestAnimationFrame(()=>{
         restore()
+        // Returning from an app tool re-mounts expanded lists. Restore again
+        // as their height settles instead of retaining the early clamp.
+        if(to.endsWith(':apps:hub')&&from?.includes(':apps:')&&savedPosition>0)
+          keepHubScrollRestored(savedPosition,sequence)
         if (sequence !== pageScrollSequence || !effectiveMotion.value || document.hidden) return
         const motion = describeNavigationMotion(previous,next)
         if (!motion) return
@@ -1905,6 +1954,7 @@ onMounted(() => {
   }, METRIC_INTERVAL_MS)
 })
 onUnmounted(() => {
+  stopPendingHubScrollRestore()
   cancelMotionAnimations()
   localizationController?.dispose()
   if (nativeBackSubscription) void nativeBackSubscription.remove()
