@@ -894,3 +894,40 @@
 .xxwrt-v3.theme-is-dark .v3-design-a-hero p{color:#aab9ce}
 .xxwrt-v3.theme-is-dark .v3-design-a-notice.is-warning{
   background:#49351d;color:#ffd79f}
+
+
+/* Design A live monitor: four authentic KPI readings, real chart and short list. */
+.xxwrt-v3 .v3-design-a-monitor .v3-monitor-kpis{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px;margin:12px 0}
+.xxwrt-v3 .v3-monitor-kpis>div{display:flex;flex-direction:column;gap:5px;
+  min-width:0;padding:10px 7px;border:1px solid var(--ui-border);
+  background:var(--ui-surface);border-radius:14px}
+.xxwrt-v3 .v3-monitor-kpis small{font-size:10px;color:var(--ui-muted);line-height:1.35}
+.xxwrt-v3 .v3-monitor-kpis strong{font-size:clamp(12px,3.7vw,18px);
+  line-height:1.4;font-variant-numeric:tabular-nums;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xxwrt-v3 .v3-monitor-traffic-card{padding:15px!important;
+  border:1px solid var(--ui-border);background:var(--ui-surface);
+  border-radius:18px!important;box-shadow:0 10px 30px rgba(36,74,120,.05)!important}
+.xxwrt-v3 .v3-design-a-monitor .v3-rates{margin:0 0 12px;font-weight:700;
+  color:var(--ui-primary);font-size:12px}
+.xxwrt-v3 .v3-design-a-monitor .v3-rates span:last-child{color:var(--ui-success)}
+.xxwrt-v3 .v3-monitor-unknown{
+  font-size:11px;line-height:1.65;color:var(--ui-muted);
+  padding:12px 0;margin:0}
+.xxwrt-v3 .v3-monitor-interface-selector{margin-top:12px;color:var(--ui-muted)}
+.xxwrt-v3 .v3-monitor-interface-selector summary{
+  display:flex;align-items:center;gap:8px;min-height:44px;
+  padding:6px 10px;border-radius:12px;border:1px solid var(--ui-border);
+  background:var(--ui-surface);cursor:pointer;list-style:none;font-size:11px}
+.xxwrt-v3 .v3-monitor-interface-selector summary::-webkit-details-marker{display:none}
+.xxwrt-v3 .v3-monitor-interface-selector summary span{
+  margin-left:auto;color:var(--ui-primary);font-weight:700}
+.xxwrt-v3 .v3-monitor-interface-selector[open] summary .v-icon{transform:rotate(180deg)}
+.xxwrt-v3 .v3-monitor-sampling-note{font-size:11px;line-height:1.65;
+  color:var(--ui-muted);margin:13px 0}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-monitor-kpis>div{padding:9px 5px}
+  .xxwrt-v3 .v3-monitor-kpis strong{font-size:12px}
+}
