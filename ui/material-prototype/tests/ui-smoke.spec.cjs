@@ -585,8 +585,22 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
   await expect(page.getByRole('button', { name: '标准底栏' })).toBeVisible()
   await expect(page.getByRole('button', { name: '液态底栏' })).toBeVisible()
+  const motionSwitch=page.getByRole('switch', { name: '界面动效' })
+  await expect(motionSwitch).toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute('data-xxwrt-motion','on')
+  await motionSwitch.click()
+  await expect(motionSwitch).not.toBeChecked()
+  await expect(page.locator('html')).toHaveAttribute('data-xxwrt-motion','off')
   await page.getByRole('button', { name: '液态底栏' }).click()
   await expect(page.locator('.settings-nav-toggle .v-btn--active')).toContainText('液态')
+  // Turning animations off also replaces the glass shader with static chrome.
+  await expect(page.getByRole('button', { name: '标准底栏' })).toBeVisible()
+  await motionSwitch.click()
+  await expect(page.locator('html')).toHaveAttribute('data-xxwrt-motion','on')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(page.locator('html')).toHaveAttribute('data-xxwrt-motion','off')
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect(page.locator('html')).toHaveAttribute('data-xxwrt-motion','on')
   await page.getByRole('button', { name: '标准底栏' }).click()
   await page.getByRole('button', { name: '深色主题' }).click()
   await expect(page.locator('.theme-is-dark')).toBeVisible()
@@ -1210,6 +1224,28 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('应用管理')).toBeVisible()
   await expect.poll(async()=>Math.abs((await page.evaluate(()=>
     window.scrollY||document.scrollingElement.scrollTop))-hubScroll)).toBeLessThan(30)
+  // Re-tapping the selected Apps root tab returns to top, unlike Back.
+  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect.poll(async()=>page.evaluate(()=>
+    window.scrollY||document.scrollingElement.scrollTop)).toBeLessThan(20)
+  // Opening a tool and tapping Apps must FIRST return to the saved hub spot.
+  await page.evaluate(()=>window.scrollTo(0,Math.min(520,
+    document.scrollingElement.scrollHeight-window.innerHeight)))
+  const savedAppOffset=await page.evaluate(()=>
+    window.scrollY||document.scrollingElement.scrollTop)
+  expect(savedAppOffset).toBeGreaterThan(70)
+  await page.evaluate(()=>{
+    const tool=document.querySelector('button[aria-label="打开日志中心"]')
+    if(!tool)throw new Error('日志中心入口缺失')
+    tool.click()
+  })
+  await expect(page.getByRole('button', { name: '返回应用功能列表' })).toBeVisible()
+  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect.poll(async()=>Math.abs((await page.evaluate(()=>
+    window.scrollY||document.scrollingElement.scrollTop))-savedAppOffset)).toBeLessThan(35)
+  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect.poll(async()=>page.evaluate(()=>
+    window.scrollY||document.scrollingElement.scrollTop)).toBeLessThan(20)
   await page.getByRole('button', { name: '收起设备维护' }).click()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toHaveCount(0)
 
