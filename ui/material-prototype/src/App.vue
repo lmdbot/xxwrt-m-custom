@@ -468,7 +468,6 @@ function closeAppTool() {
   if (routerAppToolIds.includes(toolPanel.value) && routerAppsPanel.value?.handleBack?.()) return
   toolPanel.value = ''
   toolMessage.value = ''
-  resetPageScroll()
 }
 const client = shallowRef(null)
 const connected = ref(false)
@@ -675,7 +674,7 @@ const softwarePackagesPanel = ref(null)
 const routerOperationsPanel = ref(null)
 const routerOperationsToolIds = ['diagnostics', 'logs', 'backup', 'dnsdhcp', 'services']
 const advancedManagementPanel = ref(null)
-const advancedToolIds = ['ddns', 'cron', 'capabilities', 'audit', 'trends', 'topology', 'security']
+const advancedToolIds = ['ddns', 'cron', 'capabilities', 'audit', 'trends', 'security']
 const installedRouterApps = ref(null)
 const installedRouterAppsLoading = ref(false)
 let installedRouterAppsRequest = 0
@@ -758,7 +757,6 @@ const legacyTools = [
   { id: 'capabilities', title: '系统能力识别', subtitle: 'OpenWrt / QWRT 插件与 RPC 能力', icon: 'mdi-shield-check-outline' },
   { id: 'audit', title: '操作记录', subtitle: '脱敏的统一变更审计日志', icon: 'mdi-clipboard-text-clock-outline' },
   { id: 'trends', title: '长期趋势', subtitle: '30 天本地历史采样与曲线', icon: 'mdi-chart-line' },
-  { id: 'topology', title: '设备拓扑', subtitle: 'LLDP、Wi-Fi 与邻居链路可视化', icon: 'mdi-lan-connect' },
   { id: 'security', title: '安全分析', subtitle: '认证失败、防火墙及扫描事件', icon: 'mdi-security' },
   { id: 'ssr', title: 'ShadowSocksR Plus+', subtitle: '代理节点与服务管理', icon: 'mdi-rocket-launch-outline' },
   { id: 'lucky', title: 'Lucky', subtitle: '运行状态、访问规则与备份维护', icon: 'mdi-clover' },
@@ -919,23 +917,57 @@ watch(dark, v => {
   theme.global.name.value = v ? 'dark' : 'light'
   syncNativeChrome(v)
 }, { immediate: true })
-// Tab and subpage destinations must not inherit the scroll offset of a
-// previously visited screen. The WebView scrolls the document, not each tab.
-function resetPageScroll() {
-  // Android WebView may use documentElement, body or the application root as
-  // the actual scrolling element. Reset before tab change and after rendering.
-  for (const node of [document.scrollingElement, document.documentElement, document.body,
-    document.querySelector('.v-application'), document.querySelector('.v-main')]) {
-    if (node && node.scrollTop) node.scrollTop = 0
-  }
-  window.scrollTo(0, 0)
+// Route-specific scroll offsets are in memory only. Switching to a child
+// tool begins at the top; returning to the app hub restores its prior position.
+const pageScrollPositions=new Map()
+let pageScrollSequence=0
+function currentScrollNodes(){
+  return [...new Set([document.scrollingElement,document.documentElement,
+    document.body,document.querySelector('.v-application'),
+    document.querySelector('.v-main')].filter(Boolean))]
 }
-watch([activeTab, toolPanel, viewMode, settingsOpen, settingsCategory], async () => {
-  resetPageScroll()
-  await nextTick()
-  resetPageScroll()
-  requestAnimationFrame(resetPageScroll)
-}, { flush: 'sync' })
+function readPageScroll(){
+  return Math.max(0,window.scrollY||0,
+    ...currentScrollNodes().map(node=>Number(node.scrollTop)||0))
+}
+function resetPageScroll(){
+  for(const node of currentScrollNodes())node.scrollTop=0
+  window.scrollTo(0,0)
+}
+function restorePageScroll(position){
+  const y=Math.max(0,Math.floor(Number(position)||0))
+  for(const node of currentScrollNodes()){
+    if(node.scrollHeight>node.clientHeight+1)node.scrollTop=y
+  }
+  window.scrollTo(0,y)
+}
+function scrollRouteKey([tab,tool,mode,settings,category,device]){
+  if(settings)return 'settings:'+String(category||'root')
+  if(mode==='list')return 'device-list'
+  return ['router',String(device||'unknown'),String(tab||'home'),
+    tab==='apps'?(tool||'hub'):'root'].join(':')
+}
+watch([activeTab,toolPanel,viewMode,settingsOpen,settingsCategory,selectedDeviceId],
+  async (next,previous)=>{
+    const to=scrollRouteKey(next)
+    const from=previous?scrollRouteKey(previous):null
+    if(from===to)return
+    // The sync watcher runs before Vue replaces the current page.
+    if(from)pageScrollPositions.set(from,readPageScroll())
+    resetPageScroll()
+    const sequence=++pageScrollSequence
+    await nextTick()
+    if(sequence!==pageScrollSequence)return
+    const restore=()=>{
+      if(sequence!==pageScrollSequence)return
+      restorePageScroll(pageScrollPositions.get(to)||0)
+    }
+    requestAnimationFrame(()=>{
+      restore()
+      // Native WebView sometimes lays out the content in a second frame.
+      requestAnimationFrame(restore)
+    })
+  },{flush:'sync'})
 function navigateBottomTab(tab) {
   // Vuetify may emit null when the already selected navigation button is
   // tapped. Ignore deselection; a tab must always remain selected.
@@ -952,11 +984,9 @@ function navigateBottomTab(tab) {
     if (tab === 'apps' && toolPanel.value) {
       toolPanel.value = ''
       toolMessage.value = ''
-      resetPageScroll()
     }
     return
   }
-  resetPageScroll()
   activeTab.value = tab
 }
 watch(activeTab, (tab) => {

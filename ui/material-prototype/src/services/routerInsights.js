@@ -1,5 +1,3 @@
-import { readWolDevices } from './router.js'
-import { readWirelessStations } from './telemetry.js'
 import { readRouterLogs } from './routerOperations.js'
 
 export const METRIC_STORE_KEY = 'xxwrt_metrics_history_v1'
@@ -98,130 +96,99 @@ export function trendSegments(points, minTime, maxTime, maxValue=100, maxGapMs=1
   if(current.length)out.push(current)
   return out.map(seg=>seg.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' '))
 }
-const SAFE_MAC=/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/
-function parseLldpResponse(raw) {
-  if (!raw || typeof raw.stdout!=='string' || Number(raw.code??1)!==0) return []
-  let obj
-  try { obj=JSON.parse(raw.stdout) } catch (_) { return [] }
-  const root=obj.lldp?.interface || obj.interface || {}
-  const result=[]
-  for (const [iface,rawPeer] of Object.entries(root)) {
-    if (!/^[A-Za-z0-9_.:-]{1,32}$/.test(iface)) continue
-    const peers=Array.isArray(rawPeer)?rawPeer:[rawPeer]
-    for (const peer of peers) {
-      const label=peer?.chassis?.name?.value || peer?.chassis?.name ||
-        peer?.chassis?.descr?.value || peer?.port?.descr?.value ||
-        peer?.port?.id?.value || ''
-      const name=String(label).slice(0,80)
-      if (name) result.push({
-        id:'lldp-'+iface+'-'+result.length,name,ip:'',mac:'',
-        detail:iface,medium:iface,source:'LLDP 邻居',
-        sources:['lldp'],linkType:'lldp',confirmed:true,status:'observed'
-      })
-    }
-  }
-  return result.slice(0,35)
-}
-const validMac=value=>SAFE_MAC.test(String(value||'').toUpperCase())
-const usefulName=value=>String(value||'').trim() &&
-  !/^(?:未知设备|unknown(?: device)?|--|n\/a)$/i.test(String(value||'').trim())
-const safeText=(value,max=100)=>String(value||'').trim().slice(0,max)
-export function buildTopologyGraph(neighbors=[],wifi=[],lldp=[],leases=[],hints={}) {
-  const byMac=new Map()
-  const add=(raw,source)=>{
-    const mac=safeText(raw?.mac||raw?.macaddr||'',24).toUpperCase()
-    if (!validMac(mac)) return
-    const old=byMac.get(mac)
-    const nextName=safeText(raw?.name||raw?.hostname,80)
-    const name=usefulName(nextName)?nextName:old?.name||'未知设备'
-    const ip=safeText(raw?.ip||raw?.ipaddr||raw?.ip6addr||raw?.address,64)
-    const sources=[...new Set([...(old?.sources||[]),source])]
-    byMac.set(mac,{
-      id:'mac-'+mac,mac,name,ip:ip||old?.ip||'',
-      detail:ip||old?.ip||mac,
-      medium:old?.medium||'接入方式未知',
-      source:sources.includes('dhcp')?'DHCP 租约 / 地址提示':'历史邻居 / 地址提示',
-      sources,linkType:old?.linkType||'inferred',
-      confirmed:old?.confirmed||false,status:old?.status||'unknown'
-    })
-  }
-  for (const item of neighbors||[]) add(item,'hints')
-  for (const [mac,raw] of Object.entries(hints||{})) {
-    if (!validMac(mac)) continue
-    add({mac,name:raw?.name,ip:raw?.ipaddrs?.[0]||raw?.ip6addrs?.[0]},'hints')
-  }
-  const leaseRows=Array.isArray(leases)?leases:[
-    ...(leases?.dhcp_leases||[]),...(leases?.dhcp6_leases||[])
-  ]
-  for (const item of leaseRows) add(item,'dhcp')
-  for (const station of wifi||[]) {
-    const mac=safeText(station?.mac||'',24).toUpperCase()
-    if (!validMac(mac)) continue
-    const old=byMac.get(mac)
-    const sources=[...new Set([...(old?.sources||[]),'wifi'])]
-    byMac.set(mac,{
-      id:'mac-'+mac,mac,name:old?.name||'未知设备',
-      detail:old?.detail||mac,ip:old?.ip||'',
-      medium:'Wi-Fi '+safeText(station.device,32),
-      source:'当前无线关联',sources,linkType:'wifi',
-      confirmed:true,status:'observed'
-    })
-  }
-  const nodes=[...(lldp||[]),...byMac.values()].slice(0,120)
-  return {nodes,confirmed:nodes.filter(x=>x.confirmed).length,
-    inferred:nodes.filter(x=>!x.confirmed).length}
-}
-export async function readRouterTopology(client) {
-  const settled=await Promise.allSettled([
-    readWolDevices(client),
-    readWirelessStations(client),
-    client.call('file','exec',{
-      command:'/usr/sbin/lldpcli',params:['-f','json','show','neighbors'],env:null
-    },true),
-    client.call('luci-rpc','getDHCPLeases',{},true),
-    client.call('luci-rpc','getHostHints',{},true)
-  ])
-  const val=i=>settled[i].status==='fulfilled'?settled[i].value:null
-  const known=val(0),wireless=val(1),lldpReply=val(2)
-  const leases=val(3),hints=val(4)
-  const graph=buildTopologyGraph(known?.known||known?.neighbors||[],
-    wireless?.stations||[],parseLldpResponse(lldpReply),leases,hints)
-  const sources={
-    hints:hints!=null || Array.isArray(known?.known),
-    dhcp:leases!=null,
-    wifi:!!wireless?.available,
-    lldp:!!lldpReply && Number(lldpReply.code??1)===0
-  }
-  return {...graph,sources,
-    note:'Host 提示和 DHCP 租约只能提示设备信息，不能证明当前在线；Wi-Fi 当前关联和 LLDP 邻接是直接观测证据。分组示意连线不是实际物理拓扑。'}
-}
 export const SECURITY_PATTERNS=Object.freeze([
-  {id:'login',name:'登录认证失败',level:'high',expression:/failed password|authentication failure|invalid user|login failed|bad password|unauthorized login/i},
-  {id:'firewall',name:'防火墙拦截',level:'medium',expression:/\b(?:drop|reject|blocked|denied)\b.*(?:SRC=|DPT=|IN=|firewall|nft|iptables)/i},
-  {id:'scan',name:'疑似端口扫描/洪泛',level:'high',expression:/port.?scan|syn.?flood|scan detected|possible scan|nmap probe/i},
-  {id:'dns',name:'DNS Rebind 防护',level:'low',expression:/dns.rebind|rebind protection/i}
+  {id:'login',name:'登录 / 认证失败',level:'high',group:'security',
+    rule:'匹配认证失败、非法用户与口令错误日志',
+    expression:/failed password|authentication failure|invalid user|login failed|bad password|unauthorized login|incorrect password|dropbear.*(?:bad password|failed login|invalid user)/i},
+  {id:'firewall',name:'防火墙拦截记录',level:'medium',group:'security',
+    rule:'匹配带网络字段的 DROP / REJECT / blocked 日志；需启用规则日志',
+    expression:/\b(?:drop|reject|blocked|denied)\b.*(?:SRC=|DPT=|IN=|firewall|nft|iptables)|(?:SRC=|DPT=|IN=).*\b(?:DROP|REJECT)\b/i},
+  {id:'scan',name:'扫描 / 洪泛告警',level:'high',group:'security',
+    rule:'仅匹配明确出现 scan、flood 等告警字样的日志',
+    expression:/port.?scan|syn.?flood|scan detected|possible scan|nmap probe|tcp.*syn.*flood/i},
+  {id:'dns',name:'DNS Rebind 防护',level:'medium',group:'security',
+    rule:'匹配 DNS Rebind 拦截/防护日志',
+    expression:/dns.?rebind|rebind protection|possible dns-rebind/i},
+  {id:'stability',name:'系统稳定性',level:'high',group:'health',
+    rule:'匹配 OOM、内核崩溃、看门狗、分段错误、I/O 故障',
+    expression:/out of memory|oom-killer|killed process.*(?:memory|oom)|kernel panic|watchdog.*(?:timeout|did not stop)|segfault|read-only file system|i\/o error/i},
+  {id:'network',name:'网络连接异常',level:'medium',group:'health',
+    rule:'匹配 WAN 掉线、PPP LCP 终止、DHCP 获取失败或链路超时',
+    expression:/pppd.*(?:timed out|lcp terminated)|wan.*(?:link down|disconnected)|carrier lost|dhcp.*(?:no lease|failed)|netdev watchdog|network.*(?:link down|no carrier)/i},
+  {id:'service',name:'服务 / 运行错误',level:'low',group:'health',
+    rule:'匹配明确的服务启动失败、进程崩溃和常见守护进程错误',
+    expression:/\bservice\b.*(?:failed|crashed)|dnsmasq.*(?:failed|error)|procd.*(?:failed|respawn)|\b(?:daemon|kern|user)\.(?:err|crit|alert|emerg)\b/i}
 ])
+const SERVICE_PATTERNS=Object.freeze([
+  {id:'dnsmasq',name:'DNS / DHCP',regex:/\b(?:dnsmasq|odhcpd)\b/i},
+  {id:'netifd',name:'网络接口',regex:/\b(?:netifd|udhcpc|pppd)\b/i},
+  {id:'dropbear',name:'SSH / 登录',regex:/\b(?:dropbear|sshd|uhttpd)\b/i},
+  {id:'firewall',name:'防火墙',regex:/\b(?:firewall4|fw4|nftables|iptables)\b/i},
+  {id:'wifi',name:'无线网络',regex:/\b(?:hostapd|wpa_supplicant|wpad)\b/i},
+  {id:'services',name:'系统服务',regex:/\b(?:procd|cron|crond|syslogd)\b/i},
+  {id:'kernel',name:'内核 / 驱动',regex:/\b(?:kernel|kern\.)\b/i}
+])
+export function safeLogExcerpt(value) {
+  return String(value||'')
+    .replace(/\b(authorization|password|passwd|token|secret|api[_-]?key)\s*[:=]\s*(?:"[^"]*"|'[^']*'|\S+)/gi,'$1=[已隐藏]')
+    .replace(/:\/\/[^/@\s]+:[^/@\s]+@/g,'://[凭据已隐藏]@')
+    .slice(0,280)
+}
+function severityOf(line) {
+  if (/\b(?:emerg|alert|crit|critical|err|error)\b(?:\s*[:\]])?|(?:^|\s)(?:error|failed):/i.test(line)) return 'error'
+  if (/\b(?:warn|warning)\b(?:\s*[:\]])?/i.test(line)) return 'warning'
+  return 'other'
+}
 export function analyzeSecurityLogs(outputs) {
-  const lines=[...new Set(outputs.flatMap(s=>String(s||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean)))]
-  const events=[]
+  const lines=[...new Set((Array.isArray(outputs)?outputs:[])
+    .flatMap(s=>String(s||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean)))]
+  const events=[],recentNotices=[]
+  const severity={error:0,warning:0,other:0}
+  const serviceCounts=Object.fromEntries(SERVICE_PATTERNS.map(x=>[x.id,0]))
   for(const line of lines) {
+    const level=severityOf(line)
+    severity[level]++
+    const source=SERVICE_PATTERNS.find(x=>x.regex.test(line))
+    if(source)serviceCounts[source.id]++
     const match=SECURITY_PATTERNS.find(x=>x.expression.test(line))
     if(match)events.push({id:match.id,name:match.name,level:match.level,
-      // Retain bounded excerpts only in memory. Do not save them to history or audit.
-      evidence:line.slice(0,320)})
+      group:match.group,evidence:safeLogExcerpt(line)})
+    if(level!=='other'||match)recentNotices.push({
+      level:match?.level||(level==='error'?'high':'low'),
+      name:match?.name||(level==='error'?'错误日志':'警告日志'),
+      evidence:safeLogExcerpt(line),
+      type:match?.id||level
+    })
   }
   const byType=SECURITY_PATTERNS.map(x=>({
-    id:x.id,name:x.name,level:x.level,count:events.filter(e=>e.id===x.id).length
-  })).filter(x=>x.count>0)
-  return {scannedLines:lines.length,events:events.slice(-120),byType,total:events.length}
+    id:x.id,name:x.name,level:x.level,group:x.group,rule:x.rule,
+    count:events.filter(e=>e.id===x.id).length
+  }))
+  const serviceActivity=SERVICE_PATTERNS.map(x=>({
+    id:x.id,name:x.name,count:serviceCounts[x.id]
+  })).sort((a,b)=>b.count-a.count)
+  return {
+    scannedLines:lines.length,
+    events:events.slice(-120),byType,total:events.length,
+    securityTotal:events.filter(e=>e.group==='security').length,
+    healthTotal:events.filter(e=>e.group==='health').length,
+    severity,serviceActivity,
+    recentNotices:recentNotices.slice(-12).reverse()
+  }
 }
 export async function readSecurityReport(client) {
-  const sources=await Promise.allSettled([
-    readRouterLogs(client,'system'),readRouterLogs(client,'kernel')
-  ])
-  const successful=sources.filter(x=>x.status==='fulfilled').map(x=>x.value)
-  if(!successful.length)throw new Error('当前账户无法读取系统或内核日志')
-  return { ...analyzeSecurityLogs(successful.map(x=>x.output)),
-    sources:successful.map(x=>x.source),note:'仅分析当前读取到的日志行；未命中不等于没有入侵事件。规则匹配不是攻击归因。'
-  }
+  const types=['system','kernel']
+  const results=await Promise.allSettled(types.map(type=>readRouterLogs(client,type)))
+  const sources=results.map((result,i)=>({
+    type:types[i],label:types[i]==='system'?'系统日志':'内核日志',
+    available:result.status==='fulfilled'&&!!String(result.value?.output||'').trim(),
+    source:result.status==='fulfilled'?result.value?.source||'':'',
+    lines:result.status==='fulfilled'?
+      String(result.value?.output||'').split(/\r?\n/).filter(Boolean).length:0
+  }))
+  const successful=results.filter(x=>x.status==='fulfilled'&&x.value?.output?.trim())
+    .map(x=>x.value)
+  if(!successful.length)throw new Error('当前账户无法读取到系统和内核日志；请检查 ubus RPC 权限')
+  return {...analyzeSecurityLogs(successful.map(x=>x.output)),sources,
+    note:'仅分析本次取得的日志窗口；未命中不等于没有攻击。部分规则需在路由器启用相应日志后才会出现命中。'}
 }
