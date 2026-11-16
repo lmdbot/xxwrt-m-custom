@@ -316,3 +316,17 @@ test('HQoS global apply failure attempts to restore original settings', async ()
   assert.equal(api.configs.hqos.global.backend, 'auto')
   assert.equal(api.calls.filter(x => x.object === 'uci' && x.method === 'commit').length, 2)
 })
+
+test('HQoS reports engine health errors separately from rpcd permission errors', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '1', backend: 'cpu', interface: 'br-lan'
+  } }, hqosRpc: { status: {
+    enabled: true, supported: true, running: false,
+    error: 'Configured QoS queues or connection admission rules are inactive',
+    backend: 'cpu', capabilities: { max_rate: 10000000 }
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  assert.equal(settings.backend, 'hqos')
+  assert.equal(settings.hqosStatus.rpcReady, true)
+  assert.match(settings.hqosStatus.error, /queues/)
+})
