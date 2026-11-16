@@ -243,7 +243,7 @@ function nodeSourceDetail(node){
             <v-icon :icon="expanded===node.id?'mdi-chevron-up':'mdi-chevron-down'" size="18"/>
           </button>
           <div v-if="expanded===node.id" class="topo-device-details">
-            <div>原始名称：{{node.name===node.source?'--':(node.source==='LLDP 邻居'?node.name:node.name)}}</div>
+            <div>原始名称：{{node.rawName}}</div>
             <div>数据来源：{{nodeSourceDetail(node)}}</div>
             <div>接入信息：{{node.medium||'未知'}}</div>
             <div>链路状态：{{node.observation}}</div>

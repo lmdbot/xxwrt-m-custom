@@ -41,7 +41,7 @@ export function topologyViewNodes(nodes=[]) {
     const ip=String(raw.ip||'').trim().slice(0,64)
     const mac=MAC.test(String(raw.mac||''))?String(raw.mac).toUpperCase():''
     return {
-      ...raw,name,category,ip,mac,sources,confirmed:direct,linkType,
+      ...raw,name,rawName:String(raw.name||'').trim()||'未知设备',category,ip,mac,sources,confirmed:direct,linkType,
       // Never equate an address hint or an unexpired lease with being online.
       observation:direct?(linkType==='wifi'?'当前 Wi-Fi 关联':'LLDP 邻接'):'在线状态未知',
       identityKnown:category!=='unknown',
