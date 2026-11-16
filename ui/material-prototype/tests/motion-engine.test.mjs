@@ -8,10 +8,18 @@ const route = (tab='home', tool='', mode='detail', settings=false, category='dis
   [tab,tool,mode,settings,category,device]
 
 test('five root tabs animate in destination direction; no motion for same route',()=>{
-  assert.deepEqual(TAB_ORDER,['home','statistics','clients','network','apps'])
+  assert.deepEqual(TAB_ORDER,['home','clients','network','apps','more'])
   assert.deepEqual(describeNavigationMotion(route('home'),route('network')),
     {kind:'navigation',direction:1})
   assert.deepEqual(describeNavigationMotion(route('apps'),route('statistics')),
+    {kind:'navigation',direction:-1})
+  assert.deepEqual(describeNavigationMotion(route('home'),route('more')),
+    {kind:'navigation',direction:1})
+  assert.deepEqual(describeNavigationMotion(route('more'),route('clients')),
+    {kind:'navigation',direction:-1})
+  assert.deepEqual(describeNavigationMotion(route('home'),route('statistics')),
+    {kind:'navigation',direction:1})
+  assert.deepEqual(describeNavigationMotion(route('statistics'),route('home')),
     {kind:'navigation',direction:-1})
   assert.equal(describeNavigationMotion(route('apps'),route('apps')),null)
 })

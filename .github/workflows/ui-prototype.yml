@@ -19,6 +19,10 @@ on:
       - ".github/workflows/ui-prototype.yml"
       - ".github/workflows/ui-android-preview.yml"
 
+concurrency:
+  group: material-ui-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -67,6 +71,10 @@ jobs:
       - name: Install Chromium for pre-merge UI regression checks
         if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
         run: npx playwright install --with-deps chromium
+
+      - name: Verify V3 navigation, settings and locale smoke first
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/xxwrt-v3-redesign'
+        run: npx playwright test tests/v3-navigation.spec.cjs --retries=0
 
       - name: Verify pre-merge Android-sized UI interactions
         if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'

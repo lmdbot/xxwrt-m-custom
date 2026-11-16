@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useDisplay } from 'vuetify'
 import { shortError } from '../services/router.js'
 import {
   EDITABLE_PROTOCOLS, NETWORK_APPLY_TIMEOUT, PROTOCOL_LABELS,
@@ -15,6 +16,7 @@ const props = defineProps({
   validSeconds: { type: Function, required: true }
 })
 const emit = defineEmits(['refresh'])
+const { smAndDown } = useDisplay()
 const networkConfig = ref(null)
 const dhcpConfig = ref(null)
 const loading = ref(false)
@@ -263,7 +265,7 @@ defineExpose({ refreshAction, handleBack })
     </v-card>
     <v-alert v-if="!interfaces.length" type="info" variant="tonal" density="compact">暂未获取到网络接口。</v-alert>
 
-    <v-dialog v-model="editorOpen" max-width="590" persistent>
+    <v-dialog v-model="editorOpen" :fullscreen="smAndDown" max-width="590" persistent class="v3-network-editor-dialog">
       <v-card v-if="editor" rounded="xl" class="network-interface-editor">
         <v-card-title class="d-flex align-center justify-space-between ga-2">
           <span>配置网络接口 · {{ current }}</span>

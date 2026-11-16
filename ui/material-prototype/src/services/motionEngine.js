@@ -1,5 +1,6 @@
 // Motion primitives for user-driven navigation. Never triggered by telemetry.
-export const TAB_ORDER = Object.freeze(['home', 'statistics', 'clients', 'network', 'apps'])
+// V3 has five root tabs; statistics is a detail screen under Overview.
+export const TAB_ORDER = Object.freeze(['home', 'clients', 'network', 'apps', 'more'])
 export const MOTION_DURATIONS = Object.freeze({ navigation: 270, section: 210 })
 export const MOTION_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 
@@ -16,7 +17,13 @@ export function describeNavigationMotion(previous, next) {
   if (fromDevice !== toDevice)
     return {kind: 'navigation', direction: 1}
   if (fromTab !== toTab) {
-    const before = TAB_ORDER.indexOf(fromTab), after = TAB_ORDER.indexOf(toTab)
+    // Opening detailed monitoring is a drill-down, not a sixth root tab.
+    if (fromTab === 'home' && toTab === 'statistics')
+      return {kind: 'navigation', direction: 1}
+    if (fromTab === 'statistics' && toTab === 'home')
+      return {kind: 'navigation', direction: -1}
+    const before = TAB_ORDER.indexOf(fromTab === 'statistics' ? 'home' : fromTab)
+    const after = TAB_ORDER.indexOf(toTab === 'statistics' ? 'home' : toTab)
     if (before < 0 || after < 0) return null
     return {kind: 'navigation', direction: after > before ? 1 : -1}
   }

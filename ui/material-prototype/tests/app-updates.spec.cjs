@@ -2,11 +2,11 @@ const { test, expect } = require('@playwright/test')
 const { version: localAppVersion } = require('../package.json')
 async function openAbout(page) {
   await page.goto('/')
-  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '我的', exact: true }).click()
   await page.getByRole('button', { name: '打开关于' }).click()
 }
 test('about displays newer official APK and filters prereleases', async ({ page }) => {
-  const tag='v2.21.0',name='XX-WRT-Material-'+tag+'.apk'
+  const tag='v3.0.1',name='XX-WRT-Material-'+tag+'.apk'
   await page.route('https://update.12130812.xyz/version.json',route=>
     route.fulfill({status:503,contentType:'application/json',
       headers:{'Access-Control-Allow-Origin':'*'},body:'{}'}))
@@ -22,7 +22,7 @@ test('about displays newer official APK and filters prereleases', async ({ page 
         }]}
       ])}))
   await openAbout(page)
-  await expect(page.getByText('发现新版本 v2.21.0',{exact:false})).toBeVisible()
+  await expect(page.getByText('发现新版本 v3.0.1',{exact:false})).toBeVisible()
   await expect(page.getByRole('button',{name:'下载最新 APK'})).toBeEnabled()
   await expect(page.getByText('v'+localAppVersion,{exact:true}).first()).toBeVisible()
 })
@@ -56,7 +56,7 @@ test('about opens MIT and third-party licensing information offline', async ({ p
 
 
 test('Aliyun static manifest is preferred over GitHub API', async ({ page }) => {
-  const version='2.21.0', tag='v'+version, name='XX-WRT-Material-'+tag+'.apk'
+  const version='3.0.1', tag='v'+version, name='XX-WRT-Material-'+tag+'.apk'
   let githubCalls=0
   await page.route('https://api.github.com/repos/lmdbot/xxwrt-m-custom/releases?*', route => {
     githubCalls++
@@ -73,13 +73,13 @@ test('Aliyun static manifest is preferred over GitHub API', async ({ page }) => 
         apkSize:7115152,sha256:'a'.repeat(64)
       })}))
   await openAbout(page)
-  await expect(page.getByText('发现新版本 v2.21.0',{exact:false})).toBeVisible()
+  await expect(page.getByText('发现新版本 v3.0.1',{exact:false})).toBeVisible()
   await expect(page.getByText('阿里云',{exact:true})).toBeVisible()
   expect(githubCalls).toBe(0)
 })
 
 test('version changelog displays Aliyun manifest notes without requesting GitHub', async ({ page }) => {
-  const version = '2.21.0', tag = 'v' + version, name = 'XX-WRT-Material-' + tag + '.apk'
+  const version = '3.0.1', tag = 'v' + version, name = 'XX-WRT-Material-' + tag + '.apk'
   let githubCalls = 0
   await page.route('https://api.github.com/repos/lmdbot/xxwrt-m-custom/releases**', route => {
     githubCalls++
@@ -94,7 +94,7 @@ test('version changelog displays Aliyun manifest notes without requesting GitHub
         releaseUrl: 'https://github.com/lmdbot/xxwrt-m-custom/releases/tag/' + tag,
         githubApkUrl: 'https://github.com/lmdbot/xxwrt-m-custom/releases/download/' + tag + '/' + name,
         apkSize: 7115152, sha256: 'a'.repeat(64),
-        releaseNotes: '# v2.21.0\n## 新功能\n- 阿里云变更日志'
+        releaseNotes: '# v3.0.1\n## 新功能\n- 阿里云变更日志'
       })
     }))
   await openAbout(page)
@@ -109,7 +109,7 @@ test('version changelog displays Aliyun manifest notes without requesting GitHub
 })
 
 test('legacy Aliyun manifest fetches exact-tag changelog from GitHub', async ({ page }) => {
-  const version = '2.21.0', tag = 'v' + version, name = 'XX-WRT-Material-' + tag + '.apk'
+  const version = '3.0.1', tag = 'v' + version, name = 'XX-WRT-Material-' + tag + '.apk'
   let tagCalls = 0
   await page.route('https://update.12130812.xyz/version.json', route =>
     route.fulfill({ status: 200, contentType: 'application/json',

@@ -2,20 +2,20 @@
 
 **面向 QWRT / OpenWrt 的 Android 路由器管理应用**。提供多设备管理、系统监控、终端与网络信息查看，以及常用路由器服务和插件的集中管理。界面基于 Material Design，支持标准与 Liquid Glass 两种底部导航样式。
 
-项目当前以 **Material 2.0** 为主线，应用通过路由器的 **ubus JSON-RPC、UCI 及已授权的插件接口**获取数据和执行操作。可用功能取决于路由器固件、已安装插件和 RPC 权限。
+当前 `feature/xxwrt-v3-redesign` 分支正在实施 **Material 3.0 候选版**；正式 `main` 仍以已发布版本为准，未经完整 Android 测试前不会发布，应用通过路由器的 **ubus JSON-RPC、UCI 及已授权的插件接口**获取数据和执行操作。可用功能取决于路由器固件、已安装插件和 RPC 权限。
 
 ## 项目宣传图
 
 [![XX-WRT Material 2.0 宣传海报](docs/screenshots/material-2.0-poster.webp)](docs/screenshots/material-2.0-poster-full.webp)
 
-> 由当前 Material 2.0 的六张界面截图组合制作。截图中的路由器、终端及网络指标为 UI 测试示例数据。点击海报可查看高清原图；也可在下方[界面预览](#界面预览)查看各页面截图。
+> 以下为 Material 2.0 历史版本的六张界面截图，并非 3.0 候选版的真实运行图。截图中的路由器、终端及网络指标为 UI 测试示例数据。点击海报可查看高清原图；也可在下方[界面预览](#界面预览)查看各页面截图。
 
 ## 版本信息
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 应用版本 | **2.0.43** |
-| Android `versionCode` | `2000043` |
+| 应用版本 | **3.0.0（重设计分支候选版本）** |
+| Android `versionCode` | `3000000` |
 | 应用名称 | `XX-WRT管理器` |
 | Android 包名 | `com.lmdbot.xxwrt.materialpreview` |
 | 技术栈 | Vue 3 · Vite 7 · Vuetify 3 · Capacitor 8 · ECharts 5 |
@@ -26,7 +26,7 @@
 
 ## 界面预览
 
-以下图片来自当前 Material 2.0 的 Playwright UI 自动化测试。**路由器地址、设备名称及各项指标为测试示例数据**，截图用于展示应用界面。
+以下图片来自 Material 2.0 历史版本的 Playwright UI 自动化测试，待 3.0 候选版回归测试通过后替换。**路由器地址、设备名称及各项指标为测试示例数据**，截图用于展示应用界面。
 
 | 设备列表 | 系统首页 | 统计监控 |
 | :---: | :---: | :---: |
@@ -146,7 +146,7 @@ Android v2.0.23 起支持 APP 内私有缓存下载、显示进度及文件校�
 
 ```text
 .github/workflows/          # Android 构建、前端验证等 GitHub Actions
-ui/material-prototype/      # Material 2.0 主线前端与 Capacitor 配置
+ui/material-prototype/      # Material 3.0 候选版前端与 Capacitor 配置
   src/App.vue               # 页面、导航和主要交互
   src/components/           # 设备卡片、终端、网络与插件管理组件
   src/services/             # 设备管理、ubus RPC、统计及设备识别
@@ -158,7 +158,7 @@ scripts/                    # 早期版本维护及辅助脚本
 vendor/                     # 早期版本构建所需资源
 ```
 
-Material 2.0 的 Android 主线使用 `ui/material-prototype/` 及 `ui-android-preview.yml`。`build-apk.yml` 保留为旧版手动构建工作流，不参与 Material 主线的自动发布。
+Material 3.0 候选版继续使用 `ui/material-prototype/` 及 `ui-android-preview.yml`。`build-apk.yml` 保留为旧版手动构建工作流，不参与 Material 主线的自动发布。
 
 ## 兼容性与验证说明
 
@@ -172,7 +172,7 @@ Material 2.0 的 Android 主线使用 `ui/material-prototype/` 及 `ui-android-p
 
 ## 开源致谢
 
-感谢以下开源项目及其维护者。此处依据 `ui/material-prototype/package.json` 梳理 **Material 2.0 主线直接依赖**；“运行依赖”参与 APP 的界面或原生能力，“开发依赖”用于构建与测试。版本以当前配置为准，实际 APK 还可能包含传递依赖及 Android 原生依赖。
+感谢以下开源项目及其维护者。此处依据 `ui/material-prototype/package.json` 梳理 **当前 Android APP 的直接依赖**；“运行依赖”参与 APP 的界面或原生能力，“开发依赖”用于构建与测试。版本以当前配置为准，实际 APK 还可能包含传递依赖及 Android 原生依赖。
 
 | 开源项目 | 当前依赖版本 | 项目用途 | License |
 | --- | --- | --- | --- |

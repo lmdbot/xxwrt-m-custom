@@ -2,26 +2,34 @@ const { test, expect } = require('@playwright/test')
 const fs = require('node:fs')
 
 const appGroups = {
-  "ShadowSocksR Plus+": "网络与安全",
-  "OpenClash": "网络与安全",
-  "ZeroTier": "网络与安全",
-  "防火墙": "网络与安全",
-  "家长控制": "网络与安全",
-  "Lucky": "服务与插件",
-  "Vlmcsd KMS": "服务与插件",
-  "微信推送": "服务与插件",
-  "Internet Detector": "服务与插件",
-  "Carbon 主题设置": "服务与插件",
-  "进程": "系统工具",
-  "启动项": "系统工具",
-  "路由表": "系统工具",
-  "网络唤醒": "系统工具",
-  "软件包": "系统工具",
-  "重启设备": "设备维护",
-  "恢复出厂": "设备维护"
+  "ShadowSocksR Plus+": "插件中心", "OpenClash": "插件中心",
+  "Lucky": "插件中心", "Vlmcsd KMS": "插件中心",
+  "微信推送": "插件中心", "Internet Detector": "插件中心",
+  "Carbon 主题设置": "插件中心",
+  "进程": "系统管理", "启动项": "系统管理",
+  "软件包": "系统管理", "服务管理": "系统管理",
+  "系统定时任务": "系统管理",
+  "网络诊断": "诊断与安全", "日志中心": "诊断与安全",
+  "安全分析": "诊断与安全", "操作记录": "诊断与安全",
+  "系统能力识别": "诊断与安全",
+  "配置备份恢复": "维护与备份",
+  "重启设备": "维护与备份", "恢复出厂": "维护与备份"
 }
+const networkFeatureNames = new Set(['路由表','DNS / DHCP','防火墙','DDNS 管理','ZeroTier'])
+const deviceFeatureNames = new Set(['家长控制','网络唤醒'])
 
 async function openApplication(page, name) {
+  if (networkFeatureNames.has(name)) {
+    await page.getByRole('button', { name: '网络', exact: true }).click()
+    await page.locator('.v3-network-home .v3-feature-list button').filter({ hasText: name }).first().click()
+    return
+  }
+  if (deviceFeatureNames.has(name)) {
+    await page.getByRole('button', { name: '设备', exact: true }).click()
+    await page.locator('.v3-inline-links button').filter({ hasText: name }).click()
+    return
+  }
+  await page.getByRole('button', { name: '工具', exact: true }).click()
   const button = page.getByRole('button', { name: '打开' + name, exact: true }).first()
   if (!(await button.isVisible())) {
     await page.getByRole('button', { name: '展开' + appGroups[name], exact: true }).click()
@@ -470,30 +478,30 @@ test('outlined form labels do not overlap placeholders or entered text on narrow
   await page.getByRole('button', { name: '取消', exact: true }).click()
 })
 
-test('device list exposes the sixth More tab before login and preserves navigation hierarchy', async ({ page }) => {
+test('v3 keeps five tabs before login and preserves settings hierarchy', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
   const topBar = page.locator('.top-bar')
-  await expect(topBar.getByRole('heading', { name: '设备列表', level: 1 })).toBeVisible()
+  await expect(topBar.getByRole('heading', { name: '路由器管理', level: 1 })).toBeVisible()
   await expect(topBar.getByRole('button', { name: '刷新设备状态' })).toBeVisible()
   await expect(topBar.getByRole('button', { name: '添加', exact: true })).toBeVisible()
   await expect(page.locator('.material-side-drawer')).toHaveCount(0)
-  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(6)
-  await expect(page.getByRole('button', { name: '统计', exact: true })).toBeDisabled()
-  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
+  await expect(page.getByRole('button', { name: '设备', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '我的', exact: true }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
-  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(3)
+  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
   await page.getByRole('button', { name: '打开设置' }).click()
   await expect(page.locator('.settings-page .more-menu-item')).toHaveCount(5)
   await page.getByRole('button', { name: '打开显示设置' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
-  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(6)
+  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
   await expect(page.getByTestId('more-page')).toBeVisible()
-  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('more')
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await page.getByRole('button', { name: '概览', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
 })
 
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
@@ -519,18 +527,16 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   })
   await page.goto('/')
   fs.mkdirSync('test-results/screenshots', { recursive: true })
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
   await expect(page.locator('.v-application')).toBeVisible()
   await expect(page.locator('v-app, v-card, v-btn')).toHaveCount(0)
-  await page.getByRole('button', { name: '更多', exact: true }).click()
-  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(3)
-  await page.getByRole('button', { name: '打开路由器' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('路由器')
+  await page.getByRole('button', { name: '我的', exact: true }).click()
+  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
+  await page.getByRole('button', { name: '打开路由器管理' }).click()
   await expect(page.locator('.settings-page-heading')).toHaveCount(0)
-  await page.getByRole('button', { name: '设备信息' }).click()
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
 
-  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '我的', exact: true }).click()
   await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开显示设置' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
@@ -558,7 +564,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await auditDarkTextContrast(page, ['.settings-option-heading p', '.settings-switch-row p'])
   await page.screenshot({ path: 'test-results/screenshots/settings-display.png', fullPage: true })
 
-  await page.getByRole('button', { name: '返回设置上一级' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
   await page.getByRole('button', { name: '打开隐私设置' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私')
@@ -569,8 +575,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
   await expect(page.getByTestId('more-page')).toBeVisible()
-  await page.getByRole('button', { name: '首页', exact: true }).click()
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await page.getByRole('button', { name: '概览', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
   await page.getByRole('button', { name: '添加', exact: true }).click()
   await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('QWRT 主路由')
   await page.getByRole('textbox', { name: 'IP / 域名 / 端口' }).fill('http://192.168.100.1')
@@ -581,7 +587,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('连接 QWRT 主路由')).toBeVisible()
   await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
   await page.getByRole('button', { name: '登录并进入' }).click()
-  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
+  await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
   await expect(page.getByText('38℃')).toBeVisible()
   await auditDarkTextContrast(page, ['.router-toolbar-context', '.details span', '.device-heading-label p', '.storage-label small', '.ethernet-port-counters'])
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/)
@@ -627,7 +633,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
   // Leave the statistics screen unopened while background sampling builds history.
   await page.waitForTimeout(7200)
-  await page.getByRole('button', { name: '统计' }).click()
+  await page.getByRole('button', { name: '详细监控' }).click()
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
   await expect(page.getByText('实时带宽')).toBeVisible()
@@ -636,13 +642,11 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.waitForTimeout(1200)
   await expect(page.locator('.realtime-chart')).toHaveCount(2)
   await page.screenshot({ path: 'test-results/screenshots/actual-traffic-history.png', fullPage: true })
-  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('list')
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
-  await page.getByRole('button', { name: '进入 QWRT 主路由' }).click()
-  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
-  await page.getByRole('button', { name: '统计' }).click()
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
+  await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
+  await page.getByRole('button', { name: '详细监控' }).click()
   await expect(page.getByText('实时带宽')).toBeVisible()
-  await page.getByRole('button', { name: '首页' }).click()
+  await page.getByRole('button', { name: '概览', exact: true }).click()
 
   // Test page scrolling in the actual logged-in screen.
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -655,11 +659,11 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   fs.mkdirSync('test-results/screenshots', { recursive: true })
   await page.screenshot({ path: 'test-results/screenshots/live-standard.png', fullPage: true })
 
-  await page.getByRole('button', { name: '终端' }).click()
+  await page.getByRole('button', { name: '设备', exact: true }).click()
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0)
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
-  await expect(page.locator('.router-toolbar-context')).toContainText('终端')
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设备')
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
   await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
   await auditDarkTextContrast(page, ['.terminal-header p', '.terminal-mac', '.terminal-kind', '.terminal-source'])
@@ -713,7 +717,9 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('终端管理')).not.toBeVisible()
   await page.getByText('Phone', { exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true }).click()
-  await page.getByRole('button', { name: '网络' }).click()
+  await page.getByRole('button', { name: '网络', exact: true }).click()
+  await expect(page.locator('.v3-network-home')).toBeVisible()
+  await page.locator('.v3-network-home .v3-feature-list button').filter({ hasText: '网络接口' }).click()
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.getByText('运行秒数')).toHaveCount(0)
   await expect(page.getByText('1天 1小时 1分钟', { exact: true })).toBeVisible()
@@ -764,6 +770,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('busy')
   await expect(page.getByText('配置网络接口 · wan')).toBeVisible()
   await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
+  // The toolbar switch handler must also honor the network editor's pending
+  // confirmation. Dispatch directly because the modal normally intercepts taps.
+  await page.getByRole('button', { name: '切换路由器' }).evaluate(button => button.click())
+  await expect(page.getByText('配置网络接口 · wan')).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toHaveCount(0)
   await page.getByRole('button', { name: '确认保留配置' }).last().click()
   await expect(page.getByText('已确认保留接口配置')).toBeVisible()
   await page.getByRole('button', { name: /设备，/ }).click()
@@ -780,10 +792,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.interface-card')).toHaveCount(2)
   await expect(page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2)).resolves.toBeTruthy()
   await page.screenshot({ path: 'test-results/screenshots/compact-network-interfaces.png', fullPage: true })
-  await page.getByRole('button', { name: '应用' }).click()
+  await page.getByRole('button', { name: '工具', exact: true }).click()
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
-  await expect(page.getByText('应用管理')).toBeVisible()
+  await expect(page.getByText('工具中心')).toBeVisible()
   await expect(page.locator('.app-favorite-tile')).toHaveCount(6)
   await expect(page.locator('.app-category-card')).toHaveCount(4)
   await expect(page.locator('.app-tool-row')).toHaveCount(0)
@@ -800,7 +812,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('tab', { name: '访问规则' }).click()
   await expect(page.locator('.v-snackbar').filter({ hasText: 'ip-allowlist.txt 已从路由器读取' })).toBeVisible()
   await expect(luckyPanel.locator('.v-alert').filter({ hasText: 'ip-allowlist.txt 已从路由器读取' })).toHaveCount(0)
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
 
   await openApplication(page, 'Vlmcsd KMS')
   const kmsPanel = page.locator('.vlmcsd-panel')
@@ -811,13 +823,13 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect.poll(() => kmsEditor.evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(210)
   await page.getByRole('button', { name: '刷新当前页面' }).click()
   await expect(page.locator('.v-snackbar').filter({ hasText: 'Vlmcsd 状态已刷新' })).toBeVisible()
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
 
   await openApplication(page, 'ShadowSocksR Plus+')
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   // Tapping the already selected Apps tab returns from a nested app page.
-  await page.getByRole('button', { name: '应用', exact: true }).click()
-  await expect(page.getByText('应用管理')).toBeVisible()
+  await page.getByRole('button', { name: '工具', exact: true }).click()
+  await expect(page.getByText('工具中心')).toBeVisible()
   await openApplication(page, 'ShadowSocksR Plus+')
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   await expect(page.getByText('香港节点', { exact: true }).first()).toBeVisible()
@@ -841,7 +853,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '安装组件更新' }).click()
   await expect(page.getByText('确认安装 SSR Plus+ 更新？')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, '微信推送')
   await expect(page.getByText('启用微信推送')).toBeVisible()
   await expect(page.getByText('PushPlus', { exact: true }).first()).toBeVisible()
@@ -865,22 +877,22 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('测试推送命令已执行，请检查接收端是否收到消息')).toBeVisible()
   await expect(page.getByText('https://example.invalid/secret-webhook-key')).toHaveCount(0)
   await expect(page.getByText('sensitive request payload')).toHaveCount(0)
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, 'OpenClash')
   await expect(page.getByText('代理模式', { exact: true }).first()).toBeVisible()
   await expect(page.getByText('运行模式', { exact: true }).last().first()).toBeVisible()
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, 'Internet Detector')
   await expect(page.locator('.detector-row').first().getByText('正常', { exact: true })).toBeVisible()
   await auditDarkTextContrast(page, ['.app-compact-sub', '.router-app-summary span', '.muted-hint'])
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, 'Carbon 主题设置')
   await expect(page.getByText('当前主题', { exact: true }).last()).toBeVisible()
   await expect(page.getByText('Carbon 主题更新')).toBeVisible()
   await page.getByRole('button', { name: '检查更新' }).click()
   await expect(page.getByText('检测到可安装的 Carbon 新版本')).toBeVisible()
   await expect(page.getByRole('button', { name: '安装已验证更新' })).toBeEnabled()
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, 'ZeroTier')
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   // The duplicate runtime network card has been removed; its network still
@@ -909,7 +921,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('1234567890abcdef').first()).toBeVisible()
   zeroTierRpcAllowed = true
   zeroTierCliAllowed = true
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, '防火墙')
   await expect(page.getByText('区域策略', { exact: true })).toBeVisible()
   await expect(page.getByText('Full Cone NAT')).toBeVisible()
@@ -998,7 +1010,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     return { started, resume: () => release(), dispose: () => page.unroute('**/ubus', interceptor) }
   }
 
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   const heldProcess = await holdToolRpc('luci', 'getProcessList')
   await openApplication(page, '进程')
   await heldProcess.started
@@ -1010,7 +1022,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await heldProcess.dispose()
   await expect(page.getByText('状态 S')).toBeVisible()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
-  await expect(page.getByText('应用管理')).toBeVisible()
+  await expect(page.getByText('工具中心')).toBeVisible()
   await openApplication(page, '进程')
   await expect(page.getByText('rpcd')).toBeVisible()
   await expect(page.locator('.compact-system-list .compact-entry')).toHaveCount(1)
@@ -1019,7 +1031,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '查看进程 123 完整命令' }).click()
   await expect(page.getByText('完整命令')).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/compact-processes.png', fullPage: true })
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, '启动项')
   const expectedStartupServices = Object.keys(dataFor('rc', 'list')).length
   await expect(page.getByText('firewall')).toBeVisible()
@@ -1042,7 +1054,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.compact-system-list .compact-entry')).toHaveCount(expectedStartupServices)
   await heldStartup.dispose()
   await page.screenshot({ path: 'test-results/screenshots/compact-startup-services.png', fullPage: true })
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   const heldRoutes = await holdToolRpc('uci', 'get')
   await openApplication(page, '路由表')
   await heldRoutes.started
@@ -1061,7 +1073,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.compact-system-list .route-entry')).toHaveCount(2)
   await page.getByRole('textbox', { name: '搜索路由' }).fill('')
   await page.screenshot({ path: 'test-results/screenshots/compact-route-table.png', fullPage: true })
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByRole('button', { name: '刷新当前页面' })).toHaveCount(1)
   let releaseWolResponse
   let notifyWolRequested
@@ -1123,7 +1135,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   wolToolEnabled = true
   await page.getByRole('button', { name: '刷新当前页面' }).click()
   await expect(page.getByText(/WOL 唤醒工具未启用/)).toHaveCount(0)
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, '家长控制')
   await expect(page.getByText('OpenAppFilter 家长控制')).toBeVisible()
   await auditDarkTextContrast(page, ['.appfilter-kv span'])
@@ -1134,7 +1146,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('tab', { name: '高级设置' }).click()
   await page.getByRole('button', { name: '保存高级设置' }).click()
   await expect(page.getByText('高级设置：已提交')).toBeVisible()
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
+  await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, '恢复出厂')
   await expect(page.getByText('恢复 QWRT 出厂设置')).toBeVisible()
   await expect(page.getByRole('button', { name: '确认恢复出厂' })).toBeDisabled()
@@ -1153,10 +1165,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开ShadowSocksR Plus+' })).toBeVisible()
   await expect(page.locator('.app-favorites-grid').getByRole('button', { name: '打开Lucky' })).toHaveCount(0)
   await page.getByRole('button', { name: '展开全部应用' }).click()
-  // Topology has been removed; the visible launcher now contains 28 entries.
-  await expect(page.locator('.app-tool-row')).toHaveCount(28)
-  for (const title of ['网络诊断', '日志中心', '配置备份恢复', 'DNS / DHCP', '服务管理',
-    'DDNS 管理', '系统定时任务', '系统能力识别', '操作记录', '长期趋势', '安全分析']) {
+  // V3 has 20 canonical Tools entries; other legacy features live under Overview, Devices and Network.
+  await expect(page.locator('.app-tool-row')).toHaveCount(20)
+  for (const title of ['网络诊断', '日志中心', '配置备份恢复', '服务管理',
+    '系统定时任务', '系统能力识别', '操作记录', '安全分析']) {
     await expect(page.getByRole('button', { name: '打开' + title })).toBeVisible()
   }
   await expect(page.getByRole('button', { name: '打开软件包' })).toBeVisible()
@@ -1173,13 +1185,13 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     if(!button)throw new Error('日志中心入口缺失')
     button.click()
   })
-  await expect(page.getByRole('button', { name: '返回应用功能列表' })).toBeVisible()
-  await page.getByRole('button', { name: '返回应用功能列表' }).click()
-  await expect(page.getByText('应用管理')).toBeVisible()
+  await expect(page.getByRole('button', { name: '返回上一页' })).toBeVisible()
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByText('工具中心')).toBeVisible()
   await expect.poll(async()=>Math.abs((await page.evaluate(()=>
     window.scrollY||document.scrollingElement.scrollTop))-hubScroll)).toBeLessThan(30)
   // Re-tapping the selected Apps root tab returns to top, unlike Back.
-  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await page.getByRole('button', { name: '工具', exact: true }).click()
   await expect.poll(async()=>page.evaluate(()=>
     window.scrollY||document.scrollingElement.scrollTop)).toBeLessThan(20)
   // Opening a tool and tapping Apps must FIRST return to the saved hub spot.
@@ -1193,32 +1205,32 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     if(!tool)throw new Error('日志中心入口缺失')
     tool.click()
   })
-  await expect(page.getByRole('button', { name: '返回应用功能列表' })).toBeVisible()
-  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect(page.getByRole('button', { name: '返回上一页' })).toBeVisible()
+  await page.getByRole('button', { name: '工具', exact: true }).click()
   await expect.poll(async()=>Math.abs((await page.evaluate(()=>
     window.scrollY||document.scrollingElement.scrollTop))-savedAppOffset)).toBeLessThan(35)
-  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await page.getByRole('button', { name: '工具', exact: true }).click()
   await expect.poll(async()=>page.evaluate(()=>
     window.scrollY||document.scrollingElement.scrollTop)).toBeLessThan(20)
-  await page.getByRole('button', { name: '收起设备维护' }).click()
+  await page.getByRole('button', { name: '收起维护与备份' }).click()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '我的', exact: true }).click()
   await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开显示设置' }).click()
   await page.getByRole('button', { name: '液态底栏' }).click()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
   await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
   await expect(page.locator('.liquid-bottom .glass-nav')).toBeVisible()
-  await page.getByRole('button', { name: '首页' }).click()
-  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
+  await page.getByRole('button', { name: '概览', exact: true }).click()
+  await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/live-liquid.png', fullPage: true })
-  await page.getByRole('button', { name: '网络' }).click()
-  await expect(page.locator('.router-toolbar-context')).toContainText('网络')
+  await page.getByRole('button', { name: '网络', exact: true }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('网络')
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('list')
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
   await expect(page.getByText('QWRT 主路由')).toBeVisible()
   await expect(page.locator('.v-bottom-navigation')).toHaveCount(0)
   await page.getByRole('button', { name: '进入 QWRT 主路由' }).click()
@@ -1265,14 +1277,14 @@ test('saved routers retain independent addresses and can switch without overwrit
   await page.getByRole('button', { name: '进入 主路由' }).click()
   await page.getByRole('textbox', { name: '路由器密码' }).fill('p1')
   await page.getByRole('button', { name: '登录并进入' }).click()
-  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
-  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
+  await page.getByRole('button', { name: '切换路由器' }).click()
   await expect(page.getByRole('button', { name: '进入 副路由' })).toBeVisible()
   await page.getByRole('button', { name: '进入 副路由' }).click()
   await page.getByRole('textbox', { name: '路由器密码' }).fill('p2')
   await page.getByRole('button', { name: '登录并进入' }).click()
-  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
-  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
+  await page.getByRole('button', { name: '切换路由器' }).click()
   await page.reload()
   await expect(page.getByRole('button', { name: '进入 主路由' })).toBeVisible()
   await expect(page.getByRole('button', { name: '进入 副路由' })).toBeVisible()
@@ -1296,8 +1308,8 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await page.getByRole('button', { name: '进入 Private Gateway' }).click()
   await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-password')
   await page.getByRole('button', { name: '登录并进入' }).click()
-  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
-  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
+  await page.getByRole('button', { name: '切换路由器' }).click()
   await expect(page.locator('.router-meter')).toHaveCount(2, { timeout: 12000 })
   await expect(page.getByText('上传', { exact: true })).toBeVisible()
   await expect(page.getByText('下载', { exact: true })).toBeVisible()
@@ -1307,11 +1319,11 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await expect(page.locator('.saved-device-grid-compact')).toBeVisible()
   await page.getByRole('button', { name: '隐藏路由器地址' }).click()
   await expect(page.locator('.router-address')).toContainText('•••')
-  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '我的', exact: true }).click()
   await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开隐私设置' }).click()
   await page.getByLabel('隐藏主机名').click()
-  await page.getByRole('button', { name: '首页', exact: true }).click()
+  await page.getByRole('button', { name: '概览', exact: true }).click()
   await expect(page.locator('.router-name')).toHaveText('路由器 1')
   await expect(page.getByRole('button', { name: '进入 路由器 1' })).toBeVisible()
   await expect(page.locator('.router-address')).toContainText('•••')
@@ -1333,12 +1345,12 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await page.reload()
   await expect(page.locator('.material-demo.theme-is-dark')).toBeVisible()
   await expect.poll(() => page.locator('meta[name="theme-color"]').getAttribute('content'))
-    .toBe('#11141B')
+    .toBe('#101826')
   await page.evaluate(() => localStorage.setItem('xxwrt_material_color_mode', 'light'))
   await page.reload()
   await expect(page.locator('.material-demo.theme-is-dark')).toHaveCount(0)
   await expect.poll(() => page.locator('meta[name="theme-color"]').getAttribute('content'))
-    .toBe('#F5F6FB')
+    .toBe('#F5F8FE')
 
   let holdNext = false
   let blocked = false
@@ -1376,7 +1388,7 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await expect(page.getByRole('button', { name: '刷新当前页面' }))
     .not.toHaveClass(/v-btn--loading/)
 
-  await page.getByRole('button', { name: '返回上一页' }).click()
+  await page.getByRole('button', { name: '切换路由器' }).click()
   await expect(page.locator('.router-list-card')).toBeVisible()
   await expect(page.locator('.router-stat-block')).toBeVisible()
   await expect(page.getByText('已登录 · 在线')).toBeVisible()
@@ -1425,8 +1437,8 @@ test('software packages shows opkg lists, filters and protects installation acti
   await page.getByRole('button', { name: '进入 QWRT 包管理测试' }).click()
   await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
   await page.getByRole('button', { name: '登录并进入' }).click()
-  await expect(page.getByText('J4125 SoftRouter')).toBeVisible()
-  await page.getByRole('button', { name: '应用' }).click()
+  await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
+  await page.getByRole('button', { name: '工具', exact: true }).click()
   await openApplication(page, '软件包')
   await expect(page.locator('.package-manager-panel')).toBeVisible()
   await expect(page.getByText('正在显示 1–100，共 108')).toBeVisible()
@@ -1464,7 +1476,7 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await page.getByRole('button', { name: '进入 QWRT 多 QoS 测试' }).click()
     await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
     await page.getByRole('button', { name: '登录并进入' }).click()
-    await page.getByRole('button', { name: '终端' }).click()
+    await page.getByRole('button', { name: '设备', exact: true }).click()
     await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
     await page.getByText('Phone', { exact: true }).click()
 
