@@ -58,7 +58,7 @@ export class RouterClient {
     return method === 'GET' ? CapacitorHttp.get(options) : CapacitorHttp.post(options)
   }
 
-  async request(data) {
+  async request(data, { readTimeout = 12000 } = {}) {
     let response
     try {
       response = await this.httpRequest('POST', {
@@ -66,7 +66,7 @@ export class RouterClient {
         data,
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         connectTimeout: 8000,
-        readTimeout: 12000
+        readTimeout
       })
     } catch (e) {
       throw new Error('无法连接 ' + this.baseUrl + '：' + shortError(e))
@@ -190,6 +190,38 @@ export class RouterClient {
   async call(object, method, args = {}, optional = false) {
     if (!this.session) throw new Error('尚未登录')
     return this.unpack(await this.request(this.envelope(object, method, args)), optional)
+  }
+
+  /**
+   * LuCI's /cgi-bin/cgi-exec supports large command output which would exceed
+   * ubus message limits. Only expose the fixed package-manager list actions.
+   * The sessionid is the authenticated rpcd session; CGI enforces matching ACLs.
+   */
+  async cgiPackageList(action) {
+    if (!this.session) throw new Error('尚未登录')
+    if (!['list-available', 'list-installed'].includes(action))
+      throw new Error('CGI 接口仅允许读取软件包列表')
+    const command = '/usr/libexec/package-manager-call ' + action
+    const body = 'sessionid=' + encodeURIComponent(this.session) +
+      '&command=' + encodeURIComponent(command) + '&stderr=0'
+    const response = await this.httpRequest('POST', {
+      url: this.baseUrl + '/cgi-bin/cgi-exec',
+      data: body,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'text/plain' },
+      connectTimeout: 8000, readTimeout: 90000, disableRedirects: true
+    })
+    if (response.status !== 200) throw new Error('LuCI cgi-io HTTP ' + response.status)
+    const content = typeof response.data === 'string' ? response.data :
+      JSON.stringify(response.data ?? '')
+    if (!content || content.length > 16 * 1024 * 1024 || /^\s*</.test(content))
+      throw new Error('LuCI cgi-io 返回非预期的软件包数据')
+    return content
+  }
+
+  async callTimed(object, method, args = {}, readTimeout = 120000) {
+    if (!this.session) throw new Error('尚未登录')
+    const timeout = Math.max(12000, Math.min(180000, Number(readTimeout) || 120000))
+    return this.unpack(await this.request(this.envelope(object, method, args), { readTimeout: timeout }))
   }
 
   async batch(entries) {

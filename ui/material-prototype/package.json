@@ -1,7 +1,7 @@
 {
   "name": "xxwrt-material-ui-prototype",
   "private": true,
-  "version": "2.0.29",
+  "version": "2.0.30",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -10,7 +10,7 @@
     "android:sync": "npm run build && npx cap sync android",
     "test:ui": "playwright test",
     "test:versions": "node --test tests/app-releases.test.mjs",
-    "test:logic": "node --test tests/lease-time.test.mjs tests/drawer-swipe.test.mjs tests/luci-http.test.mjs tests/wechat-online-time.test.mjs tests/wechat-device-aliases.test.mjs tests/router-uptime.test.mjs tests/lucky-rpc.test.mjs tests/wan6-valid.test.mjs tests/licenses.test.mjs tests/localization.test.mjs tests/terminal-management.test.mjs tests/zerotier-interface.test.mjs tests/network-interface-config.test.mjs tests/app-launcher.test.mjs"
+    "test:logic": "node --test tests/lease-time.test.mjs tests/drawer-swipe.test.mjs tests/luci-http.test.mjs tests/wechat-online-time.test.mjs tests/wechat-device-aliases.test.mjs tests/router-uptime.test.mjs tests/lucky-rpc.test.mjs tests/wan6-valid.test.mjs tests/licenses.test.mjs tests/localization.test.mjs tests/terminal-management.test.mjs tests/zerotier-interface.test.mjs tests/network-interface-config.test.mjs tests/software-packages.test.mjs tests/app-launcher.test.mjs"
   },
   "dependencies": {
     "@daisigu/vue-liquid-glass": "1.0.4",
