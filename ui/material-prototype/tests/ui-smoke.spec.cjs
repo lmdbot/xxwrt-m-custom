@@ -812,7 +812,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '工具', exact: true }).click()
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
-  await expect(page.getByText('工具中心')).toBeVisible()
+  await expect(page.getByText('工具箱')).toBeVisible()
   await expect(page.locator('.app-favorite-tile')).toHaveCount(6)
   await expect(page.locator('.app-category-card')).toHaveCount(4)
   await expect(page.locator('.app-tool-row')).toHaveCount(0)
@@ -846,7 +846,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   // Tapping the already selected Apps tab returns from a nested app page.
   await page.getByRole('button', { name: '工具', exact: true }).click()
-  await expect(page.getByText('工具中心')).toBeVisible()
+  await expect(page.getByText('工具箱')).toBeVisible()
   await openApplication(page, 'ShadowSocksR Plus+')
   await expect(page.getByRole('heading', { name: '代理节点' })).toBeVisible()
   await expect(page.getByText('香港节点', { exact: true }).first()).toBeVisible()
@@ -1039,7 +1039,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await heldProcess.dispose()
   await expect(page.getByText('状态 S')).toBeVisible()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
-  await expect(page.getByText('工具中心')).toBeVisible()
+  await expect(page.getByText('工具箱')).toBeVisible()
   await openApplication(page, '进程')
   await expect(page.getByText('rpcd')).toBeVisible()
   await expect(page.locator('.compact-system-list .compact-entry')).toHaveCount(1)
@@ -1204,7 +1204,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   })
   await expect(page.getByRole('button', { name: '返回上一页' })).toBeVisible()
   await page.getByRole('button', { name: '返回上一页' }).click()
-  await expect(page.getByText('工具中心')).toBeVisible()
+  await expect(page.getByText('工具箱')).toBeVisible()
   await expect.poll(async()=>Math.abs((await page.evaluate(()=>
     window.scrollY||document.scrollingElement.scrollTop))-hubScroll)).toBeLessThan(30)
   // Re-tapping the selected Apps root tab returns to top, unlike Back.
