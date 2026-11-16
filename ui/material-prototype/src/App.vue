@@ -512,6 +512,39 @@ const previousContentTab = ref('home')
 // follows the feature's real home section instead of forcing the Tools tab.
 const toolOriginTab = ref('')
 const networkSection = ref('hub')
+const designANetworkPanelOpen = ref(false)
+const designANetworkInfo = computed(() => {
+  if (networkSection.value === 'interfaces') return {
+    title: '网络接口', subtitle: 'WAN / LAN / WAN6 · 运行状态由路由器实时提供',
+    entries: [
+      { label: 'WAN', description: '广域网 · ' + overviewWanState.value },
+      { label: 'LAN', description: '本地网络 · ' + (snapshot.value?.lanIp || '未获取') },
+      { label: 'WAN6', description: 'IPv6 / PD · ' + overviewIpv6State.value },
+      { label: '物理设备', description: '网口、端口与桥接状态', destination: 'devices' }
+    ]
+  }
+  if (networkSection.value === 'devices') return {
+    title: '物理设备', subtitle: '以太网 / 网桥 / 端口',
+    entries: [
+      { label: '有线设备', description: '查看设备状态和地址' },
+      { label: '网络接口', description: '返回 WAN / LAN / WAN6', destination: 'interfaces' }
+    ]
+  }
+  return {
+    title: '无线设备', subtitle: 'SSID / 频道 / 信号（只读）',
+    entries: [
+      { label: '无线网络', description: '查看已检测到的无线设备' },
+      { label: '网络接口', description: '返回接口配置', destination: 'interfaces' }
+    ]
+  }
+})
+function enterDesignANetworkEntry(entry) {
+  if (entry.destination) {
+    openNetworkSection(entry.destination)
+  } else {
+    designANetworkPanelOpen.value = true
+  }
+}
 const currentNavTab = computed(() =>
   (activeTab.value === 'statistics' || toolOriginTab.value === 'statistics')
     ? 'home' : activeTab.value === 'network' && networkOriginTab.value
@@ -529,6 +562,7 @@ function openNetworkSection(section) {
   if (!['interfaces', 'devices', 'wireless'].includes(section)) return
   networkSection.value = section
   networkView.value = section
+  designANetworkPanelOpen.value = false
 }
 function openOverviewInterfaces() {
   if (!connected.value) return
@@ -1350,6 +1384,10 @@ async function handleBack() {
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
   if (activeTab.value === 'statistics') {
     activeTab.value = 'home'
+    return 'page'
+  }
+  if (activeTab.value === 'network' && networkSection.value !== 'hub' && designANetworkPanelOpen.value) {
+    designANetworkPanelOpen.value = false
     return 'page'
   }
   if (activeTab.value === 'network' && networkSection.value !== 'hub') {
@@ -2793,7 +2831,35 @@ onUnmounted(() => {
               </div>
             </section>
             <template v-else>
+            <section v-if="!designANetworkPanelOpen" class="v3-design-a-index" aria-label="网络管理入口">
+              <header class="v3-design-a-hero">
+                <h2>{{ designANetworkInfo.title }}</h2>
+                <p>{{ designANetworkInfo.subtitle }}</p>
+              </header>
+              <h3 class="v3-design-a-section-title">管理入口</h3>
+              <div class="v3-feature-list v3-design-a-entry-list">
+                <button v-for="entry in designANetworkInfo.entries" :key="entry.label" type="button"
+                  :aria-label="'查看' + entry.label" @click="enterDesignANetworkEntry(entry)">
+                  <v-icon icon="mdi-lan" color="primary"/>
+                  <span><strong>{{ entry.label }}</strong><small>{{ entry.description }}</small></span>
+                  <v-icon icon="mdi-chevron-right"/>
+                </button>
+              </div>
+              <p class="v3-design-a-notice is-warning">
+                修改网络配置可能影响当前路由器的管理连接，写入操作须确认后进行。
+              </p>
+              <div class="v3-design-a-actions">
+                <button type="button" class="v3-design-a-primary"
+                  @click="designANetworkPanelOpen = true">查看网络配置</button>
+              </div>
+            </section>
+            <div v-show="designANetworkPanelOpen" class="v3-design-a-network-editor">
             <v-card rounded="xl" elevation="1" class="network-card mb-4">
+              <div class="v3-design-a-operation-heading">
+                <v-btn icon="mdi-arrow-left" size="small" variant="text" aria-label="返回管理入口"
+                  @click="designANetworkPanelOpen = false"/>
+                <strong>{{ designANetworkInfo.title }}</strong>
+              </div>
               <h2>网络概览</h2>
               <div v-if="snapshot" class="details">
                 <div><span>LAN IPv4</span><strong>{{ snapshot.lanIp }}</strong></div>
@@ -2824,6 +2890,7 @@ onUnmounted(() => {
               </v-card>
               <v-alert v-if="!networkHardware.wireless.length" type="info" variant="tonal" density="compact">暂未获取到无线设备。</v-alert>
             </template>
+            </div>
             </div>
             </template>
           </template>
