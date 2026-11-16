@@ -1185,7 +1185,13 @@ function navigateBottomTab(tab) {
       return
     }
     if (tab === 'apps' && toolPanel.value) {
-      closeAppTool()
+      if (toolOriginTab.value) {
+        // Tapping Tools explicitly switches to the Tools hub. The detail-page
+        // Back button instead returns to the invoking Devices/Network/Overview.
+        toolPanel.value = ''
+        toolOriginTab.value = ''
+        toolMessage.value = ''
+      } else closeAppTool()
       return
     }
     if (tab === 'network' && networkSection.value !== 'hub') {
@@ -2752,7 +2758,7 @@ onUnmounted(() => {
                   <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
                     <div class="app-hub-section-heading">
                       <strong>全部功能</strong>
-                      <small>{{ visibleLegacyTools.length }} 项</small>
+                      <small>{{ appCategories.reduce((count, group) => count + group.tools.length, 0) }} 项</small>
                     </div>
                     <div v-for="category in appCategories" :key="category.id" class="app-category-card">
                       <button type="button" class="app-category-toggle"
