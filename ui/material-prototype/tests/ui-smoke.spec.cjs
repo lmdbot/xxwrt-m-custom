@@ -646,7 +646,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
   // Leave the statistics screen unopened while background sampling builds history.
   await page.waitForTimeout(7200)
-  await page.getByRole('button', { name: '详细监控' }).click()
+  await page.getByRole('button', { name: '详细监控', exact: true }).click()
   await expect(page.getByTestId('device-page-meta')).toHaveCount(0)
   await expect(page.locator('.router-toolbar-title')).not.toContainText('更新于')
   await expect(page.getByText('实时带宽')).toBeVisible()
@@ -657,7 +657,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.screenshot({ path: 'test-results/screenshots/actual-traffic-history.png', fullPage: true })
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('page')
   await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
-  await page.getByRole('button', { name: '详细监控' }).click()
+  await page.getByRole('button', { name: '详细监控', exact: true }).click()
   await expect(page.getByText('实时带宽')).toBeVisible()
   await page.getByRole('button', { name: '概览', exact: true }).click()
 
