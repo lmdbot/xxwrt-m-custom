@@ -90,11 +90,9 @@ export async function readPackageList(client, type = 'available') {
   return parseOpkgList(await exec(client, ['list']))
 }
 export async function runPackageAction(client, action, packageName = '') {
-  const commands = { update: ['update'], install: ['install', validatePackageName(packageName)],
-    remove: ['remove', validatePackageName(packageName)],
-    upgrade: ['upgrade', validatePackageName(packageName)] }
-  if (!Object.prototype.hasOwnProperty.call(commands, action)) throw new Error('不支持的软件包操作')
-  return exec(client, commands[action], { timeout: 180000 })
+  if (action === 'update') return exec(client, ['update'], { timeout: 180000 })
+  if (!['install', 'remove', 'upgrade'].includes(action)) throw new Error('不支持的软件包操作')
+  return exec(client, [action, validatePackageName(packageName)], { timeout: 180000 })
 }
 export async function readFile(client, path) {
   const result = await client.call('file', 'read', { path })

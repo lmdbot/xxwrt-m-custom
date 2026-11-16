@@ -82,10 +82,12 @@ async function performAction() {
     else output.value = await runPackageAction(props.client, item.action, item.name)
     notify('软件包操作完成' + (item.name ? '：' + item.name : ''), 'success')
     invalidate()
-    await load(activeTab.value, true)
   } catch (e) {
     notify('操作失败或结果不确定：' + shortError(e) + '。若连接超时，请刷新已安装列表核对后再重试。', 'error')
-  } finally { busy.value = false }
+  } finally {
+    busy.value = false
+    await load(activeTab.value, true)
+  }
 }
 function submitInstall() {
   const value = installInput.value.trim()

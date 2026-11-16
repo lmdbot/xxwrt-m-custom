@@ -49,6 +49,8 @@ test('opkg actions pass an argv array, never a shell command', async () => {
   assert.equal(await runPackageAction(client, 'install', 'luci-app-test'), 'ok')
   assert.deepEqual(calls[0], ['file', 'exec', { command: '/bin/opkg', params: ['install', 'luci-app-test'], env: null }])
   await assert.rejects(runPackageAction(client, 'remove', 'x;reboot'))
+  assert.equal(await runPackageAction(client, 'update'), 'ok')
+  assert.deepEqual(calls[1][2].params, ['update'])
 })
 test('available list parses opkg output', async () => {
   const client = { callLong: async () => ({ code: 0, stdout: 'a - 1 - test' }) }
