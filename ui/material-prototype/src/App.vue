@@ -2771,9 +2771,8 @@ onUnmounted(() => {
                 </div>
 
                 <v-text-field v-model="appSearch" class="app-hub-search"
-                  aria-label="搜索应用或功能" label="搜索应用或功能"
-                  prepend-inner-icon="mdi-magnify" clearable hide-details
-                  variant="outlined" density="compact"/>
+                  aria-label="搜索应用或功能" placeholder="搜索功能、插件或配置"
+                  clearable hide-details variant="outlined" density="compact"/>
 
                 <template v-if="String(appSearch || '').trim()">
                   <div class="app-hub-section-heading">
@@ -2831,7 +2830,7 @@ onUnmounted(() => {
                         :aria-label="(expandedAppCategories.includes(category.id) ? '收起' : '展开') + category.title"
                         @click="toggleAppCategory(category.id)">
                         <span class="app-category-icon"><v-icon :icon="category.icon" size="22"/></span>
-                        <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项功能</small></span>
+                        <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项</small></span>
                         <v-icon :icon="expandedAppCategories.includes(category.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                           size="20" class="app-tool-chevron"/>
                       </button>
