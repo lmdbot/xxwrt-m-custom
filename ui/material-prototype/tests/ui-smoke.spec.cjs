@@ -770,6 +770,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('busy')
   await expect(page.getByText('配置网络接口 · wan')).toBeVisible()
   await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
+  // The toolbar switch handler must also honor the network editor's pending
+  // confirmation. Dispatch directly because the modal normally intercepts taps.
+  await page.getByRole('button', { name: '切换路由器' }).evaluate(button => button.click())
+  await expect(page.getByText('配置网络接口 · wan')).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认保留配置' }).last()).toBeVisible()
+  await expect(page.getByRole('heading', { name: '路由器管理' })).toHaveCount(0)
   await page.getByRole('button', { name: '确认保留配置' }).last().click()
   await expect(page.getByText('已确认保留接口配置')).toBeVisible()
   await page.getByRole('button', { name: /设备，/ }).click()
