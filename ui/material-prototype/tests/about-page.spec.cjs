@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test')
+const { version } = require('../package.json')
 
 async function openAbout(page) {
   await page.goto('/')
@@ -19,7 +20,7 @@ test('About uses the actual Android launcher artwork and preserves update action
   await expect.poll(() => avatar.evaluate(img => img.naturalWidth)).toBe(160)
   await expect(page.getByRole('button', { name: '查看开发者与项目' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'XX-WRT' })).toBeVisible()
-  await expect(page.getByText(/v3\.0\.0/).first()).toBeVisible()
+  await expect(page.getByText('v' + version, { exact: false }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: '检查更新' })).toBeVisible()
   await expect(page.getByRole('button', { name: '版本日志' })).toBeVisible()
   await expect(page.getByRole('button', { name: '查看开源许可证' })).toBeVisible()
