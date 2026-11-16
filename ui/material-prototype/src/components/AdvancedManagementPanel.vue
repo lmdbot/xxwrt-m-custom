@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { shortError, readDashboard } from '../services/router.js'
+import TopologyPanel from './TopologyPanel.vue'
 import {
   CONFIG_ROLLBACK_SECONDS, applyProtectedUci, finishProtectedUci, releaseExpiredProtectedUci,
   discoverRouterCapabilities, readAuditRecords
@@ -60,7 +61,6 @@ const chartDots=computed(()=>trendPlotPoints(trendData.value,
   trendNow.value-metricRangeMs.value,trendNow.value,chartUpper.value))
 const chartLast=computed(()=>trendData.value.length?
   trendData.value.at(-1).value.toFixed(1)+(trendKey.value==='load1'?'':'%'):'--')
-const topologyHeight=computed(()=>Math.max(170,60+(topology.value?.nodes?.length||0)*62))
 const versionLabel=computed(()=>capabilities.value?.firmware||'待识别')
 const ddnsSelected=computed(()=>ddns.value?.sections.find(x=>x.id===ddnsCurrent.value)||null)
 function notify(message,isError=false){
@@ -539,42 +539,7 @@ onUnmounted(()=>{if(interval)clearInterval(interval)})
       </div>
     </template>
     <template v-else-if="kind==='topology'">
-      <h3>设备拓扑与链路可视化</h3>
-      <p class="text-caption text-medium-emphasis my-2">
-        尝试组合主机地址提示、Wi-Fi 关联与 LLDP 邻居。实线代表已观察到的无线关联或
-        LLDP 邻接；虚线表示仅推断设备挂在路由器侧，不能据此判定交换机端口或在线状态。
-      </p>
-      <template v-if="topology">
-        <div class="d-flex ga-2 flex-wrap mb-3">
-          <v-chip size="small" color="success" variant="tonal">有直接证据 {{ topology.confirmed }}</v-chip>
-          <v-chip size="small" variant="tonal">推断 {{ topology.inferred }}</v-chip>
-          <v-chip size="small" variant="tonal">LLDP {{ topology.sources.lldp?'可用':'未开放' }}</v-chip>
-        </div>
-        <div v-if="topology.nodes.length" class="topology-scroll">
-          <svg :viewBox="'0 0 780 '+topologyHeight" role="img" width="100%"
-            :height="topologyHeight" preserveAspectRatio="xMinYMin meet">
-            <line v-for="(node,i) in topology.nodes" :key="node.id+'-edge'"
-              x1="150" :y1="topologyHeight/2" x2="370" :y2="45+i*62"
-              stroke="#7090a8" stroke-width="2" :stroke-dasharray="node.confirmed?'none':'6 5'"/>
-            <rect x="8" :y="topologyHeight/2-28" width="142" height="56" rx="12" fill="#176ab1"/>
-            <text x="79" :y="topologyHeight/2+5" text-anchor="middle" fill="#fff" font-size="17">路由器</text>
-            <g v-for="(node,i) in topology.nodes" :key="node.id">
-              <rect x="370" :y="19+i*62" width="390" height="52" rx="10"
-                :fill="node.confirmed?'#1b674c':'#46515d'"/>
-              <text x="382" :y="38+i*62" fill="#fff" font-size="14">
-                {{ node.name.slice(0,35) }}
-              </text>
-              <text x="382" :y="57+i*62" fill="#fff" opacity=".8" font-size="11">
-                {{ (node.medium+' · '+node.source).slice(0,55) }}
-              </text>
-            </g>
-          </svg>
-        </div>
-        <v-alert v-else type="info" variant="tonal">
-          未获取到可绘制的邻居数据。路由器未必支持 LLDP，外部 AP 关联终端也可能不可见。
-        </v-alert>
-        <p class="text-caption text-medium-emphasis mt-2">{{ topology.note }}</p>
-      </template>
+      <TopologyPanel v-if="topology" :topology="topology"/>
     </template>
     <template v-else-if="kind==='security'">
       <h3>安全事件分析</h3>
@@ -649,5 +614,4 @@ onUnmounted(()=>{if(interval)clearInterval(interval)})
 .data-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(127,127,127,.15)}
 .data-row strong{min-width:0;overflow-wrap:anywhere}
 .cron-row{flex-wrap:wrap}
-.topology-scroll{overflow:auto;max-height:480px;max-width:100%;border:1px solid rgba(127,127,127,.2);border-radius:12px}
 </style>

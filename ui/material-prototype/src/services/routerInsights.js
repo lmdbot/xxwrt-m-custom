@@ -100,67 +100,100 @@ export function trendSegments(points, minTime, maxTime, maxValue=100, maxGapMs=1
 }
 const SAFE_MAC=/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/
 function parseLldpResponse(raw) {
-  if(!raw || typeof raw.stdout!=='string' || Number(raw.code??1)!==0)return []
+  if (!raw || typeof raw.stdout!=='string' || Number(raw.code??1)!==0) return []
   let obj
-  try{obj=JSON.parse(raw.stdout)}catch(_){return []}
-  const result=[]
+  try { obj=JSON.parse(raw.stdout) } catch (_) { return [] }
   const root=obj.lldp?.interface || obj.interface || {}
-  for(const [iface,rawPeer] of Object.entries(root)){
-    if(!/^[A-Za-z0-9_.:-]{1,32}$/.test(iface))continue
+  const result=[]
+  for (const [iface,rawPeer] of Object.entries(root)) {
+    if (!/^[A-Za-z0-9_.:-]{1,32}$/.test(iface)) continue
     const peers=Array.isArray(rawPeer)?rawPeer:[rawPeer]
-    for(const peer of peers) {
+    for (const peer of peers) {
       const label=peer?.chassis?.name?.value || peer?.chassis?.name ||
         peer?.chassis?.descr?.value || peer?.port?.descr?.value ||
         peer?.port?.id?.value || ''
       const name=String(label).slice(0,80)
-      if(name)result.push({id:'lldp-'+iface+'-'+result.length,
-        name,medium:iface,source:'LLDP',confirmed:true})
+      if (name) result.push({
+        id:'lldp-'+iface+'-'+result.length,name,ip:'',mac:'',
+        detail:iface,medium:iface,source:'LLDP 邻居',
+        sources:['lldp'],linkType:'lldp',confirmed:true,status:'observed'
+      })
     }
   }
   return result.slice(0,35)
 }
-export function buildTopologyGraph(neighbors=[],wifi=[],lldp=[]) {
+const validMac=value=>SAFE_MAC.test(String(value||'').toUpperCase())
+const usefulName=value=>String(value||'').trim() &&
+  !/^(?:未知设备|unknown(?: device)?|--|n\/a)$/i.test(String(value||'').trim())
+const safeText=(value,max=100)=>String(value||'').trim().slice(0,max)
+export function buildTopologyGraph(neighbors=[],wifi=[],lldp=[],leases=[],hints={}) {
   const byMac=new Map()
-  for(const item of neighbors){
-    const mac=String(item.mac||'').toUpperCase()
-    if(!SAFE_MAC.test(mac))continue
+  const add=(raw,source)=>{
+    const mac=safeText(raw?.mac||raw?.macaddr||'',24).toUpperCase()
+    if (!validMac(mac)) return
+    const old=byMac.get(mac)
+    const nextName=safeText(raw?.name||raw?.hostname,80)
+    const name=usefulName(nextName)?nextName:old?.name||'未知设备'
+    const ip=safeText(raw?.ip||raw?.ipaddr||raw?.ip6addr||raw?.address,64)
+    const sources=[...new Set([...(old?.sources||[]),source])]
     byMac.set(mac,{
-      id:'mac-'+mac,name:String(item.name||item.ip||mac).slice(0,50),
-      detail:String(item.ip||mac).slice(0,64),medium:'LAN（端口未知）',
-      source:'历史邻居 / 地址提示',confirmed:false,mac
+      id:'mac-'+mac,mac,name,ip:ip||old?.ip||'',
+      detail:ip||old?.ip||mac,
+      medium:old?.medium||'接入方式未知',
+      source:sources.includes('dhcp')?'DHCP 租约 / 地址提示':'历史邻居 / 地址提示',
+      sources,linkType:old?.linkType||'inferred',
+      confirmed:old?.confirmed||false,status:old?.status||'unknown'
     })
   }
-  for(const station of wifi) {
-    const mac=String(station.mac||'').toUpperCase()
-    if(!SAFE_MAC.test(mac))continue
-    const found=byMac.get(mac)
+  for (const item of neighbors||[]) add(item,'hints')
+  for (const [mac,raw] of Object.entries(hints||{})) {
+    if (!validMac(mac)) continue
+    add({mac,name:raw?.name,ip:raw?.ipaddrs?.[0]||raw?.ip6addrs?.[0]},'hints')
+  }
+  const leaseRows=Array.isArray(leases)?leases:[
+    ...(leases?.dhcp_leases||[]),...(leases?.dhcp6_leases||[])
+  ]
+  for (const item of leaseRows) add(item,'dhcp')
+  for (const station of wifi||[]) {
+    const mac=safeText(station?.mac||'',24).toUpperCase()
+    if (!validMac(mac)) continue
+    const old=byMac.get(mac)
+    const sources=[...new Set([...(old?.sources||[]),'wifi'])]
     byMac.set(mac,{
-      id:'mac-'+mac,name:found?.name||mac,detail:found?.detail||mac,
-      medium:'Wi-Fi '+String(station.device||''),source:'当前无线关联',confirmed:true,mac
+      id:'mac-'+mac,mac,name:old?.name||'未知设备',
+      detail:old?.detail||mac,ip:old?.ip||'',
+      medium:'Wi-Fi '+safeText(station.device,32),
+      source:'当前无线关联',sources,linkType:'wifi',
+      confirmed:true,status:'observed'
     })
   }
-  const nodes=[...lldp,...byMac.values()].slice(0,40)
-  return {nodes,
-    confirmed:nodes.filter(x=>x.confirmed).length,
+  const nodes=[...(lldp||[]),...byMac.values()].slice(0,120)
+  return {nodes,confirmed:nodes.filter(x=>x.confirmed).length,
     inferred:nodes.filter(x=>!x.confirmed).length}
 }
 export async function readRouterTopology(client) {
   const settled=await Promise.allSettled([
-    readWolDevices(client),readWirelessStations(client),
+    readWolDevices(client),
+    readWirelessStations(client),
     client.call('file','exec',{
       command:'/usr/sbin/lldpcli',params:['-f','json','show','neighbors'],env:null
-    },true)
+    },true),
+    client.call('luci-rpc','getDHCPLeases',{},true),
+    client.call('luci-rpc','getHostHints',{},true)
   ])
-  const hint=settled[0].status==='fulfilled'?settled[0].value:null
-  const wireless=settled[1].status==='fulfilled'?settled[1].value:null
-  const lldpResult=settled[2].status==='fulfilled'?settled[2].value:null
-  const graph=buildTopologyGraph(hint?.known||hint?.neighbors||[],
-    wireless?.stations||[],parseLldpResponse(lldpResult))
-  return {
-    ...graph,
-    sources:{hints:!!hint,wifi:!!wireless?.available,lldp:!!lldpResult && lldpResult.code===0},
-    note:'历史邻居地址不能证明设备在线；只有当前 Wi-Fi 关联和已识别的 LLDP 邻居可作为链路证据。'
+  const val=i=>settled[i].status==='fulfilled'?settled[i].value:null
+  const known=val(0),wireless=val(1),lldpReply=val(2)
+  const leases=val(3),hints=val(4)
+  const graph=buildTopologyGraph(known?.known||known?.neighbors||[],
+    wireless?.stations||[],parseLldpResponse(lldpReply),leases,hints)
+  const sources={
+    hints:hints!=null || Array.isArray(known?.known),
+    dhcp:leases!=null,
+    wifi:!!wireless?.available,
+    lldp:!!lldpReply && Number(lldpReply.code??1)===0
   }
+  return {...graph,sources,
+    note:'Host 提示和 DHCP 租约只能提示设备信息，不能证明当前在线；Wi-Fi 当前关联和 LLDP 邻接是直接观测证据。分组示意连线不是实际物理拓扑。'}
 }
 export const SECURITY_PATTERNS=Object.freeze([
   {id:'login',name:'登录认证失败',level:'high',expression:/failed password|authentication failure|invalid user|login failed|bad password|unauthorized login/i},
