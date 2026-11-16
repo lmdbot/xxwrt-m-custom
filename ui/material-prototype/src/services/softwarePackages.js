@@ -163,17 +163,25 @@ async function callWithTimeout(client, args, timeout) {
   return client.call('file', 'exec', args)
 }
 
-export async function runPackageAction(client, action, targets = [], manager = 'opkg') {
+export async function runPackageAction(client, action, targets = [], manager = 'opkg', flags = []) {
   if (!ACTIONS.has(action)) throw new Error('不支持的软件包操作')
   if (!Array.isArray(targets) || targets.length > 200) throw new Error('软件包数量超出限制')
   if (['install', 'upgrade', 'remove'].includes(action) && !targets.length && action !== 'upgrade')
     throw new Error('请选择操作的软件包')
   if (!['install', 'upgrade', 'remove'].includes(action) && targets.length)
     throw new Error('此操作不接受软件包参数')
+  const allowedFlags = {
+    install: ['--force-overwrite'], upgrade: ['--force-overwrite'],
+    remove: ['--autoremove', '--force-removal-of-dependent-packages']
+  }
+  if (!Array.isArray(flags) || flags.length > 2 ||
+      new Set(flags).size !== flags.length ||
+      flags.some(flag => !allowedFlags[action]?.includes(flag)))
+    throw new Error('包含不允许的软件包操作选项')
   const safeTargets = targets.map(target =>
     validatePackageTarget(target, { allowUrl: action === 'install', manager }))
   const response = await callWithTimeout(client, {
-    command: PACKAGE_CALL, params: [action, ...safeTargets], env: null
+    command: PACKAGE_CALL, params: [action, ...flags, ...safeTargets], env: null
   }, MUTATIONS.has(action) ? 180000 : 90000)
   if (!response || typeof response.stdout !== 'string')
     throw new Error('路由器未返回软件包工具输出；请确认已安装 LuCI 软件包管理器并授权 file.exec')
