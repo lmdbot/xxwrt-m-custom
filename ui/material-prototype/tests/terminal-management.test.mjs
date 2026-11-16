@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ipv4Number, parseHqosLimit, readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit
+  ipv4Number, parseHqosLimit, readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit,
+  saveHqosGlobal
 } from '../src/services/terminalManagement.js'
 
 const MAC = 'AA:BB:CC:DD:EE:FF'
@@ -33,6 +34,7 @@ function mockRouter({ dhcp = {}, eqos = null, limiter = null, nftQos = null, hqo
       if (method === 'get') {
         return configs[args.config] == null ? null : { values: structuredClone(configs[args.config]) }
       }
+      if (method === 'changes') return { changes: [] }
       if (method === 'add') {
         const section = 'new_' + ++counter
         configs[args.config][section] = { '.type': args.type, ...args.values }
@@ -272,4 +274,45 @@ test('legacy EQOS remains active if HQoS is installed but globally disabled', as
   const settings = await readTerminalSettings(api, device)
   assert.equal(settings.backend, 'eqos')
   assert.equal(settings.hqosStatus.installed, true)
+})
+
+test('HQoS global settings commit fixed UCI keys and apply the native service', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan'
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  const result = await saveHqosGlobal(api, settings, {
+    enabled: true, backend: 'cpu', interface: 'br-lan'
+  })
+  assert.equal(result.applied, true)
+  assert.equal(api.configs.hqos.global.enabled, '1')
+  assert.equal(api.configs.hqos.global.backend, 'cpu')
+  assert.deepEqual(api.calls.filter(x => x.object === 'file' && x.method === 'exec')
+    .map(x => [x.args.command, x.args.params]), [['/usr/sbin/hqos', ['apply']]])
+  assert.equal(api.calls.filter(x => x.object === 'uci' && x.method === 'commit').length, 1)
+})
+test('HQoS global settings protect invalid backend and hardware interface', async () => {
+  const api = mockRouter({ hqos: { global: {
+    '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan'
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  await assert.rejects(saveHqosGlobal(api, settings, {
+    enabled: true, backend: 'invalid', interface: 'br-lan'
+  }), /无效/)
+  await assert.rejects(saveHqosGlobal(api, settings, {
+    enabled: true, backend: 'mtk-ppe', interface: 'pppoe-wan'
+  }), /硬件后端只能/)
+  assert.equal(api.calls.filter(x => x.object === 'uci' && x.method === 'set').length, 0)
+})
+test('HQoS global apply failure attempts to restore original settings', async () => {
+  const api = mockRouter({ applyCode: null, hqos: { global: {
+    '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan'
+  } } })
+  const settings = await readTerminalSettings(api, device)
+  await assert.rejects(saveHqosGlobal(api, settings, {
+    enabled: true, backend: 'cpu', interface: 'br-lan'
+  }), /应用失败/)
+  assert.equal(api.configs.hqos.global.enabled, '0')
+  assert.equal(api.configs.hqos.global.backend, 'auto')
+  assert.equal(api.calls.filter(x => x.object === 'uci' && x.method === 'commit').length, 2)
 })
