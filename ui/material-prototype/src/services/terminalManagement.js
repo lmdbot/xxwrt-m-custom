@@ -217,6 +217,16 @@ export async function saveHqosGlobal(client, oldSettings, input) {
     backend: input.backend,
     interface: interfaceName
   }
+  if (input.enabled && oldSettings.mac) {
+    const live = await readTerminalSettings(client,
+      { mac: oldSettings.mac, ip: oldSettings.ip }, 'hqos')
+    if (live.conflicts.length && input.allowConflict !== true)
+      throw new Error('其他 QoS 服务已启用（' + live.conflicts.join('、') +
+        '），启用 HQoS 可能发生流量整形冲突；请明确确认后再操作')
+    const changed = (oldSettings.qosBackends || []).some(entry =>
+      Boolean(entry.enabled) !== Boolean(live.qosBackends.find(x => x.id === entry.id)?.enabled))
+    if (changed) throw new Error('QoS 服务启用状态已变化，请刷新后重试')
+  }
   const config = await client.call('uci', 'get', { config: 'hqos' })
   const original = hqosGlobalValues(config)
   // Refuse stale forms and concurrent LuCI edits. A commit must not include
@@ -541,6 +551,26 @@ export async function saveTerminalRateLimit(client, device, settings, input) {
   const mac = validMac(device?.mac)
   if (mac !== settings?.mac) throw new Error('终端信息发生变化，请重新打开')
   const backend = settings.backend
+  // Nonzero limits may place more than one QoS engine on the same traffic.
+  // Re-read backend status immediately before any write; do not trust stale
+  // settings from a modal left open while LuCI changed the router.
+  const wantsRule = [input?.upload, input?.download,
+    backend === 'hqos' ? input?.connections : null].some(x =>
+      x != null && String(x).trim() !== '' && Number(x) > 0)
+  if (backend && wantsRule) {
+    const latest = await readTerminalSettings(client, device, settings.selectedBackend || backend)
+    if (!latest.backend || latest.backend !== backend)
+      throw new Error('QoS 后端状态已变化，请刷新终端后再保存')
+    const changed = (settings.qosBackends || []).some(entry => {
+      const next = (latest.qosBackends || []).find(x => x.id === entry.id)
+      return Boolean(entry.enabled) !== Boolean(next?.enabled)
+    }) || (latest.qosBackends || []).some(entry =>
+      !(settings.qosBackends || []).some(old => old.id === entry.id) && entry.enabled)
+    if (changed) throw new Error('检测到其他 QoS 服务状态已变化，请重新加载并确认')
+    if (latest.conflicts.length && input.allowConflict !== true)
+      throw new Error('其他 QoS 服务已启用（' + latest.conflicts.join('、') +
+        '）；可能与所选后端冲突，请明确确认后再保存')
+  }
   if (backend === 'hqos') return saveHqosClient(client, device, settings, input)
   if (!['eqos', 'nft-qos', 'nft-limiter'].includes(backend)) {
     throw new Error(settings.reason || '当前路由器没有可用的终端限速服务')
