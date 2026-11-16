@@ -34,7 +34,7 @@ import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import AboutPage from './components/AboutPage.vue'
-import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
+import appIcon from '../assets/qwrt-chibi-openwrt-router.webp'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
 import { readTerminalSettings, selectTerminalQosBackend, saveTerminalStaticIP, saveTerminalRateLimit, saveHqosGlobal } from './services/terminalManagement.js'
@@ -79,7 +79,8 @@ const pages = [
   { id: 'statistics', label: '统计', icon: 'mdi-chart-box-outline' },
   { id: 'clients', label: '终端', icon: 'mdi-devices' },
   { id: 'network', label: '网络', icon: 'mdi-lan' },
-  { id: 'apps', label: '应用', icon: 'mdi-apps' }
+  { id: 'apps', label: '应用', icon: 'mdi-apps' },
+  { id: 'more', label: '更多', icon: 'mdi-dots-horizontal' }
 ]
 const storage = {
   host: 'xxwrt_material_router_url',
@@ -392,24 +393,26 @@ const motionEnabled = ref(readMotionPreference(localStorage))
 const systemReducedMotion = ref(false)
 const effectiveMotion = computed(() => motionAllowed(motionEnabled.value, systemReducedMotion.value))
 provide('xxwrt-motion-enabled', effectiveMotion)
-const drawerOpen = ref(false)
 const appLocale = ref(savedLanguage())
 const selectedLanguage = computed(() => LANGUAGES.find(option => option.code === appLocale.value)?.name || '简体中文')
 let localizationController = null
 const settingsOpen = ref(false)
-const settingsCategory = ref('display')
+const settingsCategory = ref('settings')
 const settingsTrail = []
-const settingsCategories = [
+const moreCategories = [
   { id: 'router', title: '路由器', description: '设备管理、连接与系统信息', icon: 'mdi-router-wireless' },
+  { id: 'settings', title: '设置', description: '显示、隐私、刷新、实验室、语言', icon: 'mdi-cog-outline' },
+  { id: 'about', title: '关于', description: '帮助、反馈与版本', icon: 'mdi-information-outline' }
+]
+const settingsCategories = [
   { id: 'display', title: '显示', description: '界面主题、导航与列表布局', icon: 'mdi-monitor' },
   { id: 'privacy', title: '隐私', description: '主机名、IP 地址与隐私显示', icon: 'mdi-shield-lock-outline' },
   { id: 'refresh', title: '刷新', description: '设备状态与数据更新策略', icon: 'mdi-refresh' },
   { id: 'lab', title: '实验室', description: '高级选项与实验性功能', icon: 'mdi-flask-outline' },
-  { id: 'language', title: '语言', description: '简体中文、繁體中文和 English', icon: 'mdi-translate' },
-  { id: 'about', title: '关于', description: '帮助、反馈与版本', icon: 'mdi-information-outline' }
+  { id: 'language', title: '语言', description: '简体中文、繁體中文和 English', icon: 'mdi-translate' }
 ]
 const settingsPage = computed(() =>
-  settingsCategories.find(category => category.id === settingsCategory.value) || settingsCategories[1]
+  [...moreCategories, ...settingsCategories].find(category => category.id === settingsCategory.value) || moreCategories[1]
 )
 const hideHostnames = computed({
   get: () => !showHostnames.value,
@@ -494,11 +497,12 @@ function onlineStateForMac(mac) {
 }
 const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
+const previousContentTab = ref('home')
 const systemDark = ref(false)
 const dark = computed(() => colorMode.value === 'dark' || (colorMode.value === 'system' && systemDark.value))
 const pageTitle = computed(() => pages.find(page => page.id === activeTab.value)?.label || '首页')
 const toolbarSection = computed(() => {
-  if (settingsOpen.value) return '设置'
+  if (settingsOpen.value || activeTab.value === 'more') return ''
   if (viewMode.value !== 'detail' || !connected.value) return ''
   if (activeTab.value !== 'apps' || !toolPanel.value) return pageTitle.value
   return legacyTools.find(x => x.id === toolPanel.value)?.title || '应用详情'
@@ -1050,6 +1054,7 @@ function scrollCurrentPageToTop(){
 }
 function scrollRouteKey([tab,tool,mode,settings,category,device]){
   if(settings)return 'settings:'+String(category||'root')
+  if(tab==='more')return 'more:root'
   if(mode==='list')return 'device-list'
   return ['router',String(device||'unknown'),String(tab||'home'),
     tab==='apps'?(tool||'hub'):'root'].join(':')
@@ -1106,37 +1111,53 @@ watch([terminalView,networkView],async ([newTerminal,newNetwork],[oldTerminal,ol
   })
 })
 function navigateBottomTab(tab) {
-  // Vuetify may emit null when the already selected navigation button is
-  // tapped. Ignore deselection; a tab must always remain selected.
   if (!pages.some(page => page.id === tab)) return
+  if (viewMode.value === 'list' && tab !== 'home' && tab !== 'more') return
   if (activeTab.value === 'apps' && toolPanel.value) {
     const blocked = advancedToolIds.includes(toolPanel.value)
       ? advancedManagementPanel.value?.handleBack?.() :
       routerOperationsToolIds.includes(toolPanel.value)
         ? routerOperationsPanel.value?.handleBack?.() :
-        routerAppToolIds.includes(toolPanel.value) ? routerAppsPanel.value?.handleBack?.() : null
+      routerAppToolIds.includes(toolPanel.value) ? routerAppsPanel.value?.handleBack?.() : null
     if (blocked) return
   }
   if (tab === activeTab.value) {
-    // Re-tap an active root tab to return to the top. In an app subpage, the
-    // first tap must only return to the app hub and restore its last position.
+    if (tab === 'more' && settingsOpen.value) {
+      settingsOpen.value = false
+      settingsTrail.length = 0
+      return
+    }
     if (tab === 'apps' && toolPanel.value) {
       toolPanel.value = ''
       toolMessage.value = ''
       return
     }
-    if(isCurrentTabRoot(activeTab.value,tab,toolPanel.value,connected.value,settingsOpen.value)){
-      const route=scrollRouteKey([activeTab.value,toolPanel.value,viewMode.value,
-        settingsOpen.value,settingsCategory.value,selectedDeviceId.value])
-      pageScrollPositions.set(route,0)
+    if (isCurrentTabRoot(activeTab.value, tab, toolPanel.value, connected.value, settingsOpen.value)
+      || tab === 'more') {
+      const route = scrollRouteKey([activeTab.value, toolPanel.value, viewMode.value,
+        settingsOpen.value, settingsCategory.value, selectedDeviceId.value])
+      pageScrollPositions.set(route, 0)
       scrollCurrentPageToTop()
     }
     return
   }
+  if (tab === 'more') previousContentTab.value = activeTab.value
+  settingsOpen.value = false
+  settingsTrail.length = 0
   activeTab.value = tab
 }
+function openMoreSection(categoryId) {
+  if (!moreCategories.some(category => category.id === categoryId)) return
+  settingsTrail.length = 0
+  settingsCategory.value = categoryId
+  settingsOpen.value = true
+}
+function openRouterTab(tab) {
+  if (viewMode.value !== 'detail' || !connected.value) return
+  navigateBottomTab(tab)
+}
 watch(activeTab, (tab) => {
-  if (connected.value) refreshCurrent()
+  if (connected.value && tab !== 'more') refreshCurrent()
   if (tab === 'statistics') void pollTelemetry()
   if (tab !== 'apps') toolPanel.value = ''
 })
@@ -1145,12 +1166,10 @@ let nativeBackSubscription = null
 let nativeResumeSubscription = null
 function openSettingsCategory(categoryId) {
   if (!settingsCategories.some(category => category.id === categoryId)) return
-  if (settingsOpen.value && settingsCategory.value !== categoryId) {
-    settingsTrail.push(settingsCategory.value)
-  }
+  settingsTrail.length = 0
+  settingsTrail.push('settings')
   settingsCategory.value = categoryId
   settingsOpen.value = true
-  drawerOpen.value = false
 }
 function closeSettingsPage() {
   if (settingsTrail.length) {
@@ -1159,47 +1178,7 @@ function closeSettingsPage() {
   }
   settingsOpen.value = false
 }
-// Allow a deliberate left-edge right swipe on the device list as well as
-// connected device root tabs. Keep dialogs, settings and app subpages guarded.
-let drawerEdgeTouch = null
-function canOpenDrawerBySwipe() {
-  const onDeviceList = viewMode.value === 'list'
-  const onDeviceRootTab = viewMode.value === 'detail' && connected.value &&
-    !(activeTab.value === 'apps' && toolPanel.value)
-  return (onDeviceList || onDeviceRootTab) &&
-    !settingsOpen.value && !drawerOpen.value &&
-    !document.querySelector('.v-dialog.v-overlay--active, .v-menu.v-overlay--active')
-}
-function clearDrawerEdgeSwipe() {
-  drawerEdgeTouch = null
-}
-function onDrawerEdgeTouchStart(event) {
-  clearDrawerEdgeSwipe()
-  if (!canOpenDrawerBySwipe() || event.touches.length !== 1) return
-  const finger = event.touches[0]
-  if (finger.clientX > DRAWER_EDGE_WIDTH || finger.clientX < 0) return
-  if (event.target?.closest?.('input, textarea, select, [contenteditable], .realtime-chart')) return
-  drawerEdgeTouch = { x: finger.clientX, y: finger.clientY, time: Date.now(), identifier: finger.identifier }
-}
-function onDrawerEdgeTouchMove(event) {
-  if (!drawerEdgeTouch) return
-  if (event.touches.length !== 1) { clearDrawerEdgeSwipe(); return }
-  const finger = [...event.touches].find(t => t.identifier === drawerEdgeTouch.identifier)
-  if (!finger) { clearDrawerEdgeSwipe(); return }
-  const dx = finger.clientX - drawerEdgeTouch.x
-  const dy = Math.abs(finger.clientY - drawerEdgeTouch.y)
-  if (dy > 24 && dy > Math.abs(dx) * 1.2) clearDrawerEdgeSwipe()
-}
-function onDrawerEdgeTouchEnd(event) {
-  const start = drawerEdgeTouch
-  clearDrawerEdgeSwipe()
-  if (!start || !canOpenDrawerBySwipe()) return
-  const finger = [...event.changedTouches].find(t => t.identifier === start.identifier)
-  if (finger && isLeftEdgeDrawerSwipe(start, {
-    x: finger.clientX, y: finger.clientY, time: Date.now()
-  })) drawerOpen.value = true
-}
-// Back: dialogs → drawer/settings → app subpage → router list → minimize.
+// Back: dialogs → More subpage → More hub → app tool → router list → minimize.
 async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
   if (releaseNotesDialog.value) { releaseNotesDialog.value = false; return 'dialog' }
@@ -1226,8 +1205,8 @@ async function handleBack() {
     const handled = networkInterfacesPanel.value?.handleBack?.()
     if (handled) return handled
   }
-  if (drawerOpen.value) { drawerOpen.value = false; return 'drawer' }
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
+  if (activeTab.value === 'more') { navigateBottomTab(viewMode.value === 'list' ? 'home' : previousContentTab.value); return 'more' }
 
   if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
     const blocked = routerOperationsToolIds.includes(toolPanel.value)
@@ -1341,7 +1320,8 @@ function resetSession() {
   viewMode.value = 'list'
   selectedDeviceId.value = ''
   loginDialog.value = false
-  drawerOpen.value = false
+  settingsOpen.value = false
+  settingsTrail.length = 0
   void refreshDeviceStatuses()
 }
 
@@ -1460,7 +1440,6 @@ async function refreshDeviceStatuses() {
 async function goToDeviceList() {
   settingsOpen.value = false
   settingsTrail.length = 0
-  drawerOpen.value = false
   viewMode.value = 'list'
   activeTab.value = 'home'
   toolPanel.value = ''
@@ -1978,91 +1957,83 @@ onUnmounted(() => {
 <template>
   <v-app class="material-demo" :class="{ 'theme-is-dark': dark, 'app-motion-enabled': effectiveMotion }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
-      <v-btn icon="mdi-menu" size="small" aria-label="打开侧栏菜单" @click="drawerOpen = !drawerOpen"/>
-      <v-btn v-if="settingsOpen || viewMode === 'detail'" icon="mdi-arrow-left" size="small"
-        :aria-label="settingsOpen ? '返回设置上一级' : activeTab === 'apps' && toolPanel ? '返回应用功能列表' : '返回上一页'"
-        @click="settingsOpen ? closeSettingsPage() : activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
+      <v-btn v-if="settingsOpen || viewMode === 'detail' || activeTab === 'more'"
+        icon="mdi-arrow-left" size="small"
+        :aria-label="settingsOpen ? '返回设置上一级' : activeTab === 'more' ? '返回上一个底栏页面' : activeTab === 'apps' && toolPanel ? '返回应用功能列表' : '返回上一页'"
+        @click="settingsOpen ? closeSettingsPage() : activeTab === 'more' ? navigateBottomTab(viewMode === 'list' ? 'home' : previousContentTab) : activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
-          <h1 v-if="viewMode === 'list' && !settingsOpen"
+          <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
             class="router-toolbar-name router-list-toolbar-heading">设备列表</h1>
-          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : displayDeviceName(selectedDevice) }}</span>
-          <span v-if="toolbarSection && !settingsOpen" class="router-toolbar-context" :title="toolbarSection">· {{ toolbarSection }}</span>
+          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : activeTab === 'more' ? '更多' : displayDeviceName(selectedDevice) }}</span>
+          <span v-if="toolbarSection" class="router-toolbar-context" :title="toolbarSection">· {{ toolbarSection }}</span>
         </div>
       </v-toolbar-title>
-      <v-btn v-if="viewMode === 'list' && !settingsOpen"
+      <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
         icon="mdi-refresh" size="small" variant="tonal" color="primary"
         :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
-      <v-btn v-if="viewMode === 'list' && !settingsOpen" class="router-list-add-topbar"
-        color="primary" rounded="xl" size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
+      <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
+        class="router-list-add-topbar" color="primary" rounded="xl"
+        size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
       <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
-        aria-label="刷新当前页面" @click="activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen" icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
+        aria-label="刷新当前页面"
+        @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
+        icon="mdi-logout" size="small" aria-label="退出登录" @click="resetSession"/>
     </v-app-bar>
 
-    <!-- Disable Vuetify's own whole-screen touch gesture. Our v-main left-edge
-         handler is the single gesture owner and enforces the 72px edge guard. -->
-    <v-navigation-drawer v-model="drawerOpen" temporary touchless location="left" width="320" class="material-side-drawer" aria-label="设置分类侧栏">
-      <div class="sidebar-brand">
-        <v-avatar size="54" color="primary" variant="tonal" rounded="xl"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
-        <div><strong>我的 OpenWrt</strong><small>路由器管理</small></div>
-        <v-btn icon="mdi-close" variant="text" size="small" aria-label="关闭侧栏菜单" @click="drawerOpen = false"/>
-      </div>
-      <div class="sidebar-category-list" role="group" aria-label="设置分类">
-        <v-card
-          v-for="category in settingsCategories"
-          :key="category.id"
-          role="button"
-          tabindex="0"
-          rounded="xl"
-          elevation="0"
-          class="settings-category-card"
-          :class="{ 'is-selected': settingsOpen && settingsCategory === category.id }"
-          :aria-label="'打开' + category.title + '设置'"
-          :aria-current="settingsOpen && settingsCategory === category.id ? 'page' : undefined"
-          @click="openSettingsCategory(category.id)"
-          @keydown.enter.prevent="openSettingsCategory(category.id)"
-          @keydown.space.prevent="openSettingsCategory(category.id)"
-        >
-          <v-avatar size="46" rounded="lg" color="primary" variant="tonal">
-            <v-icon :icon="category.icon" size="24"/>
-          </v-avatar>
-          <div class="settings-category-copy">
-            <strong>{{ category.title }}</strong>
-            <small>{{ category.description }}</small>
-          </div>
-          <v-icon icon="mdi-chevron-right" size="22" color="secondary"/>
-        </v-card>
-      </div>
-    </v-navigation-drawer>
-
-    <v-main
-      @touchstart.capture.passive="onDrawerEdgeTouchStart"
-      @touchmove.capture.passive="onDrawerEdgeTouchMove"
-      @touchend.capture.passive="onDrawerEdgeTouchEnd"
-      @touchcancel.capture="clearDrawerEdgeSwipe">
+    <v-main>
       <v-container class="main-container">
         <template v-if="settingsOpen">
           <section class="settings-page" :data-settings-category="settingsCategory">
-            <template v-if="settingsCategory === 'router'">
-              <v-card rounded="xl" elevation="1" class="settings-option-card">
-                <div class="settings-option-heading">
-                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-router-network" size="23"/></v-avatar>
-                  <div><h2>设备管理</h2><p>管理已保存的 OpenWrt 路由器和登录信息。</p></div>
-                </div>
-                <div class="settings-summary-grid">
-                  <div><strong>{{ devices.length }}</strong><span>已保存设备</span></div>
-                  <div><strong>{{ reachableCount }}</strong><span>可达设备</span></div>
-                  <div><strong>{{ offlineCount }}</strong><span>离线设备</span></div>
-                </div>
-                <div class="settings-actions">
-                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-router-wireless" @click="goToDeviceList">打开设备列表</v-btn>
-                  <v-btn variant="outlined" prepend-icon="mdi-plus" @click="settingsOpen = false; settingsTrail.length = 0; showDeviceDialog()">添加路由器</v-btn>
-                </div>
-              </v-card>
+            <template v-if="settingsCategory === 'settings'">
+              <div class="more-menu-list" role="group" aria-label="设置选项">
+                <button v-for="category in settingsCategories" :key="category.id"
+                  type="button" class="more-menu-item" :aria-label="'打开' + category.title + '设置'"
+                  @click="openSettingsCategory(category.id)">
+                  <span class="more-menu-icon"><v-icon :icon="category.icon" size="24"/></span>
+                  <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
+                  <v-icon icon="mdi-chevron-right" size="21" class="more-menu-chevron"/>
+                </button>
+              </div>
             </template>
-
+            <template v-else-if="settingsCategory === 'router'">
+              <header class="more-router-hero">
+                <v-icon icon="mdi-router-wireless" size="58" color="primary"/>
+                <h2>路由器</h2>
+                <p>设备管理、连接与系统信息</p>
+              </header>
+              <div class="more-menu-list" role="group" aria-label="路由器快捷入口">
+                <button type="button" class="more-menu-item" @click="goToDeviceList">
+                  <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="24"/></span>
+                  <span class="more-menu-copy"><strong>设备信息</strong><small>查看和管理保存的路由器</small></span>
+                  <v-icon icon="mdi-chevron-right" size="21" class="more-menu-chevron"/>
+                </button>
+                <button type="button" class="more-menu-item" :disabled="!connected" @click="openRouterTab('clients')">
+                  <span class="more-menu-icon"><v-icon icon="mdi-devices" size="24"/></span>
+                  <span class="more-menu-copy"><strong>连接设备</strong><small>查看已连接的终端</small></span>
+                  <v-icon icon="mdi-chevron-right" size="21" class="more-menu-chevron"/>
+                </button>
+                <button type="button" class="more-menu-item" :disabled="!connected" @click="openRouterTab('network')">
+                  <span class="more-menu-icon"><v-icon icon="mdi-lan" size="24"/></span>
+                  <span class="more-menu-copy"><strong>接口状态</strong><small>网络接口与连接状态</small></span>
+                  <v-icon icon="mdi-chevron-right" size="21" class="more-menu-chevron"/>
+                </button>
+                <button type="button" class="more-menu-item" :disabled="!connected" @click="openRouterTab('home')">
+                  <span class="more-menu-icon"><v-icon icon="mdi-layers-outline" size="24"/></span>
+                  <span class="more-menu-copy"><strong>系统信息</strong><small>路由器运行状态与资源</small></span>
+                  <v-icon icon="mdi-chevron-right" size="21" class="more-menu-chevron"/>
+                </button>
+              </div>
+              <div class="more-device-summary" aria-label="已保存设备统计">
+                <span>已保存设备 <strong>{{ devices.length }}</strong></span>
+                <span>可达 <strong>{{ reachableCount }}</strong></span>
+                <span>离线 <strong>{{ offlineCount }}</strong></span>
+              </div>
+              <v-btn class="mt-4" block variant="tonal" prepend-icon="mdi-plus"
+                @click="settingsOpen = false; settingsTrail.length = 0; showDeviceDialog()">添加路由器</v-btn>
+            </template>
             <template v-else-if="settingsCategory === 'display'">
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
@@ -2202,6 +2173,24 @@ onUnmounted(() => {
                 @show-licenses="openSourceDialog = true"
                 @show-privacy="privacyDialog = true"/>
             </template>
+          </section>
+        </template>
+        <template v-else-if="activeTab === 'more'">
+          <section class="more-page" data-testid="more-page">
+            <header class="more-hero">
+              <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="72" height="72"/>
+              <h2>QWRT</h2>
+              <p>智能路由管理</p>
+            </header>
+            <div class="more-menu-list" role="group" aria-label="更多功能">
+              <button v-for="category in moreCategories" :key="category.id"
+                type="button" class="more-menu-item" :aria-label="'打开' + category.title"
+                @click="openMoreSection(category.id)">
+                <span class="more-menu-icon"><v-icon :icon="category.icon" size="25"/></span>
+                <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
+                <v-icon icon="mdi-chevron-right" size="22" class="more-menu-chevron"/>
+              </button>
+            </div>
           </section>
         </template>
         <template v-else-if="viewMode === 'list'">
@@ -2798,16 +2787,19 @@ onUnmounted(() => {
         <v-btn v-if="!toolWaiting" variant="text" size="small" @click="dismissToolFeedback">关闭</v-btn>
       </template>
     </v-snackbar>
-    <v-bottom-navigation v-if="!settingsOpen && viewMode === 'detail' && connected && navStyle === 'standard'" mandatory :model-value="activeTab" :height="68" grow bg-color="surface" class="standard-bottom" color="primary" elevation="6">
+    <v-bottom-navigation v-if="(viewMode === 'list' || connected) && navStyle === 'standard'"
+      mandatory :model-value="activeTab" :height="68" grow bg-color="surface"
+      class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
+        :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
         @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
-    <div v-else-if="!settingsOpen && viewMode === 'detail' && connected" class="liquid-bottom">
+    <div v-else-if="viewMode === 'list' || connected" class="liquid-bottom">
       <VGlass v-if="effectiveMotion" :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
-          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" @click="navigateBottomTab(item.id)">
+          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: activeTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{ item.label }}</span>
           </v-btn>
         </div>
@@ -2816,7 +2808,7 @@ onUnmounted(() => {
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab"
             :class="{selected:activeTab===item.id}" variant="text" rounded="xl"
-            density="compact" :aria-label="item.label" @click="navigateBottomTab(item.id)">
+            density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{item.label}}</span>
           </v-btn>
         </div>

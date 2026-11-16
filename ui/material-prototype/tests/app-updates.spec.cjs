@@ -2,8 +2,8 @@ const { test, expect } = require('@playwright/test')
 const { version: localAppVersion } = require('../package.json')
 async function openAbout(page) {
   await page.goto('/')
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
-  await page.getByRole('button', { name: '打开关于设置' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '打开关于' }).click()
 }
 test('about displays newer official APK and filters prereleases', async ({ page }) => {
   const tag='v2.21.0',name='XX-WRT-Material-'+tag+'.apk'

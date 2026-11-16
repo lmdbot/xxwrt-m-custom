@@ -1,7 +1,7 @@
 {
   "name": "xxwrt-material-ui-prototype",
   "private": true,
-  "version": "2.0.43",
+  "version": "2.0.44",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
