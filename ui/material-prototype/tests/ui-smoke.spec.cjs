@@ -596,6 +596,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.v3-overview-network-state')).toBeVisible()
   await expect(page.locator('.v3-overview-network-state')).toContainText('WAN')
   await expect(page.locator('.v3-overview-network-state')).toContainText('IPv6')
+  // The overview shortcut must remember its originating tab on Android Back.
+  await page.locator('.v3-shortcuts .v3-shortcut').filter({ hasText: '接口' }).click()
+  await expect(page.locator('.interface-card')).toHaveCount(2)
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.locator('.v3-overview')).toBeVisible()
+  await expect(page.locator('.standard-bottom .v-btn--active')).toContainText('概览')
   await auditDarkTextContrast(page, ['.router-toolbar-context', '.details span', '.device-heading-label p', '.storage-label small', '.ethernet-port-counters'])
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/)
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1/);
@@ -678,6 +684,11 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await auditDarkTextContrast(page, ['.terminal-header p', '.terminal-mac', '.terminal-kind', '.terminal-source'])
   await expect(page.locator('.terminal-online-dot.is-online')).toHaveCount(2)
   await expect(page.locator('.terminal-online-dot.is-offline')).toHaveCount(1)
+  // Proven online, proven offline and unknown are distinct filter states.
+  await page.locator('.v3-terminal-status button').filter({ hasText: '在线' }).click()
+  await expect(page.locator('.terminal-tile')).toHaveCount(2)
+  await page.locator('.v3-terminal-status button').first().click()
+  await expect(page.locator('.terminal-tile')).toHaveCount(3)
   // A stored host IP must never turn an unreachable terminal green.
   await expect(page.locator('.terminal-tile').filter({ hasText: 'AP备注手机' }).locator('.terminal-online-dot')).toHaveClass(/is-online/)
   await expect(page.locator('.terminal-tile').filter({ hasText: 'MacBook-Air' }).locator('.terminal-online-dot')).toHaveClass(/is-offline/)
