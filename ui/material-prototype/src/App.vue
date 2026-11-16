@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme, useDisplay } from 'vuetify'
-import { V3_TABS, groupV3Tools, networkV3Tools } from './services/featureCatalogV3.js'
+import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './services/featureCatalogV3.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -15,7 +15,7 @@ import {
 import { compareAppVersions, parseAppVersion } from './services/appReleases.js'
 import {
   APP_FAVORITES_LIMIT, DEFAULT_APP_FAVORITES, readAppFavorites,
-  writeAppFavorites, groupVisibleApps, searchAppTools,
+  writeAppFavorites,
   sortFavoriteTools, toggleAppFavorite, moveAppFavorite, isDangerousApp
 } from './services/appLauncher.js'
 import { formatLeaseDuration } from './services/leaseTime.js'
@@ -515,7 +515,7 @@ function openNetworkSection(section) {
   networkView.value = section
 }
 function launchV3Tool(id) {
-  if (!connected.value) return
+  if (!connected.value || toolLoading.value) return
   // Back returns to the invoking page, not an unrelated tool catalog.
   // Canonical feature ownership is expressed by its single list entry.
   toolOriginTab.value = activeTab.value === 'apps' ? '' : activeTab.value
@@ -857,7 +857,7 @@ const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 // continue working after the redesign without changing RPC handlers.
 const appCategories = computed(() => groupV3Tools(visibleLegacyTools.value))
 const networkFeatureTools = computed(() => networkV3Tools(visibleLegacyTools.value))
-const appSearchResults = computed(() => searchAppTools(visibleLegacyTools.value, appSearch.value))
+const appSearchResults = computed(() => searchV3Features(visibleLegacyTools.value, appSearch.value))
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
 const favoriteCandidates = computed(() => visibleLegacyTools.value.filter(tool => !isDangerousApp(tool.id)))
