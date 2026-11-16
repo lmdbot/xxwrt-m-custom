@@ -90,6 +90,9 @@ jobs:
       - name: Verify native in-app APK updater integration
         run: python3 -m unittest discover -s scripts -p 'test_patch_android_updater.py' -v
 
+      - name: Verify Android configuration Save As integration
+        run: python3 -m unittest discover -s scripts -p 'test_patch_android_config_export.py' -v
+
       - name: Set Android version and APK filename
         shell: bash
         run: |
@@ -159,6 +162,9 @@ jobs:
 
       - name: Enable private in-app APK downloader and system installer
         run: python3 scripts/patch_android_updater.py
+
+      - name: Enable Android configuration Save As picker
+        run: python3 scripts/patch_android_config_export.py
 
       # Capacitor generates its default app icons when Android is initialized.
       # Always replace those after npx cap add/sync so APKs keep the chosen

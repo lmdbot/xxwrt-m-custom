@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { shortError } from '../services/router.js'
+import { saveConfigSnapshotFile } from '../services/configFileExport.js'
 import { readAuditRecords } from '../services/managementCore.js'
 import {
   APPLY_TIMEOUT, SNAPSHOT_CONFIGS, CRITICAL_SERVICES,
@@ -96,9 +97,26 @@ async function loadBackup() {
     backupFiles.value = result.files
   } catch (e) { backupFiles.value = []; backupError.value = shortError(e) }
 }
+async function saveBackup() {
+  if (!backupJson.value || !backupFileName.value) return
+  try {
+    const result = await saveConfigSnapshotFile(backupFileName.value, backupJson.value)
+    if (result === 'saved') {
+      notify('JSON 文件已保存到你在安卓文件选择器中指定的位置。快照可能包含宽带密码，请妥善保管。')
+    } else if (result === 'cancelled') {
+      notify('已取消文件保存；JSON 快照仍在下方，可以重新点击“保存 JSON 文件”。', true)
+    } else {
+      notify('已向浏览器请求下载。请检查下载记录；如未生成文件，可复制 JSON 手动保存。', true)
+    }
+  } catch (e) {
+    // Keep the generated JSON available for retry/copy after any save error.
+    notify('快照已生成，但文件保存失败：' + shortError(e) + '。请点击“保存 JSON 文件”重试。', true)
+  }
+}
 async function exportBackup() {
   busy.value = true
   backupJson.value = ''
+  backupFileName.value = ''
   preview.value = null
   try {
     const snapshot = await createConfigSnapshot(props.client, backupConfigs.value)
@@ -106,26 +124,7 @@ async function exportBackup() {
     const hostname = new URL(props.client.baseUrl).hostname.replace(/[^a-zA-Z0-9.-]/g, '_').slice(0, 64)
     const now = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
     backupFileName.value = 'xxwrt-' + hostname + '-' + now + '.json'
-    const blob = new Blob([backupJson.value], { type: 'application/json' })
-    const file = new File([blob], backupFileName.value, { type: blob.type })
-    // Prefer Android's share sheet if supported. Keep the text visible as a
-    // fallback because downloads of blob: URLs vary across Android WebViews.
-    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
-      try { await navigator.share({ title: 'XX-WRT 配置快照', files: [file] }) }
-      catch (e) {
-        if (e?.name !== 'AbortError') notify('分享未完成；下方仍可复制配置 JSON', true)
-      }
-    } else {
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = backupFileName.value
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 30000)
-    }
-    notify('配置快照已生成。请确认文件已保存到安全位置；内容可能包含宽带密码等凭据。')
+    await saveBackup()
   } catch (e) { outputError(e) }
   finally { busy.value = false }
 }
@@ -355,12 +354,20 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
         density="compact" hide-details/>
       <v-btn class="mt-3 mb-2" color="primary" block :loading="busy"
         :disabled="!backupConfigs.length || restorePending" @click="exportBackup">
-        生成并导出 JSON
+        生成并保存 JSON
       </v-btn>
       <v-expansion-panels v-if="backupJson" class="mb-4">
         <v-expansion-panel title="查看 / 复制配置快照（可能包含密码）">
           <v-expansion-panel-text>
-            <v-btn size="small" class="mb-2" @click="copyText(backupJson)">复制 JSON</v-btn>
+            <div class="d-flex align-center ga-2 mb-2 flex-wrap">
+              <v-btn size="small" color="primary" variant="tonal" @click="saveBackup">
+                保存 JSON 文件
+              </v-btn>
+              <v-btn size="small" @click="copyText(backupJson)">复制 JSON</v-btn>
+            </div>
+            <div class="text-caption text-medium-emphasis mb-2" style="overflow-wrap:anywhere">
+              建议文件名：{{ backupFileName }}。安卓端会打开系统“另存为”窗口，请选择保存位置。
+            </div>
             <v-textarea :model-value="backupJson" readonly rows="5" variant="outlined"/>
           </v-expansion-panel-text>
         </v-expansion-panel>
