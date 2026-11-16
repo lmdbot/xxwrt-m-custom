@@ -28,7 +28,7 @@ import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import { DRAWER_EDGE_WIDTH, isLeftEdgeDrawerSwipe } from './services/drawerSwipe.js'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
-import { readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit } from './services/terminalManagement.js'
+import { readTerminalSettings, selectTerminalQosBackend, saveTerminalStaticIP, saveTerminalRateLimit, saveHqosGlobal } from './services/terminalManagement.js'
 import { identifyDevice, deviceKindLabel, deviceDisplayName } from './services/deviceIdentity.js'
 import {
   readDiskUsage, interfaceOptions, readInterfaceCounters, readSystemLoad,
@@ -521,7 +521,23 @@ const terminalSettingsBusy = ref(false)
 const terminalSaving = ref(false)
 const terminalError = ref('')
 const terminalNotice = ref('')
-const terminalForm = reactive({ staticEnabled: false, staticIp: '', name: '', download: '', upload: '' })
+const terminalForm = reactive({ staticEnabled: false, staticIp: '', name: '', download: '', upload: '', connections: '0' })
+const qosWriteConfirm = ref(false)
+const hqosGlobalDialog = ref(false)
+const hqosGlobalConfirm = ref(false)
+const hqosGlobalBusy = ref(false)
+const hqosGlobalForm = reactive({ enabled: false, backend: 'auto', interface: 'br-lan' })
+const hqosBackendOptions = [
+  { title: '自动', value: 'auto' },
+  { title: '联发科 PPE / QDMA', value: 'mtk-ppe' },
+  { title: 'Airoha PPE / QDMA', value: 'airoha-ppe' },
+  { title: 'CPU / 软件 Flow Offloading', value: 'cpu' }
+]
+const hqosInterfaceOptions = computed(() => Array.from(new Set([
+  'br-lan', 'lan', terminalSettings.value?.hqosStatus?.interface,
+  ...(snapshot.value?.interfaces || []).flatMap(nic =>
+    [nic.device, nic.l3_device, nic.interface].filter(Boolean))
+].filter(Boolean))))
 let terminalRequestId = 0
 
 function applyTerminalSettings(settings) {
@@ -533,6 +549,17 @@ function applyTerminalSettings(settings) {
     ? dhcpName : ''
   terminalForm.download = settings.rates.download == null ? '' : String(settings.rates.download)
   terminalForm.upload = settings.rates.upload == null ? '' : String(settings.rates.upload)
+  terminalForm.connections = String(settings.connections ?? 0)
+}
+function changeTerminalQosBackend(backendId) {
+  if (terminalSaving.value || hqosGlobalBusy.value || !terminalSettings.value) return
+  const selected = selectTerminalQosBackend(terminalSettings.value, backendId)
+  terminalSettings.value = selected
+  terminalForm.download = selected.rates.download == null ? '' : String(selected.rates.download)
+  terminalForm.upload = selected.rates.upload == null ? '' : String(selected.rates.upload)
+  terminalForm.connections = String(selected.connections ?? 0)
+  terminalError.value = ''
+  terminalNotice.value = ''
 }
 async function openTerminal(item) {
   if (terminalSaving.value) return
@@ -556,7 +583,8 @@ async function openTerminal(item) {
 }
 async function refreshTerminalSettings() {
   if (!selectedClient.value || !client.value) return
-  const settings = await readTerminalSettings(client.value, selectedClient.value)
+  const settings = await readTerminalSettings(client.value, selectedClient.value,
+    terminalSettings.value?.selectedBackend || '')
   applyTerminalSettings(settings)
 }
 async function saveTerminalStatic() {
@@ -576,14 +604,55 @@ async function saveTerminalStatic() {
     terminalSaving.value = false
   }
 }
-async function saveTerminalQos() {
-  if (!terminalSettings.value?.backend || !client.value || terminalSaving.value) return
+function openHqosGlobalSettings() {
+  const status = terminalSettings.value?.hqosStatus
+  if (!status?.rpcReady) return
+  hqosGlobalForm.enabled = status.enabled
+  hqosGlobalForm.backend = status.mode
+  hqosGlobalForm.interface = status.interface || 'br-lan'
+  hqosGlobalDialog.value = true
+}
+async function persistHqosGlobalSettings() {
+  if (hqosGlobalBusy.value || !terminalSettings.value || !client.value) return
+  hqosGlobalConfirm.value = false
+  hqosGlobalBusy.value = true
+  terminalError.value = ''
+  terminalNotice.value = ''
+  try {
+    const result = await saveHqosGlobal(client.value, terminalSettings.value,
+      { ...hqosGlobalForm, allowConflict: true })
+    terminalNotice.value = result.message
+    hqosGlobalDialog.value = false
+    await refreshTerminalSettings()
+  } catch (error) {
+    terminalError.value = shortError(error)
+  } finally {
+    hqosGlobalBusy.value = false
+  }
+}
+async function saveTerminalQos(confirmedRisks = false) {
+  const settings = terminalSettings.value
+  if (!settings?.backend || !client.value || terminalSaving.value) return
+  const wantsRule = [terminalForm.upload, terminalForm.download,
+    settings.backend === 'hqos' ? terminalForm.connections : null]
+    .some(value => value != null && String(value).trim() !== '' && Number(value) > 0)
+  const enablesHqos = settings.backend === 'hqos' &&
+    !settings.hqosStatus.enabled && wantsRule
+  if (!confirmedRisks && (enablesHqos || (wantsRule && settings.conflicts?.length))) {
+    qosWriteConfirm.value = true
+    return
+  }
   terminalSaving.value = true
   terminalError.value = ''
   terminalNotice.value = ''
   try {
     const result = await saveTerminalRateLimit(client.value, selectedClient.value, terminalSettings.value,
-      { upload: terminalForm.upload, download: terminalForm.download })
+      { upload: terminalForm.upload, download: terminalForm.download,
+        connections: terminalForm.connections,
+        name: terminalSettings.value.backend === 'hqos'
+          ? terminalSettings.value.hqosRule?.name || selectedClient.value?.displayName ||
+            selectedClient.value?.name || '' : '',
+        allowEnable: confirmedRisks, allowConflict: confirmedRisks })
     terminalNotice.value = result.message
     await refreshTerminalSettings()
   } catch (error) {
@@ -933,6 +1002,13 @@ async function handleBack() {
   if (confirmReboot.value) { confirmReboot.value = false; return 'dialog' }
   if (wolDeleteDialog.value) { wolDeleteDialog.value = false; return 'dialog' }
   if (deleteDialog.value) { deleteDialog.value = false; return 'dialog' }
+  if (hqosGlobalConfirm.value) { hqosGlobalConfirm.value = false; return 'dialog' }
+  if (hqosGlobalDialog.value) {
+    if (hqosGlobalBusy.value) return 'busy'
+    hqosGlobalDialog.value = false
+    return 'dialog'
+  }
+  if (qosWriteConfirm.value) { qosWriteConfirm.value = false; return 'dialog' }
   if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
@@ -2539,25 +2615,79 @@ onUnmounted(() => {
               <v-icon icon="mdi-speedometer" color="primary"/>
               <strong>终端网速限制</strong>
             </div>
+            <v-alert v-if="terminalSettings.hqosStatus?.installed"
+              :type="terminalSettings.hqosStatus.error ? 'warning' : 'info'"
+              density="compact" variant="tonal" class="mb-3">
+              QWRT HQoS：{{ terminalSettings.hqosStatus.enabled ? '已启用' : '未启用' }}；
+              {{ terminalSettings.hqosStatus.running ? '引擎运行中' : '引擎未运行' }}；
+              后端 {{ terminalSettings.hqosStatus.effectiveBackend || terminalSettings.hqosStatus.mode }}；
+              接口 {{ terminalSettings.hqosStatus.interface || '未指定' }}。
+              <span v-if="terminalSettings.hqosStatus.error">{{ terminalSettings.hqosStatus.error }}</span>
+            </v-alert>
+            <v-btn v-if="terminalSettings.hqosStatus?.rpcReady" size="small" variant="outlined"
+              class="mb-3" prepend-icon="mdi-cog-outline" :disabled="terminalSaving"
+              @click="openHqosGlobalSettings">HQoS 全局设置</v-btn>
+            <v-select v-if="terminalSettings.qosBackends?.length"
+              label="管理 QoS 后端" :model-value="terminalSettings.selectedBackend"
+              :items="terminalSettings.qosBackends.map(item => ({
+                value: item.id,
+                title: item.label + ' · ' + (item.running ? '运行中' :
+                  item.enabled ? '配置已启用' : '未启用') +
+                  (item.writable ? '' : '（只读）')
+              }))" item-title="title" item-value="value"
+              variant="outlined" density="comfortable" class="mt-2"
+              :disabled="terminalSaving || terminalSettingsBusy"
+              @update:model-value="changeTerminalQosBackend"/>
+            <v-alert v-if="terminalSettings.activeQosBackends?.length > 1"
+              type="warning" variant="tonal" density="compact" class="mb-3">
+              检测到多个配置启用的 QoS 服务：{{ terminalSettings.activeQosBackends.join('、') }}。
+              这些服务可能操作同一接口或流量，实际是否冲突取决于接口和规则。
+            </v-alert>
+            <v-alert v-if="terminalSettings.selectedBackend && terminalSettings.conflicts?.length"
+              type="warning" variant="tonal" density="compact" class="mb-3">
+              其他已启用的服务：{{ terminalSettings.conflicts.join('、') }}。
+              新增限速前请确认不会与现有队列或硬件加速冲突。
+            </v-alert>
             <template v-if="terminalSettings.backend">
               <v-chip size="x-small" color="primary" variant="tonal" class="mb-3">
                 {{ terminalSettings.backendLabel }}
               </v-chip>
               <div class="d-flex ga-2">
-                <v-text-field v-model.trim="terminalForm.download" label="下载限速 (Mbps)"
-                  placeholder="不限速" type="number" min="1" max="10000" step="1" variant="outlined"
-                  density="compact" :disabled="terminalSaving" hide-details="auto"/>
-                <v-text-field v-model.trim="terminalForm.upload" label="上传限速 (Mbps)"
-                  placeholder="不限速" type="number" min="1" max="10000" step="1" variant="outlined"
-                  density="compact" :disabled="terminalSaving" hide-details="auto"/>
+                <v-text-field v-model.trim="terminalForm.download"
+                  :label="terminalSettings.backend === 'hqos' ? '下载限速 (kbps)' : '下载限速 (Mbps)'"
+                  :placeholder="terminalSettings.backend === 'hqos' ? '0 表示不限速' : '不限速'"
+                  type="number" :min="terminalSettings.backend === 'hqos' ? 0 : 1"
+                  :max="terminalSettings.backend === 'hqos' ? terminalSettings.hqosStatus.maxRate : 10000"
+                  step="1" variant="outlined" density="compact" :disabled="terminalSaving" hide-details="auto"/>
+                <v-text-field v-model.trim="terminalForm.upload"
+                  :label="terminalSettings.backend === 'hqos' ? '上传限速 (kbps)' : '上传限速 (Mbps)'"
+                  :placeholder="terminalSettings.backend === 'hqos' ? '0 表示不限速' : '不限速'"
+                  type="number" :min="terminalSettings.backend === 'hqos' ? 0 : 1"
+                  :max="terminalSettings.backend === 'hqos' ? terminalSettings.hqosStatus.maxRate : 10000"
+                  step="1" variant="outlined" density="compact" :disabled="terminalSaving" hide-details="auto"/>
               </div>
-              <p class="muted-hint my-2">
+              <template v-if="terminalSettings.backend === 'hqos'">
+                <v-text-field v-model.trim="terminalForm.connections" label="并发连接数"
+                  placeholder="0 表示不限" type="number" min="0" max="65535" step="1"
+                  variant="outlined" density="compact" class="mt-3"
+                  :disabled="terminalSaving" hide-details="auto"/>
+                <p class="muted-hint my-2">
+                  与 Web 端 HQoS 使用同一套 MAC 规则，IPv4 / IPv6 共享上传、下载及连接数额度。
+                  单位 kbps，0 表示不限速；三项均为 0 可清除该 MAC 的 QoS 规则。
+                  {{ terminalSettings.hqosStatus.enabled ? '' : '当前 HQoS 未启用，保存非零限额将自动启用全局 HQoS，操作前再次确认。' }}
+                  <span v-if="terminalSettings.hqosRule?.enabled === false">
+                    原规则已禁用，重新保存非零额度会将其启用。
+                  </span>
+                </p>
+              </template>
+              <p v-else class="muted-hint my-2">
                 留空表示不限速，清空两项并保存可取消规则。
                 {{ terminalSettings.backend === 'eqos' ? 'EQOS 需要上下行同时设置。' : '' }}
                 限速按 IPv4 生效，建议先绑定静态 IP，避免 DHCP 续租后限制到其他设备。
               </p>
               <v-btn color="primary" variant="tonal" block :loading="terminalSaving"
-                :disabled="terminalSettingsBusy || !terminalSettings.activeIP" @click="saveTerminalQos">保存终端限速</v-btn>
+                :disabled="terminalSettingsBusy || (terminalSettings.backend !== 'hqos' && !terminalSettings.activeIP)"
+                  @click="saveTerminalQos()">保存终端限速</v-btn>
             </template>
             <v-alert v-else type="info" density="compact" variant="tonal" class="mt-2">
               {{ terminalSettings.reason }}。静态 IP 绑定仍可独立使用。
@@ -2566,6 +2696,78 @@ onUnmounted(() => {
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" :disabled="terminalSaving"
           @click="selectedClient = null; terminalRequestId++">关闭</v-btn></v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="hqosGlobalDialog" max-width="540" persistent>
+      <v-card rounded="xl">
+        <v-card-title>HQoS 全局设置</v-card-title>
+        <v-card-text>
+          <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
+            这组设置影响所有客户端。更改硬件/CPU 后端和 QoS 接口可能中断转发或影响硬件加速；
+            切换前请核对路由器设备是否支持。
+          </v-alert>
+          <v-switch v-model="hqosGlobalForm.enabled" label="启用 HQoS" color="primary"
+            :disabled="hqosGlobalBusy" hide-details density="comfortable"/>
+          <v-select v-model="hqosGlobalForm.backend" label="QoS 后端"
+            :items="hqosBackendOptions" item-title="title" item-value="value"
+            density="comfortable" variant="outlined" :disabled="hqosGlobalBusy"/>
+          <v-select v-model="hqosGlobalForm.interface" label="QoS 接口"
+            :items="hqosInterfaceOptions" density="comfortable" variant="outlined"
+            :disabled="hqosGlobalBusy"/>
+          <p class="muted-hint">自动模式优先使用支持的硬件后端，否则使用 CPU。
+            如果选择硬件后端，只能使用 LAN / br-lan；CPU 模式可能需要关闭硬件流量加速。</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" :disabled="hqosGlobalBusy" @click="hqosGlobalDialog = false">取消</v-btn>
+          <v-spacer/>
+          <v-btn color="primary" :disabled="hqosGlobalBusy" @click="hqosGlobalConfirm = true">保存并应用…</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="hqosGlobalConfirm" max-width="430" persistent>
+      <v-card rounded="xl">
+        <v-card-title>确认修改所有客户端的 QoS？</v-card-title>
+        <v-card-text>
+          启用状态：{{ hqosGlobalForm.enabled ? '启用' : '禁用' }}。
+          后端：{{ hqosGlobalForm.backend }}；接口：{{ hqosGlobalForm.interface }}。
+          保存后会应用原生 HQoS 服务，失败时尝试自动恢复原配置。
+          <v-alert v-if="hqosGlobalForm.enabled && terminalSettings?.qosBackends?.some(item => item.id !== 'hqos' && item.enabled)"
+            type="warning" variant="tonal" density="compact" class="mt-3">
+            其他 QoS 服务正在配置为启用：
+            {{ terminalSettings.qosBackends.filter(item => item.id !== 'hqos' && item.enabled).map(item => item.label).join('、') }}。
+            可能存在重复整形或硬件加速冲突；确认后只更改 HQoS 全局配置。
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="hqosGlobalConfirm = false">取消</v-btn>
+          <v-spacer/>
+          <v-btn color="warning" @click="persistHqosGlobalSettings">确认修改</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-dialog v-model="qosWriteConfirm" max-width="430" persistent>
+      <v-card rounded="xl">
+        <v-card-title>确认 QoS 变更风险</v-card-title>
+        <v-card-text>
+          <p v-if="terminalSettings?.backend === 'hqos' && !terminalSettings.hqosStatus.enabled">
+            当前 HQoS 已关闭。设置此 MAC 的非零限额会由原生 hqos.set 自动启用全局 HQoS，
+            可能影响其他客户端、转发路径与硬件加速。
+          </p>
+          <v-alert v-if="terminalSettings?.conflicts?.length" type="warning" variant="tonal"
+            density="compact" class="my-3">
+            其他已启用的 QoS 服务：{{ terminalSettings.conflicts.join('、') }}。
+            不同服务可能在同一接口或相同数据流上重复整形。
+            请先核对服务的作用接口和规则；确认后才会向所选后端写入限额。
+          </v-alert>
+          <p class="mt-2">本操作只修改当前选择的 {{ terminalSettings?.backendLabel }} 后端规则，
+            不会自动关闭或迁移其他 QoS 配置。</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn variant="text" @click="qosWriteConfirm = false">取消</v-btn>
+          <v-spacer/>
+          <v-btn color="warning" :loading="terminalSaving"
+            @click="qosWriteConfirm = false; saveTerminalQos(true)">确认风险并保存</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="deviceDialog" max-width="430">

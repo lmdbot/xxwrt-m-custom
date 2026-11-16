@@ -106,14 +106,261 @@ function readableRates(response, backend, ip) {
   }
 }
 
-export async function readTerminalSettings(client, device) {
+
+const HQOS_RATE_MAX = 10000000
+const HQOS_CONNECTIONS_MAX = 65535
+
+function hqosUnicastMac(raw) {
+  const mac = validMac(raw).toLowerCase()
+  if ((Number.parseInt(mac.slice(0, 2), 16) & 1) !== 0 || mac === '00:00:00:00:00:00')
+    throw new Error('HQoS 只支持有效的单播 MAC 地址')
+  return mac
+}
+
+export function parseHqosLimit(raw, limit, label) {
+  const value = String(raw ?? '').trim()
+  // HQoS LuCI and rpcd both use 0 for unlimited.
+  if (!/^(0|[1-9]\d*)$/.test(value)) throw new Error(label + '必须是非负整数')
+  const number = Number(value)
+  if (!Number.isSafeInteger(number) || number > limit)
+    throw new Error(label + '不能超过 ' + limit)
+  return number
+}
+
+function hqosRpcResult(result, method) {
+  if (!result || typeof result !== 'object' || Array.isArray(result))
+    throw new Error('HQoS ' + method + ' RPC 未返回有效数据；检查 rpcd ACL 授权')
+  // HQoS status may legitimately contain an engine health "error" while
+  // still returning enabled/supported/capabilities. Do not confuse it with
+  // the rpcd wrapper { error: "Lua exception" }.
+  if (method === 'status' && ('supported' in result || 'enabled' in result)) return result
+  if (result.error) throw new Error('HQoS ' + method + ' 失败：' + String(result.error).slice(0, 450))
+  return result
+}
+
+function validateHqosReadLimits(rule) {
+  const get = (key, max) => {
+    const n = Number(rule?.[key] ?? 0)
+    return Number.isSafeInteger(n) && n >= 0 && n <= max ? n : 0
+  }
+  return { upload: get('upload', HQOS_RATE_MAX),
+    download: get('download', HQOS_RATE_MAX), connections: get('connections', HQOS_CONNECTIONS_MAX) }
+}
+
+async function readHqosState(client, mac) {
+  const [statusResponse, ruleResponse] = await Promise.all([
+    client.call('hqos', 'status'),
+    client.call('hqos', 'get', { mac: hqosUnicastMac(mac) })
+  ])
+  const status = hqosRpcResult(statusResponse, 'status')
+  const rule = hqosRpcResult(ruleResponse, 'get')
+  const maxRate = Number(status.capabilities?.max_rate)
+  const cap = Number.isSafeInteger(maxRate) && maxRate > 0
+    ? Math.min(maxRate, HQOS_RATE_MAX) : 0
+  return { status, rule, rates: validateHqosReadLimits(rule), maxRate: cap }
+}
+
+
+const HQOS_GLOBAL_BACKENDS = new Set(['auto', 'mtk-ppe', 'airoha-ppe', 'cpu'])
+const HQOS_INTERFACE_RE = /^[A-Za-z][A-Za-z0-9_.:-]{0,63}$/
+
+function hqosGlobalValues(config) {
+  const global = config?.values?.global
+  if (!global || global['.type'] !== 'hqos')
+    throw new Error('QWRT 未提供可写的 hqos.global 配置')
+  return {
+    enabled: String(global.enabled || '0'),
+    backend: String(global.backend || 'auto'),
+    interface: String(global.interface || 'br-lan')
+  }
+}
+
+function hqosPendingChanges(result) {
+  if (!result || typeof result !== 'object' || !('changes' in result))
+    throw new Error('无法确认 HQoS 是否存在其他待应用修改，已取消写入')
+  const changes = result.changes
+  return Array.isArray(changes) ? changes.length > 0 :
+    changes && typeof changes === 'object' ? Object.keys(changes).length > 0 : false
+}
+
+async function applyHqosGlobalService(client) {
+  // Fixed binary and argv; never derive a shell command from user input.
+  const result = await client.call('file', 'exec', {
+    command: '/usr/sbin/hqos', params: ['apply'], env: null
+  })
+  if (!result || Number(result.code) !== 0) {
+    throw new Error(String(result?.stderr || result?.stdout ||
+      'HQoS apply 未返回成功结果').slice(-800))
+  }
+  const text = String(result.stdout || '').trim()
+  if (text) {
+    let parsed
+    try { parsed = JSON.parse(text) } catch { throw new Error('HQoS apply 返回的状态不是合法 JSON') }
+    hqosRpcResult(parsed, 'apply')
+    if (parsed.error) throw new Error('HQoS apply 出错：' + parsed.error)
+  }
+}
+
+export async function saveHqosGlobal(client, oldSettings, input) {
+  if (!oldSettings?.hqosStatus?.installed || !oldSettings.hqosStatus.rpcReady)
+    throw new Error('原生 HQoS RPC 不可用，无法修改全局设置')
+  if (!HQOS_GLOBAL_BACKENDS.has(input.backend))
+    throw new Error('无效的 HQoS 后端选项')
+  const interfaceName = String(input.interface || '')
+  if (!HQOS_INTERFACE_RE.test(interfaceName) ||
+      (input.backend !== 'cpu' && input.backend !== 'auto' &&
+        !['lan', 'br-lan'].includes(interfaceName))) {
+    throw new Error('QoS 接口无效；硬件后端只能使用 LAN / br-lan')
+  }
+  const desired = {
+    enabled: input.enabled ? '1' : '0',
+    backend: input.backend,
+    interface: interfaceName
+  }
+  if (input.enabled && oldSettings.mac) {
+    const live = await readTerminalSettings(client,
+      { mac: oldSettings.mac, ip: oldSettings.ip }, 'hqos')
+    if (live.conflicts.length && input.allowConflict !== true)
+      throw new Error('其他 QoS 服务已启用（' + live.conflicts.join('、') +
+        '），启用 HQoS 可能发生流量整形冲突；请明确确认后再操作')
+    const changed = (oldSettings.qosBackends || []).some(entry =>
+      Boolean(entry.enabled) !== Boolean(live.qosBackends.find(x => x.id === entry.id)?.enabled))
+    if (changed) throw new Error('QoS 服务启用状态已变化，请刷新后重试')
+  }
+  const config = await client.call('uci', 'get', { config: 'hqos' })
+  const original = hqosGlobalValues(config)
+  // Refuse stale forms and concurrent LuCI edits. A commit must not include
+  // unrelated pending UCI edits from the same rpcd session.
+  if (Object.keys(original).some(key =>
+    original[key] !== (key === 'enabled'
+      ? (oldSettings.hqosStatus.enabled ? '1' : '0')
+      : key === 'backend' ? oldSettings.hqosStatus.mode : oldSettings.hqosStatus.interface))) {
+    throw new Error('HQoS 全局配置已变化，请刷新页面后重试')
+  }
+  const pending = await client.call('uci', 'changes', { config: 'hqos' })
+  if (hqosPendingChanges(pending))
+    throw new Error('HQoS 存在其他未提交的配置更改，请先在 Web 端处理')
+  if (Object.keys(desired).every(key => original[key] === desired[key])) {
+    return { applied: true, message: 'HQoS 全局设置没有变化' }
+  }
+  let committed = false
+  try {
+    await client.call('uci', 'set', { config: 'hqos', section: 'global', values: desired })
+    await client.call('uci', 'commit', { config: 'hqos' })
+    committed = true
+    await applyHqosGlobalService(client)
+    return { applied: true, message: 'HQoS 全局配置已保存并应用' }
+  } catch (error) {
+    if (!committed) {
+      try { await client.call('uci', 'revert', { config: 'hqos' }) } catch (_) {}
+      throw error
+    }
+    let restored = false
+    try {
+      await client.call('uci', 'set', { config: 'hqos', section: 'global', values: original })
+      await client.call('uci', 'commit', { config: 'hqos' })
+      await applyHqosGlobalService(client)
+      restored = true
+    } catch (_) {}
+    throw new Error('HQoS 全局设置应用失败：' +
+      String(error?.message || error) + (restored
+        ? '；已恢复原始配置和服务' : '；自动恢复失败，请立即检查 Web 端 HQoS 配置'))
+  }
+}
+
+export async function saveHqosClient(client, device, settings, input) {
+  const mac = hqosUnicastMac(device?.mac)
+  if (mac.toUpperCase() !== settings?.mac) throw new Error('终端 MAC 信息已变化，请重新打开')
+  if (!settings?.hqosStatus?.installed || settings.backend !== 'hqos')
+    throw new Error('该终端当前未选用 HQoS，禁止改写其他限速后端')
+  const snapshot = await readHqosState(client, mac)
+  if (snapshot.status.supported !== true || !snapshot.maxRate)
+    throw new Error('HQoS 选用的内核/硬件后端不可用，请检查 QoS 后端配置')
+  const upload = parseHqosLimit(input.upload, snapshot.maxRate, '上传限速（kbps）')
+  const download = parseHqosLimit(input.download, snapshot.maxRate, '下载限速（kbps）')
+  const connections = parseHqosLimit(input.connections, HQOS_CONNECTIONS_MAX, '并发连接数')
+  const wantsLimit = upload > 0 || download > 0 || connections > 0
+  if (wantsLimit && snapshot.status.enabled !== true && input.allowEnable !== true)
+    throw new Error('保存非零 HQoS 限额会自动启用全局 HQoS，请明确确认后再操作')
+  const known = settings.hqosRule
+  if (known && (['upload', 'download', 'connections'].some(key =>
+    Number(known[key] ?? 0) !== snapshot.rates[key]) ||
+    Boolean(known.enabled) !== (snapshot.rule.enabled !== false) ||
+    String(known.name || '') !== String(snapshot.rule.name || ''))) {
+    throw new Error('HQoS 规则已被其他会话修改，请刷新终端信息后重新编辑')
+  }
+  const name = String(input.name || snapshot.rule.name || device.displayName ||
+    device.name || mac).replace(/[\x00-\x1f\x7f]/g, '').slice(0, 128)
+  // manager.set performs validation, isolated UCI commit, live apply and
+  // rollback on failure; do not duplicate its transactional logic here.
+  const result = hqosRpcResult(await client.call('hqos', 'set', {
+    mac, name, upload, download, connections
+  }), 'set')
+  return { applied: true, message: wantsLimit
+    ? 'HQoS 客户端限额已保存并应用（按 MAC，IPv4/IPv6 共享）'
+    : 'HQoS 客户端限额已清除；其他客户端规则保持不变', status: result }
+}
+
+
+// All detected backend entries are kept separate. A configured service is
+// NOT necessarily running: missing runtime information remains "unknown".
+const QOS_LABELS = {
+  hqos: 'QWRT HQoS', 'nft-limiter': 'NFT Limiter',
+  eqos: 'EQOS', 'nft-qos': 'NFT QoS', sqm: 'SQM / CAKE',
+  qosify: 'QoSify', qos: 'QoS Scripts'
+}
+const QOS_ORDER = ['hqos', 'nft-limiter', 'eqos', 'nft-qos', 'sqm', 'qosify', 'qos']
+
+function otherEnabledBackends(backends, selected) {
+  return (backends || []).filter(item => item.id !== selected && (item.enabled || item.running))
+    .map(item => item.label)
+}
+
+// A selected editor can never be used to write to a different UCI backend.
+// "Detected but not writable" backends remain selectable for inspection.
+export function selectTerminalQosBackend(settings, choice = '') {
+  const entries = settings.qosBackends || []
+  const byId = new Map(entries.map(entry => [entry.id, entry]))
+  const selected = choice && byId.has(choice) ? choice : choice ? '' : (settings.recommendedBackend || '')
+  const current = byId.get(selected)
+  return {
+    ...settings,
+    selectedBackend: selected,
+    backend: current?.writable ? current.id : '',
+    backendWritable: Boolean(current?.writable),
+    backendLabel: current?.label || '',
+    rates: current?.rates || { upload: null, download: null },
+    connections: current?.connections ?? null,
+    reason: current?.reason || (current ? '此后端只提供状态检测，请到 Web 管理界面编辑'
+      : '未检测到可管理的单终端 QoS 后端'),
+    conflicts: otherEnabledBackends(entries, selected),
+    qosUnit: current?.unit || '',
+    qosSelectedStatus: current || null
+  }
+}
+
+function configuredService(config) {
+  return Boolean(config?.values && Object.values(config.values).some(v => v && typeof v === 'object' && v['.type']))
+}
+
+function genericEnabled(config, service) {
+  if (service?.running === true) return true
+  return Boolean(config?.values && Object.values(config.values).some(
+    v => v && typeof v === 'object' && (v.enabled === '1' || v.enable === '1')))
+}
+
+export async function readTerminalSettings(client, device, preferredBackend = '') {
   const mac = validMac(device?.mac)
   const ip = ipv4Number(device?.ip) == null ? '' : String(device.ip)
-  const [dhcp, eqos, nftLimiter, nftQos, network, leases, services] = await client.batch([
+  const [dhcp, eqos, nftLimiter, nftQos, hqos, sqm, qosify, qos, network, leases, services] = await client.batch([
     ['uci', 'get', { config: 'dhcp' }],
     ['uci', 'get', { config: 'eqos' }],
     ['uci', 'get', { config: 'nft-limiter' }],
     ['uci', 'get', { config: 'nft-qos' }],
+    ['uci', 'get', { config: 'hqos' }],
+    ['uci', 'get', { config: 'sqm' }],
+    ['uci', 'get', { config: 'qosify' }],
+    ['uci', 'get', { config: 'qos' }],
     ['network.interface', 'dump'],
     ['luci-rpc', 'getDHCPLeases'],
     ['rc', 'list']
@@ -131,40 +378,115 @@ export async function readTerminalSettings(client, device) {
   }))
   const nftDefault = configSections(nftQos, 'default')[0]
   const eqosGlobal = configSections(eqos, 'eqos')[0]
-  // Choose an already configured and enabled backend. Never silently switch
-  // the router's traffic control subsystem or enable it behind the user's back.
-  let backend = ''
-  let reason = '未检测到受支持的单终端限速服务（nft-limiter / EQOS / nft-qos）'
-  let qosConfig = null
-  if (configSections(nftLimiter, 'nft-limiter').length) {
-    if (services?.['nft-limiter']?.running === true) {
-      backend = 'nft-limiter'
-      qosConfig = nftLimiter
-    } else reason = 'NFT Limiter 已安装但未运行，请先在路由器 Web 端启用'
-  } else if (eqosGlobal) {
-    if (String(eqosGlobal.enabled) === '1') {
-      backend = 'eqos'
-      qosConfig = eqos
-    } else reason = 'EQOS 服务未启用，请先在 Web 管理端开启'
-  } else if (nftDefault) {
-    if (String(nftDefault.limit_enable) !== '1') reason = 'nft-qos 单终端限速未启用'
-    else if (String(nftDefault.limit_type || 'static') !== 'static') reason = 'nft-qos 当前使用动态模式，不支持编辑单终端静态规则'
-    else {
-      backend = 'nft-qos'
-      qosConfig = nftQos
+  const hqosGlobal = configSections(hqos, 'hqos')[0] || null
+  const hqosStatus = hqosGlobal ? {
+    installed: true, enabled: String(hqosGlobal.enabled) === '1',
+    mode: String(hqosGlobal.backend || 'auto'),
+    interface: String(hqosGlobal.interface || ''),
+    rpcReady: false, supported: false, running: false, maxRate: 0,
+    configuredClients: 0, effectiveBackend: '', error: ''
+  } : { installed: false, enabled: false, mode: '', interface: '',
+    rpcReady: false, supported: false, running: false, maxRate: 0,
+    configuredClients: 0, effectiveBackend: '', error: '' }
+  let hqosRule = null
+  if (hqosStatus.installed) {
+    try {
+      const state = await readHqosState(client, mac)
+      hqosRule = { ...state.rates, name: String(state.rule.name || ''),
+        enabled: state.rule.enabled !== false }
+      Object.assign(hqosStatus, {
+        rpcReady: true, supported: state.status.supported === true,
+        running: state.status.running === true, maxRate: state.maxRate,
+        configuredClients: Number(state.status.configured_clients || 0),
+        effectiveBackend: String(state.status.backend || ''),
+        error: String(state.status.error || '')
+      })
+    } catch (error) {
+      hqosStatus.error = String(error?.message || error).slice(0, 450)
     }
   }
   const activeIP = host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
-  const rates = backend && activeIP ? readableRates(qosConfig, backend, activeIP) : { upload: null, download: null }
-  return {
+  const nftLimiterInstalled = configSections(nftLimiter, 'nft-limiter').length > 0
+  const eqosInstalled = Boolean(eqosGlobal)
+  const nftQosInstalled = Boolean(nftDefault)
+  const nftLimiterRunning = services?.['nft-limiter']?.running === true
+  const nftQosEnabled = String(nftDefault?.limit_enable || '0') === '1'
+  const nftQosStatic = String(nftDefault?.limit_type || 'static') === 'static'
+
+  const descriptors = []
+  if (hqosStatus.installed) {
+    const writable = hqosStatus.rpcReady && hqosStatus.supported && hqosStatus.maxRate > 0
+    descriptors.push({
+      id: 'hqos', label: QOS_LABELS.hqos, installed: true,
+      enabled: hqosStatus.enabled, running: hqosStatus.running,
+      runtimeKnown: true, writable, unit: 'kbps', macBased: true,
+      maxRate: hqosStatus.maxRate, connections: hqosRule?.connections ?? 0,
+      rates: { upload: hqosRule?.upload ?? 0, download: hqosRule?.download ?? 0 },
+      reason: !writable
+        ? (hqosStatus.error || 'HQoS 原生 RPC 不可用或选定内核后端不支持')
+        : hqosStatus.enabled ? '' : 'HQoS 未启用，保存非零限额会开启全局服务'
+    })
+  }
+  if (nftLimiterInstalled) descriptors.push({
+    id: 'nft-limiter', label: QOS_LABELS['nft-limiter'],
+    installed: true, enabled: nftLimiterRunning, running: nftLimiterRunning,
+    runtimeKnown: true, writable: nftLimiterRunning, unit: 'Mbps', macBased: false,
+    rates: activeIP ? readableRates(nftLimiter, 'nft-limiter', activeIP) : { upload: null, download: null },
+    reason: nftLimiterRunning ? '' : 'NFT Limiter 当前未运行，请在 Web 端启用'
+  })
+  if (eqosInstalled) descriptors.push({
+    id: 'eqos', label: QOS_LABELS.eqos, installed: true,
+    enabled: String(eqosGlobal.enabled) === '1',
+    running: services?.eqos?.running === true,
+    runtimeKnown: typeof services?.eqos?.running === 'boolean',
+    writable: String(eqosGlobal.enabled) === '1', unit: 'Mbps', macBased: false,
+    rates: activeIP ? readableRates(eqos, 'eqos', activeIP) : { upload: null, download: null },
+    reason: String(eqosGlobal.enabled) === '1' ? '' : 'EQOS 配置为关闭，请在 Web 端开启'
+  })
+  if (nftQosInstalled) descriptors.push({
+    id: 'nft-qos', label: QOS_LABELS['nft-qos'], installed: true,
+    enabled: nftQosEnabled,
+    running: services?.['nft-qos']?.running === true,
+    runtimeKnown: typeof services?.['nft-qos']?.running === 'boolean',
+    writable: nftQosEnabled && nftQosStatic, unit: 'Mbps', macBased: false,
+    rates: activeIP ? readableRates(nftQos, 'nft-qos', activeIP) : { upload: null, download: null },
+    reason: !nftQosEnabled ? 'nft-qos 未启用' : nftQosStatic ? '' :
+      'nft-qos 使用动态限速模式，无法在此编辑静态终端规则'
+  })
+  for (const [id, config, service] of [
+    ['sqm', sqm, services?.sqm], ['qosify', qosify, services?.qosify], ['qos', qos, services?.qos]
+  ]) {
+    if (!configuredService(config) && !service) continue
+    const enabled = genericEnabled(config, service)
+    descriptors.push({
+      id, label: QOS_LABELS[id], installed: true, enabled,
+      running: service?.running === true, runtimeKnown: typeof service?.running === 'boolean',
+      writable: false, unit: '', macBased: false, connections: null,
+      rates: { upload: null, download: null },
+      reason: id === 'sqm' ? 'SQM 主要负责接口队列管理，暂不支持按终端配置'
+        : '已检测到服务，但此 App 暂无该后端的终端规则编辑接口'
+    })
+  }
+  descriptors.sort((a, b) => QOS_ORDER.indexOf(a.id) - QOS_ORDER.indexOf(b.id))
+  // Prefer actively running AND writable engines; distinguish configuration
+  // from verified runtime. When runtime is not exposed, enabled is a fallback.
+  const recommended = descriptors.find(x => x.writable && x.running && x.enabled) ||
+    descriptors.find(x => x.writable && x.enabled) ||
+    descriptors.find(x => x.id === 'hqos' && x.writable) ||
+    descriptors.find(x => x.writable) ||
+    descriptors.find(x => x.id === 'hqos') || descriptors[0] || null
+  const qosBackends = descriptors
+  const settings = {
     mac, ip, activeIP, host,
     hosts: hosts.map(h => ({ ...h, mac: macMatches(h.mac, mac) ? mac : normalizeMac(h.mac).toUpperCase() })),
     leases: leaseList, networks: knownNetworks(network),
-    backend, backendLabel: { 'nft-limiter': 'NFT Limiter', eqos: 'EQOS', 'nft-qos': 'NFT QoS' }[backend] || '',
-    reason, rates,
+    hqosStatus, hqosRule,
+    qosBackends, recommendedBackend: recommended?.id || '',
+    activeQosBackends: descriptors.filter(x => x.enabled || x.running).map(x => x.label),
     staticEnabled: Boolean(host?.ip && ipv4Number(host.ip) != null),
     staticIP: host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
   }
+  return selectTerminalQosBackend(settings, preferredBackend)
 }
 
 function assertDedicatedHost(host, mac) {
@@ -230,6 +552,27 @@ export async function saveTerminalRateLimit(client, device, settings, input) {
   const mac = validMac(device?.mac)
   if (mac !== settings?.mac) throw new Error('终端信息发生变化，请重新打开')
   const backend = settings.backend
+  // Nonzero limits may place more than one QoS engine on the same traffic.
+  // Re-read backend status immediately before any write; do not trust stale
+  // settings from a modal left open while LuCI changed the router.
+  const wantsRule = [input?.upload, input?.download,
+    backend === 'hqos' ? input?.connections : null].some(x =>
+      x != null && String(x).trim() !== '' && Number(x) > 0)
+  if (backend && wantsRule) {
+    const latest = await readTerminalSettings(client, device, settings.selectedBackend || backend)
+    if (!latest.backend || latest.backend !== backend)
+      throw new Error('QoS 后端状态已变化，请刷新终端后再保存')
+    const changed = (settings.qosBackends || []).some(entry => {
+      const next = (latest.qosBackends || []).find(x => x.id === entry.id)
+      return Boolean(entry.enabled || entry.running) !== Boolean(next?.enabled || next?.running)
+    }) || (latest.qosBackends || []).some(entry =>
+      !(settings.qosBackends || []).some(old => old.id === entry.id) && (entry.enabled || entry.running))
+    if (changed) throw new Error('检测到其他 QoS 服务状态已变化，请重新加载并确认')
+    if (latest.conflicts.length && input.allowConflict !== true)
+      throw new Error('其他 QoS 服务已启用（' + latest.conflicts.join('、') +
+        '）；可能与所选后端冲突，请明确确认后再保存')
+  }
+  if (backend === 'hqos') return saveHqosClient(client, device, settings, input)
   if (!['eqos', 'nft-qos', 'nft-limiter'].includes(backend)) {
     throw new Error(settings.reason || '当前路由器没有可用的终端限速服务')
   }

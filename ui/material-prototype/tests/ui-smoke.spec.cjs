@@ -82,6 +82,10 @@ let ssrExecAllowed = true
 let ssrLuciAllowed = true
 let terminalDhcpHost = null
 let terminalEqosRate = null
+let terminalHqosTest = false
+let terminalHqosEnabled = false
+let terminalHqosSetCount = 0
+let terminalHqosRule = null
 let wolToolEnabled = true
 
 const dataFor = (object, method, params = {}) => {
@@ -207,6 +211,22 @@ const dataFor = (object, method, params = {}) => {
     'F0:EE:7A:91:AA:12': { name: 'MacBook-Air', ipaddrs: ['192.168.100.90'] },
     'BB:CC:DD:EE:FF:00': { name: '邻居电脑', ipaddrs: ['192.168.100.99'] }
   }
+  if (object === 'hqos' && terminalHqosTest) {
+    if (method === 'status') return {
+      enabled: terminalHqosEnabled, supported: true, running: terminalHqosEnabled,
+      configured_clients: terminalHqosSetCount, backend: 'cpu',
+      capabilities: { max_rate: 10000000 }
+    }
+    if (method === 'get') return { mac: params.mac, name: 'Phone',
+      enabled: true, upload: 0, download: 0, connections: 0, ...terminalHqosRule }
+    if (method === 'set') {
+      terminalHqosSetCount++
+      terminalHqosRule = { ...params, enabled: true }
+      if (params.upload > 0 || params.download > 0 || params.connections > 0)
+        terminalHqosEnabled = true
+      return { enabled: terminalHqosEnabled, running: true, supported: true }
+    }
+  }
   if (object === 'rc' && method === 'list') return {
     network: { enabled: true, running: true },
     firewall: { enabled: true, running: true },
@@ -284,6 +304,14 @@ const dataFor = (object, method, params = {}) => {
       ...(terminalEqosRate ? { eqos_device: terminalEqosRate } : {})
     }
   }
+  if (object === 'uci' && method === 'get' && params.config === 'hqos') {
+    return terminalHqosTest ? { values: { global: {
+      '.type': 'hqos', enabled: terminalHqosEnabled ? '1' : '0',
+      backend: 'auto', interface: 'br-lan'
+    } } } : null
+  }
+  if (object === 'uci' && method === 'get' &&
+      ['sqm', 'qosify', 'qos'].includes(params.config)) return null
   if (object === 'uci' && method === 'get' && ['nft-limiter', 'nft-qos'].includes(params.config)) return null
   if (object === 'uci' && method === 'add' && params.config === 'dhcp') {
     terminalDhcpHost = { '.type': 'host', ...params.values }
@@ -1404,4 +1432,63 @@ test('software packages shows opkg lists, filters and protects installation acti
   await page.getByRole('button', { name: '确认执行' }).click()
   await expect(page.locator('.package-exec-output')).toContainText('Package operation completed')
   await page.getByRole('dialog').getByRole('button', { name: '关闭' }).click()
+})
+
+test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async ({ page }) => {
+  terminalHqosTest = true
+  terminalHqosEnabled = false
+  terminalHqosSetCount = 0
+  terminalHqosRule = { mac: 'aa:bb:cc:dd:ee:ff', name: 'Phone',
+    enabled: true, download: 4096, upload: 1024, connections: 30 }
+  try {
+    await page.route('**/ubus', handler)
+    await page.goto('/')
+    await page.getByRole('button', { name: '添加', exact: true }).click()
+    await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('QWRT 多 QoS 测试')
+    await page.getByRole('textbox', { name: 'IP / 域名 / 端口' }).fill('http://192.168.100.1')
+    await page.getByRole('textbox', { name: '登录用户名' }).fill('root')
+    await page.getByRole('button', { name: '保存设备' }).click()
+    await page.getByRole('button', { name: '进入 QWRT 多 QoS 测试' }).click()
+    await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
+    await page.getByRole('button', { name: '登录并进入' }).click()
+    await page.getByRole('button', { name: '终端' }).click()
+    await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
+    await page.getByText('Phone', { exact: true }).click()
+
+    const modal = page.getByRole('dialog').filter({ hasText: '终端管理' })
+    const select = modal.getByRole('combobox', { name: '管理 QoS 后端' })
+    await expect(select).toBeVisible()
+    // Vuetify VSelect renders its selected item in the combobox input value,
+    // not as a text child, so check the actual input value.
+    await expect(select).toHaveValue(/EQOS/)
+    await expect(modal.getByRole('spinbutton', { name: '下载限速 (Mbps)' })).toBeVisible()
+
+    // Selecting HQoS must switch units and load that MAC's native rule.
+    await select.click()
+    await page.getByRole('option', { name: /QWRT HQoS/ }).click()
+    const down = modal.getByRole('spinbutton', { name: '下载限速 (kbps)' })
+    const up = modal.getByRole('spinbutton', { name: '上传限速 (kbps)' })
+    const connections = modal.getByRole('spinbutton', { name: '并发连接数' })
+    await expect(down).toHaveValue('4096')
+    await expect(up).toHaveValue('1024')
+    await expect(connections).toHaveValue('30')
+    await expect(modal.getByText(/其他已启用的服务：EQOS/)).toBeVisible()
+    await down.fill('8192')
+    await modal.getByRole('button', { name: '保存终端限速' }).click()
+    await expect(page.getByText('确认 QoS 变更风险')).toBeVisible()
+    expect(terminalHqosSetCount).toBe(0)
+    await page.getByRole('button', { name: '确认风险并保存' }).click()
+    await expect.poll(() => terminalHqosSetCount).toBe(1)
+    await expect(down).toHaveValue('8192')
+
+    // EQOS is still independent and must retain its Mbps editor.
+    await select.click()
+    await page.getByRole('option', { name: /EQOS/ }).click()
+    await expect(modal.getByRole('spinbutton', { name: '下载限速 (Mbps)' })).toBeVisible()
+    await expect(modal.getByRole('spinbutton', { name: '并发连接数' })).toHaveCount(0)
+  } finally {
+    terminalHqosTest = false
+    terminalHqosEnabled = false
+    terminalHqosRule = null
+  }
 })
