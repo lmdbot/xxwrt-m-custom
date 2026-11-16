@@ -719,3 +719,68 @@
 }
 
 .xxwrt-v3 .v3-client-management.v3-inline-links{display:block;margin-bottom:14px}
+
+
+/* Design A prototype alignment: mobile shell, hierarchy, and touch surfaces.
+ * Reference: doc/prototype.html .top/.card/.hero/.section/.shortcut/.item.
+ * This changes presentation only; RPC data and action handlers stay intact. */
+.xxwrt-v3 .v3-overview{gap:0}
+.xxwrt-v3 .v3-health-card{
+  padding:15px;border-radius:20px;
+  background:linear-gradient(128deg,#daefff,#e6e6ff);
+  border:1px solid var(--ui-border);
+  box-shadow:0 10px 30px rgba(36,74,120,.07)}
+.xxwrt-v3 .v3-health-heading h2{font-size:17px;line-height:1.4;font-weight:700}
+.xxwrt-v3 .v3-health-heading p{font-size:12px;line-height:1.55;margin-top:3px}
+.xxwrt-v3 .v3-health-metrics{gap:7px;margin-top:12px}
+.xxwrt-v3 .v3-metric{padding:10px 7px;border-radius:14px;gap:5px;min-height:66px}
+.xxwrt-v3 .v3-metric small{font-size:10px;line-height:1.35}
+.xxwrt-v3 .v3-metric strong{font-size:clamp(14px,4.3vw,18px);line-height:1.4;font-weight:700}
+.xxwrt-v3 .v3-module-heading{margin:23px 3px 11px;min-height:24px}
+.xxwrt-v3 .v3-module-heading h2{font-size:16px;line-height:23px;font-weight:750}
+.xxwrt-v3 .v3-module-heading .v-btn{font-size:12px;font-weight:700}
+.xxwrt-v3 .v3-live-card{padding:15px!important;border-radius:18px!important;
+  box-shadow:0 10px 30px rgba(36,74,120,.05)!important}
+.xxwrt-v3 .v3-shortcuts{gap:8px}
+.xxwrt-v3 .v3-shortcut{min-height:77px;padding:13px 4px;gap:8px;
+  font-size:11px;font-weight:700;border-radius:15px;justify-content:center}
+.xxwrt-v3 .v3-shortcut .v-icon{font-size:23px}
+.xxwrt-v3 .v3-network-home{gap:0}
+.xxwrt-v3 .v3-network-status{border-radius:20px;padding:15px;
+  background:linear-gradient(128deg,#daefff,#e6e6ff);
+  box-shadow:0 10px 30px rgba(36,74,120,.05)}
+.xxwrt-v3 .v3-network-status h2{font-size:17px;font-weight:700}
+.xxwrt-v3 .v3-network-status p{font-size:12px;line-height:1.7;margin:6px 0 0}
+.xxwrt-v3 .v3-section-label{font-size:16px;line-height:23px;
+  font-weight:750;margin:23px 3px 11px}
+.xxwrt-v3 .v3-feature-list{border-radius:18px;box-shadow:0 10px 30px rgba(36,74,120,.04)}
+.xxwrt-v3 .v3-feature-list button{min-height:65px;padding:9px 12px;gap:12px}
+.xxwrt-v3 .v3-feature-list button strong{font-size:13px;font-weight:700}
+.xxwrt-v3 .v3-feature-list button small{font-size:11px;line-height:1.4}
+.xxwrt-v3 .v3-network-home .v3-feature-list button{min-height:65px;padding:9px 12px}
+.xxwrt-v3 .v3-network-home .v3-feature-list button .v-icon:first-child{
+  flex:none;width:40px;height:40px;padding:9px;box-sizing:border-box;
+  font-size:21px;border-radius:13px;background:var(--ui-surface-2)}
+.xxwrt-v3 .v3-me-profile{padding:15px;border-radius:18px;
+  background:var(--ui-surface);border-color:var(--ui-border)}
+.xxwrt-v3 .v3-me-profile h2{font-size:17px;font-weight:700}
+.xxwrt-v3 .v3-me-profile p{font-size:12px}
+.xxwrt-v3 .v3-me-directory{border-radius:18px}
+.xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-item{min-height:65px}
+.xxwrt-v3 .standard-bottom{border-radius:0!important;
+  background:rgba(var(--v-theme-surface),.95)!important}
+.xxwrt-v3 .standard-bottom .v-btn--active{
+  background:var(--ui-surface-2);border-radius:12px}
+.xxwrt-v3 .standard-bottom .v-btn--active .v-icon{
+  background:transparent;border-radius:0;padding:0;box-sizing:border-box}
+.xxwrt-v3.theme-is-dark .v3-health-card,
+.xxwrt-v3.theme-is-dark .v3-network-status{
+  background:linear-gradient(128deg,#25486c,#27344f);
+  border-color:var(--ui-border);box-shadow:0 10px 30px rgba(0,0,0,.14)}
+.xxwrt-v3.theme-is-dark .v3-me-profile{background:var(--ui-surface)}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-health-card{padding:14px 11px}
+  .xxwrt-v3 .v3-health-metrics{gap:6px}
+  .xxwrt-v3 .v3-metric{padding:9px 5px}
+  .xxwrt-v3 .v3-shortcuts{gap:8px}
+}
