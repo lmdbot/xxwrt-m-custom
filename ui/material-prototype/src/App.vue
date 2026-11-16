@@ -3082,17 +3082,21 @@ onUnmounted(() => {
                   <h2>{{ designASecondaryInfo.title }}</h2>
                   <p>{{ designASecondaryInfo.subtitle }}</p>
                 </header>
-                <h3 class="v3-design-a-section-title">管理入口</h3>
+                <div v-if="!designASecondaryInfo.warning" class="v3-design-a-status-card">
+                  <v-chip color="success" variant="tonal" size="small">已连接路由器</v-chip>
+                  <p>实际可用功能、运行状态与配置权限由当前路由器及已安装插件决定。</p>
+                </div>
+                <h3 class="v3-design-a-section-title">{{ designASecondaryInfo.warning ? '管理入口' : '功能分区' }}</h3>
                 <div class="v3-feature-list v3-design-a-entry-list">
                   <button v-for="(entry, idx) in designASecondaryInfo.entries" :key="idx"
                     type="button" :aria-label="'查看' + entry[0]" @click="openDesignAOperation(entry[0])">
-                    <v-icon icon="mdi-view-dashboard-outline" color="primary"/>
+                    <v-icon :icon="idx === 0 ? 'mdi-information-outline' : idx === 1 ? 'mdi-cog-outline' : 'mdi-text-box-search-outline'" color="primary"/>
                     <span><strong>{{ entry[0] }}</strong><small>{{ entry[1] }}</small></span>
                     <v-icon icon="mdi-chevron-right"/>
                   </button>
                 </div>
-                <p class="v3-design-a-notice" :class="{ 'is-warning': designASecondaryInfo.warning }">
-                  {{ designASecondaryInfo.warningText || '以下入口连接真实路由器功能；只有通过设备能力及权限检查后才允许修改配置。' }}
+                <p v-if="designASecondaryInfo.warning" class="v3-design-a-notice is-warning">
+                  {{ designASecondaryInfo.warningText }}
                 </p>
                 <div class="v3-design-a-actions">
                   <button type="button" class="v3-design-a-primary" @click="openDesignAOperation(designASecondaryInfo.warning ? '配置详情' : '运行状态')">{{ designASecondaryInfo.warning ? '查看配置' : '查看实际功能' }}</button>
