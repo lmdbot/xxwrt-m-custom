@@ -273,3 +273,190 @@
 .xxwrt-v3 .v3-live-card:focus-visible{
   outline:2px solid var(--ui-primary);outline-offset:3px
 }
+
+
+/* Design A visual implementation: compact native APP roots.
+ * Real RPC metrics remain real; these changes only alter presentation.
+ * Keep these rules after legacy 3.0 overrides so mobile widths do not
+ * accidentally switch the four KPI tiles back to a two-column dashboard. */
+.xxwrt-v3 .v3-overview{gap:15px}
+.xxwrt-v3 .v3-health-card{
+  padding:16px!important;
+  border-radius:20px!important;
+  background:linear-gradient(120deg,rgba(218,237,255,.92),rgba(226,226,255,.88))!important;
+  box-shadow:0 10px 24px rgba(27,76,142,.055)!important;
+}
+.xxwrt-v3.theme-is-dark .v3-health-card{
+  background:linear-gradient(120deg,#1c3555,#292c58)!important;
+}
+.xxwrt-v3 .v3-health-heading{gap:9px}
+.xxwrt-v3 .v3-health-heading h2{font-size:18px;line-height:1.35;font-weight:750}
+.xxwrt-v3 .v3-health-heading p{font-size:12px;line-height:1.45;margin-top:4px}
+.xxwrt-v3 .v3-health-heading>.v-icon{font-size:22px!important}
+.xxwrt-v3 .v3-health-heading .v-chip{display:none}
+.xxwrt-v3 .v3-health-metrics{
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:7px!important;
+  margin-top:15px;
+}
+.xxwrt-v3 .v3-metric{
+  min-height:63px;
+  padding:9px 6px!important;
+  gap:5px;
+  border-radius:14px!important;
+  box-shadow:none!important;
+}
+.xxwrt-v3 .v3-metric small{
+  font-size:11px;
+  line-height:1.4;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.xxwrt-v3 .v3-metric strong{
+  font-size:clamp(14px,4.1vw,20px)!important;
+  line-height:1.3;
+  font-weight:750;
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:normal;
+  white-space:nowrap;
+}
+.xxwrt-v3 .v3-module-heading{margin:3px 1px -3px}
+.xxwrt-v3 .v3-module-heading h2{font-size:16px;font-weight:750}
+.xxwrt-v3 .v3-live-card{
+  padding:13px 14px 10px!important;
+  border-radius:20px!important;
+  min-height:204px;
+  box-shadow:0 8px 20px rgba(23,61,124,.055)!important;
+}
+.xxwrt-v3 .v3-live-card .realtime-chart--compact{
+  height:142px!important;
+  width:100%;
+  margin:0;
+}
+.xxwrt-v3 .v3-rates{
+  margin:2px 1px 8px;
+  gap:5px;
+  font-size:12px;
+}
+.xxwrt-v3 .v3-rates span:first-child{color:var(--ui-primary)}
+.xxwrt-v3 .v3-rates span:last-child{color:var(--ui-teal)}
+.xxwrt-v3 .v3-traffic-hint{
+  margin:3px 1px 0;
+  color:var(--ui-muted);
+  font-size:11px;
+  line-height:1.4;
+}
+.xxwrt-v3 .v3-shortcuts{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.xxwrt-v3 .v3-shortcut{
+  border-radius:16px;
+  min-height:76px;
+  padding:11px 3px;
+  gap:8px;
+  box-shadow:0 3px 12px rgba(23,61,124,.03);
+}
+.xxwrt-v3 .v3-shortcut .v-icon{font-size:24px}
+.xxwrt-v3 .standard-bottom{
+  border-radius:0!important;
+  padding:4px 5px;
+}
+.xxwrt-v3 .standard-bottom .v-btn{
+  height:60px!important;
+  margin:0 2px;
+  border-radius:15px!important;
+  padding:0!important;
+}
+.xxwrt-v3 .standard-bottom .v-btn--active{
+  background:rgba(var(--v-theme-primary),.09)!important;
+}
+.xxwrt-v3 .standard-bottom .v-btn--active .v-icon{
+  background:transparent!important;
+  padding:0!important;
+  box-sizing:border-box;
+}
+.xxwrt-v3 .standard-bottom .v-btn__content{gap:3px!important}
+.xxwrt-v3 .standard-bottom .nav-label{font-size:11px;font-weight:550}
+
+/* Tools: the reference is a search, four-column quick actions, then
+ * simple collapsible category rows rather than nested heavy cards. */
+.xxwrt-v3 .app-hub{gap:16px}
+.xxwrt-v3 .app-launcher-heading{margin:0}
+.xxwrt-v3 .app-launcher-heading h2{font-size:14px;font-weight:650;color:var(--ui-muted)}
+.xxwrt-v3 .app-launcher-heading p{display:none}
+.xxwrt-v3 .app-hub-search .v-field{
+  min-height:48px;
+  background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:16px!important;
+}
+.xxwrt-v3 .app-hub-search .v-field__outline{opacity:0}
+.xxwrt-v3 .app-hub-search input{font-size:14px}
+.xxwrt-v3 .app-hub-favorites{
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  border-radius:0!important;
+  overflow:visible!important;
+}
+.xxwrt-v3 .app-hub-section-heading{margin-bottom:10px}
+.xxwrt-v3 .app-hub-section-heading strong{font-size:16px;font-weight:750}
+.xxwrt-v3 .app-favorites-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.xxwrt-v3 .app-favorite-tile{
+  min-height:80px;
+  padding:9px 3px;
+  gap:8px;
+  background:var(--ui-surface);
+  border:1px solid var(--ui-border);
+  border-radius:16px;
+}
+.xxwrt-v3 .app-favorite-tile .v-avatar{
+  width:32px!important;
+  height:32px!important;
+  background:transparent!important;
+}
+.xxwrt-v3 .app-favorite-tile .v-avatar .v-icon{font-size:24px!important}
+.xxwrt-v3 .app-favorite-tile span{
+  font-size:11px;
+  line-height:1.25;
+  font-weight:650;
+  overflow-wrap:anywhere;
+}
+.xxwrt-v3 .app-hub-categories .app-hub-section-heading small{display:none}
+.xxwrt-v3 .app-category-card{
+  margin-bottom:12px;
+  border-radius:17px;
+  box-shadow:0 5px 16px rgba(25,63,114,.04);
+}
+.xxwrt-v3 .app-category-toggle{
+  min-height:54px;
+  padding:13px 15px;
+  gap:8px;
+}
+.xxwrt-v3 .app-category-toggle>.app-category-icon{display:none}
+.xxwrt-v3 .app-category-copy{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+}
+.xxwrt-v3 .app-category-copy strong{font-size:15px;font-weight:750}
+.xxwrt-v3 .app-category-copy small{
+  white-space:nowrap;
+  font-size:13px;
+  font-weight:650;
+  color:var(--ui-text);
+}
+.xxwrt-v3 .v3-me-profile{padding:15px;border-radius:17px}
+.xxwrt-v3 .v3-me-profile .more-app-icon{width:44px;height:44px;border-radius:12px}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-health-metrics{gap:5px!important}
+  .xxwrt-v3 .v3-metric{padding:8px 4px!important}
+  .xxwrt-v3 .v3-metric strong{font-size:14px!important}
+  .xxwrt-v3 .app-favorites-grid{gap:6px}
+  .xxwrt-v3 .app-favorite-tile{padding:8px 2px}
+  .xxwrt-v3 .app-favorite-tile span{font-size:10px}
+}
