@@ -503,7 +503,8 @@ const previousContentTab = ref('home')
 const toolOriginTab = ref('')
 const networkSection = ref('hub')
 const currentNavTab = computed(() =>
-  activeTab.value === 'statistics' ? 'home' : (toolOriginTab.value || activeTab.value))
+  (activeTab.value === 'statistics' || toolOriginTab.value === 'statistics')
+    ? 'home' : (toolOriginTab.value || activeTab.value))
 const networkSectionTitle = computed(() => ({
   interfaces: '网络接口', devices: '物理设备', wireless: '无线设备'
 })[networkSection.value] || '网络')
@@ -2474,6 +2475,11 @@ onUnmounted(() => {
             </v-card>
 
             <template v-if="snapshot && activeTab === 'statistics'">
+              <div class="v3-monitor-subnav">
+                <div><strong>详细监控</strong><small>实时指标与实际历史采样</small></div>
+                <v-btn color="primary" variant="tonal" size="small" prepend-icon="mdi-chart-line"
+                  @click="launchV3Tool('trends')">30 天长期趋势</v-btn>
+              </div>
               <v-card class="network-card mt-4" rounded="xl" elevation="1">
                 <div class="section-heading"><h2>实时带宽</h2>
                   <v-chip color="primary" variant="tonal" size="small">3 秒采样</v-chip>
