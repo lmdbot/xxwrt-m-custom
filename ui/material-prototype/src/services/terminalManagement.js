@@ -106,6 +106,89 @@ function readableRates(response, backend, ip) {
   }
 }
 
+
+const HQOS_RATE_MAX = 10000000
+const HQOS_CONNECTIONS_MAX = 65535
+
+function hqosUnicastMac(raw) {
+  const mac = validMac(raw).toLowerCase()
+  if ((Number.parseInt(mac.slice(0, 2), 16) & 1) !== 0 || mac === '00:00:00:00:00:00')
+    throw new Error('HQoS 只支持有效的单播 MAC 地址')
+  return mac
+}
+
+export function parseHqosLimit(raw, limit, label) {
+  const value = String(raw ?? '').trim()
+  // HQoS LuCI and rpcd both use 0 for unlimited.
+  if (!/^(0|[1-9]\\d*)$/.test(value)) throw new Error(label + '必须是非负整数')
+  const number = Number(value)
+  if (!Number.isSafeInteger(number) || number > limit)
+    throw new Error(label + '不能超过 ' + limit)
+  return number
+}
+
+function hqosRpcResult(result, method) {
+  if (!result || typeof result !== 'object' || Array.isArray(result))
+    throw new Error('HQoS ' + method + ' RPC 未返回有效数据；检查 rpcd ACL 授权')
+  if (result.error) throw new Error('HQoS ' + method + ' 失败：' + String(result.error).slice(0, 450))
+  return result
+}
+
+function validateHqosReadLimits(rule) {
+  const get = (key, max) => {
+    const n = Number(rule?.[key] ?? 0)
+    return Number.isSafeInteger(n) && n >= 0 && n <= max ? n : 0
+  }
+  return { upload: get('upload', HQOS_RATE_MAX),
+    download: get('download', HQOS_RATE_MAX), connections: get('connections', HQOS_CONNECTIONS_MAX) }
+}
+
+async function readHqosState(client, mac) {
+  const [statusResponse, ruleResponse] = await Promise.all([
+    client.call('hqos', 'status'),
+    client.call('hqos', 'get', { mac: hqosUnicastMac(mac) })
+  ])
+  const status = hqosRpcResult(statusResponse, 'status')
+  const rule = hqosRpcResult(ruleResponse, 'get')
+  const maxRate = Number(status.capabilities?.max_rate)
+  const cap = Number.isSafeInteger(maxRate) && maxRate > 0
+    ? Math.min(maxRate, HQOS_RATE_MAX) : 0
+  return { status, rule, rates: validateHqosReadLimits(rule), maxRate: cap }
+}
+
+export async function saveHqosClient(client, device, settings, input) {
+  const mac = hqosUnicastMac(device?.mac)
+  if (mac.toUpperCase() !== settings?.mac) throw new Error('终端 MAC 信息已变化，请重新打开')
+  if (!settings?.hqosStatus?.installed || settings.backend !== 'hqos')
+    throw new Error('该终端当前未选用 HQoS，禁止改写其他限速后端')
+  const snapshot = await readHqosState(client, mac)
+  if (snapshot.status.supported !== true || !snapshot.maxRate)
+    throw new Error('HQoS 选用的内核/硬件后端不可用，请检查 QoS 后端配置')
+  const upload = parseHqosLimit(input.upload, snapshot.maxRate, '上传限速（kbps）')
+  const download = parseHqosLimit(input.download, snapshot.maxRate, '下载限速（kbps）')
+  const connections = parseHqosLimit(input.connections, HQOS_CONNECTIONS_MAX, '并发连接数')
+  const wantsLimit = upload > 0 || download > 0 || connections > 0
+  if (wantsLimit && snapshot.status.enabled !== true && input.allowEnable !== true)
+    throw new Error('保存非零 HQoS 限额会自动启用全局 HQoS，请明确确认后再操作')
+  const known = settings.hqosRule
+  if (known && (['upload', 'download', 'connections'].some(key =>
+    Number(known[key] ?? 0) !== snapshot.rates[key]) ||
+    Boolean(known.enabled) !== (snapshot.rule.enabled !== false) ||
+    String(known.name || '') !== String(snapshot.rule.name || ''))) {
+    throw new Error('HQoS 规则已被其他会话修改，请刷新终端信息后重新编辑')
+  }
+  const name = String(input.name || snapshot.rule.name || device.displayName ||
+    device.name || mac).replace(/[\\x00-\\x1f\\x7f]/g, '').slice(0, 128)
+  // manager.set performs validation, isolated UCI commit, live apply and
+  // rollback on failure; do not duplicate its transactional logic here.
+  const result = hqosRpcResult(await client.call('hqos', 'set', {
+    mac, name, upload, download, connections
+  }), 'set')
+  return { applied: true, message: wantsLimit
+    ? 'HQoS 客户端限额已保存并应用（按 MAC，IPv4/IPv6 共享）'
+    : 'HQoS 客户端限额已清除；其他客户端规则保持不变', status: result }
+}
+
 export async function readTerminalSettings(client, device) {
   const mac = validMac(device?.mac)
   const ip = ipv4Number(device?.ip) == null ? '' : String(device.ip)
@@ -137,8 +220,29 @@ export async function readTerminalSettings(client, device) {
   const hqosStatus = hqosGlobal ? {
     installed: true, enabled: String(hqosGlobal.enabled) === '1',
     mode: String(hqosGlobal.backend || 'auto'),
-    interface: String(hqosGlobal.interface || '')
-  } : { installed: false, enabled: false, mode: '', interface: '' }
+    interface: String(hqosGlobal.interface || ''),
+    rpcReady: false, supported: false, running: false, maxRate: 0,
+    configuredClients: 0, effectiveBackend: '', error: ''
+  } : { installed: false, enabled: false, mode: '', interface: '',
+    rpcReady: false, supported: false, running: false, maxRate: 0,
+    configuredClients: 0, effectiveBackend: '', error: '' }
+  let hqosRule = null
+  if (hqosStatus.installed) {
+    try {
+      const state = await readHqosState(client, mac)
+      hqosRule = { ...state.rates, name: String(state.rule.name || ''),
+        enabled: state.rule.enabled !== false }
+      Object.assign(hqosStatus, {
+        rpcReady: true, supported: state.status.supported === true,
+        running: state.status.running === true, maxRate: state.maxRate,
+        configuredClients: Number(state.status.configured_clients || 0),
+        effectiveBackend: String(state.status.backend || ''),
+        error: String(state.status.error || '')
+      })
+    } catch (error) {
+      hqosStatus.error = String(error?.message || error).slice(0, 450)
+    }
+  }
   // Choose an already configured and enabled backend. Never silently switch
   // the router's traffic control subsystem or enable it behind the user's back.
   let backend = ''
@@ -162,19 +266,33 @@ export async function readTerminalSettings(client, device) {
       qosConfig = nftQos
     }
   }
-  if (!backend && hqosStatus.installed) {
-    reason = hqosStatus.enabled
-      ? '已检测到 QWRT HQoS 且配置为启用；当前 App 尚未适配其 MAC 规则与并发连接数写入，暂不修改原有配置'
-      : '已检测到 QWRT HQoS，但当前处于禁用状态；请在 Web 端按需启用，App 暂未适配 HQoS 规则编辑'
+  // HQoS is MAC-based and can coexist with older IP-based packages. If
+  // globally enabled it wins; when disabled prefer an active legacy backend.
+  if (hqosStatus.installed && (hqosStatus.enabled || !backend)) {
+    if (hqosStatus.rpcReady && hqosStatus.supported && hqosStatus.maxRate > 0) {
+      backend = 'hqos'
+      reason = hqosStatus.enabled ? '' :
+        'HQoS 当前未启用；保存非零规则会自动启用全局 HQoS，需二次确认'
+    } else {
+      backend = ''
+      reason = hqosStatus.error
+        ? '已安装 HQoS，但无法读取原生 RPC：' + hqosStatus.error
+        : '已安装 HQoS，但所选硬件/CPU 后端不可用，请检查 Web 端后端设置'
+    }
   }
   const activeIP = host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
-  const rates = backend && activeIP ? readableRates(qosConfig, backend, activeIP) : { upload: null, download: null }
+  const rates = backend === 'hqos'
+    ? { upload: hqosRule?.upload ?? 0, download: hqosRule?.download ?? 0 }
+    : backend && activeIP ? readableRates(qosConfig, backend, activeIP)
+      : { upload: null, download: null }
   return {
     mac, ip, activeIP, host,
     hosts: hosts.map(h => ({ ...h, mac: macMatches(h.mac, mac) ? mac : normalizeMac(h.mac).toUpperCase() })),
     leases: leaseList, networks: knownNetworks(network),
-    backend, backendLabel: { 'nft-limiter': 'NFT Limiter', eqos: 'EQOS', 'nft-qos': 'NFT QoS' }[backend] || '',
-    hqosStatus, reason, rates,
+    backend, backendLabel: { hqos: 'QWRT HQoS', 'nft-limiter': 'NFT Limiter',
+      eqos: 'EQOS', 'nft-qos': 'NFT QoS' }[backend] || '',
+    hqosStatus, hqosRule, connections: backend === 'hqos'
+      ? hqosRule?.connections ?? 0 : null, reason, rates,
     staticEnabled: Boolean(host?.ip && ipv4Number(host.ip) != null),
     staticIP: host?.ip && ipv4Number(host.ip) != null ? host.ip : ip
   }
@@ -243,6 +361,7 @@ export async function saveTerminalRateLimit(client, device, settings, input) {
   const mac = validMac(device?.mac)
   if (mac !== settings?.mac) throw new Error('终端信息发生变化，请重新打开')
   const backend = settings.backend
+  if (backend === 'hqos') return saveHqosClient(client, device, settings, input)
   if (!['eqos', 'nft-qos', 'nft-limiter'].includes(backend)) {
     throw new Error(settings.reason || '当前路由器没有可用的终端限速服务')
   }
