@@ -75,12 +75,11 @@ function formatInterfaceUptime(rawSeconds) {
 }
 
 const pages = [
-  { id: 'home', label: '首页', icon: 'mdi-home-outline' },
-  { id: 'statistics', label: '统计', icon: 'mdi-chart-box-outline' },
-  { id: 'clients', label: '终端', icon: 'mdi-devices' },
+  { id: 'home', label: '概览', icon: 'mdi-view-dashboard-outline' },
+  { id: 'clients', label: '设备', icon: 'mdi-devices' },
   { id: 'network', label: '网络', icon: 'mdi-lan' },
-  { id: 'apps', label: '应用', icon: 'mdi-apps' },
-  { id: 'more', label: '更多', icon: 'mdi-dots-horizontal' }
+  { id: 'apps', label: '工具', icon: 'mdi-view-grid-outline' },
+  { id: 'more', label: '我的', icon: 'mdi-account-circle-outline' }
 ]
 const storage = {
   host: 'xxwrt_material_router_url',
@@ -387,7 +386,7 @@ const form = reactive({
   password: '',
   showPassword: false
 })
-const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' : 'standard')
+const navStyle = ref(localStorage.getItem(storage.nav) === 'standard' ? 'standard' : 'liquid')
 // User setting defaults ON, but OS "Reduce motion" always takes precedence.
 const motionEnabled = ref(readMotionPreference(localStorage))
 const systemReducedMotion = ref(false)
@@ -400,9 +399,9 @@ const settingsOpen = ref(false)
 const settingsCategory = ref('settings')
 const settingsTrail = []
 const moreCategories = [
-  { id: 'router', title: '路由器', description: '设备管理、连接与系统信息', icon: 'mdi-router-wireless' },
-  { id: 'settings', title: '设置', description: '显示、隐私、刷新、实验室、语言', icon: 'mdi-cog-outline' },
-  { id: 'about', title: '关于', description: '帮助、反馈与版本', icon: 'mdi-information-outline' }
+  { id: 'router', title: '路由器管理', description: '切换路由器、连接状态与设备信息', icon: 'mdi-router-wireless' },
+  { id: 'settings', title: '应用设置', description: '外观、隐私、刷新策略与语言', icon: 'mdi-cog-outline' },
+  { id: 'about', title: '关于与更新', description: '版本、反馈、隐私和开源许可', icon: 'mdi-information-outline' }
 ]
 const settingsCategories = [
   { id: 'display', title: '显示', description: '界面主题、导航与列表布局', icon: 'mdi-monitor' },
@@ -500,7 +499,7 @@ const activeTab = ref('home')
 const previousContentTab = ref('home')
 const systemDark = ref(false)
 const dark = computed(() => colorMode.value === 'dark' || (colorMode.value === 'system' && systemDark.value))
-const pageTitle = computed(() => pages.find(page => page.id === activeTab.value)?.label || '首页')
+const pageTitle = computed(() => activeTab.value === 'statistics' ? '详细监控' : pages.find(page => page.id === activeTab.value)?.label || '概览')
 const toolbarSection = computed(() => {
   if (settingsOpen.value || activeTab.value === 'more') return ''
   if (viewMode.value !== 'detail' || !connected.value) return ''
@@ -1146,6 +1145,16 @@ function navigateBottomTab(tab) {
   settingsTrail.length = 0
   activeTab.value = tab
 }
+function openDetailedMonitoring() {
+  if (!connected.value || viewMode.value !== 'detail') return
+  activeTab.value = 'statistics'
+  void pollTelemetry()
+}
+function openToolFromSection(toolId) {
+  if (!connected.value || viewMode.value !== 'detail') return
+  activeTab.value = 'apps'
+  showLegacyTool(toolId)
+}
 function openMoreSection(categoryId) {
   if (!moreCategories.some(category => category.id === categoryId)) return
   settingsTrail.length = 0
@@ -1207,6 +1216,7 @@ async function handleBack() {
   }
   if (settingsOpen.value) { closeSettingsPage(); return 'settings' }
   if (activeTab.value === 'more') { navigateBottomTab(viewMode.value === 'list' ? 'home' : previousContentTab.value); return 'more' }
+  if (activeTab.value === 'statistics') { navigateBottomTab('home'); return 'page' }
 
   if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
     const blocked = routerOperationsToolIds.includes(toolPanel.value)
@@ -1959,13 +1969,13 @@ onUnmounted(() => {
     <v-app-bar flat color="surface" height="64" class="top-bar">
       <v-btn v-if="settingsOpen || viewMode === 'detail' || activeTab === 'more'"
         icon="mdi-arrow-left" size="small"
-        :aria-label="settingsOpen ? '返回设置上一级' : activeTab === 'more' ? '返回上一个底栏页面' : activeTab === 'apps' && toolPanel ? '返回应用功能列表' : '返回上一页'"
+        :aria-label="settingsOpen ? '返回设置上一级' : activeTab === 'more' ? '返回上一个底栏页面' : activeTab === 'apps' && toolPanel ? '返回工具中心' : '返回上一页'"
         @click="settingsOpen ? closeSettingsPage() : activeTab === 'more' ? navigateBottomTab(viewMode === 'list' ? 'home' : previousContentTab) : activeTab === 'apps' && toolPanel ? closeAppTool() : handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
           <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
-            class="router-toolbar-name router-list-toolbar-heading">设备列表</h1>
-          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : activeTab === 'more' ? '更多' : displayDeviceName(selectedDevice) }}</span>
+            class="router-toolbar-name router-list-toolbar-heading">路由器管理</h1>
+          <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : activeTab === 'more' ? '我的' : displayDeviceName(selectedDevice) }}</span>
           <span v-if="toolbarSection" class="router-toolbar-context" :title="toolbarSection">· {{ toolbarSection }}</span>
         </div>
       </v-toolbar-title>
@@ -2001,13 +2011,13 @@ onUnmounted(() => {
             <template v-else-if="settingsCategory === 'router'">
               <header class="more-router-hero">
                 <v-icon icon="mdi-router-wireless" size="58" color="primary"/>
-                <h2>路由器</h2>
-                <p>设备管理、连接与系统信息</p>
+                <h2>路由器管理</h2>
+                <p>管理保存的路由器与连接状态</p>
               </header>
               <div class="more-menu-list" role="group" aria-label="路由器快捷入口">
                 <button type="button" class="more-menu-item" @click="goToDeviceList">
                   <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="24"/></span>
-                  <span class="more-menu-copy"><strong>设备信息</strong><small>查看和管理保存的路由器</small></span>
+                  <span class="more-menu-copy"><strong>路由器列表</strong><small>查看和管理保存的路由器</small></span>
                   <v-icon icon="mdi-chevron-right" size="21" class="more-menu-chevron"/>
                 </button>
                 <button type="button" class="more-menu-item" :disabled="!connected" @click="openRouterTab('clients')">
@@ -2179,10 +2189,10 @@ onUnmounted(() => {
           <section class="more-page" data-testid="more-page">
             <header class="more-hero">
               <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="72" height="72"/>
-              <h2>QWRT</h2>
-              <p>智能路由管理</p>
+              <h2>XX-WRT</h2>
+              <p>路由器与应用设置</p>
             </header>
-            <div class="more-menu-list" role="group" aria-label="更多功能">
+            <div class="more-menu-list" role="group" aria-label="我的功能">
               <button v-for="category in moreCategories" :key="category.id"
                 type="button" class="more-menu-item" :aria-label="'打开' + category.title"
                 @click="openMoreSection(category.id)">
@@ -2197,7 +2207,7 @@ onUnmounted(() => {
           <!-- Title and primary actions live in the fixed top bar. -->
           <div class="router-list-toolbar">
             <v-btn-toggle v-model="routerListFilter" mandatory density="compact"
-              rounded="lg" variant="tonal" color="primary" aria-label="设备在线状态筛选">
+              rounded="lg" variant="tonal" color="primary" aria-label="路由器在线状态筛选">
               <v-btn value="all" size="small">全部 {{ devices.length }}</v-btn>
               <v-btn value="online" size="small">可达 {{ reachableCount }}</v-btn>
               <v-btn value="offline" size="small">离线 {{ offlineCount }}</v-btn>
@@ -2533,12 +2543,12 @@ onUnmounted(() => {
             <template v-if="!toolPanel">
               <div class="app-hub">
                 <div class="app-launcher-heading">
-                  <h2>应用管理</h2>
-                  <p>{{ installedRouterAppsLoading ? '正在检查已安装应用…' : '常用快捷入口与分类管理' }}</p>
+                  <h2>工具中心</h2>
+                  <p>{{ installedRouterAppsLoading ? '正在检查路由器功能…' : '常用快捷入口与分类管理' }}</p>
                 </div>
 
                 <v-text-field v-model="appSearch" class="app-hub-search"
-                  aria-label="搜索应用或功能" label="搜索应用或功能"
+                  aria-label="搜索工具或功能" label="搜索工具或功能"
                   prepend-inner-icon="mdi-magnify" clearable hide-details
                   variant="outlined" density="compact"/>
 
@@ -2562,9 +2572,9 @@ onUnmounted(() => {
                 <template v-else>
                   <section class="app-hub-favorites" aria-label="常用应用">
                     <div class="app-hub-section-heading">
-                      <strong>常用应用</strong>
+                      <strong>常用工具</strong>
                       <v-btn size="small" variant="text" prepend-icon="mdi-pencil-outline"
-                        aria-label="编辑常用应用" @click="favoriteEditorOpen = true">编辑</v-btn>
+                        aria-label="编辑常用工具" @click="favoriteEditorOpen = true">编辑</v-btn>
                     </div>
                     <div class="app-favorites-grid">
                       <button v-for="tool in favoriteTools" :key="tool.id" type="button"
@@ -2576,14 +2586,14 @@ onUnmounted(() => {
                         <span>{{ tool.title }}</span>
                       </button>
                       <button type="button" class="app-favorite-tile is-more"
-                        aria-label="展开全部应用" @click="expandAllAppCategories">
+                        aria-label="展开全部工具" @click="expandAllAppCategories">
                         <v-avatar rounded="lg" size="44" color="secondary" variant="tonal">
                           <v-icon icon="mdi-apps" size="23"/>
                         </v-avatar>
-                        <span>全部应用</span>
+                        <span>全部工具</span>
                       </button>
                     </div>
-                    <p v-if="!favoriteTools.length" class="app-hub-hint">暂无常用应用，点击编辑添加。</p>
+                    <p v-if="!favoriteTools.length" class="app-hub-hint">暂无常用工具，点击编辑添加。</p>
                   </section>
 
                   <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
@@ -2621,7 +2631,7 @@ onUnmounted(() => {
 
               <v-dialog v-model="favoriteEditorOpen" max-width="480" scrollable>
                 <v-card rounded="xl" class="app-favorite-dialog">
-                  <v-card-title>编辑常用应用</v-card-title>
+                  <v-card-title>编辑常用工具</v-card-title>
                   <v-card-subtitle>最多 5 个快捷入口，使用箭头调整顺序</v-card-subtitle>
                   <v-divider class="mt-3"/>
                   <v-card-text>
@@ -2791,7 +2801,7 @@ onUnmounted(() => {
       mandatory :model-value="activeTab" :height="68" grow bg-color="surface"
       class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
-        :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
+         :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
         @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
