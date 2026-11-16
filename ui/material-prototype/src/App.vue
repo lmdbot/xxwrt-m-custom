@@ -3329,6 +3329,7 @@ onUnmounted(() => {
           <v-alert v-if="terminalError" type="error" variant="tonal" density="compact" class="mt-3">{{ terminalError }}</v-alert>
           <v-alert v-if="terminalNotice" type="success" variant="tonal" density="compact" class="mt-3">{{ terminalNotice }}</v-alert>
           <template v-if="terminalSettings">
+            <div v-if="terminalEditorSection === 'static'" class="v3-terminal-operation-panel">
             <v-divider class="my-4"/>
             <div class="d-flex align-center ga-2 mb-2">
               <v-icon icon="mdi-ip-network" color="primary"/>
@@ -3347,6 +3348,8 @@ onUnmounted(() => {
               :disabled="terminalSettingsBusy" @click="saveTerminalStatic">
               {{ terminalForm.staticEnabled ? '保存静态 IP' : '取消静态 IP 绑定' }}
             </v-btn>
+            </div>
+            <div v-if="terminalEditorSection === 'qos'" class="v3-terminal-operation-panel">
             <v-divider class="my-4"/>
             <div class="d-flex align-center ga-2 mb-2">
               <v-icon icon="mdi-speedometer" color="primary"/>
@@ -3429,6 +3432,7 @@ onUnmounted(() => {
             <v-alert v-else type="info" density="compact" variant="tonal" class="mt-2">
               {{ terminalSettings.reason }}。静态 IP 绑定仍可独立使用。
             </v-alert>
+            </div>
           </template>
         </v-card-text>
         <v-card-actions v-if="terminalEditorSection">
