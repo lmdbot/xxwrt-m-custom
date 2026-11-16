@@ -585,7 +585,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
   await expect(page.getByRole('button', { name: '标准底栏' })).toBeVisible()
   await expect(page.getByRole('button', { name: '液态底栏' })).toBeVisible()
-  const motionSwitch=page.getByRole('switch', { name: '界面动效' })
+  const motionSwitch=page.getByLabel('界面动效')
   await expect(motionSwitch).toBeChecked()
   await expect(page.locator('html')).toHaveAttribute('data-xxwrt-motion','on')
   await motionSwitch.click()
