@@ -633,8 +633,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('磁盘占用')).toBeVisible()
   await expect(page.getByText('系统可写空间')).toBeVisible()
   await expect(page.getByText('临时空间')).toBeVisible()
-  await expect(page.getByText('75%', { exact: true })).toBeVisible()
-  await expect(page.getByText('25%', { exact: true })).toBeVisible()
+  await expect(page.locator('.storage-card').getByText('75%', { exact: true })).toBeVisible()
+  await expect(page.locator('.storage-card').getByText('25%', { exact: true })).toBeVisible()
   await expect(page.locator('.v-bottom-navigation')).toBeVisible()
   // Leave the statistics screen unopened while background sampling builds history.
   await page.waitForTimeout(7200)
