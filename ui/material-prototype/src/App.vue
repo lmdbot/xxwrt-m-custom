@@ -351,7 +351,7 @@ async function downloadLatestApk() {
 }
 
 function syncNativeChrome(isDark) {
-  const color = isDark ? '#101826' : '#F5F8FE'
+  const color = isDark ? '#0F1727' : '#F3F7FD'
   document.documentElement.style.backgroundColor = color
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
   if (isNative) {
@@ -423,7 +423,7 @@ const terminalDevices = computed(() => {
   const byMac = new Map()
   const add = (raw, source) => {
     const mac = String(raw.mac || raw.macaddr || '').toUpperCase()
-    const key = mac || String(raw.ip || raw.ip6addr || raw.address || raw.name || Math.random())
+    const key = mac || String(raw.ip || raw.ip6addr || raw.address || raw.name || `${source}:${raw.sourceIndex ?? byMac.size}`)
     let item = byMac.get(key)
     if (!item) {
       item = { ...raw, mac, sources: new Set(), wifi: null }
@@ -457,6 +457,16 @@ const terminalDevices = computed(() => {
       ip6: hint.ip6addrs?.[0] || '', online: true, onlineKnown: true
     }, 'wireless')
   })
+  // OpenAppFilter users are another discovery source, not proof of being online.
+  // Merge by MAC so one terminal does not appear twice across DHCP, Wi-Fi and apps.
+  appFilterUsers.value.users.forEach((user, index) => add({
+    ...user,
+    name: user.nickname || user.name || user.hostname || '',
+    ip: user.ip || user.ipaddr || '',
+    sourceIndex: index,
+    online: false,
+    onlineKnown: false
+  }, 'oaf'))
   return [...byMac.values()].map(item => {
     const identity = identifyDevice(item.identityName || item.name || item.hostname, item.mac)
     return {
@@ -576,7 +586,7 @@ const terminalCategories = computed(() => [
   { value: 'dhcp4', label: 'DHCPv4', count: clientData.value.data.length, icon: 'mdi-laptop' },
   { value: 'dhcp6', label: 'DHCPv6', count: clientData.value.ipv6.length, icon: 'mdi-ip-network' },
   { value: 'wireless', label: '无线终端', count: wifiClientData.value.stations.length, icon: 'mdi-wifi' },
-  { value: 'oaf', label: '应用用户', count: appFilterUsers.value.users.length, icon: 'mdi-account-group-outline' }
+  { value: 'oaf', label: '应用用户', count: terminalDevices.value.filter(item => item.sources.includes('oaf')).length, icon: 'mdi-account-group-outline' }
 ])
 const diskData = ref({ available: false, partitions: [], primary: null, temporary: null })
 const chosenInterface = ref('')
@@ -2078,7 +2088,6 @@ onUnmounted(() => {
           <h1 v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
             class="router-toolbar-name router-list-toolbar-heading">路由器管理</h1>
           <span v-else class="router-toolbar-name">{{ settingsOpen ? settingsPage.title : (toolbarSection || pageTitle) }}</span>
-          <span v-if="connected && !settingsOpen && activeTab !== 'more'" class="router-toolbar-context" :title="displayDeviceName(selectedDevice)">· {{ displayDeviceName(selectedDevice) }}</span>
         </div>
       </v-toolbar-title>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
@@ -2091,7 +2100,7 @@ onUnmounted(() => {
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && activeTab !== 'more'"
+      <v-btn v-if="viewMode === 'detail' && connected"
         class="v3-router-switch" size="small" variant="tonal" color="primary"
         append-icon="mdi-chevron-down" aria-label="切换路由器" @click="requestRouterSwitch">
         <span class="v3-router-switch-label">{{ displayDeviceName(selectedDevice) }}</span>
@@ -2401,7 +2410,11 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'home' || activeTab === 'statistics'">
             <section v-if="activeTab === 'home'" class="v3-overview">
-              <div class="v3-health-card">
+              <div class="v3-health-card" role="button" tabindex="0"
+                :aria-expanded="homeDetailsExpanded" aria-label="查看系统与硬件详情"
+                @click="homeDetailsExpanded = !homeDetailsExpanded"
+                @keydown.enter.prevent="homeDetailsExpanded = !homeDetailsExpanded"
+                @keydown.space.prevent="homeDetailsExpanded = !homeDetailsExpanded">
                 <div class="v3-health-heading">
                   <v-icon icon="mdi-check-circle-outline" color="success" size="30"/>
                   <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
@@ -2417,7 +2430,10 @@ onUnmounted(() => {
               </div>
               <div class="v3-module-heading"><h2>实时网络流量</h2>
                 <v-btn size="small" variant="text" append-icon="mdi-chevron-right" @click="openDetailedMonitor">详细监控</v-btn></div>
-              <v-card variant="flat" rounded="xl" class="v3-live-card">
+              <v-card variant="flat" rounded="xl" class="v3-live-card"
+                role="button" tabindex="0" aria-label="查看详细监控"
+                @click="openDetailedMonitor" @keydown.enter.prevent="openDetailedMonitor"
+                @keydown.space.prevent="openDetailedMonitor">
                 <div class="v3-rates">
                   <span><v-icon icon="mdi-arrow-down" color="primary" size="17"/> RX {{ currentRate?.rx || '等待采样' }}</span>
                   <span><v-icon icon="mdi-arrow-up" color="secondary" size="17"/> TX {{ currentRate?.tx || '等待采样' }}</span>
@@ -2653,55 +2669,30 @@ onUnmounted(() => {
                   </div>
                 </v-btn>
               </div>
-              <template v-if="terminalView === 'dhcp4' || terminalView === 'all'">
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
                 aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
                 @click:clear="clientSearch = ''"
                 @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
-              <div v-if="filteredClients.length" class="terminal-grid" role="list"  :aria-label="terminalView === 'all' ? '全部已发现终端' : 'DHCP 终端设备'">
-                <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip"
+              <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="已发现终端列表">
+                <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip || item.ip6"
                   :item="item" @click="openTerminal(item)"/>
               </div>
               <v-empty-state v-else-if="clientSearch || terminalOnlineFilter !== 'all'" icon="mdi-magnify-close"
-                title="没有匹配的终端" text="请尝试设备名称、IP 地址或 MAC 地址"/>
+                title="没有匹配的终端" text="请调整在线状态、数据来源或搜索条件"/>
+              <v-alert v-else-if="terminalView === 'wireless' && !wifiClientData.available"
+                type="info" variant="tonal" density="compact">
+                无法读取 Wi-Fi 关联信息：路由器可能没有无线射频，或当前账号缺少 iwinfo RPC 权限。
+              </v-alert>
+              <v-alert v-else-if="terminalView === 'oaf' && !appFilterUsers.available"
+                type="info" variant="tonal" density="compact">
+                无法读取应用用户：请检查 OpenAppFilter 是否安装，以及当前账号的 RPC 权限。
+              </v-alert>
               <v-empty-state v-else icon="mdi-devices"
-                 :title="terminalView === 'all' ? '暂无已发现终端' : clientData.leasesAvailable ? '暂无 DHCP 租约' : '无法获取 DHCP 租约'"
-                text="确认 QWRT 的 luci-rpc.getDHCPLeases 接口具有读取权限"/>
-              </template>
-              <div v-if="terminalView === 'dhcp6'" class="terminal-grid">
-                <TerminalDeviceCard v-for="item in filteredClients" :key="'dhcp6-'+(item.mac || item.ip)"
-                  :item="item" @click="openTerminal(item)"/>
-                <p v-if="!filteredClients.length" class="muted-hint">没有匹配的 DHCPv6 终端。</p>
-              </div>
-              <div v-if="terminalView === 'wireless'">
-                <div class="terminal-grid" v-if="filteredClients.length">
-                  <TerminalDeviceCard v-for="item in filteredClients" :key="'wifi-'+(item.mac || item.ip)"
-                    :item="item" @click="openTerminal(item)"/>
-                </div>
-                <v-alert v-else type="info" variant="tonal" density="compact">
-                  {{ wifiClientData.available ? '当前没有已关联的无线终端' : 'QWRT 未开放 iwinfo RPC 或当前路由器没有 Wi-Fi 射频' }}
-                </v-alert>
-              </div>
-              <div v-if="terminalView === 'oaf'">
-                <div class="terminal-grid" v-if="appFilterUsers.users.length">
-                  <v-card v-for="(item,index) in appFilterUsers.users" :key="'oaf-'+index" variant="outlined" rounded="lg" class="terminal-tile">
-                    <v-avatar size="42" color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-shield-account-outline" size="22"/></v-avatar>
-                    <div class="terminal-meta">
-                      <div class="terminal-name-line">
-                        <span class="terminal-online-dot" :class="'is-' + onlineStateForMac(item.mac)"
-                          :title="onlineStateForMac(item.mac) === 'online' ? '在线' : onlineStateForMac(item.mac) === 'offline' ? '离线' : '状态未知'"/>
-                        <div class="terminal-name">{{ item.nickname || item.hostname || item.mac || '未知用户' }}</div>
-                      </div>
-                      <div class="terminal-ip">{{ item.ip || item.ipaddr || '--' }}</div>
-                      <div class="terminal-mac">{{ item.mac || '--' }} · {{ item.appname || item.app_name || '暂无应用记录' }}</div>
-                    </div>
-                  </v-card>
-                </div>
-                <v-alert v-else type="info" variant="tonal" density="compact">
-                  {{ appFilterUsers.available ? '应用过滤用户列表为空' : '未安装 OpenAppFilter，或当前账号没有 appfilter RPC 权限' }}
-                </v-alert>
-              </div>
+                :title="terminalView === 'all' ? '暂无已发现终端' : '此来源暂无终端'"
+                :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
+                  ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
+                  : '没有对应来源的记录；租约不等于在线状态'"/>
             </div>
           </template>
 
