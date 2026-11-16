@@ -47,3 +47,20 @@ export function networkV3Tools(tools) {
   const byId = new Map(tools.map(item => [item.id,item]))
   return V3_NETWORK_FEATURE_IDS.map(id => byId.get(id)).filter(Boolean)
 }
+
+/**
+ * Search across real feature titles/descriptions and their 3.0 categories.
+ * Categories are deliberately not baked into the legacy favorites backend.
+ */
+export function searchV3Features(tools, query) {
+  const term = String(query || '').trim().toLocaleLowerCase()
+  if (!term) return []
+  const titles = Object.fromEntries([
+    ...V3_NETWORK_FEATURE_IDS.map(id => [id, '网络']),
+    ...V3_DEVICE_FEATURE_IDS.map(id => [id, '设备']),
+    ...V3_OVERVIEW_FEATURE_IDS.map(id => [id, '详细监控']),
+    ...V3_TOOL_GROUPS.flatMap(group => group.ids.map(id => [id, group.title]))
+  ])
+  return tools.filter(tool => [tool.title, tool.subtitle, titles[tool.id]].some(value =>
+    String(value || '').toLocaleLowerCase().includes(term)))
+}
