@@ -9,6 +9,7 @@ export default {
   "Android 路由器管理客户端": "Android router management client",
   "查看开发者与项目": "View developer and project",
   "开发者与项目": "Developer & project",
+  "开发者头像": "Developer avatar",
   "lmdbot · GitHub 开源项目": "lmdbot · Open-source GitHub project",
   "版本与更新": "Version & updates",
   "当前安装版本": "Installed version",
