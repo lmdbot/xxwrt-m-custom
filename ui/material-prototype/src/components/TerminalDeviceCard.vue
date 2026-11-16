@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import { deviceTypeIcon } from '../services/deviceIdentity.js'
 
 const props = defineProps({
-  item: { type: Object, required: true }
+  item: { type: Object, required: true },
+  designA: { type: Boolean, default: false }
 })
 const emit = defineEmits(['click'])
 const brand = computed(() => props.item.identity?.brand || null)
@@ -35,7 +36,18 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
 </script>
 
 <template>
-  <v-card
+  <!-- Design A list item: one consistent 65dp row. No extra cards or source chips
+       in the directory; provenance remains in the subtitle and detail screen. -->
+  <button v-if="designA" type="button" class="terminal-design-a-item"
+    role="listitem" :aria-label="title + '，' + onlineTitle" @click="emit('click')">
+    <span class="terminal-design-a-icon" aria-hidden="true"><v-icon :icon="typeIcon" size="21"/></span>
+    <span class="terminal-design-a-main">
+      <strong>{{ item.displayName || item.name || '未知设备' }}</strong>
+      <small>{{ item.ip || item.ip6 || item.mac || '未获取地址' }} · {{ item.wifi ? 'Wi-Fi' : (item.kind || sourceLabels[0] || '来源未确认') }} · {{ onlineState === 'unknown' ? '待确认' : onlineTitle }}</small>
+    </span>
+    <v-icon icon="mdi-chevron-right" size="22" class="terminal-design-a-arrow"/>
+  </button>
+  <v-card v-else
     role="listitem"
     rounded="lg"
     variant="outlined"
