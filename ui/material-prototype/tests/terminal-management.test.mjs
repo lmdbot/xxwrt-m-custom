@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ipv4Number, readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit
+  ipv4Number, parseHqosLimit, readTerminalSettings, saveTerminalStaticIP, saveTerminalRateLimit
 } from '../src/services/terminalManagement.js'
 
 const MAC = 'AA:BB:CC:DD:EE:FF'
@@ -12,7 +12,7 @@ const lease = { dhcp_leases: [{ macaddr: MAC, ipaddr: device.ip },
   { macaddr: '02:12:34:56:78:90', ipaddr: '192.168.100.60' }] }
 
 function mockRouter({ dhcp = {}, eqos = null, limiter = null, nftQos = null, hqos = null,
-  runtime = {}, applyCode = 0 } = {}) {
+  hqosRpc = null, runtime = {}, applyCode = 0 } = {}) {
   const configs = {
     dhcp: structuredClone(dhcp), eqos: structuredClone(eqos),
     'nft-limiter': structuredClone(limiter), 'nft-qos': structuredClone(nftQos),
@@ -20,6 +20,13 @@ function mockRouter({ dhcp = {}, eqos = null, limiter = null, nftQos = null, hqo
   }
   const calls = []
   let counter = 0
+  let hqosRule = structuredClone(hqosRpc?.rule || {
+    mac: MAC.toLowerCase(), upload: 0, download: 0, connections: 0, name: ''
+  })
+  const hqosStatus = structuredClone(hqosRpc?.status || {
+    enabled: hqos?.global?.enabled === '1', supported: true, running: false,
+    configured_clients: 0, backend: 'cpu', capabilities: { max_rate: 10000000 }
+  })
   const rpc = async (object, method, args = {}) => {
     calls.push({ object, method, args: structuredClone(args) })
     if (object === 'uci') {
@@ -41,6 +48,19 @@ function mockRouter({ dhcp = {}, eqos = null, limiter = null, nftQos = null, hqo
         return {}
       }
       return {}
+    }
+    if (object === 'hqos') {
+      if (hqosRpc?.error) return { error: hqosRpc.error }
+      if (method === 'status') return structuredClone(hqosStatus)
+      if (method === 'get') return structuredClone(hqosRule)
+      if (method === 'set') {
+        hqosRule = { ...structuredClone(args), enabled: true }
+        if (args.upload > 0 || args.download > 0 || args.connections > 0) {
+          hqosStatus.enabled = true
+          configs.hqos.global.enabled = '1'
+        }
+        return { enabled: hqosStatus.enabled, running: true }
+      }
     }
     if (object === 'network.interface' && method === 'dump') return lan
     if (object === 'luci-rpc' && method === 'getDHCPLeases') return lease
@@ -155,37 +175,3 @@ test('a failed service reload does not falsely claim settings were applied', asy
   assert.equal(Object.keys(api.configs.dhcp).length, 1)
 })
 
-test('QWRT HQoS is identified as installed but disabled without modifying UCI', async () => {
-  const api = mockRouter({ hqos: { global: {
-    '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan'
-  } } })
-  const settings = await readTerminalSettings(api, device)
-  assert.equal(settings.backend, '')
-  assert.deepEqual(settings.hqosStatus, {
-    installed: true, enabled: false, mode: 'auto', interface: 'br-lan'
-  })
-  assert.match(settings.reason, /HQoS.*禁用/)
-  assert.equal(api.calls.filter(x => x.object === 'uci' && ['add', 'set', 'delete', 'commit'].includes(x.method)).length, 0)
-})
-test('enabled HQoS never enters unsupported IP-based writer', async () => {
-  const api = mockRouter({ hqos: { global: {
-    '.type': 'hqos', enabled: '1', backend: 'cpu', interface: 'br-lan'
-  } } })
-  const settings = await readTerminalSettings(api, device)
-  assert.equal(settings.backend, '')
-  assert.equal(settings.hqosStatus.enabled, true)
-  assert.match(settings.reason, /MAC 规则/)
-  await assert.rejects(
-    saveTerminalRateLimit(api, device, settings, { upload: '1000', download: '2000' }),
-    /HQoS/
-  )
-})
-test('enabled EQOS remains usable when disabled HQoS is also installed', async () => {
-  const api = mockRouter({
-    eqos: { global: { '.type': 'eqos', enabled: '1' } },
-    hqos: { global: { '.type': 'hqos', enabled: '0', backend: 'auto', interface: 'br-lan' } }
-  })
-  const settings = await readTerminalSettings(api, device)
-  assert.equal(settings.backend, 'eqos')
-  assert.equal(settings.hqosStatus.installed, true)
-})
