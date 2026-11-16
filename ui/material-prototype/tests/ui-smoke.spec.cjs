@@ -470,74 +470,30 @@ test('outlined form labels do not overlap placeholders or entered text on narrow
   await page.getByRole('button', { name: '取消', exact: true }).click()
 })
 
-// Exercise the same touchstart/move/end handlers as Android WebView rather than
-// invoking the swipe predicate alone. It must work without a router session.
-async function swipeDrawerGesture(page, startX, startY, endX, endY) {
-  await page.evaluate(({ startX, startY, endX, endY }) => {
-    const main = document.querySelector('.v-main')
-    if (!main) throw new Error('v-main touch region not found')
-    const touch = (x, y) => new Touch({
-      identifier: 7, target: main, clientX: x, clientY: y
-    })
-    const start = touch(startX, startY), end = touch(endX, endY)
-    const fire = (type, touches, changedTouches) => main.dispatchEvent(
-      new TouchEvent(type, {
-        bubbles: true, cancelable: true, touches,
-        targetTouches: touches, changedTouches
-      })
-    )
-    fire('touchstart', [start], [start])
-    fire('touchmove', [end], [end])
-    fire('touchend', [], [end])
-  }, { startX, startY, endX, endY })
-}
-
-test('device list supports left-edge swipe to open settings drawer without a login', async ({ page }) => {
+test('device list exposes the sixth More tab before login and preserves navigation hierarchy', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
   const topBar = page.locator('.top-bar')
   await expect(topBar.getByRole('heading', { name: '设备列表', level: 1 })).toBeVisible()
   await expect(topBar.getByRole('button', { name: '刷新设备状态' })).toBeVisible()
   await expect(topBar.getByRole('button', { name: '添加', exact: true })).toBeVisible()
-  await expect(page.locator('.list-page-title')).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: '设备列表' })).toHaveCount(1)
-  // On narrow phones, the title and both actions share the same top toolbar.
-  const geometry = await topBar.evaluate(el => {
-    const heading = el.querySelector('.router-list-toolbar-heading').getBoundingClientRect()
-    const refresh = el.querySelector('[aria-label="刷新设备状态"]').getBoundingClientRect()
-    const add = el.querySelector('.router-list-add-topbar').getBoundingClientRect()
-    return {
-      aligned: Math.abs(heading.top + heading.height / 2 - add.top - add.height / 2) < 12,
-      ordered: heading.right < refresh.left && refresh.right < add.left,
-      visible: add.right <= window.innerWidth + 1
-    }
-  })
-  expect(geometry).toEqual({ aligned: true, ordered: true, visible: true })
-  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
-
-  // Center-screen movement, ordinary vertical scrolling and taps must not open it.
-  await swipeDrawerGesture(page, 170, 250, 310, 255)
-  await swipeDrawerGesture(page, 24, 250, 38, 390)
-  await swipeDrawerGesture(page, 24, 250, 35, 252)
-  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
-
-  // A modal (adding a router) must take precedence over the drawer gesture.
-  await page.getByRole('button', { name: '添加', exact: true }).click()
-  await expect(page.getByRole('dialog').getByText('添加 OpenWrt 设备', { exact: true })).toBeVisible()
-  await swipeDrawerGesture(page, 24, 260, 172, 265)
-  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
-  await page.getByRole('button', { name: '取消', exact: true }).click()
-
-  // A deliberate rightward gesture starting in the first 72px opens the drawer.
-  await swipeDrawerGesture(page, 24, 250, 172, 253)
-  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(1)
-  await expect(page.getByRole('button', { name: '打开显示设置' })).toBeVisible()
+  await expect(page.locator('.material-side-drawer')).toHaveCount(0)
+  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(6)
+  await expect(page.getByRole('button', { name: '统计', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(3)
+  await page.getByRole('button', { name: '打开设置' }).click()
+  await expect(page.locator('.settings-page .more-menu-item')).toHaveCount(5)
   await page.getByRole('button', { name: '打开显示设置' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
-
-  // Settings pages keep the existing gesture guard.
-  await swipeDrawerGesture(page, 24, 250, 172, 253)
-  await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
+  await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(6)
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('more')
+  await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
 })
 
 test('authenticate to real RPC adapter and operate Material pages and bottom bars', async ({ page }) => {
@@ -566,21 +522,16 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
   await expect(page.locator('.v-application')).toBeVisible()
   await expect(page.locator('v-app, v-card, v-btn')).toHaveCount(0)
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
-  await expect(page.locator('.settings-category-card')).toHaveCount(7)
-  await expect(page.getByRole('button', { name: '打开路由器设置' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '打开显示设置' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '打开隐私设置' })).toBeVisible()
-  await expect(page.locator('.sidebar-brand small')).toHaveText('路由器管理')
-  await expect(page.locator('.sidebar-footer')).toHaveCount(0)
-  await expect(page.getByText('语言设置', { exact: true })).toHaveCount(0)
-  await page.getByRole('button', { name: '打开路由器设置' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(3)
+  await page.getByRole('button', { name: '打开路由器' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('路由器')
   await expect(page.locator('.settings-page-heading')).toHaveCount(0)
-  await page.getByRole('button', { name: '打开设备列表' }).click()
+  await page.getByRole('button', { name: '设备信息' }).click()
   await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
 
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开显示设置' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
   await expect(page.getByRole('button', { name: '标准底栏' })).toBeVisible()
@@ -607,15 +558,18 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await auditDarkTextContrast(page, ['.settings-option-heading p', '.settings-switch-row p'])
   await page.screenshot({ path: 'test-results/screenshots/settings-display.png', fullPage: true })
 
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+  await page.getByRole('button', { name: '返回设置上一级' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
   await page.getByRole('button', { name: '打开隐私设置' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私')
   await expect(page.getByLabel('隐藏主机名')).toBeVisible()
   await expect(page.getByLabel('隐藏 IP / 域名')).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/settings-privacy.png', fullPage: true })
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
+  await expect(page.getByTestId('more-page')).toBeVisible()
+  await page.getByRole('button', { name: '首页', exact: true }).click()
   await expect(page.getByRole('heading', { name: '设备列表' })).toBeVisible()
   await page.getByRole('button', { name: '添加', exact: true }).click()
   await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('QWRT 主路由')
@@ -1249,7 +1203,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '收起设备维护' }).click()
   await expect(page.getByRole('button', { name: '打开恢复出厂' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开显示设置' }).click()
   await page.getByRole('button', { name: '液态底栏' }).click()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
@@ -1352,10 +1307,11 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await expect(page.locator('.saved-device-grid-compact')).toBeVisible()
   await page.getByRole('button', { name: '隐藏路由器地址' }).click()
   await expect(page.locator('.router-address')).toContainText('•••')
-  await page.getByRole('button', { name: '打开侧栏菜单' }).click()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开隐私设置' }).click()
   await page.getByLabel('隐藏主机名').click()
-  await page.getByRole('button', { name: '返回设置上一级' }).click()
+  await page.getByRole('button', { name: '首页', exact: true }).click()
   await expect(page.locator('.router-name')).toHaveText('路由器 1')
   await expect(page.getByRole('button', { name: '进入 路由器 1' })).toBeVisible()
   await expect(page.locator('.router-address')).toContainText('•••')
