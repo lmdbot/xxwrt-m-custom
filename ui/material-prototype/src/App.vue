@@ -1233,10 +1233,12 @@ watch(activeTab, (tab) => {
 // Android Back follows the visible hierarchy, not bottom-tab visit order.
 let nativeBackSubscription = null
 let nativeResumeSubscription = null
-function openSettingsCategory(categoryId) {
+function openSettingsCategory(categoryId, directFromMe = false) {
   if (!settingsCategories.some(category => category.id === categoryId)) return
   settingsTrail.length = 0
-  settingsTrail.push('settings')
+  // Direct Me setting entries return to Me; selecting from the all-settings
+  // directory returns to that directory instead.
+  if (!directFromMe) settingsTrail.push('settings')
   settingsCategory.value = categoryId
   settingsOpen.value = true
 }
@@ -2280,7 +2282,7 @@ onUnmounted(() => {
             <div class="more-menu-list">
               <button v-for="category in settingsCategories" :key="category.id" type="button"
                 class="more-menu-item" :aria-label="'打开' + category.title + '设置'"
-                @click="openSettingsCategory(category.id)">
+                @click="openSettingsCategory(category.id, true)">
                 <span class="more-menu-icon"><v-icon :icon="category.icon" size="23"/></span>
                 <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
