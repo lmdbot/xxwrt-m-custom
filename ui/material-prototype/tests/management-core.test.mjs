@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import {
   rpcAuditDescriptor, appendAuditRecord, readAuditRecords,
   hasPendingUciChanges, prepareUciChange, applyProtectedUci,
-  pendingProtectedUci, finishProtectedUci, discoverRouterCapabilities
+  pendingProtectedUci, finishProtectedUci, discoverRouterCapabilities,
+  identifyRouterFirmware
 } from '../src/services/managementCore.js'
 
 function storage() {
@@ -78,4 +79,29 @@ test('capabilities are based on observed firmware, not guessed from router name'
   assert.equal(data.features.find(x=>x.id==='firewall').state,'available')
   assert.equal(data.features.find(x=>x.id==='ddnsGo').state,'available')
   assert.equal(data.features.find(x=>x.id==='network').state,'unknown')
+})
+
+test('firmware recognition prefers fork identity over upstream OpenWrt distribution',async()=>{
+  const board={model:'J4125 SoftRouter',release:{
+    distribution:'OpenWrt',description:'QWRT R26.11.13',target:'x86/64'}}
+  assert.equal(identifyRouterFirmware(board),'QWRT')
+  assert.equal(identifyRouterFirmware({release:{distribution:'OpenWrt',description:'OpenWrt 24.10.4'}}),'OpenWrt')
+  for(const [label,expected] of [
+    ['ImmortalWrt 24.10', 'ImmortalWrt'],['iStoreOS 24.10', 'iStoreOS'],
+    ['KWRT 24', 'KWRT'], ['KWRP 24', 'KWRP'], ['FriendlyWrt', 'FriendlyWrt'],
+    ['LEDE 17', 'LEDE']]){
+    assert.equal(identifyRouterFirmware({release:{distribution:'OpenWrt',description:label}}),expected)
+  }
+  assert.equal(identifyRouterFirmware({model:'QWRT Router',release:{}}),'OpenWrt 兼容 / 待确认')
+  assert.equal(identifyRouterFirmware({release:{distribution:'OpenWrt'}},
+    [{data:"DISTRIB_DESCRIPTION='QWRT R26.11.13'"}]),'QWRT')
+  const client={call:async(object,method,args)=>{
+    if(object==='system'&&method==='board')return board
+    if(object==='file'&&method==='read'&&args.path==='/etc/os-release')
+      return {data:'NAME="OpenWrt"\nPRETTY_NAME="QWRT R26.11.13"'}
+    return null
+  }}
+  const detected=await discoverRouterCapabilities(client)
+  assert.equal(detected.firmware,'QWRT')
+  assert.equal(detected.board.version,'QWRT R26.11.13')
 })

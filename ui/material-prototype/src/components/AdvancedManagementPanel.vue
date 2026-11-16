@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
-import { shortError } from '../services/router.js'
+import { shortError, readDashboard } from '../services/router.js'
 import {
   CONFIG_ROLLBACK_SECONDS, applyProtectedUci, finishProtectedUci, releaseExpiredProtectedUci,
   discoverRouterCapabilities, readAuditRecords
@@ -13,7 +13,8 @@ import {
   applyCrontabChange
 } from '../services/advancedManagement.js'
 import {
-  readMetricHistory, trendPoints, trendSegments, readRouterTopology,
+  readMetricHistory, recordMetricSample, sampleFromDashboard, trendPoints,
+  trendSegments, trendPlotPoints, readRouterTopology,
   readSecurityReport
 } from '../services/routerInsights.js'
 const props=defineProps({
@@ -33,7 +34,7 @@ const clash=ref(null),clashSelected=ref(''),clashLogOpen=ref(false)
 const firewall=ref(null)
 const firewallForm=reactive({name:'',src:'wan',srcIp:'',family:'ipv4',proto:'tcp',target:'REJECT',port:''})
 const auditSearch=ref(''),auditRows=ref([])
-const trendRange=ref('h24'),trendKey=ref('cpu'),history=ref([])
+const trendRange=ref('h24'),trendKey=ref('cpu'),history=ref([]),trendNow=ref(Date.now())
 const topology=ref(null),security=ref(null)
 const queued=ref(null),pending=ref(null),pendingSubject=ref(''),expired=ref(false),remaining=ref(0)
 let interval=null
@@ -44,14 +45,19 @@ const seenAudit=computed(()=>auditRows.value.filter(x=>{
 const metricNames={cpu:'CPU',memory:'内存',connections:'连接占用',load1:'1 分钟负载'}
 const metricRangeMs=computed(()=>trendRange.value==='d30'?30*86400000:
   trendRange.value==='d7'?7*86400000:86400000)
-const trendData=computed(()=>trendPoints(history.value,trendRange.value,trendKey.value))
+const trendData=computed(()=>trendPoints(history.value,trendRange.value,trendKey.value,trendNow.value))
+const trendWindowSamples=computed(()=>history.value.filter(sample=>
+  sample.time>=trendNow.value-metricRangeMs.value && sample.time<=trendNow.value))
+const trendValidCount=computed(()=>trendWindowSamples.value.filter(sample=>
+  Number.isFinite(sample[trendKey.value])).length)
+const trendLastSaved=computed(()=>history.value.length?formatTime(history.value.at(-1).time):'暂无')
 const chartUpper=computed(()=>trendKey.value==='load1'
   ? Math.max(1,...trendData.value.map(x=>x.value))*1.15:100)
-const chartPaths=computed(()=>{
-  const now=Date.now()
-  return trendSegments(trendData.value,now-metricRangeMs.value,now,chartUpper.value,
-    trendRange.value==='h24'?18*60000:Math.max(18*60000,metricRangeMs.value/150*2))
-})
+const chartGap=computed(()=>trendRange.value==='h24'?18*60000:Math.max(18*60000,metricRangeMs.value/150*2))
+const chartPaths=computed(()=>trendSegments(trendData.value,
+  trendNow.value-metricRangeMs.value,trendNow.value,chartUpper.value,chartGap.value))
+const chartDots=computed(()=>trendPlotPoints(trendData.value,
+  trendNow.value-metricRangeMs.value,trendNow.value,chartUpper.value))
 const chartLast=computed(()=>trendData.value.length?
   trendData.value.at(-1).value.toFixed(1)+(trendKey.value==='load1'?'':'%'):'--')
 const topologyHeight=computed(()=>Math.max(170,60+(topology.value?.nodes?.length||0)*62))
@@ -91,9 +97,34 @@ async function load(){
         firewallForm.src=firewall.value.zones[0]?.name||''
     }
     else if(props.kind==='audit')auditRows.value=readAuditRecords(safeStore(),props.client.baseUrl)
-    else if(props.kind==='trends')history.value=readMetricHistory(safeStore(),props.deviceId||props.client.baseUrl)
+    else if(props.kind==='trends'){
+      trendNow.value=Date.now()
+      history.value=readMetricHistory(safeStore(),props.deviceId||props.client.baseUrl)
+    }
     else if(props.kind==='topology')topology.value=await readRouterTopology(props.client)
     else if(props.kind==='security')security.value=await readSecurityReport(props.client)
+  }catch(e){handleError(e)}
+  finally{busy.value=false}
+}
+async function collectTrendSample(){
+  if(busy.value)return
+  busy.value=true
+  try{
+    const storage=safeStore()
+    if(!storage)throw new Error('本机监控数据存储不可用')
+    const dashboard=await readDashboard(props.client)
+    const sample=sampleFromDashboard(dashboard)
+    if (['cpu','memory','connections','load1'].every(key=>sample[key]===null))
+      throw new Error('路由器没有返回任何有效监控指标')
+    const router=props.deviceId||props.client.baseUrl
+    const saved=recordMetricSample(storage,router,dashboard)
+    trendNow.value=Date.now()
+    history.value=readMetricHistory(storage,router)
+    const cpuMessage=dashboard.cpuPercent===null
+      ? (dashboard.cpuSource==='warming'
+        ? ' CPU 统计首次读取需预热，再次采样后才可计算。'
+        : ' CPU 不可用：请检查 LuCI 接口和 /proc/stat 读取权限。') : ''
+    notify((saved?'监控样本已保存。':'采样完成，5 分钟去重期间没有新增有效指标。')+cpuMessage)
   }catch(e){handleError(e)}
   finally{busy.value=false}
 }
@@ -238,10 +269,11 @@ onUnmounted(()=>{if(interval)clearInterval(interval)})
     </v-snackbar>
     <v-progress-linear v-if="busy" indeterminate class="mb-2"/>
     <template v-if="kind==='capabilities'">
-      <h3>OpenWrt / QWRT 功能能力识别</h3>
+      <h3>系统发行版与功能能力识别</h3>
       <div v-if="capabilities">
         <div class="d-flex flex-wrap ga-2 my-3">
           <v-chip color="primary">{{ versionLabel }}</v-chip>
+          <v-chip variant="tonal">兼容 OpenWrt</v-chip>
           <v-chip variant="tonal">{{ capabilities.board.model }}</v-chip>
         </div>
         <div class="text-caption mb-3">{{ capabilities.board.version }} · {{ capabilities.board.target }}</div>
@@ -477,18 +509,29 @@ onUnmounted(()=>{if(interval)clearInterval(interval)})
         <strong>最新有效样本：{{ chartLast }}</strong><v-spacer/>
         <v-chip size="small" variant="tonal">{{ trendData.length }} 个时间桶</v-chip>
       </div>
-      <svg v-if="chartPaths.length" viewBox="0 0 780 145" width="100%" role="img"
+      <p class="text-caption text-medium-emphasis mb-2">
+        当前范围：{{ trendValidCount }} 条有效指标采样 / {{ trendWindowSamples.length }} 条原始样本
+        · 最近保存：{{ trendLastSaved }}
+      </p>
+      <svg v-if="trendData.length" viewBox="0 0 780 145" width="100%" role="img"
         aria-label="实际采样形成的历史趋势折线图" style="border:1px solid rgba(128,128,128,.25);border-radius:12px">
         <line x1="0" x2="760" y1="110" y2="110" stroke="currentColor" opacity=".2"/>
         <line x1="0" x2="760" y1="10" y2="10" stroke="currentColor" opacity=".1"/>
         <path v-for="(path,i) in chartPaths" :key="i" :d="path"
           fill="none" stroke="#3f8cff" stroke-width="2.5" stroke-linecap="round"/>
+        <circle v-for="(point,i) in chartDots" :key="'dot-'+i"
+          :cx="point.x" :cy="point.y" r="3.5" fill="#3f8cff"/>
         <text x="8" y="139" fill="currentColor" font-size="12">较早</text>
         <text x="700" y="139" fill="currentColor" font-size="12">现在</text>
       </svg>
       <v-alert v-else type="info" density="compact" variant="tonal">
-        所选时间范围没有有效采样。保持 APP 登录使用后将逐步积累数据。
+        当前时间范围没有 {{ metricNames[trendKey] }} 的有效采样；切换指标可以确认其他数据是否正常。
+        CPU 首次读取 /proc/stat 时需要第二次采样才能计算；若持续为空，请检查 RPC 读取权限。
       </v-alert>
+      <v-btn class="mt-3" variant="tonal" color="primary" :loading="busy"
+        :disabled="busy" prepend-icon="mdi-refresh" @click="collectTrendSample">
+        立即采样
+      </v-btn>
       <div v-if="history.length" class="d-flex ga-2 mt-3">
         <v-chip size="small" variant="tonal">原始样本 {{ history.length }} 条</v-chip>
         <v-btn size="small" variant="text"

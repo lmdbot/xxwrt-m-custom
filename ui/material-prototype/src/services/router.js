@@ -378,6 +378,44 @@ const NAMES = {
   google: 'Google', internet: 'Internet'
 }
 
+// LuCI forks vary between percentage strings and numeric percent values.
+// Ignore unrecognised fields: load average is not CPU utilisation.
+export function parseCpuUsage(raw) {
+  const value = raw && typeof raw === 'object'
+    ? raw.cpuusage ?? raw.cpuUsage ?? raw.cpu_usage ?? raw.usage ??
+      raw.percent ?? raw.result?.cpuusage ?? raw.data?.cpuusage ?? raw.data
+    : raw
+  const text = typeof value === 'number' || typeof value === 'string'
+    ? String(value).trim() : ''
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*%?$/) ||
+    text.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*%/)
+  const percent = match ? Number(match[1]) : NaN
+  return Number.isFinite(percent) && percent >= 0 && percent <= 100 ? percent : null
+}
+
+// /proc/stat provides cumulative CPU jiffies; two successful reads are
+// required before deriving a utilisation percentage. Guest time is excluded
+// because it is already part of user/nice time.
+export function parseProcStat(raw) {
+  const data = typeof raw === 'string' ? raw :
+    typeof raw?.data === 'string' ? raw.data :
+    typeof raw?.stdout === 'string' ? raw.stdout : ''
+  const line = data.split(/\r?\n/).find(row => /^cpu\s+\d/.test(row))
+  if (!line) return null
+  const fields = line.trim().split(/\s+/).slice(1,9).map(Number)
+  if (fields.length < 4 || fields.some(v => !Number.isFinite(v) || v < 0)) return null
+  return { total: fields.reduce((sum,v) => sum + v, 0),
+    idle: fields[3] + (fields[4] || 0) }
+}
+export function cpuPercentFromSnapshots(previous, current) {
+  if (!previous || !current) return null
+  const elapsed = current.total - previous.total
+  const idle = current.idle - previous.idle
+  if (!(elapsed > 0) || idle < 0 || idle > elapsed) return null
+  return Math.max(0, Math.min(100, Math.round((elapsed - idle) / elapsed * 1000) / 10))
+}
+const cpuCounters = new WeakMap()
+
 export function parseDashboard(results) {
   const [board, info, cpu, temperature, detector, network, online, connCount, connMax, telemetry, thermal] = results
   const m = info?.memory || {}
@@ -386,7 +424,7 @@ export function parseDashboard(results) {
   const memPercent = totalMemory ? Math.round((usedMemory / totalMemory) * 100) : null
   const connUsed = Number(connCount?.data)
   const connLimit = Number(connMax?.data)
-  const cpuMatch = String(cpu?.cpuusage || '').match(/(\d+(?:\.\d+)?)%/)
+  const cpuPercent = parseCpuUsage(cpu)
   const interfaces = Array.isArray(network?.interface) ? network.interface : []
   const wan = interfaces.find(item => item.interface === 'wan') || {}
   const wan6 = interfaces.find(item => ['wan6', 'wan_6'].includes(item.interface)) || {}
@@ -419,7 +457,7 @@ export function parseDashboard(results) {
     temperature: temp || '--',
     uptime: formatRouterUptime(uptimeSeconds),
     localtime: info?.localtime ? new Date(info.localtime * 1000).toLocaleString('zh-CN', { hour12: false }) : '--',
-    cpuPercent: cpuMatch ? Number(cpuMatch[1]) : null,
+    cpuPercent,
     load,
     memoryPercent: memPercent,
     memoryDetail: totalMemory ? formatBytes(usedMemory) + ' / ' + formatBytes(totalMemory) : '--',
@@ -443,7 +481,23 @@ export function parseDashboard(results) {
 export async function readDashboard(client) {
   const result = await client.batch(DASHBOARD_REQUESTS)
   if (!result[0] && !result[1]) throw new Error('无法读取系统信息，请确认登录权限')
-  return parseDashboard(result)
+  const dashboard = parseDashboard(result)
+  if (dashboard.cpuPercent !== null) {
+    dashboard.cpuSource = 'luci'
+    return dashboard
+  }
+  // Optional read: routers with restricted /proc ACL still show memory/load.
+  const raw = await client.call('file', 'read', { path: '/proc/stat' }, true).catch(() => null)
+  const current = parseProcStat(raw)
+  const previous = cpuCounters.get(client)
+  if (!current) {
+    dashboard.cpuSource = 'unavailable'
+    return dashboard
+  }
+  cpuCounters.set(client, current)
+  dashboard.cpuPercent = cpuPercentFromSnapshots(previous, current)
+  dashboard.cpuSource = dashboard.cpuPercent === null ? 'warming' : 'proc-stat'
+  return dashboard
 }
 
 /**

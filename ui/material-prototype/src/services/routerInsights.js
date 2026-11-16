@@ -42,8 +42,17 @@ export function recordMetricSample(storage, router, dashboard, now = Date.now())
   const data=loadStore(storage)
   const existing=readMetricHistory(storage,router)
     .filter(x=>x.time >= now-METRIC_RETENTION_MS && x.time<=now)
-  if (existing.length && now-existing.at(-1).time<METRIC_INTERVAL_MS) return false
-  data[router]=[...existing,sample].slice(-METRIC_MAX_POINTS)
+  if (existing.length && now-existing.at(-1).time<METRIC_INTERVAL_MS) {
+    const last=existing.at(-1)
+    const keys=['cpu','memory','connections','load1']
+    // The first /proc/stat read must warm up; allow the next *complete*
+    // snapshot to replace an incomplete point without creating fake history.
+    const improved=keys.some(key=>last[key]==null && sample[key]!=null)
+    const regressed=keys.some(key=>last[key]!=null && sample[key]==null)
+    if (!improved || regressed) return false
+    existing[existing.length-1]=sample
+  } else existing.push(sample)
+  data[router]=existing.slice(-METRIC_MAX_POINTS)
   // Cap old routers to prevent unbounded localStorage.
   const routers=Object.keys(data)
   if (routers.length>8)for(const key of routers.slice(0,routers.length-8))delete data[key]
@@ -67,19 +76,24 @@ export function trendPoints(history, range, key, now = Date.now()) {
   return [...buckets.values()].sort((a,b)=>a.time-b.time)
     .map(x=>({time:x.time,value:Math.round(x.total/x.count*100)/100}))
 }
-export function trendSegments(points, minTime, maxTime, maxValue=100, maxGapMs=18*60*1000) {
+export function trendPlotPoints(points, minTime, maxTime, maxValue=100) {
   const denom=Math.max(1,maxTime-minTime)
+  return points.map(point=>({
+    x:Math.max(0,Math.min(760,(point.time-minTime)/denom*760)),
+    y:110-Math.max(0,Math.min(100,point.value/maxValue*100))
+  }))
+}
+export function trendSegments(points, minTime, maxTime, maxValue=100, maxGapMs=18*60*1000) {
+  const plotted=trendPlotPoints(points,minTime,maxTime,maxValue)
   const out=[]
   let current=[]
   for(let i=0;i<points.length;i++) {
-    const point=points[i], prev=points[i-1]
-    if (prev && point.time-prev.time>maxGapMs) {
+    const prev=points[i-1]
+    if (prev && points[i].time-prev.time>maxGapMs) {
       if(current.length)out.push(current)
       current=[]
     }
-    const x=Math.max(0,Math.min(760,(point.time-minTime)/denom*760))
-    const y=110-Math.max(0,Math.min(100,point.value/maxValue*100))
-    current.push({x,y})
+    current.push(plotted[i])
   }
   if(current.length)out.push(current)
   return out.map(seg=>seg.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' '))

@@ -217,6 +217,30 @@ const supports = (config, service, name) => {
   const installed = configVisible || serviceVisible && Object.hasOwn(service, name)
   return status(installed, !configVisible && !serviceVisible)
 }
+// A custom distribution may keep DISTRIB_ID=OpenWrt while advertising its
+// actual firmware in DISTRIB_DESCRIPTION or PRETTY_NAME. Inspect all known
+// release fields before falling back to the upstream family.
+export function identifyRouterFirmware(board, releaseFiles = []) {
+  const evidence = [
+    board?.release?.description,
+    board?.release?.distribution,
+    board?.release?.version,
+    ...releaseFiles.map(raw => typeof raw === 'string' ? raw :
+      typeof raw?.data === 'string' ? raw.data :
+      typeof raw?.stdout === 'string' ? raw.stdout : '')
+  ].filter(x => typeof x === 'string').join('\n')
+  const variants = [
+    [/immortal[\s-]*wrt/i, 'ImmortalWrt'],
+    [/istore[\s-]*os/i, 'iStoreOS'],
+    [/\bQWRT\b/i, 'QWRT'],
+    [/\bKWRT\b/i, 'KWRT'],
+    [/\bKWRP\b/i, 'KWRP'],
+    [/friendly[\s-]*wrt/i, 'FriendlyWrt'],
+    [/\bLEDE\b/i, 'LEDE']
+  ]
+  for (const [pattern, name] of variants) if (pattern.test(evidence)) return name
+  return /\bOpenWrt\b/i.test(evidence) ? 'OpenWrt' : 'OpenWrt 兼容 / 待确认'
+}
 export async function discoverRouterCapabilities(client) {
   const calls = [
     ['system','board',{}], ['system','info',{}], ['rc','list',{}],
@@ -224,14 +248,15 @@ export async function discoverRouterCapabilities(client) {
     ['uci','get',{config:'firewall'}], ['uci','get',{config:'dhcp'}],
     ['uci','get',{config:'network'}], ['file','read',{path:'/etc/crontabs/root'}],
     ['log','read',{lines:1}], ['luci-rpc','getHostHints',{}],
-    ['uci','get',{config:'hqos'}]
+    ['uci','get',{config:'hqos'}],
+    ['file','read',{path:'/etc/openwrt_release'}],
+    ['file','read',{path:'/etc/os-release'}]
   ]
   const results = await Promise.all(calls.map(async ([obj,method,args]) =>
     client.call(obj,method,args,true).catch(() => null)))
-  const [board,info,services,ddns,openclash,firewall,dhcp,network,cron,logs,hints,hqos] = results
-  const distribution = String(board?.release?.distribution || board?.release?.description || board?.model || '')
-  const firmware = /\bQWRT\b/i.test(distribution) ? 'QWRT' :
-    /\bOpenWrt\b/i.test(distribution) ? 'OpenWrt' : 'OpenWrt 兼容 / 待确认'
+  const [board,info,services,ddns,openclash,firewall,dhcp,network,cron,logs,hints,hqos,
+    openwrtRelease,osRelease] = results
+  const firmware = identifyRouterFirmware(board, [openwrtRelease,osRelease])
   const features = {
     uci: status(Boolean(network?.values || firewall?.values || dhcp?.values), true),
     network: status(Boolean(network?.values), !network?.values),
@@ -250,7 +275,7 @@ export async function discoverRouterCapabilities(client) {
   return {
     firmware, board: {
       model: String(board?.model || '未知'),
-      version: String(board?.release?.description || '未知'),
+      version: String(board?.release?.description || board?.release?.version || firmware),
       target: String(board?.release?.target || '未知')
     },
     features: Object.entries(features).map(([id,state]) => ({

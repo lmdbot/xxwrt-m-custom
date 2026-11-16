@@ -1,8 +1,9 @@
 import test from 'node:test'
+import {parseCpuUsage, parseProcStat, cpuPercentFromSnapshots, readDashboard} from '../src/services/router.js'
 import assert from 'node:assert/strict'
 import {
   recordMetricSample, readMetricHistory, sampleFromDashboard,
-  trendPoints, trendSegments, buildTopologyGraph, analyzeSecurityLogs
+  trendPoints, trendSegments, trendPlotPoints, buildTopologyGraph, analyzeSecurityLogs
 } from '../src/services/routerInsights.js'
 function storage() {
   const map=new Map()
@@ -58,4 +59,43 @@ test('security report is based only on real matching log entries',()=>{
   assert.equal(report.total,2)
   assert.equal(report.byType.length,2)
   assert.equal(analyzeSecurityLogs(['no security events']).total,0)
+})
+
+test('router CPU parser handles different LuCI percent shapes without inventing values',()=>{
+  assert.equal(parseCpuUsage({cpuusage:'12.5%'}),12.5)
+  assert.equal(parseCpuUsage({cpuUsage:0}),0)
+  assert.equal(parseCpuUsage({cpu_usage:' 7.25 '}),7.25)
+  assert.equal(parseCpuUsage({usage:'CPU: 23%'}),23)
+  assert.equal(parseCpuUsage({cpuusage:'110%'}),null)
+  assert.equal(parseCpuUsage({load:'2.42'}),null)
+  assert.equal(parseCpuUsage(null),null)
+})
+test('proc stat fallback warms up and calculates CPU utilisation from deltas',async()=>{
+  const first='cpu  100 0 100 800 0 0 0 0 0 0\ncpu0 1 1 1 1'
+  const second='cpu  130 0 110 860 0 0 0 0 0 0\ncpu0 2 2 2 2'
+  assert.equal(cpuPercentFromSnapshots(parseProcStat(first),parseProcStat(second)),40)
+  assert.equal(cpuPercentFromSnapshots(parseProcStat(second),parseProcStat(first)),null)
+  assert.equal(parseProcStat({data:'not proc stat'}),null)
+  let callCount=0
+  const client={
+    batch:async()=>[{release:{description:'QWRT'}},{load:[65536,0,0],memory:{total:1000,available:400}},null],
+    call:async()=>({data:callCount++===0?first:second})
+  }
+  const warm=await readDashboard(client)
+  assert.equal(warm.cpuPercent,null)
+  assert.equal(warm.cpuSource,'warming')
+  const next=await readDashboard(client)
+  assert.equal(next.cpuPercent,40)
+  assert.equal(next.cpuSource,'proc-stat')
+})
+test('monitoring replaces a recent incomplete point when CPU becomes valid',()=>{
+  const store=storage(),now=1700000000000
+  assert.equal(recordMetricSample(store,'router-warmup',{cpuPercent:null,memoryPercent:65,load:'1.00'},now),true)
+  assert.equal(recordMetricSample(store,'router-warmup',{cpuPercent:18,memoryPercent:64,load:'1.04'},now+12000),true)
+  const history=readMetricHistory(store,'router-warmup')
+  assert.equal(history.length,1)
+  assert.equal(history[0].cpu,18)
+  assert.equal(history[0].time,now+12000)
+  assert.equal(recordMetricSample(store,'router-warmup',{cpuPercent:18,memoryPercent:64,load:'1.04'},now+14000),false)
+  assert.equal(trendPlotPoints([{time:now,value:18}],now-86400000,now,100).length,1)
 })
