@@ -116,7 +116,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Verify Material rendering, touch controls, and scroll
-        run: npm run test:ui
+        run: npm run test:ui -- --max-failures=1 --retries=0
 
       - name: Upload mobile UI screenshots
         if: always()
