@@ -26,6 +26,9 @@ const input = ref('')
 const actionDialog = ref(false)
 const action = ref(null)
 const actionPhrase = ref('')
+const forceOverwrite = ref(false)
+const removeOrphans = ref(false)
+const forceRemoveDependencies = ref(false)
 const outputDialog = ref(false)
 const outputTitle = ref('')
 const outputText = ref('')
@@ -111,6 +114,9 @@ function propose(kind, item = null) {
   }
   action.value = { kind, target, item }
   actionPhrase.value = ''
+  forceOverwrite.value = false
+  removeOrphans.value = false
+  forceRemoveDependencies.value = false
   actionDialog.value = true
 }
 const actionLabel = computed(() => ({
@@ -144,18 +150,23 @@ async function perform() {
   outputTitle.value = actionLabel.value + '软件包'
   uploadPercent.value = 0
   outputDialog.value = true
+  const flags = choice.kind === 'remove'
+    ? [...(removeOrphans.value ? ['--autoremove'] : []),
+      ...(forceRemoveDependencies.value ? ['--force-removal-of-dependent-packages'] : [])]
+    : ['install', 'install-text', 'upload', 'upgrade'].includes(choice.kind) && forceOverwrite.value
+      ? ['--force-overwrite'] : []
   try {
     let result
     if (choice.kind === 'upload') {
       const path = await uploadLocalPackage(props.client, selectedFile.value, manager.value,
         progress => { uploadPercent.value = progress })
-      try { result = await runPackageAction(props.client, 'install', [path], manager.value) }
+      try { result = await runPackageAction(props.client, 'install', [path], manager.value, flags) }
       finally { await deleteUploadedPackage(props.client, manager.value) }
     } else {
       const kind = choice.kind === 'install-text' ? 'install' :
         choice.kind === 'upgrade-all' ? 'upgrade' : choice.kind
       const targets = ['update', 'upgrade-all'].includes(choice.kind) ? [] : [choice.target]
-      result = await runPackageAction(props.client, kind, targets, manager.value)
+      result = await runPackageAction(props.client, kind, targets, manager.value, flags)
     }
     outputText.value = ((result.pkmcmd || '') + '\n' +
       (result.stdout || '') + '\n' + (result.stderr || '')).trim().slice(-48000) ||
@@ -322,6 +333,17 @@ defineExpose({ refreshAction: load })
         <v-card-text>
           <p class="mb-3" style="overflow-wrap:anywhere">{{ action?.target }}</p>
           <v-alert type="warning" density="compact" variant="tonal">{{ actionWarning }}</v-alert>
+          <v-checkbox v-if="['install','install-text','upload','upgrade'].includes(action?.kind)"
+            v-model="forceOverwrite" label="强制覆盖已有文件（有风险）"
+            density="compact" hide-details class="mt-2"/>
+          <template v-if="action?.kind === 'remove'">
+            <v-checkbox v-model="removeOrphans" label="同时移除不再需要的依赖（autoremove）"
+              density="compact" hide-details class="mt-2"/>
+            <v-checkbox v-model="forceRemoveDependencies" label="强制移除依赖此包的其他软件包（高风险）"
+              density="compact" hide-details/>
+            <v-alert v-if="forceRemoveDependencies" type="error" variant="tonal"
+              density="compact" class="mt-2">可能导致网络管理、系统依赖或路由器功能损坏。</v-alert>
+          </template>
           <v-text-field v-if="action?.kind === 'upgrade-all'" v-model="actionPhrase"
             class="mt-3" label="输入：确认批量升级" variant="outlined" density="compact"/>
         </v-card-text>
