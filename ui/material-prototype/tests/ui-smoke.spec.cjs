@@ -536,7 +536,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
     await page.getByRole('button', { name: '登录并进入' }).click()
     await expect(page.locator('.v3-health-card')).toContainText('路由器已连接')
-    await expect(page.locator('.v3-health-metrics .v3-metric')).toHaveCount(4)
+    await expect(page.locator('.v3-health-metrics .v3-metric')).toHaveCount(6)
     await expect(page.locator('.v3-health-metrics')).toContainText('存储')
 
     await page.getByRole('button', { name: '设备', exact: true }).click()
@@ -639,8 +639,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
   await expect(page.getByRole('button', { name: '展开系统与硬件详情' })).toBeVisible()
   await page.getByRole('button', { name: '展开系统与硬件详情' }).click()
-  await expect(page.getByText('38℃')).toBeVisible()
-  await expect(page.locator('.v3-health-metrics .v3-metric')).toHaveCount(4)
+  await expect(page.locator('.device-card .details').getByText('38℃', { exact: true })).toBeVisible()
+  await expect(page.locator('.v3-health-metrics .v3-metric')).toHaveCount(6)
   await expect(page.locator('.v3-health-metrics')).toContainText('存储')
   await expect(page.locator('.v3-overview-network-state')).toBeVisible()
   await expect(page.locator('.v3-overview-network-state')).toContainText('WAN')
@@ -656,7 +656,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1/);
 
   await expect(page.getByText('联网检测', { exact: true })).toBeVisible()
-  await expect(page.getByText('联网监测', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('联网监测', { exact: true })).toBeVisible()
   const detectorColorMatches = await page.evaluate(() => {
     const heading = document.querySelector('.detector-title')
     const uptimeLabel = [...document.querySelectorAll('.device-card .details span')]
@@ -1464,7 +1464,7 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await expect.poll(() => blocked).toBe(true)
   await expect(page.locator('.device-card.v-card')).toBeVisible()
   await expect(page.getByText('磁盘占用')).toBeVisible()
-  await expect(page.getByText('38℃')).toBeVisible()
+  await expect(page.locator('.device-card .details').getByText('38℃', { exact: true })).toBeVisible()
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/)
   await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1/);
 
