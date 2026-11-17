@@ -1,5 +1,6 @@
 import { macFromDuid, normalizeMac } from './deviceIdentity.js'
 import { recordRpcAudit } from './managementCore.js'
+import { recordRpcTrace } from './labFeatures.js'
 import { formatRouterUptime } from './routerUptime.js'
 import { extractLuciCookie, describeLuciHttpFailure, isSsrUpgradeEndpoint, ssrLuciReadTimeout } from './luciHttp.js'
 import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core'
@@ -189,6 +190,7 @@ export class RouterClient {
   }
 
   async call(object, method, args = {}, optional = false) {
+    const started = Date.now()
     if (!this.session) throw new Error('尚未登录')
     let response
     try {
@@ -196,14 +198,17 @@ export class RouterClient {
     } catch (error) {
       // An interrupted write may have reached the router.
       recordRpcAudit(this.baseUrl, object, method, args, 'unknown')
+      recordRpcTrace(object, method, Date.now() - started, 'error')
       throw error
     }
     try {
       const data = this.unpack(response, optional)
       recordRpcAudit(this.baseUrl, object, method, args, data == null ? 'unknown' : 'success')
+      recordRpcTrace(object, method, Date.now() - started, data == null ? 'unavailable' : 'success')
       return data
     } catch (error) {
       recordRpcAudit(this.baseUrl, object, method, args, 'error')
+      recordRpcTrace(object, method, Date.now() - started, 'error')
       throw error
     }
   }
@@ -235,6 +240,7 @@ export class RouterClient {
   }
 
   async callTimed(object, method, args = {}, readTimeout = 120000) {
+    const started = Date.now()
     if (!this.session) throw new Error('尚未登录')
     const timeout = Math.max(12000, Math.min(180000, Number(readTimeout) || 120000))
     let response
@@ -242,26 +248,38 @@ export class RouterClient {
       response = await this.request(this.envelope(object, method, args), { readTimeout: timeout })
     } catch (error) {
       recordRpcAudit(this.baseUrl, object, method, args, 'unknown')
+      recordRpcTrace(object, method, Date.now() - started, 'error')
       throw error
     }
     try {
       const data = this.unpack(response)
       recordRpcAudit(this.baseUrl, object, method, args, 'success')
+      recordRpcTrace(object, method, Date.now() - started, 'success')
       return data
     } catch (error) {
       recordRpcAudit(this.baseUrl, object, method, args, 'error')
+      recordRpcTrace(object, method, Date.now() - started, 'error')
       throw error
     }
   }
 
   async batch(entries) {
     if (!this.session) throw new Error('尚未登录')
-    const jobs = entries.map((entry, index) =>
-      this.envelope(entry[0], entry[1], entry[2] || {}, this.session, 2000 + index))
-    const data = await this.request(jobs)
-    if (!Array.isArray(data)) throw new Error('路由器不支持批量 RPC 查询')
-    const byId = new Map(data.map(item => [Number(item.id), item]))
-    return entries.map((_entry, index) => this.unpack(byId.get(2000 + index), true))
+    const started = Date.now()
+    try {
+      const jobs = entries.map((entry, index) =>
+        this.envelope(entry[0], entry[1], entry[2] || {}, this.session, 2000 + index))
+      const data = await this.request(jobs)
+      if (!Array.isArray(data)) throw new Error('路由器不支持批量 RPC 查询')
+      const byId = new Map(data.map(item => [Number(item.id), item]))
+      const values = entries.map((_entry, index) => this.unpack(byId.get(2000 + index), true))
+      recordRpcTrace('rpc-batch', String(entries.length) + '-calls', Date.now() - started,
+        values.some(value => value == null) ? 'unavailable' : 'success')
+      return values
+    } catch (error) {
+      recordRpcTrace('rpc-batch', String(entries.length) + '-calls', Date.now() - started, 'error')
+      throw error
+    }
   }
 
   logout() {
