@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme, useDisplay } from 'vuetify'
 import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './services/featureCatalogV3.js'
+import { useLabController } from './services/useLabController.js'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
@@ -36,6 +37,7 @@ import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import AboutPage from './components/AboutPage.vue'
+import LabPanel from './components/LabPanel.vue'
 import appIcon from '../assets/qwrt-chibi-openwrt-router.webp'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
@@ -611,6 +613,22 @@ const refreshing = ref(false)
 const errorMessage = ref('')
 const lastUpdated = ref('')
 const snapshot = ref(null)
+const {
+  labSettings, labIntervals, labCards, labRpcRecords, labAlternate,
+  labSmartBusy, labSmartMessage, labHealthBusy, labDeepRows, labHealthRows,
+  applyLabSettings, setLabRefreshProfile, setLabCustomInterval,
+  setLabCardVisibility, moveLabCard, resetLabCards, toggleLabRpc,
+  copyLabRpc, clearRpcTrace, pairLabAlternative, unpairLabAlternative,
+  swapLabConnection, maybeLabFailover, runLabHealthCheck
+} = useLabController({
+  storage: localStorage, selectedDeviceId, selectedDevice, connected,
+  client, snapshot, sessions,
+  onRefreshSettingsChange: () => restartLabRefreshTimers(),
+  onConnectionSwitched: ({ automatic }) => {
+    if (automatic) refreshQueued = true
+    else void refreshDashboard()
+  }
+})
 const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
 const clientsPrefetching = ref(false)
 let clientFetchToken = 0
@@ -1049,6 +1067,12 @@ const overviewResources = computed(() => {
       tone: overviewDetectorStatus.value.tone, progress: null, icon: 'mdi-web-check' }
   ]
 })
+const labVisibleOverviewResources = computed(() => {
+  const metrics = overviewResources.value
+  if (!labSettings.value.cardsEnabled) return metrics
+  const dictionary = new Map(metrics.map(item => [item.label,item]))
+  return labCards.value.filter(item => item.visible).map(item => dictionary.get(item.id)).filter(Boolean)
+})
 const overviewWanState = computed(() => {
   const wan = snapshot.value?.interfaces?.find(item => item.interface === 'wan')
   return !wan || typeof wan.up !== 'boolean' ? '待确认' : wan.up ? '已连接' : '未连接'
@@ -1072,6 +1096,22 @@ let refreshQueued = false
 let processRefreshBusy = false
 let hardwareSampleAt = 0
 
+function restartLabRefreshTimers() {
+  if (probeTimer) clearInterval(probeTimer)
+  if (telemetryTimer) clearInterval(telemetryTimer)
+  if (refreshTimer) clearInterval(refreshTimer)
+  const intervals = labIntervals.value
+  probeTimer = setInterval(() => {
+    if (!document.hidden && viewMode.value === 'list') void refreshDeviceStatuses()
+  }, intervals.devices)
+  telemetryTimer = setInterval(() => {
+    if (!document.hidden) void pollTelemetry()
+  }, intervals.telemetry)
+  refreshTimer = setInterval(() => {
+    if (!document.hidden && viewMode.value === 'detail' && connected.value &&
+        activeTab.value === 'home' && !refreshing.value) void refreshDashboard()
+  }, intervals.overview)
+}
 function drainQueuedRefresh() {
   if (!refreshQueued) return
   refreshQueued = false
@@ -1821,6 +1861,7 @@ async function refreshDashboard() {
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
   } catch (e) {
     handleRpcError(e)
+    await maybeLabFailover(e)
   } finally {
     refreshing.value = false
     drainQueuedRefresh()
@@ -2157,13 +2198,7 @@ onMounted(() => {
   systemListener = e => { systemDark.value = e.matches }
   mediaQuery.addEventListener?.('change', systemListener)
   void refreshDeviceStatuses()
-  probeTimer = setInterval(() => {
-    if (viewMode.value === 'list') void refreshDeviceStatuses()
-  }, 15000)
-  telemetryTimer = setInterval(() => { void pollTelemetry() }, 3000)
-  refreshTimer = setInterval(() => {
-    if (viewMode.value === 'detail' && connected.value && activeTab.value === 'home' && !refreshing.value) refreshDashboard()
-  }, 12000)
+  restartLabRefreshTimers()
   // Sample even when the user is reading other app tabs; do not run in the
   // background or imply continuous historical collection with the app closed.
   historyTimer = setInterval(() => {
@@ -2395,11 +2430,20 @@ onUnmounted(() => {
             </template>
 
             <template v-else-if="settingsCategory === 'lab'">
-              <v-card rounded="xl" elevation="1" class="settings-option-card settings-empty-state">
-                <v-avatar color="primary" variant="tonal" size="58"><v-icon icon="mdi-flask-outline" size="29"/></v-avatar>
-                <h2>暂无可配置的实验功能</h2>
-                <p>当前版本没有开放额外的实验开关。已实现的路由器管理功能仍可在应用页签中使用。</p>
-              </v-card>
+              <LabPanel :settings="labSettings" :intervals="labIntervals" :cards="labCards"
+                :router="connected ? selectedDevice : null" :rpc-records="labRpcRecords"
+                :alternate="labAlternate" :active-address="connected ? (client?.baseUrl || '') : ''"
+                :smart-busy="labSmartBusy" :smart-message="labSmartMessage"
+                :health-rows="labHealthRows" :deep-rows="labDeepRows" :health-busy="labHealthBusy"
+                @set-profile="setLabRefreshProfile" @set-interval="setLabCustomInterval"
+                @toggle-cards="value => applyLabSettings({ cardsEnabled:value })"
+                @toggle-card="setLabCardVisibility" @move-card="moveLabCard" @reset-cards="resetLabCards"
+                @toggle-rpc="toggleLabRpc" @clear-rpc="clearRpcTrace" @copy-rpc="copyLabRpc"
+                @toggle-smart="value => applyLabSettings({ smartSwitch:value })"
+                @pair-alternate="pairLabAlternative" @remove-alternate="unpairLabAlternative"
+                @switch-route="() => swapLabConnection()"
+                @toggle-health="value => applyLabSettings({ healthEnabled:value })"
+                @check-health="runLabHealthCheck"/>
             </template>
 
             <template v-else-if="settingsCategory === 'help'">
@@ -2548,7 +2592,7 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
-                <button v-for="item in overviewResources" :key="item.label" type="button"
+                <button v-for="item in labVisibleOverviewResources" :key="item.label" type="button"
                   class="v3-metric v3-metric-action" :aria-label="'查看' + item.label + '详情：' + item.value"
                   @click="openOverviewMetric(item.label)">
                   <small>{{ item.label }}</small>
