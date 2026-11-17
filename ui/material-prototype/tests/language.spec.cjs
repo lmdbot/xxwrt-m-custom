@@ -78,7 +78,7 @@ test('v3 Me shows router, five direct settings entries, and About', async ({ pag
   await expect(page.locator('.more-page .more-menu-item')).toHaveCount(6)
   await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
 
-  await page.locator('.v3-me-support button').click()
+  await page.locator('.v3-me-about-entry').click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('关于')
   await expect(page.getByRole('button', { name: '查看隐私与免责声明' })).toBeVisible()
   await page.getByRole('button', { name: '返回上一页' }).click()

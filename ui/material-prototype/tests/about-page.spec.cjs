@@ -4,7 +4,7 @@ const { version } = require('../package.json')
 async function openAbout(page) {
   await page.goto('/')
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.locator('.v3-me-support button').click()
+  await page.locator('.v3-me-about-entry').click()
   await expect(page.getByTestId('about-page')).toBeVisible()
 }
 
@@ -51,7 +51,7 @@ test('About follows English and Traditional Chinese through More → Settings', 
   await page.locator('.more-page .more-menu-item').filter({ hasText: '语言' }).click()
   await page.getByRole('radio', { name: 'English' }).check()
   await page.getByRole('button', { name: 'Me', exact: true }).click()
-  await page.locator('.v3-me-support button').click()
+  await page.locator('.v3-me-about-entry').click()
   await expect(page.getByText('App information')).toBeVisible()
   await expect(page.getByText('Version & updates')).toBeVisible()
   await expect(page.getByText('Related links')).toBeVisible()
@@ -63,6 +63,6 @@ test('About follows English and Traditional Chinese through More → Settings', 
   await page.locator('.more-menu-item').filter({ hasText: 'Language' }).click()
   await page.getByRole('radio', { name: '繁體中文' }).check()
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.locator('.v3-me-support button').click()
+  await page.locator('.v3-me-about-entry').click()
   await expect(page.getByText('隱私與免責聲明', { exact: true })).toBeVisible()
 })
