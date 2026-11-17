@@ -2534,7 +2534,6 @@ onUnmounted(() => {
                     <v-icon :icon="overviewWanState === '已连接' ? 'mdi-check-circle-outline' : 'mdi-information-outline'" size="16"/>
                     {{ overviewWanState === '已连接' ? 'WAN 已连接' : overviewWanState === '未连接' ? 'WAN 未连接' : 'WAN 状态待确认' }}
                   </span>
-                  <span class="v3-health-detail-link">{{ homeDetailsExpanded ? '收起详情' : '查看系统详情' }}</span>
                   <v-icon :icon="homeDetailsExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="22" color="primary"/>
                 </div>
               </div>
@@ -2818,21 +2817,39 @@ onUnmounted(() => {
             <section v-if="networkSection === 'hub'" class="v3-network-home">
               <header class="v3-network-status">
                 <h2>网络连接</h2>
-                <div class="v3-network-kpis">
-                  <div><small>WAN</small><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong><span>{{ snapshot?.wanIp || '--' }}</span></div>
-                  <div class="v3-network-lan">
-                    <small>LAN</small><strong>{{ snapshot?.lanIp || '--' }}</strong>
+                <div class="v3-network-kpis v3-network-kpis--tidy">
+                  <div class="v3-connection-tile">
+                    <div class="v3-connection-heading">
+                      <small>WAN</small>
+                      <span class="v3-connection-status" :class="{ 'is-good': overviewWanState === '已连接' }">{{ overviewWanState }}</span>
+                    </div>
+                    <strong class="v3-connection-address">{{ snapshot?.wanIp || '--' }}</strong>
+                  </div>
+                  <div class="v3-connection-tile v3-network-lan">
+                    <div class="v3-connection-heading"><small>LAN</small></div>
+                    <strong class="v3-connection-address">{{ snapshot?.lanIp || '--' }}</strong>
                     <div class="v3-lan-dhcp-status" aria-label="LAN DHCP 服务状态">
                       <span :class="lanDhcpStatus.dhcp4 === true ? 'is-on' : 'is-off'">DHCPv4 {{ lanDhcpStatus.dhcp4 === null ? '未知' : lanDhcpStatus.dhcp4 ? '开启' : '关闭' }}</span>
                       <span :class="lanDhcpStatus.dhcp6 === true ? 'is-on' : 'is-off'">DHCPv6 {{ lanDhcpStatus.dhcp6 === null ? '未知' : lanDhcpStatus.dhcp6 ? '开启' : '关闭' }}</span>
                     </div>
                   </div>
-                  <div><small>IPv6</small><strong :class="{ 'v3-status-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</strong><span>{{ snapshot?.wan6Ip || '--' }}</span></div>
+                  <div class="v3-connection-tile v3-connection-tile--ipv6">
+                    <div class="v3-connection-heading">
+                      <small>IPv6</small>
+                      <span class="v3-connection-status" :class="{ 'is-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</span>
+                    </div>
+                    <strong class="v3-connection-address v3-connection-address--ipv6">{{ snapshot?.wan6Ip || '--' }}</strong>
+                  </div>
                 </div>
-                <div v-if="snapshot" class="v3-network-supplement" aria-label="网络附加信息">
-                  <div><span>默认网关</span><strong>{{ snapshot.gateway || '--' }}</strong></div>
-                  <div><span>DNS</span><strong>{{ snapshot.dns || '--' }}</strong></div>
-                  <div v-if="snapshot.wan6ValidSeconds != null"><span>WAN6 剩余有效期</span><strong>{{ formatInterfaceUptime(snapshot.wan6ValidSeconds) }}</strong></div>
+                <div v-if="snapshot" class="v3-network-supplement v3-network-supplement--tidy" aria-label="网络附加信息">
+                  <div class="v3-network-detail-row"><span>默认网关</span><strong>{{ snapshot.gateway || '--' }}</strong></div>
+                  <div class="v3-network-detail-row">
+                    <span>DNS</span>
+                    <strong class="v3-network-dns-values">
+                      <span v-for="(server, index) in String(snapshot.dns || '--').split(',').map(value => value.trim()).filter(Boolean)" :key="index">{{ server }}</span>
+                    </strong>
+                  </div>
+                  <div v-if="snapshot.wan6ValidSeconds != null" class="v3-network-detail-row"><span>WAN6 有效期</span><strong>{{ formatInterfaceUptime(snapshot.wan6ValidSeconds) }}</strong></div>
                 </div>
               </header>
               <div class="v3-section-label">接口与连接</div>
