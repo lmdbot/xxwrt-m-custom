@@ -16,6 +16,7 @@ import { assertCleanUci } from '../services/managementCore.js'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
 const advancedSubpanel = ref(null)
+const firewallView = ref('overview')
 const loading = ref(false), busy = ref(false), error = ref(''), notice = ref(''), warning = ref('')
 const readyKind = ref('')
 const manualRefreshing = ref(false)
@@ -1258,7 +1259,11 @@ async function refresh() {
     if (props.kind !== kind) void refresh()
   }
 }
-watch(() => props.kind, () => { readyKind.value = ''; void refresh() })
+watch(() => props.kind, () => {
+  firewallView.value = 'overview'
+  readyKind.value = ''
+  void refresh()
+})
 onMounted(() => { void refresh() })
 async function refreshAction() {
   if (manualRefreshing.value || loading.value) return
@@ -1270,7 +1275,15 @@ async function refreshAction() {
     manualRefreshing.value = false
   }
 }
-function handleBack() { return advancedSubpanel.value?.handleBack?.() || null }
+function handleBack() {
+  const nested = advancedSubpanel.value?.handleBack?.()
+  if (nested) return nested
+  if (props.kind === 'firewall' && firewallView.value !== 'overview') {
+    firewallView.value = 'overview'
+    return 'subpage'
+  }
+  return null
+}
 defineExpose({ refresh, refreshAction, handleBack })
 </script>
 
@@ -1624,14 +1637,64 @@ defineExpose({ refresh, refreshAction, handleBack })
       <v-dialog v-model="ztDeleteDialog" max-width="400"><v-card rounded="xl"><v-card-title>删除 ZeroTier 网络？</v-card-title><v-card-text>将移除网络 {{ ztDelete?.id }} 并重启服务。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="ztDeleteDialog=false">取消</v-btn><v-btn color="error" @click="deleteZt">删除</v-btn></v-card-actions></v-card></v-dialog>
     </template>
     <template v-else-if="kind === 'firewall'">
-      <v-alert v-if="!fw.available" type="warning" variant="tonal">无法读取 /etc/config/firewall，请检查 UCI 读取权限。</v-alert>
+      <v-alert v-if="!fw.available" type="warning" variant="tonal">
+        无法读取 /etc/config/firewall，请检查 UCI 读取权限。
+      </v-alert>
       <template v-else>
-        <div class="router-app-summary"><div><span>防火墙状态</span><strong>{{ firewallStatusText }}</strong></div><div><span>防火墙区域</span><strong>{{ fw.zones.length }}</strong></div><div><span>端口转发</span><strong>{{ fw.redirects.length }}</strong></div></div>
+        <header class="v3-firewall-status">
+          <div class="v3-firewall-status-line">
+            <h2>防火墙状态</h2>
+            <v-chip size="small" variant="tonal"
+              :color="fw.service?.running === true ? 'success' : 'warning'">
+              {{ fw.service?.running === true ? '运行中' : '待确认' }}
+            </v-chip>
+          </div>
+          <p>{{ firewallStatusText }}</p>
+          <small><v-icon icon="mdi-alert-outline" size="16"/>修改可能影响远程管理连接</small>
+        </header>
+        <div class="v3-firewall-tabs" role="group" aria-label="防火墙功能导航">
+          <button v-for="tab in [
+            {id:'overview',label:'概览'},
+            {id:'zones',label:'区域'},
+            {id:'rules',label:'规则'},
+            {id:'nat',label:'NAT'}
+          ]" :key="tab.id" type="button"
+            :class="{ 'is-selected': firewallView === tab.id }"
+            :aria-pressed="firewallView === tab.id"
+            @click="firewallView = tab.id">{{ tab.label }}</button>
+        </div>
+        <div v-if="firewallView === 'overview'" class="v3-firewall-overview">
+          <button type="button" @click="firewallView = 'zones'">
+            <span class="v3-firewall-menu-icon"><v-icon icon="mdi-shield-outline" size="22"/></span>
+            <span><strong>区域配置</strong><small>LAN / WAN 访问策略</small></span>
+            <v-icon icon="mdi-chevron-right" size="21"/>
+          </button>
+          <button type="button" @click="firewallView = 'nat'">
+            <span class="v3-firewall-menu-icon"><v-icon icon="mdi-arrow-top-right" size="22"/></span>
+            <span><strong>端口转发</strong><small>DNAT 规则与服务</small></span>
+            <v-icon icon="mdi-chevron-right" size="21"/>
+          </button>
+          <button type="button" @click="firewallView = 'rules'">
+            <span class="v3-firewall-menu-icon"><v-icon icon="mdi-format-list-bulleted" size="22"/></span>
+            <span><strong>访问规则</strong><small>允许、拒绝与流量匹配</small></span>
+            <v-icon icon="mdi-chevron-right" size="21"/>
+          </button>
+          <button type="button" @click="firewallView = 'recovery'">
+            <span class="v3-firewall-menu-icon"><v-icon icon="mdi-history" size="22"/></span>
+            <span><strong>配置保护</strong><small>查看高级配置与变更确认</small></span>
+            <v-icon icon="mdi-chevron-right" size="21"/>
+          </button>
+          <div class="v3-firewall-summary">
+<div class="router-app-summary"><div><span>防火墙状态</span><strong>{{ firewallStatusText }}</strong></div><div><span>防火墙区域</span><strong>{{ fw.zones.length }}</strong></div><div><span>端口转发</span><strong>{{ fw.redirects.length }}</strong></div></div>
         <div class="firewall-kernel-cards mt-3" aria-label="防火墙内核信息">
           <div class="firewall-kernel-item"><span>NAT 模式</span><strong>{{ firewallKernel.nat }}</strong><small>{{ firewallKernel.natDetail }}</small></div>
           <div class="firewall-kernel-item"><span>TCP 拥塞控制</span><strong>{{ firewallKernel.congestion }}</strong><small>{{ firewallKernel.congestionDetail }}</small></div>
         </div>
-        <h3 class="router-app-section-title">区域策略</h3>
+        
+          </div>
+        </div>
+        <div v-else-if="firewallView === 'zones'" class="v3-firewall-section">
+<h3 class="router-app-section-title">区域策略</h3>
         <v-expansion-panels variant="accordion" class="firewall-policy-expansion">
           <v-expansion-panel v-for="zone in fw.zones" :key="zone.section">
             <v-expansion-panel-title>
@@ -1651,13 +1714,19 @@ defineExpose({ refresh, refreshAction, handleBack })
           <v-row dense><v-col cols="12" sm="4"><v-select v-model="zone.input" label="入站 INPUT" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col><v-col cols="12" sm="4"><v-select v-model="zone.output" label="出站 OUTPUT" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col><v-col cols="12" sm="4"><v-select v-model="zone.forward" label="转发 FORWARD" :items="['ACCEPT','REJECT','DROP']" density="compact" variant="outlined"/></v-col></v-row>
           <v-switch density="compact" inset v-model="zone.masq" label="启用 IPv4 地址伪装（Masquerading）" color="primary" hide-details/><v-btn size="small" color="primary" variant="tonal" class="mt-2" :disabled="busy" @click="saveZone(zone)">保存区域策略</v-btn>
         </v-expansion-panel-text></v-expansion-panel></v-expansion-panels>
-        <h3 class="router-app-section-title mt-4">端口转发</h3>
+        
+        </div>
+        <div v-else-if="firewallView === 'nat'" class="v3-firewall-section">
+<h3 class="router-app-section-title mt-4">端口转发</h3>
         <v-list v-if="fw.redirects.length" density="compact"><v-list-item v-for="x in fw.redirects" :key="x.section" :title="String(x.name || x.section)" :subtitle="String(x.src || 'wan') + ':' + String(x.src_dport || '--') + ' → ' + String(x.dest_ip || '--') + ':' + String(x.dest_port || x.src_dport || '--') + ' · ' + String(x.proto || 'tcp')"><template #append><v-btn icon="mdi-delete-outline" color="error" variant="text" size="small" aria-label="删除端口转发" @click="fwDelete=x;fwDeleteDialog=true"/></template></v-list-item></v-list>
         <v-alert v-else type="info" variant="tonal" density="compact">当前没有端口转发规则。</v-alert>
         <v-expansion-panels variant="accordion" class="mt-3"><v-expansion-panel><v-expansion-panel-title>添加端口转发</v-expansion-panel-title><v-expansion-panel-text>
           <v-text-field v-model="pf.name" label="规则名称" density="compact" variant="outlined"/><v-text-field v-model="pf.srcPort" label="WAN 外部端口" type="number" min="1" max="65535" density="compact" variant="outlined"/><v-text-field v-model="pf.destIp" label="LAN 目标 IPv4 地址" placeholder="192.168.100.10" density="compact" variant="outlined"/><v-text-field v-model="pf.destPort" label="LAN 目标端口（留空则与外部端口相同）" type="number" min="1" max="65535" density="compact" variant="outlined"/><v-select v-model="pf.proto" label="协议" :items="[{title:'TCP',value:'tcp'},{title:'UDP',value:'udp'},{title:'TCP + UDP',value:'tcp udp'}]" density="compact" variant="outlined"/><v-btn color="primary" variant="tonal" :disabled="busy" @click="addForward">添加并应用规则</v-btn>
         </v-expansion-panel-text></v-expansion-panel></v-expansion-panels>
-        <div class="firewall-rule-toolbar mt-4">
+        
+        </div>
+        <div v-else-if="firewallView === 'rules'" class="v3-firewall-section">
+<div class="firewall-rule-toolbar mt-4">
           <div class="d-flex justify-space-between align-center ga-2">
             <h3 class="router-app-section-title ma-0">其他规则</h3>
             <span class="muted-hint">共 {{ fw.rules.length }} 条 · 已启用 {{ fwRuleEnabledCount }} 条</span>
@@ -1714,7 +1783,12 @@ defineExpose({ refresh, refreshAction, handleBack })
           {{ fw.rules.length ? '没有符合筛选条件的防火墙规则。' : '当前没有普通防火墙规则。' }}
         </v-alert>
         <v-btn class="mt-3" variant="outlined" :disabled="busy" @click="run(reloadFirewall,'防火墙已重载')">重载防火墙</v-btn><p class="muted-hint mt-2">修改区域策略或端口转发会提交 UCI 并重载防火墙。请谨慎修改 WAN 区域 INPUT / FORWARD，错误配置可能导致远程管理中断。</p>
-        <AdvancedManagementPanel ref="advancedSubpanel" :client="client" kind="firewallPlus"/>
+        
+        </div>
+        <div v-else-if="firewallView === 'recovery'" class="v3-firewall-section">
+          <p class="muted-hint mb-3">配置变更前请核实当前权限与防火墙策略；如可能影响管理连接，应使用具备回退机制的配置流程。</p>
+          <AdvancedManagementPanel ref="advancedSubpanel" :client="client" kind="firewallPlus"/>
+        </div>
       </template>
       <v-dialog v-model="fwRuleConfirm" max-width="420">
         <v-card rounded="xl">

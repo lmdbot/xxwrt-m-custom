@@ -686,3 +686,80 @@
   color:#eef7ff;background:linear-gradient(128deg,#25486c,#27344f)
 }
 .xxwrt-v3.theme-is-dark .v3-backup-overview p{color:#c3d4e9}
+
+
+/* Secondary Design A: firewall first shows verified state and category links. */
+.xxwrt-v3 .v3-firewall-status{
+  min-height:125px;padding:16px;margin-bottom:13px;
+  border:1px solid var(--ui-border);border-radius:19px;
+  background:linear-gradient(128deg,#e5f4ff,#cfdeff);color:#13274b
+}
+.xxwrt-v3 .v3-firewall-status-line{
+  display:flex;align-items:center;justify-content:space-between;gap:9px
+}
+.xxwrt-v3 .v3-firewall-status h2{
+  font-size:18px;line-height:25px;font-weight:700
+}
+.xxwrt-v3 .v3-firewall-status p{
+  font-size:12px;line-height:18px;margin:9px 0;color:#536f8f
+}
+.xxwrt-v3 .v3-firewall-status small{
+  display:flex;align-items:center;gap:6px;
+  color:#935f1e;font-size:12px;line-height:18px
+}
+.xxwrt-v3 .v3-firewall-tabs{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:4px;padding:4px;margin:0 0 17px;
+  border-radius:14px;background:var(--ui-surface-2)
+}
+.xxwrt-v3 .v3-firewall-tabs button{
+  min-width:0;min-height:43px;border-radius:11px;
+  font-size:12px;line-height:18px;font-weight:650;
+  background:transparent;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-firewall-tabs button.is-selected{
+  background:var(--ui-primary);color:rgb(var(--v-theme-on-primary))
+}
+.xxwrt-v3 .v3-firewall-overview{
+  display:flex;flex-direction:column;gap:9px
+}
+.xxwrt-v3 .v3-firewall-overview>button{
+  display:flex;align-items:center;gap:12px;min-height:78px;
+  width:100%;padding:12px 13px;
+  border:1px solid var(--ui-border);border-radius:14px;
+  background:var(--ui-surface);color:var(--ui-text);text-align:left
+}
+.xxwrt-v3 .v3-firewall-overview>button:active{
+  background:var(--ui-surface-2)
+}
+.xxwrt-v3 .v3-firewall-menu-icon{
+  display:flex;align-items:center;justify-content:center;
+  flex:none;width:40px;height:40px;border-radius:12px;
+  background:var(--ui-surface-2);color:var(--ui-primary)
+}
+.xxwrt-v3 .v3-firewall-overview>button>span:nth-child(2){
+  display:flex;flex:1;min-width:0;flex-direction:column;gap:4px
+}
+.xxwrt-v3 .v3-firewall-overview strong{
+  font-size:14px;line-height:21px;font-weight:700
+}
+.xxwrt-v3 .v3-firewall-overview small{
+  font-size:12px;line-height:18px;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-firewall-overview>button>.v-icon:last-child{
+  flex:none;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-firewall-summary{margin:14px 0 0}
+.xxwrt-v3 .v3-firewall-section .router-app-section-title{
+  font-size:16px;line-height:23px;margin:14px 0 10px;font-weight:700
+}
+.xxwrt-v3 .v3-firewall-section .v-expansion-panel{
+  border:1px solid var(--ui-border);border-radius:14px
+}
+.xxwrt-v3.theme-is-dark .v3-firewall-status{
+  color:#eef7ff;background:linear-gradient(128deg,#25486c,#27344f)
+}
+.xxwrt-v3.theme-is-dark .v3-firewall-status p{color:#c3d4e9}
+.xxwrt-v3.theme-is-dark .v3-firewall-status small{
+  color:var(--ui-warning)
+}
