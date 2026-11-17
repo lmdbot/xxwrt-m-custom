@@ -468,6 +468,7 @@ const deviceForm = reactive({
   ignoreTlsErrors: false, alternateAddresses: [], autoSwitch: false
 })
 const deviceEditorBusy = ref(false)
+const deviceEditorStep = ref(1)
 const deviceEditorMessage = ref('')
 const verifiedEditorAddresses = ref([])
 watch(deviceDialog,visible=>{
@@ -476,6 +477,7 @@ watch(deviceDialog,visible=>{
   // no unsaved plaintext password may survive after the editor closes.
   deviceForm.password=''
   deviceForm.showPassword=false
+  deviceEditorStep.value=1
   deviceEditorMessage.value=''
 })
 const sessions = new Map()
@@ -1731,7 +1733,10 @@ async function handleBack() {
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) {
     if (deviceEditorBusy.value) return 'busy'
-    closeDeviceEditor()
+    // Step 2 is part of the same modal; Android Back should navigate to
+    // Step 1 without discarding the draft or closing the whole editor.
+    if (deviceEditorStep.value === 2) previousDeviceEditorStep()
+    else closeDeviceEditor()
     return 'dialog'
   }
   // A nested network editor is a separate Vuetify overlay. Consume Android
@@ -1880,6 +1885,7 @@ function resetSession() {
 function showDeviceDialog(device = null) {
   listError.value = ''
   deviceEditorMessage.value = ''
+  deviceEditorStep.value = 1
   editDeviceId.value = device?.id || ''
   const inherited = device ? loadPairedRoutes(localStorage,device.id).map(x=>x.address) : []
   const alternateAddresses = [...new Set([
@@ -1908,6 +1914,37 @@ function closeDeviceEditor() {
 function addDeviceAlternate() {
   if (deviceForm.alternateAddresses.length>=MAX_ROUTER_ALTERNATIVES) return
   deviceForm.alternateAddresses.push('')
+}
+function resetRouterWizardScroll() {
+  void nextTick(() => {
+    const scrollArea = document.querySelector('.router-wizard .router-editor-body')
+    if (scrollArea) scrollArea.scrollTop = 0
+  })
+}
+function nextDeviceEditorStep() {
+  if (deviceEditorBusy.value) return
+  deviceEditorMessage.value = ''
+  listError.value = ''
+  try {
+    // Validate Step 1 including backup endpoints before revealing credentials.
+    // The actual router profile is not written until the second step saves.
+    newDevice({ ...deviceForm, username: deviceForm.username || 'root' })
+    deviceEditorStep.value = 2
+    resetRouterWizardScroll()
+  } catch (error) {
+    deviceEditorMessage.value = shortError(error)
+    listError.value = deviceEditorMessage.value
+  }
+}
+function submitDeviceEditor() {
+  if (deviceEditorStep.value === 1) nextDeviceEditorStep()
+  else void saveDeviceEntry()
+}
+function previousDeviceEditorStep() {
+  if (deviceEditorBusy.value) return
+  deviceEditorMessage.value = ''
+  deviceEditorStep.value = 1
+  resetRouterWizardScroll()
 }
 function removeDeviceAlternate(index) {
   deviceForm.alternateAddresses.splice(index,1)
@@ -3990,108 +4027,143 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <!-- One source of truth for saved router credentials and trusted routes. -->
-    <v-dialog v-model="deviceDialog" max-width="560" scrollable :persistent="deviceEditorBusy">
-      <v-card rounded="xl" class="router-login-editor">
+    <!-- Step-based editor: backup endpoints stay in Step 1, credentials in Step 2. -->
+    <v-dialog v-model="deviceDialog" max-width="480" scrollable :persistent="deviceEditorBusy">
+      <v-card rounded="xl" class="router-login-editor router-wizard">
         <v-card-title class="router-editor-title">
           <span>{{ editDeviceId ? '编辑 OpenWrt 设备' : '添加 OpenWrt 设备' }}</span>
           <v-btn icon="mdi-close" size="small" variant="text" aria-label="关闭路由器配置"
             :disabled="deviceEditorBusy" @click="closeDeviceEditor"/>
         </v-card-title>
-        <v-card-subtitle class="router-editor-subtitle">一次填写所有地址、登录信息与备用连接方式</v-card-subtitle>
-        <v-card-text class="router-editor-body">
-          <form id="device-editor" @submit.prevent="saveDeviceEntry" autocomplete="off">
-            <div class="router-editor-section-heading">
-              <v-icon icon="mdi-router-wireless" color="primary" size="20"/>
-              <div><h3>路由器信息</h3><p>为这台设备设置名称与默认连接入口</p></div>
+        <div class="router-wizard-progress" aria-label="配置进度">
+          <span class="router-wizard-step-count">步骤 {{ deviceEditorStep }}/2</span>
+          <div class="router-wizard-track" aria-hidden="true">
+            <div class="router-wizard-node" :class="{ 'is-active': deviceEditorStep === 1, 'is-complete': deviceEditorStep === 2 }">
+              <span>{{ deviceEditorStep === 2 ? '✓' : '1' }}</span><small>基础信息</small>
             </div>
-            <v-text-field v-model.trim="deviceForm.name" label="设备名称 / 备注" variant="outlined"
-              density="comfortable" placeholder="例如：QWRT 主路由" required/>
-            <v-text-field v-model.trim="deviceForm.address" label="IP / 域名 / 端口" variant="outlined"
-              density="comfortable" placeholder="http://192.168.100.1" autocomplete="url"
-              autocapitalize="off" required/>
-            <div class="router-editor-section-heading router-editor-section-separator">
-              <v-icon icon="mdi-shield-key-outline" color="primary" size="20"/>
-              <div><h3>登录配置</h3><p>账号密码、TLS 验证与额外的登录地址</p></div>
+            <div class="router-wizard-line" :class="{ 'is-complete': deviceEditorStep === 2 }"/>
+            <div class="router-wizard-node" :class="{ 'is-active': deviceEditorStep === 2 }">
+              <span>2</span><small>连接与安全</small>
             </div>
-            <v-text-field v-model.trim="deviceForm.username" label="登录用户名" variant="outlined"
-              density="comfortable" autocomplete="username" required/>
-            <v-text-field v-model="deviceForm.password" label="路由器密码" variant="outlined"
-              density="comfortable" autocomplete="new-password"
-              :type="deviceForm.showPassword ? 'text' : 'password'"
-              :append-inner-icon="deviceForm.showPassword ? 'mdi-eye-off' : 'mdi-eye'"
-              @click:append-inner="deviceForm.showPassword = !deviceForm.showPassword"
-              :placeholder="editDeviceId && deviceForm.rememberPassword ? '已保存加密密码，留空不修改' : '输入登录密码'"/>
-            <p class="router-editor-helper" v-if="editDeviceId && deviceForm.rememberPassword">
-              密码不会明文显示。留空保留已保存的密码；更换主地址或用户名时，需要重新填写密码才能继续自动登录。
-            </p>
-            <v-switch v-if="isNative" v-model="deviceForm.rememberPassword" inset density="compact"
-              color="primary" hide-details class="router-editor-switch"
-              label="使用 Android Keystore 加密保存密码（用于自动登录）"/>
-            <p v-else class="router-editor-helper">网页模式不持久保存密码；Android 安装版可安全记住密码并自动连接。</p>
-            <v-checkbox v-if="isNative && /^https:\/\//i.test(deviceForm.address)"
-              v-model="deviceForm.ignoreTlsErrors" color="warning" density="compact"
-              hide-details class="router-editor-switch"
-              label="忽略 HTTPS 证书错误（仅可信自签名路由器）"/>
-            <v-alert v-if="isNative && deviceForm.ignoreTlsErrors && /^https:\/\//i.test(deviceForm.address)"
-              type="warning" variant="tonal" density="compact" class="mb-3">
-              忽略证书校验可能泄露密码。优先修复证书；此选项只对你明确配置的路由器入口生效。
-            </v-alert>
-            <div class="router-editor-alt-heading">
-              <div>
-                <h4>额外登录 IP / 域名</h4>
-                <p>主入口不可用时，可通过同一台路由器的其他入口连接</p>
+          </div>
+        </div>
+        <v-card-text class="router-editor-body router-wizard-body">
+          <form id="device-editor" @submit.prevent="submitDeviceEditor" autocomplete="off" novalidate>
+            <section v-if="deviceEditorStep === 1" class="router-wizard-step-pane" aria-label="基础信息">
+              <div class="router-wizard-section-title">
+                <v-icon icon="mdi-router-wireless" color="primary" size="21"/>
+                <h3>基础信息</h3>
               </div>
-              <span>{{ deviceForm.alternateAddresses.length }}/{{ MAX_ROUTER_ALTERNATIVES }}</span>
-            </div>
-            <div v-for="(alternate, index) in deviceForm.alternateAddresses" :key="index"
-              class="router-editor-alternate-row">
-              <v-text-field v-model.trim="deviceForm.alternateAddresses[index]" variant="outlined"
-                density="comfortable" hide-details="auto" autocapitalize="off"
-                :label="'备用登录 IP / 域名 ' + (index + 1)"
-                placeholder="https://router.example.com"/>
-              <v-btn icon="mdi-close-circle-outline" variant="text" size="small"
-                :aria-label="'删除备用入口 ' + (index + 1)"
-                @click="removeDeviceAlternate(index)"/>
-              <v-chip v-if="verifiedEditorAddresses.includes(alternate)" size="x-small"
-                color="success" variant="tonal">已验证</v-chip>
-              <v-btn v-if="editDeviceId === selectedDeviceId && connected &&
-                verifiedEditorAddresses.includes(alternate) && client?.baseUrl !== alternate"
-                size="x-small" color="primary" variant="tonal"
-                :loading="labSmartBusy" @click="swapLabConnection({address:alternate})">切换至此</v-btn>
-              <v-chip v-else-if="client?.baseUrl === alternate && connected" size="x-small"
-                color="info" variant="tonal">当前入口</v-chip>
-            </div>
-            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" color="primary"
-              class="router-editor-add-alternate"
-              :disabled="deviceForm.alternateAddresses.length >= MAX_ROUTER_ALTERNATIVES"
-              @click="addDeviceAlternate">添加备用登录地址</v-btn>
-            <div v-if="editDeviceId && editDeviceId === selectedDeviceId && connected"
-              class="router-editor-verify-actions">
-              <v-btn size="small" color="primary" variant="outlined"
-                prepend-icon="mdi-shield-check-outline"
-                :disabled="labSmartBusy || deviceEditorBusy || !deviceForm.alternateAddresses.length"
-                :loading="labSmartBusy" @click="verifyEditorAlternates">重新验证已保存入口</v-btn>
-              <span v-if="client?.baseUrl" class="router-editor-helper">当前：{{ client.baseUrl }}</span>
-            </div>
-            <v-switch v-model="deviceForm.autoSwitch" inset density="compact"
-              class="router-editor-switch mt-2" color="primary" hide-details
-              label="主入口连接失败时自动切换已验证的备用入口"/>
-            <p class="router-editor-helper">
-              支持可信 HTTPS 域名或私有 IPv4 HTTP 地址，最多 5 个。
-              保存后可在路由器登录成功时核验各入口的硬件身份；未验证通过的地址不会用于自动切换。
-              额外地址及验证结果仅保存在本机。
-            </p>
+              <v-text-field v-model.trim="deviceForm.name" label="设备名称" variant="outlined" density="comfortable"
+                placeholder="例如：QWRT 主路由" required/>
+              <v-text-field v-model.trim="deviceForm.address" label="主地址" variant="outlined" density="comfortable"
+                placeholder="http://192.168.100.1" autocomplete="url"
+                autocapitalize="off" required/>
+              <div class="router-wizard-alternates">
+                <div class="router-wizard-alt-top">
+                  <div class="router-wizard-alt-heading">
+                    <v-icon icon="mdi-layers-outline" color="primary" size="20"/>
+                    <div><strong>备用入口 <small>可选</small></strong><span>其他可用的连接地址 · {{ deviceForm.alternateAddresses.length }}/{{ MAX_ROUTER_ALTERNATIVES }}</span></div>
+                  </div>
+                  <v-btn size="small" color="primary" variant="tonal"
+                    class="router-editor-add-alternate" prepend-icon="mdi-plus"
+                    aria-label="添加备用登录地址"
+                    :disabled="deviceForm.alternateAddresses.length >= MAX_ROUTER_ALTERNATIVES"
+                    @click="addDeviceAlternate">添加</v-btn>
+                </div>
+                <div v-for="(alternate, index) in deviceForm.alternateAddresses" :key="index"
+                  class="router-editor-alternate-row">
+                  <v-text-field v-model.trim="deviceForm.alternateAddresses[index]" variant="outlined"
+                    density="compact" hide-details="auto" autocapitalize="off"
+                    :label="'备用地址 ' + (index + 1)"
+                    placeholder="IP 或 HTTPS 域名"/>
+                  <v-btn icon="mdi-close-circle-outline" variant="text" size="small"
+                    :aria-label="'删除备用入口 ' + (index + 1)"
+                    @click="removeDeviceAlternate(index)"/>
+                  <v-chip v-if="verifiedEditorAddresses.includes(alternate)" size="x-small"
+                    color="success" variant="tonal">已验证</v-chip>
+                  <v-btn v-if="editDeviceId === selectedDeviceId && connected &&
+                    verifiedEditorAddresses.includes(alternate) && client?.baseUrl !== alternate"
+                    size="x-small" color="primary" variant="tonal"
+                    :loading="labSmartBusy" @click="swapLabConnection({address:alternate})">切换至此</v-btn>
+                  <v-chip v-else-if="client?.baseUrl === alternate && connected" size="x-small"
+                    color="info" variant="tonal">当前入口</v-chip>
+                </div>
+                <div v-if="editDeviceId && editDeviceId === selectedDeviceId && connected &&
+                  deviceForm.alternateAddresses.length" class="router-editor-verify-actions">
+                  <v-btn size="small" color="primary" variant="outlined"
+                    prepend-icon="mdi-shield-check-outline"
+                    :disabled="labSmartBusy || deviceEditorBusy"
+                    :loading="labSmartBusy" @click="verifyEditorAlternates">验证备用入口</v-btn>
+                  <span v-if="client?.baseUrl" class="router-editor-helper">当前：{{ client.baseUrl }}</span>
+                </div>
+                <p v-if="deviceForm.alternateAddresses.length" class="router-wizard-tiny-hint">
+                  备用入口需与主路由硬件身份一致，验证后才能自动切换。
+                </p>
+              </div>
+              <button type="button" class="router-wizard-preview" @click="nextDeviceEditorStep">
+                <v-icon icon="mdi-shield-key-outline" color="primary" size="22"/>
+                <span><strong>连接与安全</strong><small>用户名、密码及安全选项</small></span>
+                <v-icon icon="mdi-chevron-right" size="22"/>
+              </button>
+            </section>
+            <section v-else class="router-wizard-step-pane" aria-label="连接与安全">
+              <div class="router-wizard-section-title">
+                <v-icon icon="mdi-shield-key-outline" color="primary" size="21"/>
+                <h3>连接与安全</h3>
+              </div>
+              <button class="router-wizard-saved-summary" type="button" @click="previousDeviceEditorStep"
+                aria-label="返回修改基础信息">
+                <span><strong>{{ deviceForm.name || '未命名路由器' }}</strong><small>{{ deviceForm.address }}</small></span>
+                <v-icon icon="mdi-pencil-outline" size="18"/>
+              </button>
+              <v-text-field v-model.trim="deviceForm.username" label="用户名" variant="outlined" density="comfortable"
+                autocomplete="username" required/>
+              <v-text-field v-model="deviceForm.password" label="密码" variant="outlined" density="comfortable"
+                autocomplete="new-password" :type="deviceForm.showPassword ? 'text' : 'password'"
+                :append-inner-icon="deviceForm.showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+                @click:append-inner="deviceForm.showPassword = !deviceForm.showPassword"
+                :placeholder="editDeviceId && deviceForm.rememberPassword ? '留空保留已加密密码' : '输入登录密码'"/>
+              <p v-if="editDeviceId && deviceForm.rememberPassword" class="router-wizard-tiny-hint">
+                已有密码留空不修改；更换主地址或用户名需重新填写才能保持自动登录。
+              </p>
+              <div v-if="isNative" class="router-wizard-option">
+                <div><strong>加密保存密码</strong><span>Android Keystore · 自动登录</span></div>
+                <v-switch v-model="deviceForm.rememberPassword" inset density="compact"
+                  color="primary" hide-details aria-label="使用 Android Keystore 加密保存密码"/>
+              </div>
+              <div class="router-wizard-option">
+                <div><strong>自动切换入口</strong><span>主入口不可用时使用已验证备用地址</span></div>
+                <v-switch v-model="deviceForm.autoSwitch" inset density="compact"
+                  color="primary" hide-details aria-label="主入口连接失败时自动切换已验证的备用入口"/>
+              </div>
+              <div v-if="isNative && /^https:\/\//i.test(deviceForm.address)"
+                class="router-wizard-option router-wizard-option--tls">
+                <div><strong>忽略证书错误</strong><span>仅用于可信的自签名 HTTPS 路由器</span></div>
+                <v-switch v-model="deviceForm.ignoreTlsErrors" inset density="compact"
+                  color="warning" hide-details aria-label="忽略 HTTPS 证书错误"/>
+              </div>
+              <p v-if="isNative && deviceForm.ignoreTlsErrors && /^https:\/\//i.test(deviceForm.address)"
+                class="router-wizard-security-warning" role="alert">
+                <v-icon icon="mdi-alert-outline" size="16"/> 跳过证书校验可能泄露登录密码。
+              </p>
+            </section>
             <p v-if="deviceEditorMessage" role="alert" class="router-editor-error">{{ deviceEditorMessage }}</p>
-            <p v-if="editDeviceId && editDeviceId === selectedDeviceId && labSmartMessage"
+            <p v-if="deviceEditorStep === 1 && editDeviceId && editDeviceId === selectedDeviceId && labSmartMessage"
               class="router-editor-helper" role="status">{{ labSmartMessage }}</p>
           </form>
         </v-card-text>
-        <v-card-actions class="router-editor-actions">
-          <v-btn variant="text" :disabled="deviceEditorBusy" @click="closeDeviceEditor">取消</v-btn>
+        <v-card-actions class="router-editor-actions router-wizard-actions">
+          <v-btn variant="text" :disabled="deviceEditorBusy"
+            @click="deviceEditorStep === 1 ? closeDeviceEditor() : previousDeviceEditorStep()">
+            {{ deviceEditorStep === 1 ? '取消' : '上一步' }}
+          </v-btn>
           <v-spacer/>
           <v-btn type="submit" form="device-editor" color="primary" rounded="lg"
-            :loading="deviceEditorBusy" prepend-icon="mdi-content-save-outline">保存设备</v-btn>
+            :loading="deviceEditorBusy" :prepend-icon="deviceEditorStep === 1 ? undefined : 'mdi-content-save-outline'"
+            :append-icon="deviceEditorStep === 1 ? 'mdi-arrow-right' : undefined">
+            {{ deviceEditorStep === 1 ? '继续' : '保存设备' }}
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
