@@ -542,24 +542,37 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     // on a connected overview screen, not just internal physics state.
     const liquid = page.locator('.v3-metric-water').first()
     await expect(liquid).toBeVisible()
-    const beforeTilt = await liquid.evaluate(node => getComputedStyle(node).clipPath)
+    const surface = liquid.locator('.v3-metric-water-fill')
+    await expect(surface).toHaveCount(1)
+    const beforeTilt = await surface.getAttribute('d')
     await page.evaluate(() => {
       const tilt = new Event('deviceorientation')
       Object.defineProperty(tilt, 'gamma', { value: 65 })
       window.dispatchEvent(tilt)
     })
-    await expect.poll(() => liquid.evaluate(node =>
-      Number.parseFloat(node.style.getPropertyValue('--v3-water-slope')) || 0),
-    { timeout: 3000 }).toBeGreaterThan(3)
-    expect(await liquid.evaluate(node => getComputedStyle(node).clipPath)).not.toBe(beforeTilt)
+    await expect.poll(async () => {
+      const path = await surface.getAttribute('d')
+      const start = Number(path?.match(/^M 0 ([0-9.]+)/)?.[1] || 0)
+      const end = Number(path?.match(/100 ([0-9.]+) L 100 100/)?.[1] || 0)
+      return start - end
+    }, { timeout: 3000 }).toBeGreaterThan(3)
+    const afterTilt = await surface.getAttribute('d')
+    expect(afterTilt).not.toBe(beforeTilt)
+    expect(afterTilt).toMatch(/^M 0 [0-9.]+ C .* C .* L 100 100 L 0 100 Z$/)
+    // The one continuous curved fill cannot contain the old polygon/ellipse
+    // intersections responsible for the floating triangle.
+    expect(await page.locator('.v3-metric--water .v3-metric-water-fill').count()).toBeGreaterThanOrEqual(1)
     await page.evaluate(() => {
       const shake = new Event('devicemotion')
       Object.defineProperty(shake, 'acceleration', { value: { x: 0, y: -5 } })
       window.dispatchEvent(shake)
     })
-    await expect.poll(() => liquid.evaluate(node =>
-      Number.parseFloat(node.style.getPropertyValue('--v3-water-bob')) || 0),
-    { timeout: 3000 }).toBeLessThan(-0.8)
+    await expect.poll(async () => {
+      const path = await surface.getAttribute('d')
+      const start = Number(path?.match(/^M 0 ([0-9.]+)/)?.[1] || 0)
+      const end = Number(path?.match(/100 ([0-9.]+) L 100 100/)?.[1] || 0)
+      return (start + end) / 2
+    }, { timeout: 3000 }).toBeLessThan(100)
 
     await page.getByRole('button', { name: '设备', exact: true }).click()
     await expect(page.locator('.v3-terminal-status button')).toHaveCount(3)

@@ -1720,45 +1720,29 @@
   background:var(--ui-surface);
   border-color:var(--ui-border);
 }
+/* A single continuous cubic Bézier is the entire liquid surface.
+ * It replaces the clipped polygon + overlapping elliptical cutouts whose
+ * intersections produced a detached triangular spike at ~60–70° tilt. */
 .xxwrt-v3 .v3-metric--water .v3-metric-water{
   position:absolute;
   z-index:0;
-  inset:auto 0 0;
-  /* Extra overscan accommodates a visibly sloped edge at 18% water.
-   * Only visual clip geometry moves: stored % stays the actual metric.
-   * Transient vertical bob recedes to zero when shaking stops. */
-  height:calc(var(--v3-water-percent,0%) + 16px);
-  clip-path:polygon(
-    0 calc(16px + var(--v3-water-bob,0px) + var(--v3-water-slope,0px)),
-    100% calc(16px + var(--v3-water-bob,0px) - var(--v3-water-slope,0px)),
-    100% 100%,0 100%
-  );
-  background:linear-gradient(180deg,rgba(37,160,239,.35) 0%,rgba(26,128,225,.49) 100%);
-  will-change:clip-path;
-  pointer-events:none;
+  display:block;
+  width:100%;
+  height:100%;
+  inset:0;
   overflow:hidden;
+  pointer-events:none;
 }
-/* Soft two-layer surface cutouts form a subtle travelling wave edge. */
-.xxwrt-v3 .v3-metric--water .v3-metric-water::before,
-.xxwrt-v3 .v3-metric--water .v3-metric-water::after{
-  content:'';
-  position:absolute;
-  top:9px;
-  left:-35%;
-  width:185%;
-  height:12px;
-  background:var(--ui-surface);
-  border-radius:48% 53% 45% 55% / 70% 65% 35% 30%;
-  transform:translateX(0);
-  will-change:transform;
+.xxwrt-v3 .v3-metric--water .v3-metric-water-fill{
+  pointer-events:none;
 }
-.xxwrt-v3 .v3-metric--water .v3-metric-water::after{
-  top:11px;
-  left:-27%;
-  height:10px;
-  opacity:.48;
-  border-radius:55% 45% 58% 42% / 58% 65% 35% 42%;
-  transform:translateX(12%);
+.xxwrt-v3 .v3-metric--water .v3-water-stop-top{
+  stop-color:#25a0ef;
+  stop-opacity:.36;
+}
+.xxwrt-v3 .v3-metric--water .v3-water-stop-bottom{
+  stop-color:#1a80e1;
+  stop-opacity:.49;
 }
 .xxwrt-v3 .v3-metric--water>small,
 .xxwrt-v3 .v3-metric--water>strong{
@@ -1775,8 +1759,13 @@
   background:var(--ui-surface);
   border-color:var(--ui-border);
 }
-.xxwrt-v3.theme-is-dark .v3-metric--water .v3-metric-water{
-  background:linear-gradient(180deg,rgba(34,153,216,.38),rgba(32,125,199,.54));
+.xxwrt-v3.theme-is-dark .v3-metric--water .v3-water-stop-top{
+  stop-color:#2299d8;
+  stop-opacity:.42;
+}
+.xxwrt-v3.theme-is-dark .v3-metric--water .v3-water-stop-bottom{
+  stop-color:#207dc7;
+  stop-opacity:.58;
 }
 .xxwrt-v3.theme-is-dark .v3-metric--water>small{
   color:#d1e0f4;
@@ -1786,31 +1775,8 @@
   color:#e1f3ff;
   text-shadow:0 1px 3px rgba(0,0,0,.3)
 }
-@keyframes v3-water-surface-first{
-  0%{transform:translateX(-2%) rotate(-1deg)}
-  50%{transform:translateX(12%) rotate(1deg)}
-  100%{transform:translateX(-2%) rotate(-1deg)}
-}
-@keyframes v3-water-surface-second{
-  0%{transform:translateX(12%) rotate(1deg)}
-  50%{transform:translateX(-7%) rotate(-1deg)}
-  100%{transform:translateX(12%) rotate(1deg)}
-}
-/* Respect both the app's animation switch and the Android/OS preference. */
-.xxwrt-v3.app-motion-enabled .v3-metric--water .v3-metric-water{
-  transition:height .9s cubic-bezier(.2,.8,.24,1)
-}
-.xxwrt-v3.app-motion-enabled .v3-metric--water .v3-metric-water::before{
-  animation:v3-water-surface-first 4.6s ease-in-out infinite
-}
-.xxwrt-v3.app-motion-enabled .v3-metric--water .v3-metric-water::after{
-  animation:v3-water-surface-second 5.8s ease-in-out infinite
-}
+/* The curve's gentle ripple is advanced with its sensor animation frame.
+ * No separate moving masks or pseudo-elements can detach from the surface. */
 @media(prefers-reduced-motion:reduce){
-  .xxwrt-v3 .v3-metric--water .v3-metric-water,
-  .xxwrt-v3 .v3-metric--water .v3-metric-water::before,
-  .xxwrt-v3 .v3-metric--water .v3-metric-water::after{
-    animation:none!important;
-    transition:none!important
-  }
+  .xxwrt-v3 .v3-metric--water .v3-metric-water{animation:none!important}
 }

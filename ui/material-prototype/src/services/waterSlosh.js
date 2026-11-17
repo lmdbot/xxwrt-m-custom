@@ -3,6 +3,7 @@ import {
   advanceWaterSpring, sloshEdgeOffset, sloshTarget, waterBobOffset,
   waterBobTarget, MAX_WATER_BOB_PX
 } from './waterSloshPhysics.js'
+import { waterSurfacePath } from './waterSurfacePath.js'
 
 const WaterMotion = registerPlugin('WaterMotion')
 
@@ -31,6 +32,8 @@ export function createWaterSlosh({ getContainer }) {
   function render(timestamp) {
     frame = 0
     if (!active) return
+    // Limit the moving curved surface to ~30 updates/second; only on overview.
+    if (previousFrame && timestamp - previousFrame < 32) { schedule(); return }
     const dt = previousFrame ? (timestamp - previousFrame) / 1000 : 1 / 60
     previousFrame = timestamp
     // Acceleration fades after a shake; gravity/roll persists until the
@@ -45,22 +48,21 @@ export function createWaterSlosh({ getContainer }) {
     let index = 0
     for (const tile of tiles) {
       const fill = parseFloat(tile.style.getPropertyValue('--v3-water-percent'))
-      const wave = tile.querySelector('.v3-metric-water')
-      if (!wave) continue
+      const waterPath = tile.querySelector('.v3-metric-water-fill')
+      if (!waterPath) continue
       const intensity = 1 - (index % 3) * .055
       const slope = sloshEdgeOffset(fill, tilt.position, intensity)
       const bobOffset = waterBobOffset(fill, bob.position, intensity)
-      // Store motion on the water itself: Vue patching the parent percentage
-      // style cannot erase the sensor values on every telemetry refresh.
-      wave.style.setProperty('--v3-water-slope', slope.toFixed(2) + 'px')
-      wave.style.setProperty('--v3-water-bob', bobOffset.toFixed(2) + 'px')
+      const height = tile.getBoundingClientRect().height || 140
+      const ripplePx = 1.05 + Math.sin(timestamp / 770 + index * 0.7) * 0.55
+      // Render one complete, smoothly curved water area. Unlike the previous
+      // clip-path polygon + separate ellipses, no edges can cross or detach.
+      waterPath.setAttribute('d', waterSurfacePath(fill, slope, bobOffset, ripplePx, height))
       index++
     }
-    const moving = Math.abs(target - tilt.position) > 0.025 ||
-      Math.abs(tilt.velocity) > 0.06 ||
-      Math.abs(bobGoal - bob.position) > 0.025 ||
-      Math.abs(bob.velocity) > 0.06
-    if (moving) schedule()
+    // Keep a gentle moving ripple while the overview is visible and motion
+    // is enabled. The loop is released immediately when the page is hidden.
+    schedule()
   }
 
   function sensorSample(gravity, ax, ay) {
@@ -141,9 +143,11 @@ export function createWaterSlosh({ getContainer }) {
     if (listener) void listener.remove().catch(() => {})
     if (nativeStarted || listener) void WaterMotion.stop().catch(() => {})
     nativeStarted = false
-    for (const tile of getContainer()?.querySelectorAll('.v3-metric-water') || []) {
-      tile.style.removeProperty('--v3-water-slope')
-      tile.style.removeProperty('--v3-water-bob')
+    // Returning to the initial Vue-authored SVG path also restores a
+    // genuinely static surface when the motion switch is turned off.
+    for (const tile of getContainer()?.querySelectorAll('.v3-metric--water') || []) {
+      const fill = Number.parseFloat(tile.style.getPropertyValue('--v3-water-percent'))
+      tile.querySelector('.v3-metric-water-fill')?.setAttribute('d', waterSurfacePath(fill))
     }
   }
   return { start, stop }
