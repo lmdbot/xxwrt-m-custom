@@ -1102,7 +1102,9 @@ const resourceCards = computed(() => {
 // Overview information comes from actual router telemetry, without estimates.
 const overviewResources = computed(() => {
   const disk = diskData.value.primary
-  return [...resourceCards.value.slice(0, 2),
+  return [
+    { ...resourceCards.value[0], label: 'CPU' },
+    { ...resourceCards.value[1], label: '内存' },
     { label: '存储', value: disk ? disk.percent + '%' : '--',
       progress: disk?.percent ?? 0, icon: 'mdi-harddisk' },
     { label: '终端', value: snapshot.value?.users ?? '--',
