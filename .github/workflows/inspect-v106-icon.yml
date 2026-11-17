@@ -1,0 +1,50 @@
+name: Inspect v1.0.6 original launcher artwork
+
+on:
+  push:
+    branches: [fix/classic-icon-v1-0-6-hires]
+    paths: [.github/workflows/inspect-v106-icon.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Inspect v1.0.6 APK image dimensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show v1.0.6:vendor/base.apk > "$RUNNER_TEMP/v106.apk"
+          python3 -m pip install --quiet pillow
+          python3 - "$RUNNER_TEMP/v106.apk" <<'PY'
+          from zipfile import ZipFile
+          from PIL import Image
+          from io import BytesIO
+          import sys,hashlib
+          with ZipFile(sys.argv[1]) as z:
+              names=[i for i in z.infolist() if i.filename.lower().endswith(('.png','.jpg','.jpeg','.webp'))]
+              print('APK_IMAGE_COUNT',len(names),flush=True)
+              candidates=[]
+              for item in names:
+                  path=item.filename
+                  lower=path.lower()
+                  if not any(w in lower for w in ('icon','launcher','logo','mipmap','drawable','static/')):
+                      continue
+                  try:
+                      raw=z.read(item.filename)
+                      im=Image.open(BytesIO(raw))
+                  except Exception:continue
+                  width,height=im.size
+                  if width < 72 or height < 72:continue
+                  score=(('logo' in lower or 'icon' in lower)*10+min(width,height)//64)
+                  candidates.append((score,path,width,height,len(raw),hashlib.sha256(raw).hexdigest()[:12]))
+              for row in sorted(candidates,reverse=True)[:85]:
+                  print('APK_IMAGE',*row,sep=' | ',flush=True)
+          PY
