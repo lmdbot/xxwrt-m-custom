@@ -1988,7 +1988,7 @@ async function loginWithRouterEndpoints(device,password) {
     return primary
   } catch(error) {
     if (!/无法连接|网络通信失败|timeout|timed.out|ECONN|failed to fetch|network error|HTTP 50/i.test(shortError(error)) ||
-        !device.autoSwitch || !trusted.length) throw error
+        !(device.autoSwitch ?? labSettings.value.smartSwitch) || !trusted.length) throw error
     const reasons=[shortError(error)]
     for (const route of trusted) {
       const alternative=new RouterClient(route.address,{ignoreTlsErrors:device.ignoreTlsErrors})
@@ -4011,6 +4011,8 @@ onUnmounted(() => {
               额外地址及验证结果仅保存在本机。
             </p>
             <p v-if="deviceEditorMessage" role="alert" class="router-editor-error">{{ deviceEditorMessage }}</p>
+            <p v-if="editDeviceId && editDeviceId === selectedDeviceId && labSmartMessage"
+              class="router-editor-helper" role="status">{{ labSmartMessage }}</p>
           </form>
         </v-card-text>
         <v-card-actions class="router-editor-actions">

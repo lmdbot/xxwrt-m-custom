@@ -1,15 +1,11 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 const props = defineProps({
   settings: { type:Object, required:true },
   intervals: { type:Object, required:true },
   cards: { type:Array, required:true },
   router: { type:Object, default:null },
   rpcRecords: { type:Array, default:()=>[] },
-  alternate: { type:Object, default:null },
-  activeAddress: { type:String, default:'' },
-  smartBusy: { type:Boolean, default:false },
-  smartMessage: { type:String, default:'' },
   globalMessage: { type:String, default:'' },
   rpcMessage: { type:String, default:'' },
   healthRows: { type:Array, default:()=>[] },
@@ -24,8 +20,7 @@ const props = defineProps({
 })
 const emit = defineEmits([
   'set-profile','set-interval','toggle-cards','toggle-card','move-card','reset-cards',
-  'toggle-rpc','clear-rpc','copy-rpc','toggle-smart','pair-alternate','remove-alternate',
-  'switch-route','toggle-health','check-health','reset-all',
+  'toggle-rpc','clear-rpc','copy-rpc','toggle-health','check-health','reset-all',
   'icon-select','icon-upload','icon-pin-shortcut'
 ])
 const resetConfirmation = ref(false)
@@ -98,10 +93,11 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
     <div class="lab-reset-bar">
       <span>出现异常时，可一键撤销全部实验设置</span>
       <v-btn size="small" variant="outlined" color="primary" prepend-icon="mdi-restore"
-        :disabled="smartBusy || healthBusy"
+        :disabled="healthBusy"
         @click="resetConfirmation = true">恢复默认值</v-btn>
     </div>
     <p v-if="globalMessage" class="lab-reset-notice" role="status">{{ globalMessage }}</p>
+    <p class="lab-note">主登录地址、加密密码和备用入口已迁移至「路由器管理 → 添加/编辑路由器 → 登录配置」，实验室不再管理这些连接设置。</p>
     <v-dialog v-model="resetConfirmation" max-width="430">
       <v-card rounded="xl" class="pa-4" title="恢复实验室默认值？">
         <v-card-text class="lab-reset-dialog-text">
