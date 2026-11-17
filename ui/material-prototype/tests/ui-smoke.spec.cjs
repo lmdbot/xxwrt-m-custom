@@ -533,7 +533,7 @@ test('unified router login editor rejects insecure alternate host and keeps dial
   await page.getByRole('button', {name:'添加备用登录地址'}).click()
   await page.getByRole('textbox', {name:'备用登录 IP / 域名 1'}).fill('http://router.example.org')
   await page.getByRole('button', {name:'保存设备'}).click()
-  await expect(page.locator('#device-editor [role="alert"]')).toContainText('HTTPS')
+  await expect(page.locator('#device-editor .router-editor-error')).toContainText('HTTPS')
   await expect(page.getByRole('textbox', {name:'设备名称 / 备注'})).toBeVisible()
   expect(await page.evaluate(() => JSON.parse(
     localStorage.getItem('xxwrt_material_saved_devices_v1')||'[]'
@@ -1468,7 +1468,7 @@ test('reject invalid router addresses before attempting authentication', async (
   const invalidAddressMessage = '地址只填写 IP、域名和可选端口，不要包含路径或账号密码'
   const errorToast = page.locator('.v-snackbar').filter({ hasText: invalidAddressMessage })
   await expect(errorToast).toBeVisible()
-  await expect(page.getByText(invalidAddressMessage, { exact: true })).toHaveCount(1)
+  await expect(page.locator('#device-editor .router-editor-error')).toHaveText(invalidAddressMessage)
   await expect(page.locator('#device-editor .v-alert')).toHaveCount(0)
 })
 
