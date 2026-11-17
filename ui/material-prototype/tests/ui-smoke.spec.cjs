@@ -1498,6 +1498,11 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await expect(page.locator('.router-name')).toHaveText('路由器 1')
   await expect(page.locator('.router-address')).toContainText('•••')
   await expect(page.locator('.saved-device-grid-compact')).toBeVisible()
+  // Single-router startup now prompts for login automatically when no
+  // password was saved in Android Keystore. The privacy list remains usable
+  // after explicitly returning from the login overlay.
+  await expect(page.getByText('连接 路由器 1')).toBeVisible()
+  await page.getByRole('button', { name: '返回列表' }).click()
   await page.getByRole('button', { name: '进入 路由器 1' }).click()
   await expect(page.getByText('连接 路由器 1')).toBeVisible()
   await expect(page.getByText('http://192.168.100.1', { exact: true })).not.toBeVisible()
