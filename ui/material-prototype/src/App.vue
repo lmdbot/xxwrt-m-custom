@@ -3269,7 +3269,8 @@ onUnmounted(() => {
     <div v-else-if="viewMode === 'list' || connected" class="liquid-bottom">
       <VGlass v-if="effectiveMotion" :blur="9" :scale="22" :base-frequency="0.016" class="glass-host">
         <div class="glass-nav">
-          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: currentNavTab === item.id }" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
+          <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: currentNavTab === item.id }"
+            :aria-current="currentNavTab === item.id ? 'page' : undefined" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{ item.label }}</span>
           </v-btn>
         </div>
@@ -3277,7 +3278,8 @@ onUnmounted(() => {
       <div v-else class="glass-host">
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab"
-            :class="{selected:currentNavTab===item.id}" variant="text" rounded="xl"
+            :class="{selected:currentNavTab===item.id}"
+            :aria-current="currentNavTab === item.id ? 'page' : undefined" variant="text" rounded="xl"
             density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{item.label}}</span>
           </v-btn>
@@ -3339,7 +3341,7 @@ onUnmounted(() => {
             <div class="v3-terminal-detail-hero-title">
               <h2>{{ terminalDetailTitle }}</h2>
               <span class="v3-terminal-detail-chip"
-                :class="{ 'is-unknown': !selectedClient.online && !selectedClient.onlineKnown }">
+                :class="{ 'is-unknown': !selectedClient.online && !selectedClient.onlineKnown, 'is-offline': !selectedClient.online && selectedClient.onlineKnown }">
                 {{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '待确认' }}
               </span>
             </div>
