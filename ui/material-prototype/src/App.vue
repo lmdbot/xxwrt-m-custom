@@ -1051,14 +1051,24 @@ const overviewDetectorStatus = computed(() => {
     tone: healthy === 0 ? 'error' : healthy === total ? 'success' : 'warning'
   }
 })
+// Only real, finite percentages drive the water gauge. Missing values stay unfilled.
+function overviewWaterPercent(value) {
+  if (value == null || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : null
+}
 // Overview metrics use live router values; missing data remains unknown.
 const overviewResources = computed(() => {
   const disk = diskData.value.primary
   const snap = snapshot.value
   return [
-    ...resourceCards.value.slice(0, 2),
+    ...resourceCards.value.slice(0, 2).map(item => ({
+      ...item,
+      waterPercent: item.value === '--' ? null : overviewWaterPercent(item.progress)
+    })),
     { label: '存储', value: disk ? disk.percent + '%' : '--',
-      progress: disk?.percent ?? null, icon: 'mdi-harddisk' },
+      progress: disk?.percent ?? null, icon: 'mdi-harddisk',
+      waterPercent: disk ? overviewWaterPercent(disk.percent) : null },
     { label: '温度', value: snap?.temperature && snap.temperature !== '--' ? snap.temperature : '--',
       progress: null, icon: 'mdi-thermometer' },
     { label: '终端', value: snap?.users ?? '--',
@@ -2594,8 +2604,12 @@ onUnmounted(() => {
               </div>
               <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
                 <button v-for="item in labVisibleOverviewResources" :key="item.label" type="button"
-                  class="v3-metric v3-metric-action" :aria-label="'查看' + item.label + '详情：' + item.value"
+                  class="v3-metric v3-metric-action"
+                  :class="{ 'v3-metric--water': item.waterPercent !== undefined }"
+                  :style="item.waterPercent != null ? { '--v3-water-percent': item.waterPercent + '%' } : undefined"
+                  :aria-label="'查看' + item.label + '详情：' + item.value"
                   @click="openOverviewMetric(item.label)">
+                  <span v-if="item.waterPercent != null" class="v3-metric-water" aria-hidden="true"/>
                   <small>{{ item.label }}</small>
                   <strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
                 </button>

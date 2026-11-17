@@ -1708,3 +1708,100 @@
   .xxwrt-v3 .v3-network-row-label{font-size:10.5px}
   .xxwrt-v3 .v3-network-row-value,.xxwrt-v3 .v3-network-ipv6-value{font-size:11.5px}
 }
+
+
+
+/* Overview resource water gauges — exactly proportional to the real usage
+ * percentage. The unmodified text sits above subdued color in both themes. */
+.xxwrt-v3 .v3-metric.v3-metric--water{
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  background:var(--ui-surface);
+  border-color:var(--ui-border);
+}
+.xxwrt-v3 .v3-metric--water .v3-metric-water{
+  position:absolute;
+  z-index:0;
+  inset:auto 0 0;
+  height:var(--v3-water-percent,0%);
+  background:linear-gradient(180deg,rgba(38,158,238,.20) 0%,rgba(34,130,230,.30) 100%);
+  pointer-events:none;
+  overflow:hidden;
+}
+/* Soft two-layer surface cutouts form a subtle travelling wave edge. */
+.xxwrt-v3 .v3-metric--water .v3-metric-water::before,
+.xxwrt-v3 .v3-metric--water .v3-metric-water::after{
+  content:'';
+  position:absolute;
+  top:-7px;
+  left:-35%;
+  width:185%;
+  height:12px;
+  background:var(--ui-surface);
+  border-radius:48% 53% 45% 55% / 70% 65% 35% 30%;
+  transform:translateX(0);
+  will-change:transform;
+}
+.xxwrt-v3 .v3-metric--water .v3-metric-water::after{
+  top:-5px;
+  left:-27%;
+  height:10px;
+  opacity:.48;
+  border-radius:55% 45% 58% 42% / 58% 65% 35% 42%;
+  transform:translateX(12%);
+}
+.xxwrt-v3 .v3-metric--water>small,
+.xxwrt-v3 .v3-metric--water>strong{
+  position:relative;
+  z-index:1;
+  display:block;
+  text-shadow:0 1px 2px rgba(255,255,255,.22);
+}
+/* The text uses stable contrasting colors at every water level, rather than
+ * toggling colors as a moving waterline crosses the glyphs. */
+.xxwrt-v3 .v3-metric--water>small{color:#344961}
+.xxwrt-v3 .v3-metric--water>strong{color:#095ea9}
+.xxwrt-v3.theme-is-dark .v3-metric.v3-metric--water{
+  background:var(--ui-surface);
+  border-color:var(--ui-border);
+}
+.xxwrt-v3.theme-is-dark .v3-metric--water .v3-metric-water{
+  background:linear-gradient(180deg,rgba(34,153,216,.26),rgba(32,125,199,.40));
+}
+.xxwrt-v3.theme-is-dark .v3-metric--water>small{
+  color:#d1e0f4;
+  text-shadow:0 1px 3px rgba(0,0,0,.32)
+}
+.xxwrt-v3.theme-is-dark .v3-metric--water>strong{
+  color:#e1f3ff;
+  text-shadow:0 1px 3px rgba(0,0,0,.3)
+}
+@keyframes v3-water-surface-first{
+  0%{transform:translateX(-2%) rotate(-1deg)}
+  50%{transform:translateX(12%) rotate(1deg)}
+  100%{transform:translateX(-2%) rotate(-1deg)}
+}
+@keyframes v3-water-surface-second{
+  0%{transform:translateX(12%) rotate(1deg)}
+  50%{transform:translateX(-7%) rotate(-1deg)}
+  100%{transform:translateX(12%) rotate(1deg)}
+}
+/* Respect both the app's animation switch and the Android/OS preference. */
+.xxwrt-v3.app-motion-enabled .v3-metric--water .v3-metric-water{
+  transition:height .9s cubic-bezier(.2,.8,.24,1)
+}
+.xxwrt-v3.app-motion-enabled .v3-metric--water .v3-metric-water::before{
+  animation:v3-water-surface-first 4.6s ease-in-out infinite
+}
+.xxwrt-v3.app-motion-enabled .v3-metric--water .v3-metric-water::after{
+  animation:v3-water-surface-second 5.8s ease-in-out infinite
+}
+@media(prefers-reduced-motion:reduce){
+  .xxwrt-v3 .v3-metric--water .v3-metric-water,
+  .xxwrt-v3 .v3-metric--water .v3-metric-water::before,
+  .xxwrt-v3 .v3-metric--water .v3-metric-water::after{
+    animation:none!important;
+    transition:none!important
+  }
+}
