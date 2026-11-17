@@ -1437,3 +1437,31 @@
 .xxwrt-v3 .standard-bottom .nav-label{
   font-size:11px!important;line-height:1.3
 }
+
+
+/* Match the prototype's fixed three-segment client filter. The optional
+ * offline-only control lives under the existing advanced source disclosure. */
+.xxwrt-v3 .v3-client-directory .v3-terminal-status{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:4px!important;
+  padding:4px!important
+}
+.xxwrt-v3 .v3-client-source-details .v3-offline-only{
+  display:flex;align-items:center;gap:8px;width:100%;
+  margin-top:9px;padding:10px 12px;min-height:44px;
+  border:1px solid var(--ui-border);border-radius:12px;
+  background:var(--ui-surface);color:var(--ui-text);
+  font-size:12px;text-align:left;cursor:pointer
+}
+.xxwrt-v3 .v3-client-source-details .v3-offline-only>.v-icon{
+  color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-client-source-details .v3-offline-only small{
+  margin-left:auto;font-size:11px;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-client-source-details .v3-offline-only.is-selected{
+  border-color:var(--ui-primary);
+  background:var(--ui-surface-2);font-weight:700;
+  color:var(--ui-primary)
+}
