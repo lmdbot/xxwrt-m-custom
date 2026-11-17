@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as echarts from 'echarts/core'
+import { useTheme } from 'vuetify'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -15,12 +16,16 @@ const props = defineProps({
   compact: { type: Boolean, default: false }
 })
 const root = ref(null)
+const theme = useTheme()
 const motionEnabled = inject('xxwrt-motion-enabled', ref(true))
 let chart = null
 let observer = null
 
 function render() {
   if (!chart || !root.value) return
+  // Use the same Design A palette as the surrounding Vuetify surfaces.
+  // Hardcoded light-only line colors become unreadable in the dark theme.
+  const palette = theme.current.value.colors
   const timeLabels = props.samples.map(p => p.time || '')
   const series = props.series.map((entry, i) => ({
     name: entry.title, type: 'line', smooth: true, showSymbol: false,
@@ -34,23 +39,28 @@ function render() {
     animationDurationUpdate: motionEnabled.value ? 180 : 0,
     animationEasing: 'cubicOut',
     animationEasingUpdate: 'cubicOut',
-    color: props.compact ? ['#2477ee', '#20b99b'] : undefined,
+    color: [palette.primary, palette.success, palette.secondary, palette.info],
     grid: props.compact
       ? { top: 8, bottom: 7, left: 2, right: 2, containLabel: false }
       : { top: 38, bottom: 30, left: 24, right: 6, containLabel: false },
     legend: props.compact ? { show: false }
-      : { top: 2, icon: 'roundRect', itemWidth: 13, textStyle: { fontSize: 11 } },
-    tooltip: { trigger: 'axis', confine: true, valueFormatter: n => {
+      : { top: 2, icon: 'roundRect', itemWidth: 13,
+          textStyle: { fontSize: 11, color: palette['on-surface-variant'] } },
+    tooltip: { trigger: 'axis', confine: true,
+      backgroundColor: palette.surface,
+      borderColor: palette['on-surface-variant'],
+      textStyle: { color: palette['on-surface'], fontSize: 12 },
+      valueFormatter: n => {
       return n == null ? '--' : Number(n).toFixed(1) + props.unit
     }},
     xAxis: { type: 'category', data: timeLabels, boundaryGap: false,
-      axisLabel: { show: !props.compact, fontSize: 10, interval: 'auto' },
-      axisLine: { show: !props.compact, lineStyle: { color: '#a1a8b6' } },
+      axisLabel: { show: !props.compact, fontSize: 10, interval: 'auto', color: palette['on-surface-variant'] },
+      axisLine: { show: !props.compact, lineStyle: { color: palette['on-surface-variant'] } },
       axisTick: { show: !props.compact } },
     yAxis: { type: 'value', min: 0, scale: true, splitNumber: 3,
-      axisLabel: { show: !props.compact, fontSize: 10, margin: 3 },
+      axisLabel: { show: !props.compact, fontSize: 10, margin: 3, color: palette['on-surface-variant'] },
       axisLine: { show: !props.compact }, axisTick: { show: !props.compact },
-      splitLine: { show: !props.compact, lineStyle: { color: '#8795b21a' } } },
+      splitLine: { show: !props.compact, lineStyle: { color: palette['on-surface-variant'], opacity: .12 } } },
     series
   }, { replaceMerge: ['series'] })
 }
@@ -67,6 +77,7 @@ onMounted(async () => {
 })
 watch(() => [props.samples, props.series, props.unit, props.compact], render, { deep: true })
 watch(motionEnabled, render)
+watch(() => theme.global.name.value, render)
 onUnmounted(() => {
   observer?.disconnect()
   chart?.dispose()
