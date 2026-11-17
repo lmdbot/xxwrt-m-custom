@@ -2816,8 +2816,6 @@ onUnmounted(() => {
             <template v-else-if="settingsCategory === 'lab'">
               <LabPanel :settings="labSettings" :intervals="labIntervals" :cards="labCards"
                 :router="connected ? selectedDevice : null" :rpc-records="labRpcRecords"
-                :alternate="labAlternate" :active-address="connected ? (client?.baseUrl || '') : ''"
-                :smart-busy="labSmartBusy" :smart-message="labSmartMessage"
                 :global-message="labGlobalMessage" :rpc-message="labRpcMessage"
                 :health-rows="labHealthRows" :deep-rows="labDeepRows" :health-busy="labHealthBusy"
                 :icon-choices="appIconChoices" :icon-choice="appIconChoice"
@@ -2827,9 +2825,6 @@ onUnmounted(() => {
                 @toggle-cards="value => applyLabSettings({ cardsEnabled:value })"
                 @toggle-card="setLabCardVisibility" @move-card="moveLabCard" @reset-cards="resetLabCards"
                 @toggle-rpc="toggleLabRpc" @clear-rpc="clearRpcTrace" @copy-rpc="copyLabRpc"
-                @toggle-smart="value => applyLabSettings({ smartSwitch:value })"
-                @pair-alternate="pairLabAlternative" @remove-alternate="unpairLabAlternative"
-                @switch-route="() => swapLabConnection()"
                 @toggle-health="value => applyLabSettings({ healthEnabled:value })"
                 @check-health="runLabHealthCheck" @reset-all="resetLabAll"
                 @icon-select="selectAppIcon" @icon-upload="uploadAppIcon"
