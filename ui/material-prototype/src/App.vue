@@ -879,7 +879,7 @@ const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
   installedRouterApps.value?.[tool.id] !== false))
 const appSearch = ref('')
 const pluginDirectoryOpen = ref(false)
-const expandedAppCategories = ref(['plugins'])
+const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 // V3 information architecture: a feature has one canonical home. The
@@ -910,7 +910,7 @@ watch(() => selectedDevice.value?.id, id => {
   favoriteEditorOpen.value = false
   appSearch.value = ''
   pluginDirectoryOpen.value = false
-  expandedAppCategories.value = ['plugins']
+  expandedAppCategories.value = []
 }, { immediate: true })
 
 function updateFavorite(toolId) {
