@@ -538,6 +538,15 @@ test('unified router editor saves login credentials and multiple IP/domain endpo
   await page.getByRole('textbox', {name:'登录用户名'}).fill('root')
   await page.getByRole('textbox', {name:'路由器密码'}).fill('do-not-persist-this-password')
   await page.getByLabel('主入口连接失败时自动切换已验证的备用入口').click()
+  // Android system Back inside Step 2 returns to Step 1; it must not dismiss
+  // the dialog or discard the in-progress password and backup addresses.
+  expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('dialog')
+  await expect(page.getByText('步骤 1/2')).toBeVisible()
+  await expect(page.getByRole('textbox', {name:'备用登录 IP / 域名 1'}))
+    .toHaveValue('192.168.100.2')
+  await page.getByRole('button', {name:'继续',exact:true}).click()
+  await expect(page.getByRole('textbox', {name:'路由器密码'}))
+    .toHaveValue('do-not-persist-this-password')
   await page.getByRole('button', {name:'保存设备'}).click()
   const stored=await page.evaluate(() => JSON.parse(
     localStorage.getItem('xxwrt_material_saved_devices_v1') || '[]'
