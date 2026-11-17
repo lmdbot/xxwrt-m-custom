@@ -29,8 +29,15 @@ const sourceLabels = computed(() => {
   if (props.item.sources?.includes('dhcp4')) labels.push('DHCPv4')
   if (props.item.sources?.includes('dhcp6')) labels.push('DHCPv6')
   if (props.item.sources?.includes('wireless')) labels.push('无线')
+  if (props.item.sources?.includes('wechatpush')) labels.push('微信推送')
   if (props.item.sources?.includes('oaf')) labels.push('应用用户')
   return labels
+})
+const connectionLabel = computed(() => {
+  if (props.item.online !== true) return ''
+  if (props.item.connectionType === 'wireless')
+    return props.item.connectionBand ? '无线 · ' + props.item.connectionBand : '无线'
+  return props.item.connectionType === 'wired' ? '有线' : ''
 })
 const title = computed(() => '查看终端 ' + (props.item.displayName || props.item.name || '未知设备'))
 </script>
@@ -42,7 +49,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
     variant="outlined"
     class="terminal-tile"
     tabindex="0"
-    :aria-label="title + '，' + onlineTitle"
+    :aria-label="title + '，' + onlineTitle + (connectionLabel ? '，' + connectionLabel : '')"
     @click="emit('click')"
     @keydown.enter.prevent="emit('click')"
   >
@@ -83,7 +90,12 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
         <span v-if="showAddress && (item.ip || item.ip6)" class="terminal-ip terminal-ip6">{{ item.ip || item.ip6 }}</span>
         <span v-if="item.mac" class="terminal-mac">{{ item.mac }}</span>
       </div>
-      <div v-if="sourceLabels.length > 1 || item.wifi" class="terminal-tags">
+      <div v-if="sourceLabels.length > 1 || item.wifi || connectionLabel" class="terminal-tags">
+        <v-chip v-if="connectionLabel" size="x-small" variant="tonal"
+          :color="item.connectionType === 'wireless' ? 'primary' : 'secondary'"
+          :prepend-icon="item.connectionType === 'wireless' ? 'mdi-wifi' : 'mdi-ethernet'"
+          class="terminal-tag terminal-tag--connection"
+          :title="'实时连接方式：' + connectionLabel">{{ connectionLabel }}</v-chip>
         <v-chip
           v-for="source in sourceLabels.slice(1)"
           :key="source"

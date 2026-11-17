@@ -513,6 +513,9 @@ const clientSearch = ref('')
 const terminalSortMode = ref('default')
 const terminalDevices = computed(() => {
   const byMac = new Map()
+  const wechatRecords = clientData.value.wechatRecords || []
+  const wechatByMac = new Map(wechatRecords.map(item => [String(item.mac || '').toUpperCase(), item]))
+  const wechatAliases = new Map(clientData.value.wechatAliases || [])
   const add = (raw, source) => {
     const mac = String(raw.mac || raw.macaddr || '').toUpperCase()
     const key = mac || String(raw.ip || raw.ip6addr || raw.address || raw.name || `${source}:${raw.sourceIndex ?? byMac.size}`)
@@ -549,6 +552,14 @@ const terminalDevices = computed(() => {
       ip6: hint.ip6addrs?.[0] || '', online: true, onlineKnown: true
     }, 'wireless')
   })
+  // WeChatPush sees some always-on devices on a downstream AP even when
+  // they have no fresh DHCP lease or a locally associated Wi-Fi station.
+  // Add only active online devices as standalone entries; cached offline
+  // devices are used solely to enrich other known DHCP/OAF records.
+  wechatRecords.filter(item => item.status === 'online').forEach(item => {
+    add({ ...item, name: item.name || '', online: true, onlineKnown: true,
+      monitorStatus: 'online' }, 'wechatpush')
+  })
   // OpenAppFilter users are another discovery source, not proof of being online.
   // Merge by MAC so one terminal does not appear twice across DHCP, Wi-Fi and apps.
   appFilterUsers.value.users.forEach((user, index) => add({
@@ -560,16 +571,35 @@ const terminalDevices = computed(() => {
     onlineKnown: false
   }, 'oaf'))
   return [...byMac.values()].map(item => {
-    const identity = identifyDevice(item.identityName || item.name || item.hostname, item.mac)
+    const mac = String(item.mac || '').toUpperCase()
+    const monitored = wechatByMac.get(mac)
+    if (monitored) item.sources.add('wechatpush')
+    const alias = wechatAliases.get(mac.toLowerCase()) ||
+      wechatAliases.get(String(item.ip || '').toLowerCase()) || ''
+    // Alias is explicit user configuration. Monitor name is the next best
+    // source, with the DHCP / host hint and device identity as fallbacks.
+    const hostname = alias || monitored?.name || item.name || item.hostname || ''
+    const identity = identifyDevice(item.identityName || item.name || item.hostname, mac)
+    const status = monitored?.status === 'online' || monitored?.status === 'offline'
+      ? monitored.status : null
+    const online = status ? status === 'online' : item.online === true
+    const onlineKnown = status !== null || item.onlineKnown === true
+    const connectionType = monitored?.connectionType ||
+      (item.wifi ? 'wireless' : '')
+    const connectionBand = monitored?.band || ''
     return {
       ...item,
+      name: hostname,
       identity,
       kind: deviceKindLabel(identity),
-      displayName: deviceDisplayName(item.name || item.hostname, identity),
+      displayName: deviceDisplayName(hostname, identity),
       sources: [...item.sources],
-      active: item.sources.has('wireless'),
-      online: item.online === true,
-      onlineKnown: item.onlineKnown === true,
+      active: online && connectionType === 'wireless',
+      online,
+      onlineKnown,
+      monitorStatus: status || item.monitorStatus || '',
+      connectionType,
+      connectionBand,
       privateMac: identity.privateMac
     }
   })
@@ -577,7 +607,10 @@ const terminalDevices = computed(() => {
 const filteredClients = computed(() => {
   const term = String(clientSearch.value || '').trim().toLowerCase()
   const sourceList = terminalView.value === 'all' ? terminalDevices.value
-    : terminalDevices.value.filter(item => item.sources.includes(terminalView.value))
+    : terminalDevices.value.filter(item =>
+      terminalView.value === 'wireless'
+        ? item.online && item.connectionType === 'wireless'
+        : item.sources.includes(terminalView.value))
   const visible = sourceList.filter(item => {
     const online = item.online === true
     if (terminalOnlineFilter.value === 'online' && !online) return false
@@ -725,7 +758,8 @@ const {
     else void refreshDashboard()
   }
 })
-const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
+const clientData = ref({ data: [], ipv6: [], wechatRecords: [], wechatAliases: [],
+  wechatInstalled: false, leasesAvailable: false })
 const clientsPrefetching = ref(false)
 let clientFetchToken = 0
 const terminalView = ref('all')
@@ -737,7 +771,11 @@ const terminalCategories = computed(() => [
   { value: 'all', label: '全部终端', count: terminalDevices.value.length, icon: 'mdi-devices' },
   { value: 'dhcp4', label: 'DHCPv4', count: clientData.value.data.length, icon: 'mdi-laptop' },
   { value: 'dhcp6', label: 'DHCPv6', count: clientData.value.ipv6.length, icon: 'mdi-ip-network' },
-  { value: 'wireless', label: '无线终端', count: wifiClientData.value.stations.length, icon: 'mdi-wifi' },
+  { value: 'wireless', label: '无线终端', count: terminalDevices.value.filter(item => item.online && item.connectionType === 'wireless').length, icon: 'mdi-wifi' },
+  ...(clientData.value.wechatInstalled ? [{
+    value: 'wechatpush', label: '微信推送', count: terminalDevices.value.filter(item => item.sources.includes('wechatpush')).length,
+    icon: 'mdi-message-badge-outline'
+  }] : []),
   { value: 'oaf', label: '应用用户', count: terminalDevices.value.filter(item => item.sources.includes('oaf')).length, icon: 'mdi-account-group-outline' }
 ])
 const diskData = ref({ available: false, partitions: [], primary: null, temporary: null })
@@ -1650,7 +1688,8 @@ function resetSession() {
   snapshot.value = null
   clientFetchToken++
   clientsPrefetching.value = false
-  clientData.value = { data: [], ipv6: [], leasesAvailable: false }
+  clientData.value = { data: [], ipv6: [], wechatRecords: [], wechatAliases: [],
+    wechatInstalled: false, leasesAvailable: false }
   wifiClientData.value = { available: false, stations: [] }
   appFilterUsers.value = { available: false, users: [] }
   diskData.value = { available: false, partitions: [], primary: null, temporary: null }
@@ -2988,7 +3027,7 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
-              <p class="v3-client-evidence">无线关联、邻居可达等是在线证据；仅有 DHCP 租约不代表在线。</p>
+              <p class="v3-client-evidence">已安装微信推送时优先使用其设备备注、在线记录和连接方式；无实时数据时回退到无线关联及邻居可达状态。仅有 DHCP 租约不代表在线。</p>
             </div>
             <div class="v3-section-label v3-device-actions-heading">设备管理</div>
             <div class="v3-inline-links v3-device-actions" role="group" aria-label="终端管理工具">
