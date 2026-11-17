@@ -954,6 +954,16 @@ const appFavoriteIds = ref([...DESIGN_A_DEFAULT_FAVORITES])
 const appCategories = computed(() => groupV3Tools(visibleLegacyTools.value))
 const networkFeatureTools = computed(() => networkV3Tools(visibleLegacyTools.value))
 const appSearchResults = computed(() => searchV3Features(visibleLegacyTools.value, appSearch.value))
+const appSearchActive = computed(() => Boolean(String(appSearch.value || '').trim()))
+// Design A searches within accordion groups, without replacing the shortcuts
+// or their category context with a disconnected results page.
+const displayedAppCategories = computed(() => {
+  if (!appSearchActive.value) return appCategories.value
+  const matches = new Set(appSearchResults.value.map(tool => tool.id))
+  return appCategories.value
+    .map(group => ({ ...group, tools: group.tools.filter(tool => matches.has(tool.id)) }))
+    .filter(group => group.tools.length)
+})
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
 const favoriteCandidates = computed(() => visibleLegacyTools.value.filter(tool => !isDangerousApp(tool.id)))
@@ -2969,24 +2979,6 @@ onUnmounted(() => {
                   aria-label="搜索应用或功能" placeholder="搜索功能、插件或配置"
                   clearable hide-details variant="outlined" density="compact"/>
 
-                <template v-if="String(appSearch || '').trim()">
-                  <div class="app-hub-section-heading">
-                    <strong>搜索结果</strong>
-                    <small>{{ appSearchResults.length }} 项</small>
-                  </div>
-                  <div v-if="appSearchResults.length" class="app-tool-list app-search-results">
-                    <button v-for="tool in appSearchResults" :key="tool.id" type="button"
-                      class="app-tool-row" :class="{ 'is-danger': isDangerousApp(tool.id) }"
-                      :aria-label="'打开' + tool.title" @click="launchV3Tool(tool.id)">
-                      <span class="app-tool-icon"><v-icon :icon="tool.icon" size="21"/></span>
-                      <span class="app-tool-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
-                      <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
-                    </button>
-                  </div>
-                  <div v-else class="app-hub-empty">没有找到匹配的应用或功能。</div>
-                </template>
-
-                <template v-else>
                   <section class="app-hub-favorites" aria-label="常用应用">
                     <div class="app-hub-section-heading">
                       <strong>常用快捷</strong>
@@ -3010,20 +3002,20 @@ onUnmounted(() => {
                   <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
                     <div class="app-hub-section-heading">
                       <strong>分类工具</strong>
-                      <small>{{ appCategories.reduce((count, group) => count + group.tools.length, 0) }} 项</small>
+                      <small>{{ displayedAppCategories.reduce((count, group) => count + group.tools.length, 0) }} 项</small>
                     </div>
-                    <div v-for="category in appCategories" :key="category.id" class="app-category-card">
+                    <div v-for="category in displayedAppCategories" :key="category.id" class="app-category-card">
                       <button type="button" class="app-category-toggle"
-                        :aria-expanded="expandedAppCategories.includes(category.id)"
+                        :aria-expanded="(appSearchActive || expandedAppCategories.includes(category.id))"
                         :aria-controls="'app-category-' + category.id"
-                        :aria-label="(expandedAppCategories.includes(category.id) ? '收起' : '展开') + category.title"
+                        :aria-label="((appSearchActive || expandedAppCategories.includes(category.id)) ? '收起' : '展开') + category.title"
                         @click="toggleAppCategory(category.id)">
                         <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项</small></span>
-                        <v-icon :icon="expandedAppCategories.includes(category.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                        <v-icon :icon="(appSearchActive || expandedAppCategories.includes(category.id)) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                           size="20" class="app-tool-chevron"/>
                       </button>
                       <v-expand-transition>
-                      <div v-if="expandedAppCategories.includes(category.id)"
+                      <div v-if="(appSearchActive || expandedAppCategories.includes(category.id))"
                         :id="'app-category-' + category.id" class="app-tool-list">
                         <button v-for="tool in category.tools" :key="tool.id" type="button"
                           class="app-tool-row" :class="{ 'is-danger': isDangerousApp(tool.id) }"
@@ -3035,8 +3027,9 @@ onUnmounted(() => {
                       </div>
                       </v-expand-transition>
                     </div>
+                    <p v-if="appSearchActive && !displayedAppCategories.length"
+                      class="app-hub-empty" role="status">没有找到匹配的应用或功能。</p>
                   </section>
-                </template>
               </div>
 
               <v-dialog v-model="favoriteEditorOpen" max-width="480" scrollable>
