@@ -2131,23 +2131,23 @@ onUnmounted(() => {
         </div>
       </v-toolbar-title>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
-        icon="mdi-refresh" size="small" variant="tonal" color="primary"
+        class="v3-top-action" icon="mdi-refresh" size="small" variant="text" color="primary"
         :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
         class="router-list-add-topbar" color="primary" rounded="xl"
         size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
       <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
-        icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
+        class="v3-top-action" icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
       <v-btn v-if="viewMode === 'detail' && !settingsOpen && !toolPanel && activeTab !== 'statistics'"
-        class="v3-theme-toggle" size="small" variant="text"
+        class="v3-theme-toggle v3-top-action" size="small" variant="text"
         :icon="dark ? 'mdi-white-balance-sunny' : 'mdi-weather-night'"
         :aria-label="dark ? '切换至浅色主题' : '切换至深色主题'"
         :title="dark ? '切换至浅色主题' : '切换至深色主题'"
         @click="toggleQuickTheme"/>
       <v-btn v-if="viewMode === 'detail' && connected"
-        class="v3-router-switch" size="small" variant="tonal" color="primary"
+        class="v3-router-switch v3-top-action" size="small" variant="text" color="primary"
         append-icon="mdi-chevron-down" aria-label="切换路由器" @click="requestRouterSwitch">
         <span class="v3-router-switch-label">{{ displayDeviceName(selectedDevice) }}</span>
       </v-btn>
