@@ -78,8 +78,8 @@ test('Design A Me groups router, five settings and About without an extra direct
   await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
   await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
 
-  await page.getByRole('button', { name: '打开隐私设置' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私')
+  await page.getByRole('button', { name: '打开隐私与安全设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私与安全')
   await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
 
@@ -92,8 +92,8 @@ test('Design A Me groups router, five settings and About without an extra direct
   await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
 
-  await page.getByRole('button', { name: '打开显示设置' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+  await page.getByRole('button', { name: '打开显示与外观设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示与外观')
   await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
 
