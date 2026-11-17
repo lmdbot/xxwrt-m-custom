@@ -469,6 +469,14 @@ const deviceForm = reactive({
 const deviceEditorBusy = ref(false)
 const deviceEditorMessage = ref('')
 const verifiedEditorAddresses = ref([])
+watch(deviceDialog,visible=>{
+  if (visible) return
+  // Android Back, backdrop dismissal and explicit cancel are equivalent:
+  // no unsaved plaintext password may survive after the editor closes.
+  deviceForm.password=''
+  deviceForm.showPassword=false
+  deviceEditorMessage.value=''
+})
 const sessions = new Map()
 const selectedDevice = computed(() => devices.value.find(d => d.id === selectedDeviceId.value) || null)
 const probeBusy = ref(false)
