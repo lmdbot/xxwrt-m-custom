@@ -3260,6 +3260,7 @@ onUnmounted(() => {
       mandatory :model-value="currentNavTab" :height="68" grow bg-color="surface"
       class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
+        :aria-current="currentNavTab === item.id ? 'page' : undefined"
         :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
         @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
@@ -3276,7 +3277,7 @@ onUnmounted(() => {
       <div v-else class="glass-host">
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab"
-            :class="{selected:activeTab===item.id}" variant="text" rounded="xl"
+            :class="{selected:currentNavTab===item.id}" variant="text" rounded="xl"
             density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{item.label}}</span>
           </v-btn>
@@ -3324,7 +3325,7 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog">
+    <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog" :class="{ 'theme-is-dark': dark }">
       <v-card v-if="selectedClient" rounded="xl" class="v3-terminal-detail v3-terminal-design-detail">
         <v-card-title class="v3-terminal-detail-toolbar">
           <v-btn icon="mdi-arrow-left" variant="text" aria-label="返回上一页"
