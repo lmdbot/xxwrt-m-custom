@@ -3,7 +3,7 @@ name: XX-WRT Material Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [feature/material-ui, feature/xxwrt-v3-redesign, feature/xxwrt-v3-poster-alignment, main]
+    branches: [feature/material-ui, feature/xxwrt-v3-redesign, feature/xxwrt-v3-poster-alignment, feat/experimental-lab-controls-20261117, main]
     paths:
       - "ui/material-prototype/**"
       - "docs/releases/**"
@@ -160,6 +160,12 @@ jobs:
           test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
           test -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
 
+      - name: Enable native launcher icon presets and user-customized shortcuts
+        run: |
+          python3 scripts/patch_android_launcher_icons.py
+          test -s android/app/src/main/java/com/lmdbot/xxwrt/materialpreview/LauncherIconPlugin.java
+          grep -F 'LauncherClassic' android/app/src/main/AndroidManifest.xml
+
       - name: Inject per-router opt-in TLS certificate exception bridge
         run: python3 scripts/patch_router_tls.py
 
@@ -249,7 +255,7 @@ jobs:
       - name: Publish Material APK release
         # V3 feature branch builds a signed APK artifact for acceptance testing,
         # but must not create a public release before it is merged to main.
-        if: github.ref_name != 'feature/xxwrt-v3-redesign'
+        if: github.ref_name != 'feature/xxwrt-v3-redesign' && github.ref_name != 'feat/experimental-lab-controls-20261117'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

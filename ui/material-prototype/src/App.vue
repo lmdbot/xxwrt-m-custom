@@ -2,6 +2,13 @@
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme, useDisplay } from 'vuetify'
 import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './services/featureCatalogV3.js'
+import { useLabController } from './services/useLabController.js'
+import {
+  APP_ICON_PRESETS, DEFAULT_APP_ICON, loadAppIconChoice,
+  loadCustomAppIcon, saveAppIconChoice, storeCustomAppIcon
+} from './services/appIconPreferences.js'
+import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
+import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
@@ -36,6 +43,7 @@ import SavedRouterCard from './components/SavedRouterCard.vue'
 import RealtimeChart from './components/RealtimeChart.vue'
 import OpenSourceLicensesDialog from './components/OpenSourceLicensesDialog.vue'
 import AboutPage from './components/AboutPage.vue'
+import LabPanel from './components/LabPanel.vue'
 import appIcon from '../assets/qwrt-chibi-openwrt-router.webp'
 import { LANGUAGES, mountLocalization, savedLanguage, persistLanguage } from './services/localization.js'
 import TerminalDeviceCard from './components/TerminalDeviceCard.vue'
@@ -154,6 +162,68 @@ const loginRemember = ref(true)
 const loginIgnoreTls = ref(false)
 const isNative = Capacitor.isNativePlatform()
 const UiChrome = registerPlugin('UiChrome')
+const LauncherIcon = registerPlugin('LauncherIcon')
+const appIconChoices = APP_ICON_PRESETS.map(item => ({
+  ...item,
+  src:item.id === 'anime' ? appIcon
+    : 'data:image/png;base64,' + (item.id === 'classic' ? classicAppIconBase64.trim() : openwrtAppIconBase64.trim())
+}))
+const appIconChoice = ref(loadAppIconChoice(localStorage))
+const customAppIconSrc = ref(loadCustomAppIcon(localStorage) || '')
+const appIconBusy = ref(false)
+const appIconMessage = ref('')
+const currentAppIconSrc = computed(() =>
+  appIconChoice.value === 'custom' && customAppIconSrc.value ? customAppIconSrc.value
+    : appIconChoices.find(item => item.id === appIconChoice.value)?.src || appIcon
+)
+async function selectAppIcon(id) {
+  if (appIconBusy.value || !['anime','classic','openwrt','custom'].includes(id)) return
+  if (id === 'custom' && !customAppIconSrc.value) {
+    appIconMessage.value = '请先上传一张图片'
+    return
+  }
+  appIconBusy.value = true
+  try {
+    if (isNative && id !== 'custom') await LauncherIcon.setPreset({id})
+    if (!saveAppIconChoice(localStorage,id)) throw new Error('无法保存图标偏好')
+    appIconChoice.value = id
+    appIconMessage.value = id === 'custom'
+      ? '图片已应用到应用内；如需出现在手机桌面，请点击添加自定义桌面快捷方式'
+      : isNative
+        ? '已切换桌面预置图标；桌面启动器可能需要片刻刷新'
+        : '已切换应用内图标；网页版不能更改手机桌面图标'
+  } catch (error) { appIconMessage.value = '切换失败：' + shortError(error) }
+  finally { appIconBusy.value = false }
+}
+function uploadAppIcon(dataUrl) {
+  if (!storeCustomAppIcon(localStorage,dataUrl)) {
+    appIconMessage.value = '上传图标保存失败，请检查图片大小与本机存储空间'
+    return
+  }
+  customAppIconSrc.value = dataUrl
+  void selectAppIcon('custom')
+}
+async function pinCustomAppIcon() {
+  if (!isNative || !customAppIconSrc.value || appIconBusy.value) return
+  appIconBusy.value = true
+  try {
+    await LauncherIcon.pinCustomShortcut({pngBase64:customAppIconSrc.value.split(',')[1]})
+    appIconMessage.value = '已请求添加自定义桌面快捷方式，请在系统桌面弹窗中确认；原应用图标不受影响'
+  } catch(error) { appIconMessage.value = '添加快捷方式失败：' + shortError(error) }
+  finally { appIconBusy.value = false }
+}
+async function restoreDefaultAppIcon() {
+  appIconChoice.value = DEFAULT_APP_ICON
+  customAppIconSrc.value = ''
+  if (isNative) {
+    try {
+      await LauncherIcon.setPreset({id:DEFAULT_APP_ICON})
+      appIconMessage.value = '已恢复默认二次元桌面图标'
+    } catch(error) {
+      appIconMessage.value = '应用内图标已恢复，但桌面图标复位失败：' + shortError(error)
+    }
+  } else appIconMessage.value = '已恢复默认二次元图标'
+}
 const ApkDownloader = registerPlugin('ApkDownloader')
 const installedVersion = ref(packageInfo.version)
 const installedBuild = ref('')
@@ -611,6 +681,23 @@ const refreshing = ref(false)
 const errorMessage = ref('')
 const lastUpdated = ref('')
 const snapshot = ref(null)
+const {
+  labSettings, labIntervals, labCards, labRpcRecords, labAlternate,
+  labSmartBusy, labSmartMessage, labGlobalMessage, labRpcMessage, labHealthBusy, labDeepRows, labHealthRows,
+  applyLabSettings, setLabRefreshProfile, setLabCustomInterval,
+  setLabCardVisibility, moveLabCard, resetLabCards, toggleLabRpc,
+  copyLabRpc, clearRpcTrace, resetLabAll, pairLabAlternative, unpairLabAlternative,
+  swapLabConnection, maybeLabFailover, runLabHealthCheck
+} = useLabController({
+  storage: localStorage, selectedDeviceId, selectedDevice, connected,
+  client, snapshot, sessions,
+  onRefreshSettingsChange: () => restartLabRefreshTimers(),
+  onAppIconReset: () => { void restoreDefaultAppIcon() },
+  onConnectionSwitched: ({ automatic }) => {
+    if (automatic) refreshQueued = true
+    else void refreshDashboard()
+  }
+})
 const clientData = ref({ data: [], ipv6: [], leasesAvailable: false })
 const clientsPrefetching = ref(false)
 let clientFetchToken = 0
@@ -1033,14 +1120,24 @@ const overviewDetectorStatus = computed(() => {
     tone: healthy === 0 ? 'error' : healthy === total ? 'success' : 'warning'
   }
 })
+// Only real, finite percentages drive the water gauge. Missing values stay unfilled.
+function overviewWaterPercent(value) {
+  if (value == null || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : null
+}
 // Overview metrics use live router values; missing data remains unknown.
 const overviewResources = computed(() => {
   const disk = diskData.value.primary
   const snap = snapshot.value
   return [
-    ...resourceCards.value.slice(0, 2),
+    ...resourceCards.value.slice(0, 2).map(item => ({
+      ...item,
+      waterPercent: item.value === '--' ? null : overviewWaterPercent(item.progress)
+    })),
     { label: '存储', value: disk ? disk.percent + '%' : '--',
-      progress: disk?.percent ?? null, icon: 'mdi-harddisk' },
+      progress: disk?.percent ?? null, icon: 'mdi-harddisk',
+      waterPercent: disk ? overviewWaterPercent(disk.percent) : null },
     { label: '温度', value: snap?.temperature && snap.temperature !== '--' ? snap.temperature : '--',
       progress: null, icon: 'mdi-thermometer' },
     { label: '终端', value: snap?.users ?? '--',
@@ -1048,6 +1145,12 @@ const overviewResources = computed(() => {
     { label: '联网监测', value: overviewDetectorStatus.value.value,
       tone: overviewDetectorStatus.value.tone, progress: null, icon: 'mdi-web-check' }
   ]
+})
+const labVisibleOverviewResources = computed(() => {
+  const metrics = overviewResources.value
+  if (!labSettings.value.cardsEnabled) return metrics
+  const dictionary = new Map(metrics.map(item => [item.label,item]))
+  return labCards.value.filter(item => item.visible).map(item => dictionary.get(item.id)).filter(Boolean)
 })
 const overviewWanState = computed(() => {
   const wan = snapshot.value?.interfaces?.find(item => item.interface === 'wan')
@@ -1072,6 +1175,22 @@ let refreshQueued = false
 let processRefreshBusy = false
 let hardwareSampleAt = 0
 
+function restartLabRefreshTimers() {
+  if (probeTimer) clearInterval(probeTimer)
+  if (telemetryTimer) clearInterval(telemetryTimer)
+  if (refreshTimer) clearInterval(refreshTimer)
+  const intervals = labIntervals.value
+  probeTimer = setInterval(() => {
+    if (!document.hidden && viewMode.value === 'list') void refreshDeviceStatuses()
+  }, intervals.devices)
+  telemetryTimer = setInterval(() => {
+    if (!document.hidden) void pollTelemetry()
+  }, intervals.telemetry)
+  refreshTimer = setInterval(() => {
+    if (!document.hidden && viewMode.value === 'detail' && connected.value &&
+        activeTab.value === 'home' && !refreshing.value) void refreshDashboard()
+  }, intervals.overview)
+}
 function drainQueuedRefresh() {
   if (!refreshQueued) return
   refreshQueued = false
@@ -1821,6 +1940,7 @@ async function refreshDashboard() {
     lastUpdated.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
   } catch (e) {
     handleRpcError(e)
+    await maybeLabFailover(e)
   } finally {
     refreshing.value = false
     drainQueuedRefresh()
@@ -2114,6 +2234,14 @@ async function rebootRouter() {
 
 onMounted(() => {
   localizationController = mountLocalization(document.body, appLocale.value)
+  if (isNative) {
+    void LauncherIcon.getPreset().then(({id}) => {
+      if (appIconChoice.value !== 'custom' && APP_ICON_PRESETS.some(item => item.id === id)) {
+        appIconChoice.value = id
+        saveAppIconChoice(localStorage,id)
+      }
+    }).catch(() => {})
+  }
   void (async () => {
     if (isNative) {
       try {
@@ -2157,13 +2285,7 @@ onMounted(() => {
   systemListener = e => { systemDark.value = e.matches }
   mediaQuery.addEventListener?.('change', systemListener)
   void refreshDeviceStatuses()
-  probeTimer = setInterval(() => {
-    if (viewMode.value === 'list') void refreshDeviceStatuses()
-  }, 15000)
-  telemetryTimer = setInterval(() => { void pollTelemetry() }, 3000)
-  refreshTimer = setInterval(() => {
-    if (viewMode.value === 'detail' && connected.value && activeTab.value === 'home' && !refreshing.value) refreshDashboard()
-  }, 12000)
+  restartLabRefreshTimers()
   // Sample even when the user is reading other app tabs; do not run in the
   // background or imply continuous historical collection with the app closed.
   historyTimer = setInterval(() => {
@@ -2367,10 +2489,10 @@ onUnmounted(() => {
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-refresh-auto" size="23"/></v-avatar>
                   <div><h2>当前刷新策略</h2><p>按页面状态执行自动刷新，避免无用的后台请求。</p></div>
                 </div>
-                <div class="settings-detail-row"><span>设备可达性检测</span><strong>设备列表停留期间每 15 秒</strong></div>
-                <div class="settings-detail-row"><span>路由器首页数据</span><strong>每 12 秒</strong></div>
-                <div class="settings-detail-row"><span>实时网络采样</span><strong>每 3 秒</strong></div>
-                <p class="muted-hint mt-3">当前版本使用内置刷新间隔，暂不提供自定义频率，避免误设导致路由器请求过于频繁。</p>
+                <div class="settings-detail-row"><span>设备可达性检测</span><strong>设备列表停留期间每 {{ labIntervals.devices / 1000 }} 秒</strong></div>
+                <div class="settings-detail-row"><span>路由器首页数据</span><strong>每 {{ labIntervals.overview / 1000 }} 秒</strong></div>
+                <div class="settings-detail-row"><span>实时网络采样</span><strong>每 {{ labIntervals.telemetry / 1000 }} 秒</strong></div>
+                <p class="muted-hint mt-3">当前策略：{{ labSettings.profile === 'saver' ? '省电' : labSettings.profile === 'realtime' ? '实时' : labSettings.profile === 'custom' ? '自定义' : '均衡' }}。可在“设置 → 实验室”调整或恢复默认，过短的请求间隔将被限制。</p>
                 <div class="settings-actions mt-4">
                   <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" :loading="probeBusy" @click="refreshDeviceStatuses">立即检测所有设备</v-btn>
                   <v-btn v-if="connected" variant="outlined" prepend-icon="mdi-refresh" :loading="refreshing" @click="refreshCurrent">刷新当前路由器</v-btn>
@@ -2395,11 +2517,26 @@ onUnmounted(() => {
             </template>
 
             <template v-else-if="settingsCategory === 'lab'">
-              <v-card rounded="xl" elevation="1" class="settings-option-card settings-empty-state">
-                <v-avatar color="primary" variant="tonal" size="58"><v-icon icon="mdi-flask-outline" size="29"/></v-avatar>
-                <h2>暂无可配置的实验功能</h2>
-                <p>当前版本没有开放额外的实验开关。已实现的路由器管理功能仍可在应用页签中使用。</p>
-              </v-card>
+              <LabPanel :settings="labSettings" :intervals="labIntervals" :cards="labCards"
+                :router="connected ? selectedDevice : null" :rpc-records="labRpcRecords"
+                :alternate="labAlternate" :active-address="connected ? (client?.baseUrl || '') : ''"
+                :smart-busy="labSmartBusy" :smart-message="labSmartMessage"
+                :global-message="labGlobalMessage" :rpc-message="labRpcMessage"
+                :health-rows="labHealthRows" :deep-rows="labDeepRows" :health-busy="labHealthBusy"
+                :icon-choices="appIconChoices" :icon-choice="appIconChoice"
+                :icon-custom-src="customAppIconSrc" :icon-busy="appIconBusy"
+                :icon-message="appIconMessage" :icon-is-native="isNative"
+                @set-profile="setLabRefreshProfile" @set-interval="setLabCustomInterval"
+                @toggle-cards="value => applyLabSettings({ cardsEnabled:value })"
+                @toggle-card="setLabCardVisibility" @move-card="moveLabCard" @reset-cards="resetLabCards"
+                @toggle-rpc="toggleLabRpc" @clear-rpc="clearRpcTrace" @copy-rpc="copyLabRpc"
+                @toggle-smart="value => applyLabSettings({ smartSwitch:value })"
+                @pair-alternate="pairLabAlternative" @remove-alternate="unpairLabAlternative"
+                @switch-route="() => swapLabConnection()"
+                @toggle-health="value => applyLabSettings({ healthEnabled:value })"
+                @check-health="runLabHealthCheck" @reset-all="resetLabAll"
+                @icon-select="selectAppIcon" @icon-upload="uploadAppIcon"
+                @icon-pin-shortcut="pinCustomAppIcon"/>
             </template>
 
             <template v-else-if="settingsCategory === 'help'">
@@ -2422,7 +2559,7 @@ onUnmounted(() => {
               </section>
             </template>
             <template v-else-if="settingsCategory === 'about'">
-              <AboutPage :installed-version="installedVersion" :installed-build="installedBuild"
+              <AboutPage :installed-version="installedVersion" :installed-build="installedBuild" :icon-src="currentAppIconSrc"
                 :update-state="{
                   latestRelease, available: updateAvailable, checking: updateChecking,
                   checked: updateChecked, error: updateError, notice: updateNotice,
@@ -2448,7 +2585,7 @@ onUnmounted(() => {
             <header class="v3-me-profile">
               <button type="button" class="v3-me-about-entry"
                 aria-label="打开关于 XX-WRT、版本更新与反馈" @click="openMoreSection('about')">
-                <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
+                <img class="more-app-icon" :src="currentAppIconSrc" alt="XX-WRT 应用图标" width="64" height="64"/>
                 <span class="v3-me-profile-copy">
                   <strong class="v3-me-profile-title">XX-WRT 管理器</strong>
                   <span class="v3-me-profile-version">v{{ installedVersion }} · OpenWrt / QWRT</span>
@@ -2548,9 +2685,13 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
-                <button v-for="item in overviewResources" :key="item.label" type="button"
-                  class="v3-metric v3-metric-action" :aria-label="'查看' + item.label + '详情：' + item.value"
+                <button v-for="item in labVisibleOverviewResources" :key="item.label" type="button"
+                  class="v3-metric v3-metric-action"
+                  :class="{ 'v3-metric--water': item.waterPercent !== undefined }"
+                  :style="item.waterPercent != null ? { '--v3-water-percent': item.waterPercent + '%' } : undefined"
+                  :aria-label="'查看' + item.label + '详情：' + item.value"
                   @click="openOverviewMetric(item.label)">
+                  <span v-if="item.waterPercent != null" class="v3-metric-water" aria-hidden="true"/>
                   <small>{{ item.label }}</small>
                   <strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
                 </button>

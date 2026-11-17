@@ -7,6 +7,8 @@ Capacitor recreates the native Android tree on every CI build.
 """
 from pathlib import Path
 import hashlib
+import base64
+from io import BytesIO
 from collections import deque
 from PIL import Image, ImageDraw, ImageChops
 
@@ -76,6 +78,48 @@ def framed_icon(source: Image.Image, size: int, art_scale: float) -> Image.Image
     margin = (size - illustration_size) // 2
     canvas.alpha_composite(illustration, (margin, margin))
     return canvas
+
+
+def generate_alternative_icons():
+    """Generate built-in preset aliases from source icons extracted from XX-WRTM.7z."""
+    variants = [
+        ("classic", "xxwrtm-classic", "85c3d8e8e88fd787cae5d841fac54ae2e94d9a5ab00acac84ee1d13e6d4fc743", "#1265cf"),
+        ("openwrt", "openwrt-brand", "d68692131e9935d8e68e96d2b83cdad24cdc99fc18cee20ae149b1993ec4c840", "#e6f6ff"),
+    ]
+    for icon_id, filename, digest, background in variants:
+        source_file = ROOT / "assets" / "icons" / (filename + ".png.b64")
+        raw = base64.b64decode(source_file.read_text().strip(), validate=True)
+        if hashlib.sha256(raw).hexdigest() != digest:
+            raise SystemExit(f"Preset launcher asset invalid or changed: {source_file}")
+        source = Image.open(BytesIO(raw)).convert("RGBA")
+        for density, pixels in SIZES.items():
+            icon = Image.new("RGBA", (pixels, pixels), (0, 0, 0, 0))
+            if icon_id == "openwrt":
+                draw = ImageDraw.Draw(icon)
+                draw.rounded_rectangle((0, 0, pixels - 1, pixels - 1),
+                    radius=round(pixels * .22), fill=background)
+                art = source.resize((round(pixels * .82), round(pixels * .82)), Image.Resampling.LANCZOS)
+            else:
+                art = source.resize((round(pixels * .94), round(pixels * .94)), Image.Resampling.LANCZOS)
+            pad = (pixels - art.width) // 2
+            icon.alpha_composite(art, (pad, pad))
+            write_png(icon, RES / f"mipmap-{density}" / f"ic_launcher_{icon_id}.png")
+        for density, pixels in ADAPTIVE_SIZES.items():
+            foreground = framed_icon(source, pixels, .65 if icon_id == "classic" else .53)
+            write_png(foreground, RES / f"mipmap-{density}" / f"ic_launcher_{icon_id}_foreground.png")
+        xml = f"""<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/qwrt_launcher_{icon_id}_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_{icon_id}_foreground"/>
+</adaptive-icon>
+"""
+        (RES / "mipmap-anydpi-v26" / f"ic_launcher_{icon_id}.xml").write_text(xml, encoding="utf-8")
+        (RES / "values" / f"qwrt_launcher_{icon_id}_colors.xml").write_text(
+            f'<?xml version="1.0" encoding="utf-8"?>\n'
+            f'<resources><color name="qwrt_launcher_{icon_id}_background">{background}</color></resources>\n',
+            encoding="utf-8"
+        )
+        print("Generated alternative launcher icon:", icon_id)
 
 
 def main():
@@ -149,7 +193,8 @@ def main():
         '<?xml version="1.0" encoding="utf-8"?>\n'
         f'<resources><color name="qwrt_launcher_background">{ADAPTIVE_BACKGROUND}</color></resources>\n'
     )
-    print("OpenWrt chibi icon: five densities, round launcher, adaptive icon")
+    generate_alternative_icons()
+    print("OpenWrt chibi default + extracted XX-WRT M / OpenWrt preset icons")
 
 
 if __name__ == "__main__":
