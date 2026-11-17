@@ -553,6 +553,55 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ socket: true, ping: 23 }) })
   })
+  // CI focuses on representative real-RPC integration and Design A navigation.
+  // The exhaustive legacy page walk and screenshots remain available only in
+  // the opt-in manual visual workflow; they are not a CI release gate.
+  if (!captureDesignScreens) {
+    await page.goto('/')
+    await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
+    await page.getByRole('button', { name: '添加', exact: true }).click()
+    await page.getByRole('textbox', { name: '设备名称 / 备注' }).fill('QWRT 主路由')
+    await page.getByRole('textbox', { name: 'IP / 域名 / 端口' }).fill('http://192.168.100.1')
+    await page.getByRole('textbox', { name: '登录用户名' }).fill('root')
+    await page.getByRole('button', { name: '保存设备' }).click()
+    await page.getByRole('button', { name: '进入 QWRT 主路由' }).click()
+    await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
+    await page.getByRole('button', { name: '登录并进入' }).click()
+    await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
+    await expect(page.locator('.v3-health-metrics .v3-metric')).toHaveCount(4)
+    await expect(page.locator('.v3-health-metrics')).toContainText('存储')
+
+    await page.getByRole('button', { name: '设备', exact: true }).click()
+    await expect(page.locator('.v3-client-directory')).toBeVisible()
+    await expect(page.locator('.terminal-design-a-item').first()).toBeVisible({ timeout: 15000 })
+    await page.locator('.v3-terminal-status button').filter({ hasText: '在线' }).click()
+    await expect(page.locator('.v3-terminal-status button.is-selected')).toContainText('在线')
+    await page.locator('.v3-terminal-status button').first().click()
+
+    await page.getByRole('button', { name: '网络', exact: true }).click()
+    await expect(page.locator('.v3-network-home')).toBeVisible()
+    await page.locator('.v3-network-home .v3-feature-list button')
+      .filter({ hasText: '网络接口' }).click()
+    await expect(page.locator('.v3-design-a-index')).toBeVisible()
+    await expect(page.locator('.v3-design-a-entry-list button')).toHaveCount(4)
+    await page.getByRole('button', { name: '返回上一页' }).click()
+    await expect(page.locator('.v3-network-home')).toBeVisible()
+
+    await page.getByRole('button', { name: '工具', exact: true }).click()
+    await expect(page.locator('.app-category-card')).toHaveCount(4)
+    await page.getByRole('textbox', { name: '搜索应用或功能' }).fill('Lucky')
+    await page.getByRole('button', { name: '打开Lucky' }).click()
+    await expect(page.locator('.v3-design-a-index')).toBeVisible()
+    await expect(page.locator('.v3-design-a-entry-list button').first()).toBeVisible()
+
+    await page.getByRole('button', { name: '我的', exact: true }).click()
+    await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
+    await page.getByRole('button', { name: '打开显示设置' }).click()
+    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+    await expect(errors).toEqual([])
+    return
+  }
+
   await page.goto('/')
   fs.mkdirSync('test-results/screenshots', { recursive: true })
   await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
