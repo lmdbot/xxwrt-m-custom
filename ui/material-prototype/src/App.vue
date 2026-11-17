@@ -5,6 +5,7 @@ import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './servi
 import { useLabController } from './services/useLabController.js'
 import { getDownloadDisplay } from './services/downloadDisplay.js'
 import { createWaterSlosh } from './services/waterSlosh.js'
+import { waterSurfacePath } from './services/waterSurfacePath.js'
 import {
   APP_ICON_PRESETS, DEFAULT_APP_ICON, loadAppIconChoice,
   loadCustomAppIcon, saveAppIconChoice, storeCustomAppIcon
@@ -2757,13 +2758,23 @@ onUnmounted(() => {
                 </div>
               </div>
               <div ref="waterMetricsRoot" class="v3-health-metrics" role="group" aria-label="实时资源指标">
-                <button v-for="item in labVisibleOverviewResources" :key="item.label" type="button"
+                <button v-for="(item, index) in labVisibleOverviewResources" :key="item.label" type="button"
                   class="v3-metric v3-metric-action"
                   :class="{ 'v3-metric--water': item.waterPercent !== undefined }"
                   :style="item.waterPercent != null ? { '--v3-water-percent': item.waterPercent + '%' } : undefined"
                   :aria-label="'查看' + item.label + '详情：' + item.value"
                   @click="openOverviewMetric(item.label)">
-                  <span v-if="item.waterPercent > 0" class="v3-metric-water" aria-hidden="true"/>
+                  <svg v-if="item.waterPercent > 0" class="v3-metric-water"
+                    viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <defs>
+                      <linearGradient :id="'v3-water-gradient-' + index" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" class="v3-water-stop-top"/>
+                        <stop offset="100%" class="v3-water-stop-bottom"/>
+                      </linearGradient>
+                    </defs>
+                    <path class="v3-metric-water-fill" :fill="'url(#v3-water-gradient-' + index + ')'"
+                      :d="waterSurfacePath(item.waterPercent)"/>
+                  </svg>
                   <small>{{ item.label }}</small>
                   <strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
                 </button>
