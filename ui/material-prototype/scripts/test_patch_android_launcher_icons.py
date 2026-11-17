@@ -50,6 +50,9 @@ class LauncherIconPatcherTest(unittest.TestCase):
             paths = patch(native, ROOT / "native")
             self.assertEqual(len(paths), 3)
             self.assertIn("registerPlugin(LauncherIconPlugin.class);", main.read_text())
+            self.assertIn("registerPlugin(WaterMotionPlugin.class);", main.read_text())
+            self.assertIn("@CapacitorPlugin(name = \"WaterMotion\")",
+                          main.with_name("WaterMotionPlugin.java").read_text())
             self.assertIn("@CapacitorPlugin(name = \"LauncherIcon\")",
                           main.with_name("LauncherIconPlugin.java").read_text())
             tree = ET.parse(manifest)

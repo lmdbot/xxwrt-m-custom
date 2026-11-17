@@ -28,17 +28,31 @@ def patch(android=ROOT / "android", native=ROOT / "native"):
     java = main_path.read_text(encoding="utf-8")
     match = PACKAGE_RE.search(java)
     registration = "registerPlugin(ConfigFileExportPlugin.class);"
-    new_line = "registerPlugin(LauncherIconPlugin.class);"
+    registrations = (
+        "registerPlugin(LauncherIconPlugin.class);",
+        "registerPlugin(WaterMotionPlugin.class);",
+    )
     if not match or registration not in java:
         raise RuntimeError("Android plugin registration anchor was not found")
-    if new_line in java:
-        raise RuntimeError("LauncherIconPlugin is already installed")
-    source = (native / "LauncherIconPlugin.java").read_text(encoding="utf-8")
-    if not source.startswith("package __PACKAGE__;"):
-        raise RuntimeError("Native plugin package marker missing")
-    main_path.write_text(java.replace(registration, registration + "\n        " + new_line, 1), encoding="utf-8")
+    if any(item in java for item in registrations):
+        raise RuntimeError("Native plugins are already installed")
     native_path = main_path.with_name("LauncherIconPlugin.java")
-    native_path.write_text(source.replace("package __PACKAGE__;", f"package {match.group(1)};"), encoding="utf-8")
+    water_path = main_path.with_name("WaterMotionPlugin.java")
+    for filename, destination in (
+        ("LauncherIconPlugin.java", native_path),
+        ("WaterMotionPlugin.java", water_path),
+    ):
+        source = (native / filename).read_text(encoding="utf-8")
+        if not source.startswith("package __PACKAGE__;"):
+            raise RuntimeError("Native plugin package marker missing: " + filename)
+        destination.write_text(
+            source.replace("package __PACKAGE__;", f"package {match.group(1)};"),
+            encoding="utf-8"
+        )
+    main_path.write_text(
+        java.replace(registration, registration + "\n        " + "\n        ".join(registrations), 1),
+        encoding="utf-8"
+    )
 
     manifest = base / "AndroidManifest.xml"
     root = ET.parse(manifest).getroot()
