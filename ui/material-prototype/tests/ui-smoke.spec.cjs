@@ -520,8 +520,8 @@ test('v3 keeps five tabs before login and preserves settings hierarchy', async (
   await page.getByRole('button', { name: '我的', exact: true }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
   await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
-      await page.getByRole('button', { name: '打开显示设置' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+      await page.getByRole('button', { name: '打开显示与外观设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示与外观')
   await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
   await expect(page.getByTestId('more-page')).toBeVisible()
@@ -596,8 +596,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
 
     await page.getByRole('button', { name: '我的', exact: true }).click()
     await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
-    await page.getByRole('button', { name: '打开显示设置' }).click()
-    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+    await page.getByRole('button', { name: '打开显示与外观设置' }).click()
+    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示与外观')
     await expect(errors).toEqual([])
     return
   }
@@ -614,8 +614,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
 
   await page.getByRole('button', { name: '我的', exact: true }).click()
-    await page.getByRole('button', { name: '打开显示设置' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
+    await page.getByRole('button', { name: '打开显示与外观设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示与外观')
   await expect(page.getByRole('button', { name: '标准底栏' })).toBeVisible()
   await expect(page.getByRole('button', { name: '液态底栏' })).toBeVisible()
   const motionSwitch=page.getByLabel('界面动效')
@@ -643,8 +643,8 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
 
   await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
-  await page.getByRole('button', { name: '打开隐私设置' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私')
+  await page.getByRole('button', { name: '打开隐私与安全设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私与安全')
   await expect(page.getByLabel('隐藏主机名')).toBeVisible()
   await expect(page.getByLabel('隐藏 IP / 域名')).toBeVisible()
   await page.screenshot({ path: 'test-results/screenshots/settings-privacy.png', fullPage: true })
@@ -1351,7 +1351,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     await page.getByRole('button', { name: '打开关于' }).click()
     await captureDesignA(page, '20-about')
     await page.getByRole('button', { name: '返回上一页' }).click()
-        await page.getByRole('button', { name: '打开显示设置' }).click()
+        await page.getByRole('button', { name: '打开显示与外观设置' }).click()
     await page.getByRole('button', { name: '浅色主题' }).click()
     await expect(page.locator('.material-demo.theme-is-dark')).toHaveCount(0)
     await captureDesignA(page, '19-settings')
@@ -1392,7 +1392,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   }
 
   await page.getByRole('button', { name: '我的', exact: true }).click()
-    await page.getByRole('button', { name: '打开显示设置' }).click()
+    await page.getByRole('button', { name: '打开显示与外观设置' }).click()
   await page.getByRole('button', { name: '液态底栏' }).click()
   expect(await page.evaluate(() => window.__xxwrtTestBack())).toBe('settings')
   await expect(page.locator('.v-navigation-drawer--active')).toHaveCount(0)
@@ -1495,7 +1495,7 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await page.getByRole('button', { name: '隐藏路由器地址' }).click()
   await expect(page.locator('.router-address')).toContainText('•••')
   await page.getByRole('button', { name: '我的', exact: true }).click()
-    await page.getByRole('button', { name: '打开隐私设置' }).click()
+    await page.getByRole('button', { name: '打开隐私与安全设置' }).click()
   await page.getByLabel('隐藏主机名').click()
   await page.getByRole('button', { name: '概览', exact: true }).click()
   await expect(page.locator('.router-name')).toHaveText('路由器 1')
@@ -1664,7 +1664,10 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await expect(page.locator('.terminal-design-a-item')).toHaveCount(3, { timeout: 15000 })
     await page.getByText('Phone', { exact: true }).click()
 
-    const modal = page.getByRole('dialog').filter({ hasText: '终端管理' })
+    // Design A exposes the real QoS editor through a terminal operation row.
+    const terminalOverview = page.getByRole('dialog').filter({ hasText: '终端操作' })
+    await terminalOverview.getByRole('button', { name: /限速设置/ }).click()
+    const modal = page.getByRole('dialog').filter({ hasText: '限速设置' })
     const select = modal.getByRole('combobox', { name: '管理 QoS 后端' })
     await expect(select).toBeVisible()
     // Vuetify VSelect renders its selected item in the combobox input value,
