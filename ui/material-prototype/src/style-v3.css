@@ -239,8 +239,59 @@
 .xxwrt-v3 .v3-shortcut{min-height:80px;transition:background .18s,border-color .18s}
 .xxwrt-v3 .v3-shortcut:hover,.xxwrt-v3 .v3-feature-list button:hover{
   background:rgba(var(--v-theme-primary),.045)}
-.xxwrt-v3 .v3-home-details .resource-grid{margin-top:2px}
-.xxwrt-v3 .v3-home-details .resource-card{margin-top:0!important}
+/* Real system information follows Design A's hero -> section -> solid card
+ * hierarchy. Keep the existing RPC measurements, detector and charts intact. */
+.xxwrt-v3 .v3-home-details>.v3-system-detail-hero{margin:0}
+.xxwrt-v3 .v3-home-details>.v3-design-a-section-title{
+  margin:23px 3px 11px;
+  font-size:16px;line-height:23px;font-weight:750;
+  color:var(--ui-text)
+}
+.xxwrt-v3 .v3-system-detail-card,
+.xxwrt-v3 .v3-system-detail-section{
+  margin:0!important;padding:15px!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:18px!important;
+  background:var(--ui-surface)!important;
+  box-shadow:0 10px 30px rgba(36,74,120,.055)!important;
+}
+.xxwrt-v3 .v3-system-detail-card .device-heading{
+  gap:12px;min-height:48px;
+}
+.xxwrt-v3 .v3-system-detail-card .device-heading-label h2{
+  font-size:15px;font-weight:700;line-height:22px;color:var(--ui-text)
+}
+.xxwrt-v3 .v3-system-detail-card .device-heading-label p{
+  font-size:12px;line-height:18px;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-system-detail-card .details>div{
+  min-height:42px;padding:11px 0;gap:9px;
+  border-bottom:1px solid var(--ui-border)
+}
+.xxwrt-v3 .v3-system-detail-card .details>div:last-child{
+  border-bottom:0
+}
+.xxwrt-v3 .v3-home-details .v3-system-resource-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;margin:0
+}
+.xxwrt-v3 .v3-system-resource-grid>.resource-card{
+  margin:0!important;padding:12px!important;
+  min-width:0;background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:16px!important;
+  box-shadow:0 6px 18px rgba(36,74,120,.045)!important
+}
+.xxwrt-v3 .v3-system-resource-grid .resource-top{font-size:12px;color:var(--ui-muted)}
+.xxwrt-v3 .v3-system-resource-grid .resource-card>strong{font-size:22px;line-height:30px}
+.xxwrt-v3 .v3-system-resource-grid .resource-card>small{
+  font-size:11px;line-height:16px;color:var(--ui-muted)
+}
+.xxwrt-v3.theme-is-dark .v3-system-detail-card,
+.xxwrt-v3.theme-is-dark .v3-system-detail-section,
+.xxwrt-v3.theme-is-dark .v3-system-resource-grid>.resource-card{
+  box-shadow:0 8px 24px rgba(0,0,0,.16)!important
+}
 @media(max-width:390px){
  .xxwrt-v3 .v3-metric{padding:9px 5px}
  .xxwrt-v3 .v3-health-metrics{gap:5px}
