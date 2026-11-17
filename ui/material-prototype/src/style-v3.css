@@ -1573,3 +1573,23 @@
   .xxwrt-v3 .v3-metric strong{font-size:clamp(16px,4.8vw,20px)}
   .xxwrt-v3 .v3-metric small{font-size:10.5px}
 }
+
+/* The Internet Detector overview tile is a native button for touch and keyboard navigation. */
+.xxwrt-v3 .v3-metric-action{
+  appearance:none;-webkit-appearance:none;
+  width:100%;font:inherit;text-align:left;color:var(--ui-text);
+  cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:background-color .15s ease,border-color .15s ease
+}
+.xxwrt-v3 .v3-metric-action:hover{
+  background:rgba(var(--v-theme-primary),.07);
+  border-color:rgba(var(--v-theme-primary),.28)
+}
+.xxwrt-v3 .v3-metric-action:active{background:rgba(var(--v-theme-primary),.13)}
+.xxwrt-v3 .v3-metric-action:focus-visible{
+  outline:2px solid rgb(var(--v-theme-primary));
+  outline-offset:2px
+}
+@media(prefers-reduced-motion:reduce){
+  .xxwrt-v3 .v3-metric-action{transition:none}
+}

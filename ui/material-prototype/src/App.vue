@@ -2508,9 +2508,16 @@ onUnmounted(() => {
                 </div>
               </div>
               <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
-                <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
-                  <small>{{ item.label }}</small><strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
-                </div>
+                <template v-for="item in overviewResources" :key="item.label">
+                  <button v-if="item.label === '联网监测'" type="button" class="v3-metric v3-metric-action"
+                    :aria-label="'打开 Internet Detector，联网监测 ' + item.value"
+                    @click="launchV3Tool('detector')">
+                    <small>{{ item.label }}</small><strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
+                  </button>
+                  <div v-else class="v3-metric">
+                    <small>{{ item.label }}</small><strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
+                  </div>
+                </template>
               </div>
               <div class="v3-module-heading"><h2>实时流量</h2>
                 <v-btn size="small" variant="text" append-icon="mdi-chevron-right" @click="openDetailedMonitor">详细监控</v-btn></div>
