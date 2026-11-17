@@ -4054,11 +4054,9 @@ onUnmounted(() => {
                 <v-icon icon="mdi-router-wireless" color="primary" size="21"/>
                 <h3>基础信息</h3>
               </div>
-              <v-text-field v-model.trim="deviceForm.name" label="设备名称"
-                aria-label="设备名称 / 备注" variant="outlined" density="comfortable"
+              <v-text-field v-model.trim="deviceForm.name" label="设备名称" variant="outlined" density="comfortable"
                 placeholder="例如：QWRT 主路由" required/>
-              <v-text-field v-model.trim="deviceForm.address" label="主地址"
-                aria-label="IP / 域名 / 端口" variant="outlined" density="comfortable"
+              <v-text-field v-model.trim="deviceForm.address" label="主地址" variant="outlined" density="comfortable"
                 placeholder="http://192.168.100.1" autocomplete="url"
                 autocapitalize="off" required/>
               <div class="router-wizard-alternates">
@@ -4078,7 +4076,6 @@ onUnmounted(() => {
                   <v-text-field v-model.trim="deviceForm.alternateAddresses[index]" variant="outlined"
                     density="compact" hide-details="auto" autocapitalize="off"
                     :label="'备用地址 ' + (index + 1)"
-                    :aria-label="'备用登录 IP / 域名 ' + (index + 1)"
                     placeholder="IP 或 HTTPS 域名"/>
                   <v-btn icon="mdi-close-circle-outline" variant="text" size="small"
                     :aria-label="'删除备用入口 ' + (index + 1)"
@@ -4120,11 +4117,9 @@ onUnmounted(() => {
                 <span><strong>{{ deviceForm.name || '未命名路由器' }}</strong><small>{{ deviceForm.address }}</small></span>
                 <v-icon icon="mdi-pencil-outline" size="18"/>
               </button>
-              <v-text-field v-model.trim="deviceForm.username" label="用户名"
-                aria-label="登录用户名" variant="outlined" density="comfortable"
+              <v-text-field v-model.trim="deviceForm.username" label="用户名" variant="outlined" density="comfortable"
                 autocomplete="username" required/>
-              <v-text-field v-model="deviceForm.password" label="密码"
-                aria-label="路由器密码" variant="outlined" density="comfortable"
+              <v-text-field v-model="deviceForm.password" label="密码" variant="outlined" density="comfortable"
                 autocomplete="new-password" :type="deviceForm.showPassword ? 'text' : 'password'"
                 :append-inner-icon="deviceForm.showPassword ? 'mdi-eye-off' : 'mdi-eye'"
                 @click:append-inner="deviceForm.showPassword = !deviceForm.showPassword"
