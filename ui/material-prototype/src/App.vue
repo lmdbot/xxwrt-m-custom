@@ -761,8 +761,121 @@ const {
 })
 const clientData = ref({ data: [], ipv6: [], wechatRecords: [], wechatAliases: [],
   wechatInstalled: false, leasesAvailable: false })
-const clientsPrefetching = ref(false)
-let clientFetchToken = 0
+// In-memory, session-scoped data: never persist LAN client identities or
+// password-bearing RPC sessions into localStorage.
+const routerPreloadCache = new Map()
+const ROUTER_PREFETCH_FRESH_MS = 45000
+const emptyClientData = () => ({ data: [], ipv6: [], wechatRecords: [], wechatAliases: [],
+  wechatInstalled: false, leasesAvailable: false })
+const emptyWirelessData = () => ({ available: false, stations: [] })
+const emptyAppFilterUsers = () => ({ available: false, users: [] })
+
+function routerPreloadEntry(id, api) {
+  if (!id || !api?.session) return null
+  const existing = routerPreloadCache.get(id)
+  if (existing?.api === api) return existing
+  const entry = { api, snapshot: null, overviewAt: 0, extrasAt: 0,
+    extrasPromise: null, clientData: null, wirelessData: null,
+    oafData: null, clientsAt: 0, clientsPromise: null,
+    disk: null, hardware: null, dhcp: null }
+  routerPreloadCache.set(id, entry)
+  return entry
+}
+function currentRouterMatches(id, api) {
+  return connected.value && selectedDeviceId.value === id && client.value === api
+}
+function applyRouterClients(id, api, entry) {
+  if (!currentRouterMatches(id, api) || routerPreloadCache.get(id) !== entry) return
+  if (entry.clientData) clientData.value = entry.clientData
+  if (entry.wirelessData) wifiClientData.value = entry.wirelessData
+  if (entry.oafData) appFilterUsers.value = entry.oafData
+}
+function applyRouterPreload(id, api) {
+  const entry = routerPreloadCache.get(id)
+  if (entry?.api !== api || !currentRouterMatches(id, api)) return false
+  if (entry.snapshot) {
+    snapshot.value = entry.snapshot
+    lastUpdated.value = new Date(entry.overviewAt).toLocaleTimeString('zh-CN', { hour12: false })
+  }
+  if (entry.disk) diskData.value = entry.disk
+  if (entry.hardware) networkHardware.value = applyNetworkHardwareRates(entry.hardware)
+  if (entry.dhcp) lanDhcpStatus.value = entry.dhcp
+  applyRouterClients(id, api, entry)
+  return Boolean(entry.snapshot && entry.overviewAt &&
+    Date.now() - entry.overviewAt < ROUTER_PREFETCH_FRESH_MS)
+}
+function clearRouterDisplayForSwitch() {
+  snapshot.value = null
+  clientData.value = emptyClientData()
+  wifiClientData.value = emptyWirelessData()
+  appFilterUsers.value = emptyAppFilterUsers()
+  diskData.value = { available: false, partitions: [], primary: null, temporary: null }
+  lanDhcpStatus.value = { dhcp4: null, dhcp6: null }
+  networkHardware.value = { wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] }
+  installedRouterApps.value = null
+  lastUpdated.value = ''
+  bandwidthHistory.value = []
+  loadHistory.value = []
+  hardwareSampleAt = 0
+  chosenInterface.value = ''
+  samplePrevious = null
+  samplePreviousAt = 0
+}
+async function preloadRouterExtras(id, api) {
+  const entry = routerPreloadEntry(id, api)
+  if (!entry) return
+  if (entry.extrasPromise) return entry.extrasPromise
+  if (entry.extrasAt && Date.now() - entry.extrasAt < ROUTER_PREFETCH_FRESH_MS) return
+  const pending = Promise.allSettled([
+    readDiskUsage(api), readNetworkHardware(api), readLanDhcpStatus(api)
+  ]).then(([disk, hardware, dhcp]) => {
+    if (routerPreloadCache.get(id) !== entry || !api.session) return
+    if (disk.status === 'fulfilled' && (disk.value.available || !entry.disk?.available))
+      entry.disk = disk.value
+    if (hardware.status === 'fulfilled') entry.hardware = hardware.value
+    if (dhcp.status === 'fulfilled') entry.dhcp = dhcp.value
+    if ([disk, hardware, dhcp].some(item => item.status === 'fulfilled'))
+      entry.extrasAt = Date.now()
+    if (currentRouterMatches(id, api)) {
+      if (entry.disk) diskData.value = entry.disk
+      if (entry.hardware) networkHardware.value = applyNetworkHardwareRates(entry.hardware)
+      if (entry.dhcp) lanDhcpStatus.value = entry.dhcp
+    }
+  }).catch(() => { /* Optional status sources cannot interrupt login. */ })
+    .finally(() => { if (entry.extrasPromise === pending) entry.extrasPromise = null })
+  entry.extrasPromise = pending
+  return pending
+}
+async function preloadRouterClients(id, api, { force = false } = {}) {
+  const entry = routerPreloadEntry(id, api)
+  if (!entry) return
+  if (entry.clientsPromise) return entry.clientsPromise
+  if (!force && entry.clientsAt && Date.now() - entry.clientsAt < ROUTER_PREFETCH_FRESH_MS) {
+    applyRouterClients(id, api, entry)
+    return
+  }
+  const pending = Promise.allSettled([
+    readClients(api), readWirelessStations(api),
+    api.call('appfilter', 'get_all_users', { flag: 3 }, true)
+  ]).then(([leases, stations, oafUsers]) => {
+    if (routerPreloadCache.get(id) !== entry || !api.session) return
+    if (leases.status === 'fulfilled') entry.clientData = leases.value
+    if (stations.status === 'fulfilled' &&
+        (stations.value.available || !entry.wirelessData?.available))
+      entry.wirelessData = stations.value
+    if (oafUsers.status === 'fulfilled') {
+      const list = oafUsers.value?.data?.list || oafUsers.value?.list
+      entry.oafData = { available: !!oafUsers.value,
+        users: Array.isArray(list) ? list : [] }
+    }
+    if ([leases, stations, oafUsers].some(item => item.status === 'fulfilled'))
+      entry.clientsAt = Date.now()
+    applyRouterClients(id, api, entry)
+  }).catch(() => { /* Client discovery is optional and must not block login. */ })
+    .finally(() => { if (entry.clientsPromise === pending) entry.clientsPromise = null })
+  entry.clientsPromise = pending
+  return pending
+}
 const terminalView = ref('all')
 const terminalOnlineFilter = ref('all')
 const showTerminalSourceFilters = ref(false)
@@ -1687,12 +1800,10 @@ function resetSession() {
   client.value = null
   connected.value = false
   snapshot.value = null
-  clientFetchToken++
-  clientsPrefetching.value = false
-  clientData.value = { data: [], ipv6: [], wechatRecords: [], wechatAliases: [],
-    wechatInstalled: false, leasesAvailable: false }
-  wifiClientData.value = { available: false, stations: [] }
-  appFilterUsers.value = { available: false, users: [] }
+  routerPreloadCache.delete(oldId)
+  clientData.value = emptyClientData()
+  wifiClientData.value = emptyWirelessData()
+  appFilterUsers.value = emptyAppFilterUsers()
   diskData.value = { available: false, partitions: [], primary: null, temporary: null }
   bandwidthHistory.value = []
   loadHistory.value = []
@@ -1758,6 +1869,7 @@ async function saveDeviceEntry() {
         sessions.get(before.id)?.logout()
         sessions.delete(before.id)
         delete deviceSummaries[before.id]
+        routerPreloadCache.delete(before.id)
         await deleteDevicePassword(before.id)
       }
     } else {
@@ -1792,6 +1904,7 @@ async function confirmDeleteDevice() {
   delete deviceStatuses[id]
   delete deviceSummaries[id]
   deviceCounterCache.delete(id)
+  routerPreloadCache.delete(id)
   if (id === selectedDeviceId.value) resetSession()
 }
 
@@ -1825,6 +1938,15 @@ async function refreshDeviceStatuses() {
         if (api?.session) {
           try {
             const result = await readDashboard(api)
+            const cache = routerPreloadEntry(d.id, api)
+            if (cache) {
+              cache.snapshot = result
+              cache.overviewAt = Date.now()
+              // Preload both pages as soon as a stored login is authenticated.
+              // Do not wait for the user to open Overview or Devices.
+              void preloadRouterExtras(d.id, api)
+              void preloadRouterClients(d.id, api)
+            }
             deviceSummaries[d.id] = await makeDeviceSummary(api, result, d.id)
             status = 'online'
           } catch (_) {
@@ -1874,6 +1996,14 @@ async function goToDeviceList() {
 }
 
 async function openDevice(device) {
+  // The initial single-router launch comes here without an extra tap.
+  // Keep per-router caches separate when switching between stored routers.
+  const isSwitching = selectedDeviceId.value !== device.id
+  if (isSwitching) {
+    client.value = null
+    connected.value = false
+    clearRouterDisplayForSwitch()
+  }
   selectedDeviceId.value = device.id
   form.address = device.address
   form.username = device.username
@@ -1882,17 +2012,17 @@ async function openDevice(device) {
   errorMessage.value = ''
   loginRemember.value = !!device.rememberPassword
   loginIgnoreTls.value = Boolean(device.ignoreTlsErrors && device.address.startsWith('https://'))
-  // Never show snapshot data from another router while switching.
-  snapshot.value = null
-  lanDhcpStatus.value = { dhcp4: null, dhcp6: null }
   const cached = sessions.get(device.id)
   if (cached?.session) {
     client.value = cached
     connected.value = true
     viewMode.value = 'detail'
     activeTab.value = 'home'
-    void fetchClientsInBackground(cached)
-    await Promise.all([refreshDashboard(), refreshInstalledRouterApps(cached)])
+    const fresh = applyRouterPreload(device.id, cached)
+    void preloadRouterExtras(device.id, cached)
+    void preloadRouterClients(device.id, cached)
+    if (!fresh) void refreshDashboard()
+    void refreshInstalledRouterApps(cached)
     return
   }
   if (device.rememberPassword && isNative) {
@@ -1945,7 +2075,9 @@ async function connect() {
       devices.value = saveDevices(devices.value.map(d => d.id === device.id ? { ...d, rememberPassword: false } : d))
     }
     form.password = ''
-    void fetchClientsInBackground(api)
+    // Start device-list discovery immediately after authentication; it must
+    // not wait for a visit to the Devices tab or for Overview to finish.
+    void preloadRouterClients(device.id, api)
     await Promise.all([refreshDashboard(), refreshInstalledRouterApps(api)])
   } catch (e) {
     errorMessage.value = shortError(e)
@@ -1974,14 +2106,28 @@ function handleRpcError(e) {
 async function refreshDashboard() {
   if (!client.value || refreshing.value) return
   refreshing.value = true
+  const api = client.value
+  const routerId = selectedDeviceId.value
   errorMessage.value = ''
   try {
     const [dashboardResult, partitionsResult, hardwareResult, dhcpResult] = await Promise.allSettled([
-      readDashboard(client.value), readDiskUsage(client.value),
-      readNetworkHardware(client.value), readLanDhcpStatus(client.value)
+      readDashboard(api), readDiskUsage(api),
+      readNetworkHardware(api), readLanDhcpStatus(api)
     ])
     if (dashboardResult.status === 'rejected') throw dashboardResult.reason
+    // A user may switch routers while one dashboard RPC is still in flight.
+    // Never paint the old router's results onto the newly selected router.
+    if (api !== client.value || routerId !== selectedDeviceId.value) return
     snapshot.value = dashboardResult.value
+    const cache = routerPreloadEntry(routerId, api)
+    if (cache) {
+      cache.snapshot = dashboardResult.value
+      cache.overviewAt = Date.now()
+      if (partitionsResult.status === 'fulfilled') cache.disk = partitionsResult.value
+      if (hardwareResult.status === 'fulfilled') cache.hardware = hardwareResult.value
+      if (dhcpResult.status === 'fulfilled') cache.dhcp = dhcpResult.value
+      cache.extrasAt = Date.now()
+    }
     lanDhcpStatus.value = dhcpResult.status === 'fulfilled'
       ? dhcpResult.value : { dhcp4: null, dhcp6: null }
     if (selectedDeviceId.value) {
@@ -2015,29 +2161,8 @@ async function refreshDashboard() {
 }
 
 async function fetchClientsInBackground(api = client.value) {
-  if (!api || !api.session || clientsPrefetching.value) return
-  clientsPrefetching.value = true
-  const token = ++clientFetchToken
-  try {
-    const [leases, stations, oafUsers] = await Promise.allSettled([
-      readClients(api), readWirelessStations(api),
-      api.call('appfilter', 'get_all_users', { flag: 3 }, true)
-    ])
-    if (api !== client.value || token !== clientFetchToken) return
-    if (leases.status === 'fulfilled') clientData.value = leases.value
-    if (stations.status === 'fulfilled' &&
-        (stations.value.available || !wifiClientData.value.available)) {
-      wifiClientData.value = stations.value
-    }
-    if (oafUsers.status === 'fulfilled') {
-      const list = oafUsers.value?.data?.list || oafUsers.value?.list
-      appFilterUsers.value = {
-        available: !!oafUsers.value, users: Array.isArray(list) ? list : []
-      }
-    }
-  } finally {
-    if (token === clientFetchToken) clientsPrefetching.value = false
-  }
+  if (!api?.session || !selectedDeviceId.value) return
+  return preloadRouterClients(selectedDeviceId.value, api)
 }
 
 async function refreshCurrent() {
@@ -2353,7 +2478,11 @@ onMounted(() => {
   systemDark.value = mediaQuery.matches
   systemListener = e => { systemDark.value = e.matches }
   mediaQuery.addEventListener?.('change', systemListener)
-  void refreshDeviceStatuses()
+  // A sole saved router opens straight into Overview after authentication.
+  // With multiple routers, remain on the management list while all remembered
+  // credentials establish sessions and prefetch Overview + Devices in parallel.
+  if (devices.value.length === 1) void openDevice(devices.value[0])
+  else void refreshDeviceStatuses()
   restartLabRefreshTimers()
   // Sample even when the user is reading other app tabs; do not run in the
   // background or imply continuous historical collection with the app closed.

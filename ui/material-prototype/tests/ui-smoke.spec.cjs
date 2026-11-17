@@ -453,6 +453,48 @@ const handler = async route => {
   })
 }
 
+test('one saved router opens login automatically and preloads terminal data before navigation', async ({ page }) => {
+  let terminalReads = 0
+  await page.route('**/ubus', async route => {
+    const request = route.request().postDataJSON()
+    const calls = Array.isArray(request) ? request : [request]
+    for (const item of calls) {
+      if (item.params?.[1] === 'luci-rpc' && item.params?.[2] === 'getDHCPLeases') terminalReads++
+    }
+    await handler(route)
+  })
+  await page.addInitScript(() => localStorage.setItem('xxwrt_material_saved_devices_v1', JSON.stringify([{
+    id:'only-router', name:'单路由器', address:'http://192.168.100.1',
+    username:'root', createdAt:Date.now(), rememberPassword:false
+  }])))
+  await page.goto('/')
+  // The browser cannot access Android Keystore. A saved router without a
+  // password must open its login dialog automatically, not silently bypass auth.
+  await expect(page.getByRole('textbox', { name:'路由器密码' })).toBeVisible()
+  await page.getByRole('textbox', { name:'路由器密码' }).fill('mock-only')
+  await page.getByRole('button', { name:'登录并进入' }).click()
+  await expect(page.locator('.v3-health-card')).toContainText('路由器已连接')
+  await expect.poll(() => terminalReads).toBeGreaterThan(0)
+  await page.getByRole('button', { name:'设备', exact:true }).click()
+  await expect(page.locator('.terminal-grid')).toBeVisible()
+  await expect(page.locator('.terminal-grid .terminal-tile').first()).toBeVisible()
+})
+
+test('multiple saved routers remain on router management at startup', async ({ page }) => {
+  await page.route('**/ubus', handler)
+  await page.addInitScript(() => localStorage.setItem('xxwrt_material_saved_devices_v1', JSON.stringify([
+    { id:'router-1', name:'主路由', address:'http://192.168.100.1',
+      username:'root', createdAt:Date.now(), rememberPassword:false },
+    { id:'router-2', name:'副路由', address:'http://192.168.100.2',
+      username:'root', createdAt:Date.now(), rememberPassword:false }
+  ])))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name:'路由器管理' })).toBeVisible()
+  await expect(page.getByRole('button', { name:'进入 主路由' })).toBeVisible()
+  await expect(page.getByRole('button', { name:'进入 副路由' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name:'路由器密码' })).toHaveCount(0)
+})
+
 test('outlined form labels do not overlap placeholders or entered text on narrow Android screens', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
@@ -1456,6 +1498,11 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await expect(page.locator('.router-name')).toHaveText('路由器 1')
   await expect(page.locator('.router-address')).toContainText('•••')
   await expect(page.locator('.saved-device-grid-compact')).toBeVisible()
+  // Single-router startup now prompts for login automatically when no
+  // password was saved in Android Keystore. The privacy list remains usable
+  // after explicitly returning from the login overlay.
+  await expect(page.getByText('连接 路由器 1')).toBeVisible()
+  await page.getByRole('button', { name: '返回列表' }).click()
   await page.getByRole('button', { name: '进入 路由器 1' }).click()
   await expect(page.getByText('连接 路由器 1')).toBeVisible()
   await expect(page.getByText('http://192.168.100.1', { exact: true })).not.toBeVisible()
