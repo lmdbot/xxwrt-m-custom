@@ -1861,3 +1861,11 @@
   .xxwrt-v3 .router-editor-actions{padding:10px 12px}
   .xxwrt-v3 .router-editor-alternate-row>.v-input{min-width:128px}
 }
+
+.xxwrt-v3 .router-editor-verify-actions{
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  margin:12px 0 8px
+}
+.xxwrt-v3 .router-editor-verify-actions .router-editor-helper{
+  margin:0;min-width:0;overflow-wrap:anywhere
+}
