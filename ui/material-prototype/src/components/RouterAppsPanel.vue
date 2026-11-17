@@ -1276,6 +1276,35 @@ async function refreshAction() {
   }
 }
 function handleBack() {
+  // Dialogs take precedence over internal firewall pages and the Tools route.
+  if (ssrComponentDialog.value) {
+    if (ssrComponentBusy.value) return 'busy'
+    ssrComponentDialog.value = false
+    return 'dialog'
+  }
+  if (carbonUpgradeDialog.value) {
+    if (busy.value) return 'busy'
+    carbonUpgradeDialog.value = false
+    return 'dialog'
+  }
+  if (ztDeleteDialog.value) {
+    if (busy.value) return 'busy'
+    ztDeleteDialog.value = false
+    ztDelete.value = null
+    return 'dialog'
+  }
+  if (fwRuleConfirm.value) {
+    if (busy.value) return 'busy'
+    fwRuleConfirm.value = false
+    fwRulePending.value = null
+    return 'dialog'
+  }
+  if (fwDeleteDialog.value) {
+    if (busy.value) return 'busy'
+    fwDeleteDialog.value = false
+    fwDelete.value = null
+    return 'dialog'
+  }
   const nested = advancedSubpanel.value?.handleBack?.()
   if (nested) return nested
   if (props.kind === 'firewall' && firewallView.value !== 'overview') {
