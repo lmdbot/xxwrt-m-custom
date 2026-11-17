@@ -86,6 +86,7 @@ export default Object.freeze({
   "本机隐藏设备名称及管理地址，不改变路由器数据": "Hide names and management addresses locally without changing router data",
   "常用快捷": "Quick access",
   "分类工具": "Tool categories",
+  "其他相关功能": "Other related features",
   "没有找到匹配的应用或功能。": "No matching apps or features.",
   "CPU": "CPU",
   "内存": "Memory",
