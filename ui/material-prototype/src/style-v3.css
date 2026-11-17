@@ -638,3 +638,51 @@
  .xxwrt-v3 .v3-interfaces-row .v-chip{font-size:10px}
  .xxwrt-v3 .v3-interfaces-row>.v-icon:last-child{display:none}
 }
+
+
+/* Secondary Design A: show backup categories before dangerous forms. */
+.xxwrt-v3 .v3-backup-overview{
+  border:1px solid var(--ui-border);border-radius:19px;
+  padding:17px 15px;margin-bottom:12px;
+  color:#13274b;background:linear-gradient(128deg,#e5f4ff,#cfdeff)
+}
+.xxwrt-v3 .v3-backup-overview h2{font-size:18px;line-height:25px;font-weight:700;margin:0}
+.xxwrt-v3 .v3-backup-overview p{
+  margin:6px 0 0;font-size:12px;line-height:18px;color:#607998
+}
+.xxwrt-v3 .v3-backup-menu{display:flex;flex-direction:column;gap:9px}
+.xxwrt-v3 .v3-backup-menu button{
+  width:100%;min-height:85px;display:flex;align-items:center;
+  gap:12px;padding:12px 14px;text-align:left;
+  border:1px solid var(--ui-border);border-radius:15px;
+  background:var(--ui-surface);color:var(--ui-text)
+}
+.xxwrt-v3 .v3-backup-menu button:active{background:var(--ui-surface-2)}
+.xxwrt-v3 .v3-backup-icon{
+  display:flex;align-items:center;justify-content:center;
+  flex:none;width:40px;height:40px;
+  background:var(--ui-surface-2);color:var(--ui-primary);
+  border-radius:12px
+}
+.xxwrt-v3 .v3-backup-menu button>span:nth-child(2){
+  display:flex;flex-direction:column;flex:1;min-width:0;gap:5px
+}
+.xxwrt-v3 .v3-backup-menu strong{font-size:14px;line-height:21px;font-weight:700}
+.xxwrt-v3 .v3-backup-menu small{font-size:12px;line-height:18px;color:var(--ui-muted)}
+.xxwrt-v3 .v3-backup-menu button>.v-icon:last-child{color:var(--ui-muted)}
+.xxwrt-v3 .v3-backup-warning{
+  margin-top:14px;border-radius:13px;
+  font-size:12px;line-height:19px
+}
+.xxwrt-v3 .v3-backup-warning strong{display:block;margin-bottom:4px}
+.xxwrt-v3 .v3-backup-content{padding-top:0}
+.xxwrt-v3 .v3-backup-content>.v-btn{margin-bottom:15px}
+.xxwrt-v3 .v3-backup-content strong{font-weight:700}
+.xxwrt-v3 .v3-backup-explainer{
+  color:var(--ui-muted);font-size:12px;line-height:19px;
+  margin:0 0 13px
+}
+.xxwrt-v3.theme-is-dark .v3-backup-overview{
+  color:#eef7ff;background:linear-gradient(128deg,#25486c,#27344f)
+}
+.xxwrt-v3.theme-is-dark .v3-backup-overview p{color:#c3d4e9}

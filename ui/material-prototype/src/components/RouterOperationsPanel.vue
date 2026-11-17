@@ -28,6 +28,7 @@ const logSearch = ref('')
 const logOutput = ref('')
 const logSource = ref('')
 const backupFiles = ref([])
+const backupSection = ref('')
 const backupError = ref('')
 const backupConfigs = ref(['dhcp', 'firewall'])
 const backupJson = ref('')
@@ -263,12 +264,17 @@ function handleBack() {
     return 'busy'
   }
   if (busy.value) return 'busy'
+  if (props.kind === 'backup' && backupSection.value) {
+    backupSection.value = ''
+    return 'subpage'
+  }
   if (recordDelete.value) { recordDelete.value = null; return 'dialog' }
   if (serviceConfirm.value) { serviceConfirm.value = null; return 'dialog' }
   return null
 }
 defineExpose({ refreshAction, handleBack })
 watch(() => props.kind, () => {
+  backupSection.value = ''
   toast.value = false
   backupJson.value = ''
   preview.value = null
@@ -342,11 +348,42 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
       </div>
     </template>
     <template v-else-if="kind === 'backup'">
-      <h3 class="mb-1">配置备份与恢复</h3>
-      <v-alert type="info" density="compact" variant="tonal" class="my-3">
-        提供与 LuCI 一样的系统原生配置备份（tar.gz）及可选配置项的 UCI JSON 快照。
-        tar.gz 是固件指定的配置归档，不是固件镜像或整盘备份。
+      <header class="v3-backup-overview">
+        <h2>配置备份与恢复</h2>
+        <p>谨慎操作 · 建议先导出备份</p>
+      </header>
+      <div v-if="!backupSection" class="v3-backup-menu" role="group" aria-label="备份与恢复操作">
+        <button type="button" @click="backupSection = 'uci'">
+          <span class="v3-backup-icon"><v-icon icon="mdi-content-save-outline" size="22"/></span>
+          <span><strong>配置备份</strong><small>导出 UCI JSON 配置快照</small></span>
+          <v-icon icon="mdi-chevron-right" size="21"/>
+        </button>
+        <button type="button" @click="backupSection = 'native'">
+          <span class="v3-backup-icon"><v-icon icon="mdi-archive-arrow-down-outline" size="22"/></span>
+          <span><strong>系统原生备份</strong><small>导出 tar.gz 文件</small></span>
+          <v-icon icon="mdi-chevron-right" size="21"/>
+        </button>
+        <button type="button" @click="backupSection = 'restore'">
+          <span class="v3-backup-icon"><v-icon icon="mdi-backup-restore" size="22"/></span>
+          <span><strong>恢复配置</strong><small>导入快照并预览差异</small></span>
+          <v-icon icon="mdi-chevron-right" size="21"/>
+        </button>
+        <button type="button" @click="backupSection = 'files'">
+          <span class="v3-backup-icon"><v-icon icon="mdi-file-document-multiple-outline" size="22"/></span>
+          <span><strong>备份文件清单</strong><small>查看系统原生备份预计包含的文件</small></span>
+          <v-icon icon="mdi-chevron-right" size="21"/>
+        </button>
+      </div>
+      <v-alert v-if="!backupSection" type="warning" variant="tonal" density="compact" class="v3-backup-warning">
+        <strong>重要：恢复后必须确认保留</strong>
+        配置恢复会使用现有的确认倒计时；未及时确认时系统尝试自动回滚，需重新核实连接。
       </v-alert>
+      <section v-if="backupSection" class="v3-backup-content">
+        <v-btn size="small" variant="text" prepend-icon="mdi-arrow-left"
+          :disabled="busy || restorePending" @click="backupSection = ''">
+          返回备份目录
+        </v-btn>
+        <template v-if="backupSection === 'native'">
       <div class="mb-4">
         <strong>系统原生配置备份（LuCI 兼容）</strong>
         <p class="text-body-2 text-medium-emphasis mt-2 mb-3">
@@ -361,6 +398,10 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
           需路由器支持并授权 LuCI 备份接口；归档可能包含密码、证书和私钥，请勿公开分享。
         </p>
       </div>
+
+        </template>
+        <template v-else-if="backupSection === 'files'">
+          <p class="v3-backup-explainer">这里列出系统原生备份预计包含的文件，不代表路由器上已保存的历史备份包。</p>
       <v-divider class="my-4"/>
       <div class="d-flex align-center ga-2 mb-2">
         <strong>系统原生备份包含的文件</strong>
@@ -379,6 +420,9 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
+
+        </template>
+        <template v-else-if="backupSection === 'uci'">
       <strong>UCI 配置快照（JSON）</strong>
       <p class="text-caption text-medium-emphasis mt-2 mb-3">
         可选择 network、dhcp、firewall、system 等配置用于局部恢复；与上方的原生 tar.gz 备份不同。
@@ -406,6 +450,9 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
           </v-expansion-panel-text>
         </v-expansion-panel>
       </v-expansion-panels>
+
+        </template>
+        <template v-else-if="backupSection === 'restore'">
       <v-divider class="my-4"/>
       <strong>从配置快照恢复</strong>
       <p class="text-caption text-medium-emphasis my-2">
@@ -445,6 +492,9 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
       <v-alert v-if="restoreUnknown" type="warning" variant="tonal" class="mt-3">
         提交结果不确定，请检查连接及路由器配置，不要重复提交；必要时等待自动回滚。
       </v-alert>
+
+        </template>
+      </section>
     </template>
     <template v-else-if="kind === 'dnsdhcp'">
       <h3 class="mb-1">DNS / DHCP 静态记录</h3>
