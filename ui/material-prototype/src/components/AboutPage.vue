@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { getDownloadDisplay } from '../services/downloadDisplay.js'
 import appIcon from '../../assets/qwrt-chibi-openwrt-router.webp'
 import developerAvatar from '../../assets/developer-avatar.webp'
 
@@ -15,7 +16,23 @@ const emit = defineEmits([
   'show-release-notes', 'show-project', 'show-issues',
   'show-licenses', 'show-privacy'
 ])
+const downloadDisplay = computed(() => getDownloadDisplay({
+  downloading: props.updateState.downloading,
+  downloadedApkReady: props.updateState.downloadedApkReady,
+  outcome: props.updateState.downloadOutcome,
+  receivedBytes: props.updateState.receivedBytes,
+  totalBytes: props.updateState.totalBytes,
+  percent: props.updateState.percent
+}))
 const updateStatus = computed(() => {
+  const display = downloadDisplay.value
+  const releaseVersion = props.updateState.latestRelease?.version
+  if (display.stage === 'downloading')
+    return '正在下载' + (releaseVersion ? ' v' + releaseVersion : '更新包')
+  if (display.stage === 'preparing') return '正在校验并准备安装'
+  if (display.stage === 'failed') return '下载失败，请重试'
+  if (display.stage === 'cancelled') return '下载已取消'
+  if (display.stage === 'ready' && !props.updateState.error) return '安装包已下载完成'
   const state = props.updateState
   if (state.checking) return '正在检查最新正式版本…'
   if (state.error) return state.error
@@ -26,6 +43,24 @@ const updateStatus = computed(() => {
   }
   if (state.checked) return state.latestRelease ? '当前已是最新版' : '未找到可用的正式版本'
   return '支持在线检查更新'
+})
+const downloadSubtitle = computed(() => {
+  const stage = downloadDisplay.value.stage
+  if (stage === 'downloading') return downloadDisplay.value.sizeText
+  if (stage === 'preparing') return '已下载完毕，正在处理安装包'
+  if (stage === 'ready') return '可重新打开 Android 安装界面'
+  if (stage === 'failed') return '检查网络连接后重试'
+  if (stage === 'cancelled') return '可以重新开始下载'
+  return ''
+})
+const updateStatusIcon = computed(() => {
+  const stage = downloadDisplay.value.stage
+  if (stage === 'downloading') return 'mdi-download-circle-outline'
+  if (stage === 'preparing') return 'mdi-package-variant-closed-check'
+  if (stage === 'ready') return 'mdi-check-circle-outline'
+  if (stage === 'failed' || props.updateState.error) return 'mdi-alert-circle-outline'
+  if (stage === 'cancelled') return 'mdi-information-outline'
+  return props.updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'
 })
 </script>
 
@@ -47,15 +82,36 @@ const updateStatus = computed(() => {
       </div>
       <div v-if="updateState.checked || updateState.checking || updateState.error || updateState.available"
         class="about-update-status about-hero-update-status" role="status"
-        :class="{ 'about-update-error': updateState.error, 'about-hero-status--action': updateState.available && updateState.latestRelease?.apkUrl }">
+        :class="{ 'about-update-error': updateState.error, 'about-hero-status--action': (updateState.available && updateState.latestRelease?.apkUrl) || updateState.downloading || updateState.downloadedApkReady }">
         <span class="about-update-message">
-          <v-icon :icon="updateState.error ? 'mdi-alert-circle-outline' : updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'" size="18"/>
-          <span class="about-update-message-text">{{ updateStatus }}</span>
+          <v-icon :icon="updateStatusIcon" size="18"/>
+          <span class="about-update-message-copy">
+            <span class="about-update-message-text">{{ updateStatus }}</span>
+            <small v-if="downloadSubtitle" class="about-update-message-subtitle">{{ downloadSubtitle }}</small>
+          </span>
         </span>
-        <v-btn v-if="updateState.available && updateState.latestRelease?.apkUrl"
+        <div v-if="updateState.downloading && updateState.isNative"
+          class="about-update-now about-download-meter"
+          :class="{ 'about-download-meter--preparing': downloadDisplay.stage === 'preparing' }"
+          role="progressbar"
+          :aria-label="downloadDisplay.stage === 'preparing' ? '正在校验并准备安装' : '更新包下载进度'"
+          aria-valuemin="0" aria-valuemax="100"
+          :aria-valuenow="downloadDisplay.percent == null ? undefined : downloadDisplay.percent"
+          :aria-valuetext="downloadDisplay.stage === 'preparing' ? '下载完成，正在处理安装包' : downloadDisplay.percent == null ? downloadDisplay.sizeText : downloadDisplay.percent + '%，' + downloadDisplay.sizeText">
+          <span v-if="downloadDisplay.stage === 'downloading' && downloadDisplay.percent != null"
+            class="about-download-meter-fill"
+            :style="{ transform: 'scaleX(' + downloadDisplay.percent / 100 + ')' }" aria-hidden="true"/>
+          <v-icon v-if="downloadDisplay.stage === 'preparing'" icon="mdi-loading" class="about-download-meter-spinner" size="17" aria-hidden="true"/>
+          <v-icon v-else-if="downloadDisplay.percent == null" icon="mdi-loading" class="about-download-meter-spinner" size="17" aria-hidden="true"/>
+          <strong class="about-download-meter-label">{{ downloadDisplay.stage === 'preparing' ? '处理中' : downloadDisplay.percent == null ? '下载中' : downloadDisplay.percent + '%' }}</strong>
+        </div>
+        <v-btn v-else-if="updateState.downloadedApkReady && updateState.isNative"
           class="about-update-now" color="primary" variant="flat" size="small" rounded="pill"
-          prepend-icon="mdi-download" :loading="updateState.downloading" @click="emit('download-latest')">
-          {{ updateState.isNative ? '立即更新' : '下载 APK' }}
+          prepend-icon="mdi-package-up" @click="emit('install-downloaded')">打开安装</v-btn>
+        <v-btn v-else-if="updateState.available && updateState.latestRelease?.apkUrl"
+          class="about-update-now" color="primary" variant="flat" size="small" rounded="pill"
+          prepend-icon="mdi-download" @click="emit('download-latest')">
+          {{ downloadDisplay.stage === 'failed' ? '重试下载' : downloadDisplay.stage === 'cancelled' ? '重新下载' : updateState.isNative ? '立即更新' : '下载 APK' }}
         </v-btn>
       </div>
       <p class="about-tagline">让 OpenWrt / QWRT 路由管理更简单</p>
@@ -93,13 +149,6 @@ const updateStatus = computed(() => {
           <span>更新来源</span><strong>{{ updateState.latestRelease.source === 'mirror' ? '阿里云' : 'GitHub 备用' }}</strong>
         </div>
         <p v-if="updateState.notice" class="about-update-notice" role="status">{{ updateState.notice }}</p>
-        <div v-if="updateState.downloading" class="about-download-status" role="status">
-          <div class="about-download-label">
-            <span>正在下载并校验更新包</span><strong>{{ updateState.percent }}%</strong>
-          </div>
-          <v-progress-linear :model-value="updateState.percent" height="8" rounded color="primary"/>
-          <small>{{ updateState.progressText }}</small>
-        </div>
         <button type="button" class="about-release-note-link" aria-label="版本日志"
           :disabled="updateState.releaseNotesLoading" @click="emit('show-release-notes')">
           <span class="about-release-note-icon">
@@ -112,15 +161,9 @@ const updateStatus = computed(() => {
           </span>
           <v-icon icon="mdi-chevron-right" size="21" class="about-release-note-chevron"/>
         </button>
-        <div v-if="updateState.available || updateState.downloading || updateState.downloadedApkReady" class="about-update-actions">
-          <v-btn v-if="updateState.available && updateState.latestRelease?.apkUrl"
-            color="primary" rounded="lg" prepend-icon="mdi-download" :disabled="updateState.downloading"
-            @click="emit('download-latest')">{{ updateState.isNative ? '下载并安装' : '下载最新 APK' }}</v-btn>
-          <v-btn v-if="updateState.downloading && updateState.isNative" variant="outlined"
-            color="warning" rounded="lg" @click="emit('cancel-download')">取消下载</v-btn>
-          <v-btn v-if="updateState.downloadedApkReady && updateState.isNative && !updateState.downloading"
-            variant="outlined" rounded="lg" prepend-icon="mdi-package-up"
-            @click="emit('install-downloaded')">重新打开安装</v-btn>
+        <div v-if="updateState.downloading && updateState.isNative" class="about-update-actions">
+          <v-btn variant="text" color="warning" size="small" rounded="lg"
+            prepend-icon="mdi-close-circle-outline" @click="emit('cancel-download')">取消下载</v-btn>
         </div>
         <p class="about-update-hint">正式版优先通过阿里云检查更新，服务不可用时使用 GitHub 备用接口。</p>
       </div>
@@ -169,16 +212,39 @@ const updateStatus = computed(() => {
 .about-hero-update-status{
   display:flex;align-items:center;justify-content:center;gap:9px;
   width:fit-content;max-width:100%;margin:12px auto 0!important;
-  padding:9px 15px!important;text-align:left
+  padding:9px 12px!important;text-align:left
 }
-.about-update-message{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:0;flex:1 1 auto}
+.about-update-message{display:flex;align-items:center;justify-content:flex-start;gap:7px;min-width:0;flex:1 1 auto}
 .about-update-message .v-icon{flex:0 0 auto}
-.about-update-message-text{min-width:0;overflow-wrap:anywhere;font-size:12px;line-height:1.5}
-.about-hero-status--action{width:min(100%,410px);justify-content:space-between;flex-wrap:wrap}
-.about-update-now{flex:none;min-height:33px!important;font-size:12px!important;letter-spacing:0!important}
+.about-update-message-copy{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
+.about-update-message-text{min-width:0;overflow-wrap:anywhere;font-size:12px;line-height:1.45}
+.about-update-message-subtitle{display:block;font-size:10px;line-height:1.4;color:var(--ui-text-muted);overflow-wrap:anywhere}
+.about-hero-status--action{width:min(100%,410px);justify-content:space-between;flex-wrap:nowrap}
+.about-update-now{flex:none;min-height:34px!important;font-size:12px!important;letter-spacing:0!important}
+.about-download-meter{
+  position:relative;isolation:isolate;display:inline-flex;align-items:center;justify-content:center;
+  gap:5px;flex:0 0 98px;width:98px;height:35px;min-height:35px;
+  overflow:hidden;border-radius:99px;background:#194e84;color:#fff;
+  font-variant-numeric:tabular-nums;white-space:nowrap
+}
+.about-download-meter-fill{
+  position:absolute;z-index:-1;inset:0;background:#0867c0;
+  transform-origin:left center;transition:transform .28s ease-out;
+  pointer-events:none
+}
+.about-download-meter-label{position:relative;z-index:1;color:#fff;font-size:12px;font-weight:750;line-height:1}
+.about-hero .about-update-status .about-download-meter-spinner{color:#fff;animation:about-download-spin 1.1s linear infinite}
+@keyframes about-download-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){
+  .about-download-meter-fill{transition:none}
+  .about-download-meter-spinner{animation:none}
+}
 @media(max-width:380px){
-  .about-hero-status--action{justify-content:center}
-  .about-hero-status--action .about-update-message{justify-content:center}
+  .about-hero-status--action{gap:5px;padding:8px 9px!important}
+  .about-update-message{gap:5px}
+  .about-update-message-text{font-size:11px}
+  .about-download-meter{flex-basis:84px;width:84px}
+  .about-update-now{padding-inline:10px!important}
 }
 .about-tagline{margin:14px 0 6px;font-size:14px;font-weight:650;line-height:1.55}
 .about-summary{max-width:370px;font-size:12px;line-height:1.75;color:var(--ui-text-muted)}
