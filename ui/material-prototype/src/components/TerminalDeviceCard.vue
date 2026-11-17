@@ -3,7 +3,8 @@ import { computed } from 'vue'
 import { deviceTypeIcon } from '../services/deviceIdentity.js'
 
 const props = defineProps({
-  item: { type: Object, required: true }
+  item: { type: Object, required: true },
+  showAddress: { type: Boolean, default: true }
 })
 const emit = defineEmits(['click'])
 const brand = computed(() => props.item.identity?.brand || null)
@@ -78,8 +79,8 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
             title="随机/私有 MAC，无法通过 MAC 前缀可靠识别厂商">随机 MAC</v-chip>
         </div>
       </div>
-      <div v-if="item.ip || item.ip6 || item.mac" class="terminal-address-line">
-        <span v-if="item.ip || item.ip6" class="terminal-ip terminal-ip6">{{ item.ip || item.ip6 }}</span>
+      <div v-if="(showAddress && (item.ip || item.ip6)) || item.mac" class="terminal-address-line">
+        <span v-if="showAddress && (item.ip || item.ip6)" class="terminal-ip terminal-ip6">{{ item.ip || item.ip6 }}</span>
         <span v-if="item.mac" class="terminal-mac">{{ item.mac }}</span>
       </div>
       <div v-if="sourceLabels.length > 1 || item.wifi" class="terminal-tags">

@@ -419,6 +419,7 @@ const hideIpAddresses = computed({
   set: value => { showIp.value = !value }
 })
 const clientSearch = ref('')
+const terminalSortMode = ref('default')
 const terminalDevices = computed(() => {
   const byMac = new Map()
   const add = (raw, source) => {
@@ -486,13 +487,22 @@ const filteredClients = computed(() => {
   const term = String(clientSearch.value || '').trim().toLowerCase()
   const sourceList = terminalView.value === 'all' ? terminalDevices.value
     : terminalDevices.value.filter(item => item.sources.includes(terminalView.value))
-  return sourceList.filter(item => {
+  const visible = sourceList.filter(item => {
     const online = item.online === true
     if (terminalOnlineFilter.value === 'online' && !online) return false
     if (terminalOnlineFilter.value === 'other' && online) return false
     return !term || [item.displayName, item.kind, item.ip, item.ip6, item.mac, item.identity.brand?.n]
       .some(value => String(value || '').toLowerCase().includes(term))
   })
+  if (terminalSortMode.value === 'name') {
+    return visible.sort((a, b) =>
+      String(a.displayName || a.name || '').localeCompare(String(b.displayName || b.name || ''), 'zh-CN', { numeric: true }))
+  }
+  if (terminalSortMode.value === 'ip') {
+    return visible.sort((a, b) =>
+      String(a.ip || a.ip6 || '').localeCompare(String(b.ip || b.ip6 || ''), 'en', { numeric: true }))
+  }
+  return visible
 })
 function onlineStateForMac(mac) {
   const normalized = String(mac || '').toUpperCase()
@@ -2656,6 +2666,24 @@ onUnmounted(() => {
                       :color="terminalView !== 'all' ? 'primary' : undefined"
                       :aria-expanded="showTerminalSourceFilters" aria-controls="v3-terminal-sources"
                       aria-label="展开或收起终端来源筛选" @click.stop="showTerminalSourceFilters = !showTerminalSourceFilters"/>
+                    <v-menu location="bottom end">
+                      <template #activator="{ props }">
+                        <v-btn v-bind="props" icon="mdi-dots-vertical" size="small" variant="text"
+                          aria-label="终端显示与排序"/>
+                      </template>
+                      <v-list density="compact" min-width="190" elevation="3">
+                        <v-list-item :title="showIp ? '隐藏 IP 地址' : '显示 IP 地址'"
+                          :prepend-icon="showIp ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+                          @click="showIp = !showIp"/>
+                        <v-divider class="my-1"/>
+                        <v-list-item title="默认顺序" prepend-icon="mdi-format-list-bulleted"
+                          :active="terminalSortMode === 'default'" @click="terminalSortMode = 'default'"/>
+                        <v-list-item title="按名称排序" prepend-icon="mdi-sort-alphabetical-ascending"
+                          :active="terminalSortMode === 'name'" @click="terminalSortMode = 'name'"/>
+                        <v-list-item title="按 IP 排序" prepend-icon="mdi-sort-numeric-ascending"
+                          :active="terminalSortMode === 'ip'" @click="terminalSortMode = 'ip'"/>
+                      </v-list>
+                    </v-menu>
                   </template>
                 </v-text-field>
               </div>
@@ -2676,7 +2704,7 @@ onUnmounted(() => {
               </div>
               <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="已发现终端列表">
                 <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip || item.ip6"
-                  :item="item" @click="openTerminal(item)"/>
+                  :item="item" :show-address="showIp" @click="openTerminal(item)"/>
               </div>
               <v-empty-state v-else-if="clientSearch || terminalOnlineFilter !== 'all' || terminalView !== 'all'" icon="mdi-magnify-close"
                 title="没有匹配的终端" text="请调整在线状态、数据来源或搜索条件"/>
