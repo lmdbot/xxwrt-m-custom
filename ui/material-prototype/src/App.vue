@@ -2708,7 +2708,7 @@ onUnmounted(() => {
               </div>
             </section>
             <template v-else>
-            <v-card rounded="xl" elevation="1" class="network-card mb-4">
+            <v-card v-if="networkSection !== 'interfaces'" rounded="xl" elevation="1" class="network-card mb-4">
               <h2>网络概览</h2>
               <div v-if="snapshot" class="details">
                 <div><span>LAN IPv4</span><strong>{{ snapshot.lanIp }}</strong></div>

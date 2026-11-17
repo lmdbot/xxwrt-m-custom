@@ -26,6 +26,11 @@ const messageKind = ref('info')
 const toastOpen = ref(false)
 const editorOpen = ref(false)
 const activeTab = ref('general')
+const focusedInterface = ref('wan')
+const displayedInterface = computed(() =>
+  props.interfaces.find(nic => nic.interface === focusedInterface.value)
+  || props.interfaces.find(nic => nic.interface === 'wan')
+  || props.interfaces[0] || null)
 const editor = ref(null)
 const current = ref('')
 const pending = ref(false)
@@ -225,13 +230,38 @@ defineExpose({ refreshAction, handleBack })
       接口可能已发生变更，但当前 RPC 未返回完整确认。不要重复操作；如失联请等待回滚后重新连接。
     </v-alert>
 
-    <v-card v-for="nic in interfaces" :key="nic.interface" rounded="xl" elevation="1" class="interface-card mb-3">
-      <div class="section-heading">
-        <div><strong>{{ nic.interface }}</strong>
-          <div class="muted-hint">{{ nic.proto || 'unknown' }} · {{ nic.device || nic.l3_device || '--' }}</div>
+
+    <header class="v3-interfaces-summary-hero">
+      <h2>网络接口</h2>
+      <p>WAN / LAN / WAN6 实时状态</p>
+    </header>
+    <div class="v3-interfaces-list" role="group" aria-label="网络接口列表">
+      <button v-for="nic in interfaces" :key="nic.interface" type="button"
+        class="v3-interfaces-row" :class="{ 'is-selected': displayedInterface?.interface === nic.interface }"
+        :aria-pressed="displayedInterface?.interface === nic.interface"
+        :aria-label="'查看接口 ' + nic.interface + ' 的状态和详细配置'"
+        @click="focusedInterface = nic.interface">
+        <span class="v3-interfaces-icon"><v-icon :icon="nic.interface.startsWith('wan') ? 'mdi-web' : 'mdi-lan'" size="21"/></span>
+        <span class="v3-interfaces-copy">
+          <strong>{{ nic.interface.toUpperCase() }}{{ nic.proto ? ' (' + nic.proto.toUpperCase() + ')' : '' }}</strong>
+          <small>{{ nic['ipv4-address']?.map(x => x.address + '/' + x.mask).join(', ') || nic.device || nic.l3_device || 'IPv6 / 接口地址待确认' }}</small>
+        </span>
+        <v-chip size="x-small" variant="tonal" :color="nic.up ? 'success' : 'error'">
+          {{ nic.up ? '已连接' : '未连接' }}
+        </v-chip>
+        <v-icon icon="mdi-chevron-right" size="19" color="secondary"/>
+      </button>
+    </div>
+    <template v-if="displayedInterface">
+      <h3 class="v3-interface-detail-label">接口详情</h3>
+      <v-card class="v3-interface-detail-card" rounded="xl" elevation="0">
+        <div class="v3-interface-detail-heading">
+          <strong>{{ displayedInterface.interface.toUpperCase() }}</strong>
+          <v-chip size="small" variant="tonal" :color="displayedInterface.up ? 'success' : 'error'">
+            {{ displayedInterface.up ? '已连接' : '未连接' }}
+          </v-chip>
         </div>
-        <v-chip size="small" variant="tonal" :color="nic.up ? 'success' : 'error'">{{ nic.up ? '已连接' : '未连接' }}</v-chip>
-      </div>
+        <template v-for="nic in [displayedInterface]" :key="nic.interface">
       <div class="network-interface-details">
         <div><span>IPv4</span><strong>{{ nic['ipv4-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
         <div><span>IPv6</span><strong>{{ nic['ipv6-address']?.map(x => x.address + '/' + x.mask).join(', ') || '--' }}</strong></div>
@@ -262,7 +292,10 @@ defineExpose({ refreshAction, handleBack })
       <p v-if="networkConfig && !canConfigure(nic.interface)" class="text-caption text-medium-emphasis mt-2">
         系统自动创建的接口或特殊协议，当前仅支持查看；请使用原生 LuCI 管理其高级参数。
       </p>
-    </v-card>
+
+        </template>
+      </v-card>
+    </template>
     <v-alert v-if="!interfaces.length" type="info" variant="tonal" density="compact">暂未获取到网络接口。</v-alert>
 
     <v-dialog v-model="editorOpen" :fullscreen="smAndDown" max-width="590" persistent class="v3-network-editor-dialog">
