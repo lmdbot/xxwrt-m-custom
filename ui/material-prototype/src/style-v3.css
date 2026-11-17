@@ -1147,3 +1147,359 @@
 .xxwrt-v3.theme-is-dark .v3-tools-native-search{
   background:var(--ui-surface);border-color:var(--ui-border)
 }
+
+
+/* Mobile visual corrections: safe header gutters, circular actions and
+   bounded liquid navigation. Keep these as the final geometry rules. */
+.xxwrt-v3 .top-bar .v-toolbar__content{
+  box-sizing:border-box;
+  min-width:0;
+  gap:5px;
+  padding-inline-start:max(18px,env(safe-area-inset-left,0px))!important;
+  padding-inline-end:max(18px,env(safe-area-inset-right,0px))!important
+}
+.xxwrt-v3 .top-bar .v-toolbar-title{
+  min-width:0!important;
+  margin-inline:0 3px!important
+}
+.xxwrt-v3 .top-bar .v3-top-action.v-btn{
+  flex:0 0 44px!important;
+  width:44px!important;
+  min-width:44px!important;
+  max-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+  margin:0!important;
+  padding:0!important;
+  border-radius:50%!important;
+  background:transparent!important;
+  box-shadow:none!important
+}
+.xxwrt-v3 .top-bar .v3-top-action.v-btn .v-btn__overlay,
+.xxwrt-v3 .top-bar .v3-top-action.v-btn .v-btn__underlay{
+  border-radius:inherit!important
+}
+.xxwrt-v3 .top-bar .v3-top-action.v-btn:active{
+  background:rgba(var(--v-theme-primary),.10)!important
+}
+.xxwrt-v3 .top-bar .v3-router-switch.v-btn{
+  flex:0 1 auto!important;
+  width:auto!important;
+  min-width:44px!important;
+  max-width:140px!important;
+  border-radius:22px!important;
+  padding-inline:9px!important
+}
+.xxwrt-v3 .top-bar .v3-router-switch .v-btn__content{min-width:0}
+.xxwrt-v3 .top-bar .v3-router-switch .v-btn__append{margin-inline-start:4px}
+.xxwrt-v3 .liquid-bottom{
+  position:fixed;
+  left:max(14px,env(safe-area-inset-left,0px))!important;
+  right:max(14px,env(safe-area-inset-right,0px))!important;
+  width:auto!important;
+  max-width:760px!important;
+  min-width:0!important;
+  margin-inline:auto!important;
+  box-sizing:border-box!important
+}
+.xxwrt-v3 .liquid-bottom .glass-host{
+  display:block;
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  overflow:hidden!important
+}
+.xxwrt-v3 .liquid-bottom .glass-nav{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  overflow:hidden;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important
+}
+.xxwrt-v3 .liquid-bottom .glass-tab{
+  min-width:0!important;
+  max-width:100%!important;
+  box-sizing:border-box!important
+}
+@media(max-width:600px){
+  .xxwrt-v3 .top-bar .v3-router-switch.v-btn{
+    flex:0 0 44px!important;
+    width:44px!important;
+    min-width:44px!important;
+    max-width:44px!important;
+    padding:0!important;
+    border-radius:50%!important
+  }
+  .xxwrt-v3 .top-bar .v3-router-switch .v-btn__content{
+    display:none!important
+  }
+  .xxwrt-v3 .top-bar .v3-router-switch .v-btn__append{
+    display:flex!important;
+    margin:0!important
+  }
+}
+@media(max-width:370px){
+  .xxwrt-v3 .top-bar .v-toolbar__content{
+    gap:3px;
+    padding-inline-start:max(14px,env(safe-area-inset-left,0px))!important;
+    padding-inline-end:max(14px,env(safe-area-inset-right,0px))!important
+  }
+  .xxwrt-v3 .top-bar .v3-top-action.v-btn{
+    flex-basis:40px!important;
+    width:40px!important;
+    min-width:40px!important;
+    max-width:40px!important;
+    height:40px!important;
+    min-height:40px!important
+  }
+  .xxwrt-v3 .top-bar .v3-router-switch.v-btn{
+    flex-basis:40px!important;
+    width:40px!important;
+    min-width:40px!important;
+    max-width:40px!important
+  }
+}
+
+/* Shared Material 3 dialog treatment, including confirmations and editors.
+   Do not affect the edge-to-edge terminal and network full-screen pages. */
+.v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card{
+  border:1px solid rgba(var(--v-theme-on-surface),.09);
+  border-radius:22px!important;
+  background:rgb(var(--v-theme-surface));
+  box-shadow:0 18px 48px rgba(17,40,76,.16)!important
+}
+.v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card>.v-card-title{
+  font-size:18px;
+  font-weight:750;
+  line-height:1.45;
+  letter-spacing:0;
+  padding:20px 22px 8px;
+  white-space:normal
+}
+.v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card>.v-card-subtitle{
+  padding-inline:22px;
+  line-height:1.5;
+  white-space:normal
+}
+.v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card>.v-card-text{
+  padding:16px 22px 20px;
+  line-height:1.65
+}
+.v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card>.v-card-actions{
+  padding:12px 18px 16px;
+  gap:8px;
+  border-top:1px solid rgba(var(--v-theme-on-surface),.07)
+}
+.v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card>.v-card-actions .v-btn{
+  min-height:40px;
+  border-radius:12px;
+  letter-spacing:0
+}
+.v-dialog .v-field--variant-outlined .v-field{
+  border-radius:12px
+}
+
+/* Network interface editor: compact header, segmented tabs, legible fields
+   and a fixed action bar. Scroll only the form, never the entire dialog. */
+.v3-network-editor-dialog .network-interface-editor{
+  display:flex!important;
+  flex-direction:column!important;
+  min-height:0;
+  border-radius:23px!important;
+  background:rgb(var(--v-theme-surface));
+  box-shadow:0 18px 48px rgba(17,40,76,.17)!important
+}
+.v3-network-editor-dialog .network-editor-header{
+  display:flex;
+  flex:0 0 auto;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  padding:22px 22px 16px;
+  background:linear-gradient(130deg,rgba(var(--v-theme-primary),.075),transparent 86%);
+  border-bottom:1px solid rgba(var(--v-theme-on-surface),.075)
+}
+.v3-network-editor-dialog .network-editor-header-copy{
+  flex:1 1 auto;
+  min-width:0
+}
+.v3-network-editor-dialog .network-editor-kicker{
+  display:block;
+  margin-bottom:8px;
+  font-size:11px;
+  font-weight:700;
+  line-height:16px;
+  letter-spacing:.03em;
+  color:rgb(var(--v-theme-primary))
+}
+.v3-network-editor-dialog .network-editor-header h2{
+  margin:0;
+  font-size:20px;
+  line-height:29px;
+  font-weight:750;
+  letter-spacing:-.02em;
+  color:rgb(var(--v-theme-on-surface));
+  overflow-wrap:anywhere
+}
+.v3-network-editor-dialog .network-editor-name{
+  color:rgb(var(--v-theme-primary))
+}
+.v3-network-editor-dialog .network-editor-header p{
+  margin:7px 0 0;
+  font-size:11px;
+  line-height:17px;
+  color:rgba(var(--v-theme-on-surface),.62);
+  overflow-wrap:anywhere
+}
+.v3-network-editor-dialog .network-editor-close.v-btn{
+  flex:none;
+  width:38px;
+  min-width:38px;
+  height:38px;
+  border-radius:50%
+}
+.v3-network-editor-dialog .network-editor-tabs{
+  flex:0 0 auto;
+  padding:12px 16px 0;
+  border-bottom:1px solid rgba(var(--v-theme-on-surface),.07)
+}
+.v3-network-editor-dialog .network-editor-tabs .v-tabs{
+  width:100%;
+  height:48px;
+  border-radius:13px;
+  padding:4px;
+  background:rgba(var(--v-theme-primary),.07)
+}
+.v3-network-editor-dialog .network-editor-tabs .v-slide-group__content{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  width:100%;
+  min-width:0
+}
+.v3-network-editor-dialog .network-editor-tabs .v-tab{
+  min-width:0!important;
+  max-width:none!important;
+  width:100%!important;
+  padding:0 3px!important;
+  font-size:12px;
+  font-weight:650;
+  letter-spacing:0;
+  border-radius:10px;
+  color:rgba(var(--v-theme-on-surface),.7)
+}
+.v3-network-editor-dialog .network-editor-tabs .v-tab--selected{
+  background:rgb(var(--v-theme-surface));
+  color:rgb(var(--v-theme-primary));
+  box-shadow:0 1px 5px rgba(20,50,100,.10)
+}
+.v3-network-editor-dialog .network-editor-tabs .v-tab__slider{display:none}
+.v3-network-editor-dialog .network-interface-form{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  overscroll-behavior:contain;
+  padding:20px 22px 22px!important;
+  scrollbar-width:thin
+}
+.v3-network-editor-dialog .network-editor-section-intro{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  margin:0 0 18px;
+  padding:11px 12px;
+  border:1px solid rgba(var(--v-theme-primary),.11);
+  border-radius:13px;
+  background:rgba(var(--v-theme-primary),.045)
+}
+.v3-network-editor-dialog .network-editor-section-intro>div{
+  display:flex;
+  flex-direction:column;
+  min-width:0
+}
+.v3-network-editor-dialog .network-editor-section-intro strong{
+  font-size:13px;
+  font-weight:750;
+  line-height:20px
+}
+.v3-network-editor-dialog .network-editor-section-intro small{
+  font-size:11px;
+  line-height:17px;
+  color:rgba(var(--v-theme-on-surface),.62)
+}
+.v3-network-editor-dialog .network-interface-form .v-input{
+  margin-bottom:4px
+}
+.v3-network-editor-dialog .network-interface-form .v-field{
+  border-radius:13px!important;
+  background:rgba(var(--v-theme-on-surface),.022)
+}
+.v3-network-editor-dialog .network-interface-form .v-field__outline{
+  --v-field-border-opacity:.25
+}
+.v3-network-editor-dialog .network-interface-form .v-field--focused .v-field__outline{
+  --v-field-border-opacity:.9
+}
+.v3-network-editor-dialog .network-interface-form .v-selection-control{
+  min-height:42px
+}
+.v3-network-editor-dialog .network-interface-form .v-switch{
+  padding:2px 0 6px
+}
+.v3-network-editor-dialog .network-interface-form .v-alert{
+  border-radius:13px;
+  line-height:1.55
+}
+.v3-network-editor-dialog .network-editor-actions{
+  flex:0 0 auto!important;
+  display:flex;
+  align-items:center;
+  min-height:70px;
+  padding:13px 20px 16px!important;
+  border-top:1px solid rgba(var(--v-theme-on-surface),.10);
+  background:rgb(var(--v-theme-surface))
+}
+.v3-network-editor-dialog .network-editor-actions .v-btn{
+  border-radius:12px!important;
+  min-height:42px;
+  padding-inline:12px;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:0;
+  text-transform:none
+}
+@media(max-width:600px){
+  .v3-network-editor-dialog .v-overlay__content{
+    height:100%!important;
+    max-height:100%!important;
+    min-height:0!important
+  }
+  .v3-network-editor-dialog .network-interface-editor{
+    width:100%!important;
+    height:100%!important;
+    max-height:100%!important;
+    min-height:0!important;
+    padding:0!important;
+    border-radius:0!important
+  }
+  .v3-network-editor-dialog .network-editor-header{
+    padding:17px 18px 14px
+  }
+  .v3-network-editor-dialog .network-editor-header h2{font-size:19px}
+  .v3-network-editor-dialog .network-editor-tabs{padding:10px 14px 0}
+  .v3-network-editor-dialog .network-interface-form{
+    max-height:none!important;
+    padding:17px 18px 22px!important
+  }
+  .v3-network-editor-dialog .network-editor-actions{
+    padding:12px 15px max(14px,env(safe-area-inset-bottom,0px))!important
+  }
+  .v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card>.v-card-title{
+    padding-inline:17px
+  }
+  .v-dialog:not(.v-dialog--fullscreen) .v-overlay__content>.v-card>.v-card-text{
+    padding-inline:17px
+  }
+}
