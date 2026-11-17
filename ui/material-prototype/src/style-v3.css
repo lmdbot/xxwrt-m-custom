@@ -974,7 +974,7 @@
   display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 8px}
 .v3-terminal-detail-dialog .v3-terminal-detail-hero-title h2{margin:0;font-size:17px}
 .v3-terminal-detail-dialog .v3-terminal-detail-chip{
-  background:rgba(20,170,101,.12);color:#138b58;padding:5px 10px;
+  background:color-mix(in srgb,var(--ui-success),transparent 88%);color:var(--ui-success);padding:5px 10px;
   border-radius:99px;font-size:11px;font-weight:750}
 .v3-terminal-detail-dialog .v3-terminal-detail-chip.is-unknown{
   background:var(--ui-surface-2);color:var(--ui-muted)}
@@ -997,15 +997,16 @@
 
 /* Dialogs are teleported by Vuetify; they do not inherit .xxwrt-v3 tokens. */
 .v3-terminal-detail-dialog{
-  --ui-primary:#2477ee;--ui-bg:#edf4fd;--ui-surface:#fff;
-  --ui-surface-2:#e9f2ff;--ui-border:#dae6f5;
-  --ui-text:#152743;--ui-muted:#627994;--ui-success:#13a568;
+  --ui-primary:#2477ee;--ui-bg:#f3f7fd;--ui-surface:#fff;
+  --ui-surface-2:#eaf1fc;--ui-border:#dce6f4;
+  --ui-text:#12233f;--ui-muted:#63758e;--ui-success:#14aa65;
 }
+.v3-terminal-detail-dialog.theme-is-dark,
 .v3-terminal-detail-dialog.v-theme--dark,
 .v-theme--dark .v3-terminal-detail-dialog{
-  --ui-primary:#83b6ff;--ui-bg:#11192a;--ui-surface:#1b2940;
-  --ui-surface-2:#293c57;--ui-border:#354963;
-  --ui-text:#f0f5ff;--ui-muted:#aab9ce;--ui-success:#65dba9;
+  --ui-primary:#83b6ff;--ui-bg:#0f1727;--ui-surface:#182437;
+  --ui-surface-2:#23324a;--ui-border:#34445c;
+  --ui-text:#f2f7ff;--ui-muted:#a9b7cc;--ui-success:#56d59b;
 }
 .v3-terminal-detail-dialog .v3-design-a-hero{
   border-radius:20px;padding:15px;border:1px solid var(--ui-border);
@@ -1032,11 +1033,14 @@
 .v3-terminal-detail-dialog .v3-design-a-entry-list button strong{font-size:13px}
 .v3-terminal-detail-dialog .v3-design-a-entry-list button small{font-size:11px;color:var(--ui-muted)}
 .v3-terminal-detail-dialog .v3-design-a-entry-list button>.v-icon:last-child{color:var(--ui-muted)}
+.v3-terminal-detail-dialog.theme-is-dark .v3-design-a-hero,
 .v3-terminal-detail-dialog.v-theme--dark .v3-design-a-hero,
 .v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero{
   background:linear-gradient(128deg,#25486c,#27344f)}
+.v3-terminal-detail-dialog.theme-is-dark .v3-design-a-hero h2,
 .v3-terminal-detail-dialog.v-theme--dark .v3-design-a-hero h2,
 .v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero h2{color:#eef7ff}
+.v3-terminal-detail-dialog.theme-is-dark .v3-design-a-hero p,
 .v3-terminal-detail-dialog.v-theme--dark .v3-design-a-hero p,
 .v-theme--dark .v3-terminal-detail-dialog .v3-design-a-hero p{color:#aab9ce}
 
@@ -1329,4 +1333,38 @@
 .xxwrt-v3.theme-is-dark .v3-design-a-tool-live .router-app-panel,
 .xxwrt-v3.theme-is-dark .v3-design-a-tool-live .lucky-app-panel{
   box-shadow:0 10px 30px rgba(0,0,0,.16)
+}
+
+
+/* Design A phone gutter: 393dp uses 18dp, 360dp uses 16dp;
+ * the design prototype starts content 15dp below the 61dp app bar. */
+@media(max-width:600px){
+  .xxwrt-v3 .main-container{
+    padding:15px 18px calc(102px + env(safe-area-inset-bottom,0px))!important
+  }
+}
+@media(max-width:390px){
+  .xxwrt-v3 .main-container{padding-inline:16px!important}
+}
+
+/* Teleported terminal detail uses independent dark/light tokens. */
+.v3-terminal-detail-dialog .v3-terminal-design-detail{
+  background:var(--ui-bg,#f3f7fd)!important;
+  color:var(--ui-text,#12233f)!important
+}
+.v3-terminal-detail-dialog .v3-terminal-detail-toolbar{
+  color:var(--ui-text,#12233f);
+  background:var(--ui-surface,#fff)!important;
+  box-shadow:none!important
+}
+.v3-terminal-detail-dialog .v3-terminal-detail-facts,
+.v3-terminal-detail-dialog .v3-design-a-entry-list{
+  box-shadow:0 10px 30px rgba(36,74,120,.045)
+}
+.v3-terminal-detail-dialog.theme-is-dark .v3-terminal-detail-facts,
+.v3-terminal-detail-dialog.theme-is-dark .v3-design-a-entry-list{
+  box-shadow:0 10px 30px rgba(0,0,0,.16)
+}
+.v3-terminal-detail-dialog .v3-terminal-detail-toolbar .v-btn{
+  min-height:44px!important;min-width:44px!important
 }
