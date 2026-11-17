@@ -164,6 +164,8 @@ jobs:
         run: |
           python3 scripts/patch_android_launcher_icons.py
           test -s android/app/src/main/java/com/lmdbot/xxwrt/materialpreview/LauncherIconPlugin.java
+          test -s android/app/src/main/java/com/lmdbot/xxwrt/materialpreview/WaterMotionPlugin.java
+          grep -F 'registerPlugin(WaterMotionPlugin.class)' android/app/src/main/java/com/lmdbot/xxwrt/materialpreview/MainActivity.java
           grep -F 'LauncherClassic' android/app/src/main/AndroidManifest.xml
 
       - name: Inject per-router opt-in TLS certificate exception bridge

@@ -1724,7 +1724,15 @@
   position:absolute;
   z-index:0;
   inset:auto 0 0;
-  height:var(--v3-water-percent,0%);
+  /* Keep the *average* liquid level equal to the real percentage while the
+   * surface leans with the accelerometer. The 12px overscan is trimmed with
+   * clip-path so the higher edge can rise without exposing a fake fill. */
+  height:calc(var(--v3-water-percent,0%) + 12px);
+  clip-path:polygon(
+    0 calc(12px + var(--v3-water-slope,0px)),
+    100% calc(12px - var(--v3-water-slope,0px)),
+    100% 100%,0 100%
+  );
   background:linear-gradient(180deg,rgba(38,158,238,.20) 0%,rgba(34,130,230,.30) 100%);
   pointer-events:none;
   overflow:hidden;
@@ -1734,7 +1742,7 @@
 .xxwrt-v3 .v3-metric--water .v3-metric-water::after{
   content:'';
   position:absolute;
-  top:-7px;
+  top:5px;
   left:-35%;
   width:185%;
   height:12px;
@@ -1744,7 +1752,7 @@
   will-change:transform;
 }
 .xxwrt-v3 .v3-metric--water .v3-metric-water::after{
-  top:-5px;
+  top:7px;
   left:-27%;
   height:10px;
   opacity:.48;

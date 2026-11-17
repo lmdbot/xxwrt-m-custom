@@ -4,6 +4,7 @@ import { useTheme, useDisplay } from 'vuetify'
 import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './services/featureCatalogV3.js'
 import { useLabController } from './services/useLabController.js'
 import { getDownloadDisplay } from './services/downloadDisplay.js'
+import { createWaterSlosh } from './services/waterSlosh.js'
 import {
   APP_ICON_PRESETS, DEFAULT_APP_ICON, loadAppIconChoice,
   loadCustomAppIcon, saveAppIconChoice, storeCustomAppIcon
@@ -473,6 +474,10 @@ const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' :
 const motionEnabled = ref(readMotionPreference(localStorage))
 const systemReducedMotion = ref(false)
 const effectiveMotion = computed(() => motionAllowed(motionEnabled.value, systemReducedMotion.value))
+const waterMetricsRoot = ref(null)
+const waterPageVisible = ref(true)
+const waterSlosh = createWaterSlosh({getContainer: () => waterMetricsRoot.value})
+function updateWaterPageVisibility() { waterPageVisible.value = !document.hidden }
 provide('xxwrt-motion-enabled', effectiveMotion)
 const appLocale = ref(savedLanguage())
 const selectedLanguage = computed(() => LANGUAGES.find(option => option.code === appLocale.value)?.name || '简体中文')
@@ -601,6 +606,13 @@ const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
 const networkOriginTab = ref('') // preserve originating tab for network quick actions
 const homeDetailsExpanded = ref(false)
+const waterSloshEnabled = computed(() => effectiveMotion.value && waterPageVisible.value &&
+  connected.value && viewMode.value === 'detail' && activeTab.value === 'home' &&
+  !settingsOpen.value)
+watch([waterSloshEnabled, waterMetricsRoot], ([enabled, root]) => {
+  if (enabled && root) void waterSlosh.start()
+  else waterSlosh.stop()
+}, { flush: 'post' })
 const overviewFocusedMetric = ref('')
 const previousContentTab = ref('home')
 // V3 keeps legacy panel identifiers/RPC flows, while the visible navigation
@@ -2248,6 +2260,8 @@ async function rebootRouter() {
 }
 
 onMounted(() => {
+  updateWaterPageVisibility()
+  document.addEventListener('visibilitychange', updateWaterPageVisibility)
   localizationController = mountLocalization(document.body, appLocale.value)
   if (isNative) {
     void LauncherIcon.getPreset().then(({id}) => {
@@ -2314,6 +2328,8 @@ onMounted(() => {
   }, METRIC_INTERVAL_MS)
 })
 onUnmounted(() => {
+  waterSlosh.stop()
+  document.removeEventListener('visibilitychange', updateWaterPageVisibility)
   stopPendingHubScrollRestore()
   cancelMotionAnimations()
   localizationController?.dispose()
@@ -2701,14 +2717,14 @@ onUnmounted(() => {
                   <v-icon :icon="homeDetailsExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="22" color="primary"/>
                 </div>
               </div>
-              <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
+              <div ref="waterMetricsRoot" class="v3-health-metrics" role="group" aria-label="实时资源指标">
                 <button v-for="item in labVisibleOverviewResources" :key="item.label" type="button"
                   class="v3-metric v3-metric-action"
                   :class="{ 'v3-metric--water': item.waterPercent !== undefined }"
                   :style="item.waterPercent != null ? { '--v3-water-percent': item.waterPercent + '%' } : undefined"
                   :aria-label="'查看' + item.label + '详情：' + item.value"
                   @click="openOverviewMetric(item.label)">
-                  <span v-if="item.waterPercent != null" class="v3-metric-water" aria-hidden="true"/>
+                  <span v-if="item.waterPercent > 0" class="v3-metric-water" aria-hidden="true"/>
                   <small>{{ item.label }}</small>
                   <strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
                 </button>
