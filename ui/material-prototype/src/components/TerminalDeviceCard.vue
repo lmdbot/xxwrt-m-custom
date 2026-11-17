@@ -21,7 +21,7 @@ const onlineState = computed(() => {
   return props.item.onlineKnown === false ? 'unknown' : 'offline'
 })
 const onlineTitle = computed(() => ({
-  online: '在线', offline: '离线', unknown: '状态未知'
+  online: '在线', offline: '离线', unknown: '待确认'
 }[onlineState.value]))
 const sourceLabels = computed(() => {
   const labels = []
@@ -101,6 +101,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
       </div>
     </div>
     <div class="terminal-trailing">
+      <span class="v3-client-state" :class="'is-' + onlineState">{{ onlineTitle }}</span>
       <v-icon icon="mdi-chevron-right" size="19" color="secondary"/>
     </div>
   </v-card>

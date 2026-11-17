@@ -2457,7 +2457,7 @@ onUnmounted(() => {
               <div class="v3-overview-network-state" aria-label="网络状态摘要">
                 <div><span>WAN</span><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong></div>
                 <div><span>IPv6</span><strong :class="{ 'v3-status-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</strong></div>
-                <div><span>终端</span><strong>{{ snapshot?.users ?? '--' }} 台</strong></div>
+                <div><span>终端</span><strong>{{ snapshot?.users == null ? '--' : snapshot.users + ' 台' }}</strong></div>
               </div>
               <div class="v3-module-heading">
                 <h2>系统与硬件详情</h2>
