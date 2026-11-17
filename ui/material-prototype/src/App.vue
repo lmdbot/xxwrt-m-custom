@@ -1024,6 +1024,17 @@ const designASecondaryInfo = computed(() => {
     entries: [['运行状态', '查看服务、接口或系统信息'], ['配置与管理', '可用操作取决于当前账号权限'], ['诊断日志', '查看和复制实际记录']]
   }
 })
+// Design A entry icons are distinct but share the same 40dp tinted square.
+const designAEntryIcon = label => {
+  if (/区域|防火墙|策略/.test(label)) return 'mdi-shield-outline'
+  if (/转发|NAT|网口|网络接口|WAN|LAN/.test(label)) return 'mdi-lan'
+  if (/备份|导出|文件/.test(label)) return 'mdi-content-save-outline'
+  if (/恢复|配置|管理/.test(label)) return 'mdi-cog-outline'
+  if (/日志|记录|结果/.test(label)) return 'mdi-text-box-search-outline'
+  if (/运行|服务|状态/.test(label)) return 'mdi-check-network-outline'
+  if (/诊断|检测/.test(label)) return 'mdi-lan-check'
+  return 'mdi-information-outline'
+}
 function openDesignAOperation(entry) {
   designAOperationName.value = entry
   designAOperationOpen.value = true
@@ -3108,14 +3119,14 @@ onUnmounted(() => {
                   <p>{{ designASecondaryInfo.subtitle }}</p>
                 </header>
                 <div v-if="!designASecondaryInfo.warning" class="v3-design-a-status-card">
-                  <v-chip color="success" variant="tonal" size="small">已连接路由器</v-chip>
-                  <p>实际可用功能、运行状态与配置权限由当前路由器及已安装插件决定。</p>
+                  <v-chip variant="tonal" size="small" prepend-icon="mdi-help-circle-outline">功能状态待确认</v-chip>
+                  <p>路由器会话已建立，具体服务状态、插件支持及配置权限需要在实际功能页读取确认。</p>
                 </div>
                 <h3 class="v3-design-a-section-title">{{ designASecondaryInfo.warning ? '管理入口' : '功能分区' }}</h3>
                 <div class="v3-feature-list v3-design-a-entry-list">
                   <button v-for="(entry, idx) in designASecondaryInfo.entries" :key="idx"
                     type="button" :aria-label="'查看' + entry[0]" @click="openDesignAOperation(entry[0])">
-                    <v-icon :icon="idx === 0 ? 'mdi-information-outline' : idx === 1 ? 'mdi-cog-outline' : 'mdi-text-box-search-outline'" color="primary"/>
+                    <v-icon :icon="designAEntryIcon(entry[0])" color="primary"/>
                     <span><strong>{{ entry[0] }}</strong><small>{{ entry[1] }}</small></span>
                     <v-icon icon="mdi-chevron-right"/>
                   </button>
