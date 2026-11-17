@@ -1201,6 +1201,8 @@
   width:100%!important;
   left:0!important;
   right:0!important;
+  height:calc(68px + env(safe-area-inset-bottom, 0px))!important;
+  min-height:calc(68px + env(safe-area-inset-bottom, 0px))!important;
   box-sizing:border-box;
   padding:4px 5px calc(4px + env(safe-area-inset-bottom, 0px))!important;
 }
@@ -1246,3 +1248,18 @@
   align-items:center;
   text-align:center;
 }
+
+
+/* Design A subpage hierarchy for real settings: the landing's hero/status
+ * match the prototype; real preferences remain immediately operable below. */
+.xxwrt-v3 .v3-settings-design-hero{margin:0 0 12px}
+.xxwrt-v3 .v3-settings-design-status{margin:0}
+.xxwrt-v3 .v3-settings-design-section-title{
+  margin:21px 3px 11px;font-size:16px;line-height:23px}
+.xxwrt-v3 .settings-page .settings-option-card{
+  border-radius:18px!important;
+  border:1px solid var(--ui-border)!important;
+  background:var(--ui-surface)!important;
+  box-shadow:0 8px 24px rgba(36,74,120,.045)!important}
+.xxwrt-v3.theme-is-dark .settings-page .settings-option-card{
+  box-shadow:0 8px 24px rgba(0,0,0,.13)!important}
