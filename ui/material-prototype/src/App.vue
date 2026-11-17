@@ -1398,6 +1398,7 @@ function closeSettingsPage() {
 }
 // Back: dialogs → More subpage → More hub → app tool → router list → minimize.
 async function handleBack() {
+  if (designARiskDialog.value) { designARiskDialog.value = false; return 'dialog' }
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
   if (releaseNotesDialog.value) { releaseNotesDialog.value = false; return 'dialog' }
   if (versionDetailsDialog.value) { versionDetailsDialog.value = false; return 'dialog' }
