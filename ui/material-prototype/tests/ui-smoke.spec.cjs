@@ -1566,6 +1566,9 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   await expect(page.getByRole('button', { name: '刷新当前页面' }))
     .not.toHaveClass(/v-btn--loading/)
 
+  // Design A keeps router switching on root tabs, not the nested system detail.
+  await page.getByRole('button', { name: '返回上一页' }).click()
+  await expect(page.locator('.v3-health-card')).toBeVisible()
   await page.getByRole('button', { name: '切换路由器' }).click()
   await expect(page.locator('.router-list-card')).toBeVisible()
   await expect(page.locator('.router-stat-block')).toBeVisible()
