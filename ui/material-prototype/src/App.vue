@@ -2580,7 +2580,7 @@ onUnmounted(() => {
                 <div class="v3-health-heading">
                   <v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-progress-clock'" :color="connected ? 'success' : 'warning'" size="30"/>
                   <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
-                    <p>{{ snapshot?.board?.model || 'OpenWrt / QWRT' }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
+                    <p>{{ selectedDevice ? displayDeviceName(selectedDevice) : (snapshot?.board?.hostname || 'OpenWrt / QWRT') }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
                 </div>
                 <div class="v3-health-metrics">
                   <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
@@ -2878,7 +2878,7 @@ onUnmounted(() => {
               <header class="v3-network-status">
                 <h2>网络连接状态</h2>
                 <p class="v3-network-status-summary">
-                  WAN · {{ overviewWanState }} · LAN · {{ snapshot?.lanIp || '未获取' }} · IPv6 · {{ overviewIpv6State }}
+                  WAN：{{ overviewWanState }} · LAN：{{ snapshot?.lanIp || '未获取' }} · IPv6：{{ overviewIpv6State }}
                 </p>
               </header>
               <div class="v3-section-label">接口与连接</div>
