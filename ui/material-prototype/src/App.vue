@@ -3049,12 +3049,10 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'network'">
             <section v-if="networkSection === 'hub'" class="v3-network-home">
-              <header class="v3-network-status">
-                <h2>网络连接</h2>
-                <div class="v3-network-sections">
+              <div class="v3-network-sections" role="group" aria-label="网络连接">
                   <section class="v3-network-section" aria-labelledby="v3-wan-group">
                     <div class="v3-network-group-heading">
-                      <div class="v3-network-group-title"><v-icon icon="mdi-earth" size="20"/><h3 id="v3-wan-group">外网 WAN</h3></div>
+                      <div class="v3-network-group-title"><v-icon icon="mdi-earth" size="20"/><h2 id="v3-wan-group">外网 WAN</h2></div>
                       <span class="v3-connection-status" :class="{ 'is-good': overviewWanState === '已连接' }">{{ overviewWanState }}</span>
                     </div>
                     <div class="v3-network-section-panel">
@@ -3095,7 +3093,7 @@ onUnmounted(() => {
                   </section>
                   <section class="v3-network-section" aria-labelledby="v3-lan-group">
                     <div class="v3-network-group-heading">
-                      <div class="v3-network-group-title"><v-icon icon="mdi-lan" size="20"/><h3 id="v3-lan-group">内网 LAN</h3></div>
+                      <div class="v3-network-group-title"><v-icon icon="mdi-lan" size="20"/><h2 id="v3-lan-group">内网 LAN</h2></div>
                     </div>
                     <div class="v3-network-section-panel">
                       <div class="v3-network-section-row">
@@ -3112,8 +3110,7 @@ onUnmounted(() => {
                       </div>
                     </div>
                   </section>
-                </div>
-              </header>
+              </div>
               <div class="v3-section-label">接口与连接</div>
               <div class="v3-feature-list v3-feature-list-primary">
                 <button type="button" @click="openNetworkSection('interfaces')"><v-icon icon="mdi-lan" color="primary"/><span><strong>网络接口</strong><small>WAN / LAN / PPPoE / IPv4 / IPv6 / DHCP</small></span><v-icon icon="mdi-chevron-right"/></button>
