@@ -917,3 +917,137 @@
   .xxwrt-v3 .terminal-grid .terminal-source-stack{max-width:62px}
   .xxwrt-v3 .terminal-grid .terminal-identity{flex-basis:34px!important;width:34px!important;height:34px!important}
 }
+
+
+/* Design A final geometry: enforce equal-width five-tab navigation in
+   Vuetify and the custom glass variant, regardless of legacy flex rules. */
+.xxwrt-v3 .standard-bottom{
+  width:100%!important;min-width:0!important;
+  min-height:calc(68px + env(safe-area-inset-bottom,0px))!important;
+  border-top:1px solid var(--ui-border)!important;
+  border-radius:20px 20px 0 0!important;
+  background:color-mix(in srgb,var(--ui-surface) 94%,transparent)!important
+}
+.xxwrt-v3 .standard-bottom .v-bottom-navigation__content{
+  display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  justify-content:stretch!important;align-items:stretch!important;
+  width:100%!important;max-width:none!important;
+  padding:6px 5px 5px!important;gap:3px!important
+}
+.xxwrt-v3 .standard-bottom .v-bottom-navigation__content>.v-btn{
+  display:flex!important;flex-direction:column!important;
+  justify-content:center!important;align-items:center!important;
+  width:100%!important;min-width:0!important;max-width:none!important;
+  margin:0!important;padding:4px 0!important;flex:initial!important;
+  border-radius:12px!important;min-height:52px!important
+}
+.xxwrt-v3 .standard-bottom .v-btn .v-btn__content{
+  width:100%;min-width:0;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;gap:3px
+}
+.xxwrt-v3 .standard-bottom .v-btn--active{
+  background:var(--ui-surface-2)!important;color:var(--ui-primary)!important
+}
+.xxwrt-v3 .standard-bottom .v-btn--active .v-icon{
+  background:transparent!important;padding:0!important
+}
+.xxwrt-v3 .standard-bottom .nav-label{
+  display:block;white-space:nowrap;font-size:11px;line-height:16px;
+  letter-spacing:0;font-weight:650
+}
+.xxwrt-v3 .liquid-bottom{width:100%;min-width:0}
+.xxwrt-v3 .liquid-bottom .glass-host{width:100%;min-width:0}
+.xxwrt-v3 .liquid-bottom .glass-nav{
+  display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:3px!important;width:100%!important;padding:6px!important
+}
+.xxwrt-v3 .liquid-bottom .glass-tab{
+  width:100%!important;min-width:0!important;max-width:none!important;
+  margin:0!important;flex:initial!important;min-height:52px!important
+}
+.xxwrt-v3 .liquid-bottom .glass-tab .v-btn__content{
+  width:100%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px
+}
+.xxwrt-v3 .liquid-bottom .glass-tab.selected{
+  background:var(--ui-surface-2)!important;color:var(--ui-primary)!important
+}
+.xxwrt-v3 .v3-overview{gap:12px}
+.xxwrt-v3 .v3-health-card{
+  border-radius:20px;padding:16px;
+  box-shadow:0 10px 30px rgba(36,74,120,.07)
+}
+.xxwrt-v3 .v3-health-heading h2{font-size:17px;line-height:24px}
+.xxwrt-v3 .v3-health-metrics{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px;margin:0
+}
+.xxwrt-v3 .v3-metric{
+  min-width:0;padding:11px 8px;border-radius:14px;
+  background:var(--ui-surface);border:1px solid var(--ui-border)
+}
+.xxwrt-v3 .v3-metric small{
+  font-size:11px;line-height:16px;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-metric strong{
+  font-size:clamp(17px,4.6vw,23px);line-height:30px;
+  font-weight:700;overflow-wrap:anywhere;white-space:normal
+}
+.xxwrt-v3 .v3-module-heading{margin:9px 2px 0}
+.xxwrt-v3 .v3-module-heading h2{
+  font-size:16px;line-height:23px;font-weight:700
+}
+.xxwrt-v3 .v3-live-card{
+  background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:18px!important;box-shadow:0 6px 22px rgba(36,74,120,.045)!important
+}
+.xxwrt-v3 .v3-shortcuts{gap:8px}
+.xxwrt-v3 .v3-shortcut{
+  min-height:77px;padding:12px 4px;border-radius:15px;
+  background:var(--ui-surface);border:1px solid var(--ui-border);
+  font-size:11px;line-height:16px;font-weight:700
+}
+.xxwrt-v3 .v3-shortcut .v-icon{font-size:23px}
+.xxwrt-v3 .app-hub-search .v-field,
+.xxwrt-v3 .terminal-search .v-field{
+  min-height:46px;background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border);border-radius:13px!important;
+  box-shadow:none!important
+}
+.xxwrt-v3 .app-hub-search .v-field__input,
+.xxwrt-v3 .terminal-search .v-field__input{
+  font-size:13px;min-height:44px
+}
+.xxwrt-v3 .app-category-card,
+.xxwrt-v3 .v3-feature-list,
+.xxwrt-v3 .v3-me-directory{
+  background:var(--ui-surface);border:1px solid var(--ui-border);
+  border-radius:17px;overflow:hidden
+}
+.xxwrt-v3 .app-category-toggle{
+  min-height:58px
+}
+.xxwrt-v3 .v3-feature-list button,
+.xxwrt-v3 .v3-me-directory .more-menu-item{
+  min-height:68px
+}
+.xxwrt-v3.theme-is-dark .standard-bottom{
+  background:color-mix(in srgb,var(--ui-surface) 94%,transparent)!important
+}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-health-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr));gap:8px
+  }
+  .xxwrt-v3 .v3-metric strong{font-size:22px}
+  .xxwrt-v3 .standard-bottom .v-bottom-navigation__content{
+    padding-inline:3px!important;gap:1px!important
+  }
+  .xxwrt-v3 .liquid-bottom .glass-nav{padding:4px!important;gap:1px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .xxwrt-v3 .standard-bottom .v-btn,
+  .xxwrt-v3 .liquid-bottom .glass-tab{
+    transition:none!important;animation:none!important
+  }
+}
