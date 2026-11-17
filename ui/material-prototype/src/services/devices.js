@@ -37,8 +37,9 @@ export function loadDevices() {
   // An explicitly saved empty list is NOT an uninitialized installation.
   // Otherwise deleting the last router resurrects the old single-host URL
   // at the next launch, because OLD_HOST_KEY remains for session compatibility.
-  const savedList = localStorage.getItem(LIST_KEY)
+  let savedList
   try {
+    savedList = localStorage.getItem(LIST_KEY)
     const decoded = JSON.parse(savedList ?? '[]')
     if (Array.isArray(decoded)) {
       items = decoded.filter(item =>
