@@ -5,7 +5,7 @@ import {
   loadOverviewCards, saveOverviewCards, rearrangeOverviewCards, toggleOverviewCard,
   enableRpcTrace, subscribeRpcTrace, clearRpcTrace, getRpcTrace,
   normalizeTrustedAlternative, readRouterIdentity, sameRouterIdentity,
-  loadPairedRoute, savePairedRoute, removePairedRoute,
+  loadPairedRoute, savePairedRoute, loadPairedRoutes, savePairedRoutes, removePairedRoute,
   passiveNetworkHealth, runNetworkHealthProbes
 } from './labFeatures.js'
 
@@ -18,7 +18,8 @@ export function useLabController({
   const labIntervals = computed(() => refreshIntervals(labSettings.value))
   const labCards = ref(normalizeOverviewCards())
   const labRpcRecords = ref([])
-  const labAlternate = ref(null)
+  const labAlternates = ref([])
+  const labAlternate = computed(() => labAlternates.value[0] || null)
   const labSmartBusy = ref(false)
   const labSmartMessage = ref('')
   const labGlobalMessage = ref('')
@@ -31,7 +32,7 @@ export function useLabController({
 
   watch(selectedDeviceId, id => {
     labCards.value = loadOverviewCards(storage,id)
-    labAlternate.value = loadPairedRoute(storage,id)
+    labAlternates.value = loadPairedRoutes(storage,id)
     labDeepRows.value = []
     labSmartMessage.value = ''
   },{immediate:true})
@@ -94,7 +95,8 @@ export function useLabController({
     }
     labSettings.value=loadLabSettings(storage)
     labCards.value=normalizeOverviewCards()
-    labAlternate.value=null
+    // Router login endpoints live with router profiles, not laboratory prefs.
+    labAlternates.value=loadPairedRoutes(storage,selectedDeviceId.value)
     labRpcMessage.value=''
     labSmartMessage.value=''
     labDeepRows.value=[]
@@ -103,7 +105,7 @@ export function useLabController({
     clearRpcTrace()
     onRefreshSettingsChange()
     onAppIconReset?.()
-    labGlobalMessage.value='已恢复默认：均衡刷新、默认六张卡片、默认二次元图标、关闭实验开关并清除所有备用入口配对'
+    labGlobalMessage.value='已恢复实验室默认值：刷新、概览卡片、图标与实验开关；路由器登录地址和已验证入口保持不变'
     // The active authenticated session is intentionally not disconnected.
   }
   function candidateFrom(source,url,ignoreTlsErrors=false) {
@@ -113,64 +115,115 @@ export function useLabController({
     // Deliberately never copy LuCI cookie or a remembered password.
     return result
   }
-  async function pairLabAlternative(input) {
-    const source=client.value
-    const device=selectedDevice.value
-    if (!source?.session || !device || labSmartBusy.value) return
+  /**
+   * Reconcile explicitly saved login endpoints against the currently
+   * authenticated router's stable identity. This may send the short-lived
+   * RPC token only to URLs that the user entered in the login editor.
+   * A failed validation cannot become a trusted automatic fallback.
+   */
+  async function verifyRouterAlternates(addresses = selectedDevice.value?.alternateAddresses || []) {
+    const source=client.value, device=selectedDevice.value
+    if (!source?.session || !device || labSmartBusy.value) return false
+    const requested = [...new Set(addresses)].filter(x=>x!==device.address).slice(0,5)
     labSmartBusy.value=true
-    labSmartMessage.value=''
+    labSmartMessage.value='正在核验各个备用入口是否属于当前路由器…'
     try {
-      const address=normalizeTrustedAlternative(input)
-      if (address===device.address || address===source.baseUrl)
-        throw new Error('备用入口地址必须不同于当前入口和主地址')
-      const known=await readRouterIdentity(source)
-      const candidate=candidateFrom(source,address)
-      const remote=await readRouterIdentity(candidate)
-      if (!sameRouterIdentity(known,remote))
-        throw new Error('目标硬件身份不一致，未发送任何路由器配置修改')
-      if (source!==client.value || selectedDeviceId.value!==device.id)
-        throw new Error('切换了当前路由器，已取消配对')
-      const paired={address,identity:remote}
-      if (!savePairedRoute(storage,device.id,paired)) throw new Error('无法保存本机配对记录')
-      labAlternate.value=paired
-      labSmartMessage.value='已验证相同路由器身份并保存备用入口'
-    } catch(error){
-      labSmartMessage.value='配对失败：'+shortError(error)
+      const known = await readRouterIdentity(source)
+      const previous = loadPairedRoutes(storage,device.id)
+      const verified=[]
+      const failures=[]
+      for (const raw of requested) {
+        let address
+        try { address=normalizeTrustedAlternative(raw) }
+        catch(error){ failures.push(shortError(error)); continue }
+        if (address===device.address) continue
+        if (source !== client.value || selectedDeviceId.value !== device.id)
+          throw new Error('当前路由器已改变，已停止验证')
+        const old=previous.find(item=>item.address===address &&
+          sameRouterIdentity(item.identity,known))
+        if (old) { verified.push(old); continue }
+        try {
+          const candidate=address===source.baseUrl?source:
+            candidateFrom(source,address,device.ignoreTlsErrors)
+          const remote=await readRouterIdentity(candidate)
+          if (!sameRouterIdentity(known,remote))
+            throw new Error('设备硬件身份不一致')
+          verified.push({address,identity:remote})
+        } catch(error){ failures.push(address+'：'+shortError(error)) }
+      }
+      if (source !== client.value || selectedDeviceId.value !== device.id)
+        throw new Error('当前路由器已改变，未保存验证结果')
+      if (!savePairedRoutes(storage,device.id,verified))
+        throw new Error('本机无法保存备用入口验证记录')
+      labAlternates.value=verified
+      labSmartMessage.value=failures.length
+        ? '已验证 '+verified.length+' 个入口；其余未通过验证，暂不可用于自动切换：'+failures.join('；')
+        : '全部 '+verified.length+' 个备用入口已通过同一设备身份验证'
+      return failures.length===0
+    } catch(error) {
+      labSmartMessage.value='验证失败：'+shortError(error)
+      return false
     } finally { labSmartBusy.value=false }
+  }
+  function pruneRouterAlternates(id,addresses) {
+    if (!id) return
+    const allowed=new Set(addresses || [])
+    const remaining=loadPairedRoutes(storage,id).filter(x=>allowed.has(x.address))
+    savePairedRoutes(storage,id,remaining)
+    if (selectedDeviceId.value===id) labAlternates.value=remaining
+  }
+  // Kept for upgrades of old integrations; the UI now lives in Login Config.
+  async function pairLabAlternative(input) {
+    return verifyRouterAlternates([...(selectedDevice.value?.alternateAddresses||[]),input])
   }
   function unpairLabAlternative() {
     if (!selectedDeviceId.value || labSmartBusy.value) return
     removePairedRoute(storage,selectedDeviceId.value)
-    labAlternate.value=null
-    labSmartMessage.value='已解除备用入口配对'
+    labAlternates.value=[]
+    labSmartMessage.value='已清空验证记录；填写的备用地址仍保存在登录配置中'
   }
-  async function swapLabConnection({automatic=false}={}) {
-    const source=client.value, device=selectedDevice.value, pair=labAlternate.value
-    if (!source?.session || !device || !pair || labSmartBusy.value) return false
-    const target=source.baseUrl===pair.address?device.address:pair.address
-    if (target===source.baseUrl) return false
+  async function swapLabConnection({automatic=false,address=''}={}) {
+    const source=client.value,device=selectedDevice.value
+    if (!source?.session || !device || labSmartBusy.value) return false
+    const verified=loadPairedRoutes(storage,device.id)
+    if (!verified.length) return false
+    const targets=address ? [address] : [
+      ...verified.map(p=>p.address),
+      ...(source.baseUrl!==device.address?[device.address]:[])
+    ]
     labSmartBusy.value=true
-    if (!automatic) labSmartMessage.value='正在验证目标入口身份及可用性…'
+    if (!automatic) labSmartMessage.value='正在验证并切换备用登录入口…'
+    const errors=[]
     try {
-      const candidate=candidateFrom(source,target,target===device.address && device.ignoreTlsErrors)
-      const identity=await readRouterIdentity(candidate)
-      if (!sameRouterIdentity(pair.identity,identity)) throw new Error('目标入口身份不一致，保持当前连接')
-      const fresh=await readDashboard(candidate)
-      if (source!==client.value || selectedDeviceId.value!==device.id) throw new Error('当前路由器已改变')
-      client.value=candidate
-      sessions.set(device.id,candidate)
-      snapshot.value=fresh
-      labDeepRows.value=[]
-      labSmartMessage.value=(automatic?'已自动切换至 ':'已切换至 ')+target
-      onConnectionSwitched({automatic})
-      return true
-    } catch(error) {
-      labSmartMessage.value='切换失败，保留原连接：'+shortError(error)
+      for (const target of [...new Set(targets)]) {
+        if (target===source.baseUrl) continue
+        const pair=verified.find(p=>p.address===target) || verified[0]
+        // If selecting an unpaired address, never send the current RPC token.
+        if (target!==device.address && !verified.some(p=>p.address===target)) continue
+        try {
+          const candidate=candidateFrom(source,target,device.ignoreTlsErrors)
+          const identity=await readRouterIdentity(candidate)
+          if (!sameRouterIdentity(pair.identity,identity))
+            throw new Error('路由器硬件身份不一致')
+          const fresh=await readDashboard(candidate)
+          if (source!==client.value || selectedDeviceId.value!==device.id)
+            throw new Error('当前路由器已更改')
+          client.value=candidate
+          sessions.set(device.id,candidate)
+          snapshot.value=fresh
+          labDeepRows.value=[]
+          labSmartMessage.value=(automatic?'自动切换成功：':'已切换至：')+target
+          onConnectionSwitched({automatic})
+          return true
+        } catch(error){ errors.push(target+'：'+shortError(error)) }
+      }
+      labSmartMessage.value='切换失败，保留当前连接：'+errors.join('；')
       return false
     } finally { labSmartBusy.value=false }
   }
   async function maybeLabFailover(error) {
-    if (!labSettings.value.smartSwitch || !labAlternate.value || labSmartBusy.value) return false
+    if (!(selectedDevice.value?.autoSwitch ?? labSettings.value.smartSwitch) ||
+        !labAlternates.value.length || labSmartBusy.value) return false
     if (!/无法连接|网络通信失败|timeout|timed.out|ECONN|failed to fetch|network error|HTTP 50/i.test(shortError(error))) return false
     if (Date.now()-lastFailoverAt<60000) return false
     lastFailoverAt=Date.now()
@@ -191,11 +244,11 @@ export function useLabController({
   }
 
   return {
-    labSettings,labIntervals,labCards,labRpcRecords,labAlternate,labSmartBusy,
+    labSettings,labIntervals,labCards,labRpcRecords,labAlternate,labAlternates,labSmartBusy,
     labSmartMessage,labGlobalMessage,labRpcMessage,labHealthBusy,labDeepRows,labHealthRows,
     applyLabSettings,setLabRefreshProfile,setLabCustomInterval,
     setLabCardVisibility,moveLabCard,resetLabCards,toggleLabRpc,
     copyLabRpc,clearRpcTrace,resetLabAll,pairLabAlternative,unpairLabAlternative,
-    swapLabConnection,maybeLabFailover,runLabHealthCheck
+    swapLabConnection,maybeLabFailover,verifyRouterAlternates,pruneRouterAlternates,runLabHealthCheck
   }
 }

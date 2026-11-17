@@ -121,7 +121,8 @@ test('global reset removes only lab keys for all routers, preserving saved route
   assert.equal(resetAllLabPreferences(storage),true)
   assert.equal(storage.has(LAB_PREFS_KEY),false)
   assert.equal(storage.has(LAB_CARDS_KEY),false)
-  assert.equal(storage.has(LAB_ROUTES_KEY),false)
+  // Router login endpoints moved out of Laboratory: reset cannot delete them.
+  assert.equal(storage.has(LAB_ROUTES_KEY),true)
   assert.equal(loadLabSettings(storage).profile,'balanced')
   assert.equal(loadOverviewCards(storage,'router-a').every(x=>x.visible),true)
   assert.equal(storage.getItem('xxwrt_saved_devices'),'important-router-config')

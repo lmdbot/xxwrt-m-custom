@@ -1,15 +1,11 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 const props = defineProps({
   settings: { type:Object, required:true },
   intervals: { type:Object, required:true },
   cards: { type:Array, required:true },
   router: { type:Object, default:null },
   rpcRecords: { type:Array, default:()=>[] },
-  alternate: { type:Object, default:null },
-  activeAddress: { type:String, default:'' },
-  smartBusy: { type:Boolean, default:false },
-  smartMessage: { type:String, default:'' },
   globalMessage: { type:String, default:'' },
   rpcMessage: { type:String, default:'' },
   healthRows: { type:Array, default:()=>[] },
@@ -24,11 +20,9 @@ const props = defineProps({
 })
 const emit = defineEmits([
   'set-profile','set-interval','toggle-cards','toggle-card','move-card','reset-cards',
-  'toggle-rpc','clear-rpc','copy-rpc','toggle-smart','pair-alternate','remove-alternate',
-  'switch-route','toggle-health','check-health','reset-all',
+  'toggle-rpc','clear-rpc','copy-rpc','toggle-health','check-health','reset-all',
   'icon-select','icon-upload','icon-pin-shortcut'
 ])
-const alternateInput = ref('')
 const resetConfirmation = ref(false)
 const iconFileInput = ref(null)
 const iconUploadError = ref('')
@@ -76,7 +70,6 @@ async function handleIconFile(event) {
     iconUploading.value = false
   }
 }
-watch(()=>props.router?.id,()=>{ alternateInput.value = '' })
 const presets = [
   {label:'省电',value:'saver'},{label:'均衡',value:'balanced'},
   {label:'实时',value:'realtime'},{label:'自定义',value:'custom'}
@@ -87,7 +80,6 @@ const intervalFields = [
   {key:'devices',name:'路由器可达性检测',options:[10000,15000,20000,30000,45000,60000,120000]}
 ]
 const latestRpc = computed(()=>[...props.rpcRecords].reverse().slice(0,25))
-const isAlternate = computed(()=>Boolean(props.alternate?.address && props.activeAddress === props.alternate.address))
 const healthColor = state=>state==='ok'?'success':state==='fail'?'error':state==='warn'?'warning':'secondary'
 const rpcColor = result=>result==='success'?'success':result==='error'?'error':'warning'
 </script>
@@ -101,17 +93,18 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
     <div class="lab-reset-bar">
       <span>出现异常时，可一键撤销全部实验设置</span>
       <v-btn size="small" variant="outlined" color="primary" prepend-icon="mdi-restore"
-        :disabled="smartBusy || healthBusy"
+        :disabled="healthBusy"
         @click="resetConfirmation = true">恢复默认值</v-btn>
     </div>
     <p v-if="globalMessage" class="lab-reset-notice" role="status">{{ globalMessage }}</p>
+    <p class="lab-note">主登录地址、加密密码和备用入口已迁移至「路由器管理 → 添加/编辑路由器 → 登录配置」，实验室不再管理这些连接设置。</p>
     <v-dialog v-model="resetConfirmation" max-width="430">
       <v-card rounded="xl" class="pa-4" title="恢复实验室默认值？">
         <v-card-text class="lab-reset-dialog-text">
           将刷新间隔恢复为均衡模式（概览 12 秒、流量 3 秒、设备 15 秒），
           恢复所有已保存路由器的六张概览卡片及默认顺序，
           关闭 RPC 调试、智能连接切换与健康检测，
-          清空本次 RPC 日志，并删除所有路由器的备用入口配对。
+          清空本次 RPC 日志。路由器登录密码、主/备用地址及已验证入口不受影响。
           将应用图标恢复为默认二次元图标，删除上传的自定义图片。
           已固定在手机桌面的自定义快捷方式仍需手动删除。
           不影响已保存的路由器账号或路由器配置；当前连接不会被强制中断。
@@ -240,35 +233,6 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
         <p v-else class="lab-note">暂无请求记录，刷新任意路由器页面即可采集。</p>
       </template>
       <p class="lab-note">最多保留 80 条内存记录，关闭后立即清空；不保存 URL、请求体、响应体、密码、会话令牌。</p>
-    </v-card>
-
-    <v-card rounded="xl" elevation="1" class="settings-option-card lab-option">
-      <div class="settings-option-heading">
-        <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-lan-connect" size="23"/></v-avatar>
-        <div><h2>智能连接切换</h2><p>为同一台路由器配对备用访问入口，当前连接失败时尝试切换。</p></div>
-      </div>
-      <div class="lab-main-switch"><span>启用已配对入口自动切换</span>
-        <v-switch :model-value="settings.smartSwitch" color="primary" inset hide-details density="compact"
-          aria-label="启用智能连接切换" @update:model-value="emit('toggle-smart', $event)"/>
-      </div>
-      <div v-if="settings.smartSwitch">
-        <div v-if="router && activeAddress" class="lab-detail-line"><span>当前入口</span><strong>{{ activeAddress }}</strong></div>
-        <div v-if="alternate" class="lab-detail-line"><span>已验证备用入口</span><strong>{{ alternate.address }}</strong></div>
-        <v-text-field v-model="alternateInput" class="mt-3" density="comfortable" variant="outlined" hide-details="auto"
-          label="备用访问地址" placeholder="https://router.example.com" autocapitalize="off"
-          :disabled="!router || smartBusy"/>
-        <div class="lab-actions mt-3">
-          <v-btn color="primary" size="small" variant="tonal" prepend-icon="mdi-shield-check-outline"
-            :loading="smartBusy" :disabled="!router || !activeAddress || !alternateInput.trim()"
-            @click="emit('pair-alternate',alternateInput)">验证并配对</v-btn>
-          <v-btn v-if="alternate" variant="outlined" size="small" prepend-icon="mdi-swap-horizontal"
-            :loading="smartBusy" :disabled="!router" @click="emit('switch-route')">{{ isAlternate ? '切回主入口' : '切换至备用入口' }}</v-btn>
-          <v-btn v-if="alternate" variant="text" size="small" color="warning"
-            :disabled="smartBusy" @click="emit('remove-alternate')">解除配对</v-btn>
-        </div>
-        <p v-if="smartMessage" class="lab-note" role="status">{{ smartMessage }}</p>
-        <p class="lab-note">只支持可信 HTTPS 或私有 IPv4 HTTP 地址。配对会将当前短期 RPC 会话发送到你明确填写的备用入口，并核验设备硬件身份；请确保地址由你控制。验证失败不会切换；初次登录仍使用主入口。</p>
-      </div>
     </v-card>
 
     <v-card rounded="xl" elevation="1" class="settings-option-card lab-option">

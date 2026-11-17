@@ -13,6 +13,7 @@ import {
 import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
 import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
+import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -57,8 +58,8 @@ import {
   bandwidthSample, prettyRate, readWirelessStations
 } from './services/telemetry.js'
 import {
-  loadDevices, saveDevices, newDevice, probeDevice,
-  storeDevicePassword, fetchDevicePassword, deleteDevicePassword
+  loadDevices, saveDevices, newDevice, probeDevice, normalizeRouterAlternates,
+  MAX_ROUTER_ALTERNATIVES, storeDevicePassword, fetchDevicePassword, deleteDevicePassword
 } from './services/devices.js'
 import {
   RouterClient, readDashboard, readClients, readServices, readInstalledRouterApps,
@@ -460,7 +461,22 @@ function dismissGeneralFeedback() {
 }
 const deviceStatuses = reactive({})
 const deviceSummaries = reactive({})
-const deviceForm = reactive({ name: '', address: 'http://192.168.100.1', username: 'root', ignoreTlsErrors: false })
+const deviceForm = reactive({
+  name: '', address: 'http://192.168.100.1', username: 'root',
+  password: '', showPassword: false, rememberPassword: true,
+  ignoreTlsErrors: false, alternateAddresses: [], autoSwitch: false
+})
+const deviceEditorBusy = ref(false)
+const deviceEditorMessage = ref('')
+const verifiedEditorAddresses = ref([])
+watch(deviceDialog,visible=>{
+  if (visible) return
+  // Android Back, backdrop dismissal and explicit cancel are equivalent:
+  // no unsaved plaintext password may survive after the editor closes.
+  deviceForm.password=''
+  deviceForm.showPassword=false
+  deviceEditorMessage.value=''
+})
 const sessions = new Map()
 const selectedDevice = computed(() => devices.value.find(d => d.id === selectedDeviceId.value) || null)
 const probeBusy = ref(false)
@@ -743,12 +759,12 @@ const errorMessage = ref('')
 const lastUpdated = ref('')
 const snapshot = ref(null)
 const {
-  labSettings, labIntervals, labCards, labRpcRecords, labAlternate,
+  labSettings, labIntervals, labCards, labRpcRecords, labAlternate, labAlternates,
   labSmartBusy, labSmartMessage, labGlobalMessage, labRpcMessage, labHealthBusy, labDeepRows, labHealthRows,
   applyLabSettings, setLabRefreshProfile, setLabCustomInterval,
   setLabCardVisibility, moveLabCard, resetLabCards, toggleLabRpc,
   copyLabRpc, clearRpcTrace, resetLabAll, pairLabAlternative, unpairLabAlternative,
-  swapLabConnection, maybeLabFailover, runLabHealthCheck
+  swapLabConnection, maybeLabFailover, verifyRouterAlternates, pruneRouterAlternates, runLabHealthCheck
 } = useLabController({
   storage: localStorage, selectedDeviceId, selectedDevice, connected,
   client, snapshot, sessions,
@@ -1697,7 +1713,11 @@ async function handleBack() {
     return 'dialog'
   }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
-  if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
+  if (deviceDialog.value) {
+    if (deviceEditorBusy.value) return 'busy'
+    closeDeviceEditor()
+    return 'dialog'
+  }
   // A nested network editor is a separate Vuetify overlay. Consume Android
   // Back in the editor before navigating away from the router detail screen.
   if (viewMode.value === 'detail' && activeTab.value === 'network' && !settingsOpen.value) {
@@ -1843,48 +1863,118 @@ function resetSession() {
 
 function showDeviceDialog(device = null) {
   listError.value = ''
+  deviceEditorMessage.value = ''
   editDeviceId.value = device?.id || ''
-  Object.assign(deviceForm, device ? {
-    name: device.name, address: device.address, username: device.username,
-    ignoreTlsErrors: !!device.ignoreTlsErrors
-  } : { name: '', address: 'http://192.168.100.1', username: 'root', ignoreTlsErrors: false })
+  const inherited = device ? loadPairedRoutes(localStorage,device.id).map(x=>x.address) : []
+  const alternateAddresses = [...new Set([
+    ...(device?.alternateAddresses || []),...inherited
+  ])].slice(0,MAX_ROUTER_ALTERNATIVES)
+  Object.assign(deviceForm, {
+    name: device?.name || '',
+    address: device?.address || 'http://192.168.100.1',
+    username: device?.username || 'root',
+    password: '', showPassword: false,
+    rememberPassword: isNative && (device ? !!device.rememberPassword : true),
+    ignoreTlsErrors: !!device?.ignoreTlsErrors,
+    alternateAddresses,
+    autoSwitch: device ? (device.autoSwitch ?? labSettings.value.smartSwitch) : false
+  })
+  verifiedEditorAddresses.value=device ? loadPairedRoutes(localStorage,device.id).map(x=>x.address) : []
   deviceDialog.value = true
 }
-
-async function saveDeviceEntry() {
-  listError.value = ''
+function closeDeviceEditor() {
+  if (deviceEditorBusy.value) return
+  deviceDialog.value = false
+  deviceForm.password = ''
+  deviceForm.showPassword = false
+  deviceEditorMessage.value = ''
+}
+function addDeviceAlternate() {
+  if (deviceForm.alternateAddresses.length>=MAX_ROUTER_ALTERNATIVES) return
+  deviceForm.alternateAddresses.push('')
+}
+function removeDeviceAlternate(index) {
+  deviceForm.alternateAddresses.splice(index,1)
+}
+async function verifyEditorAlternates() {
+  const device=selectedDevice.value
+  if (!editDeviceId.value || !device || device.id!==editDeviceId.value ||
+      !connected.value || !client.value?.session || labSmartBusy.value) return
+  deviceEditorMessage.value=''
   try {
-    const candidate = newDevice(deviceForm) // validates name, address, username
-    if (editDeviceId.value) {
-      const before = devices.value.find(d => d.id === editDeviceId.value)
-      if (!before) throw new Error('未找到需要编辑的路由器')
-      const changedAddress = before.address !== candidate.address
-      const trust = changedAddress ? false : candidate.ignoreTlsErrors
-      const changed = changedAddress || before.username !== candidate.username || before.ignoreTlsErrors !== trust
-      devices.value = devices.value.map(d => d.id === before.id
-        ? { ...d, name: candidate.name, address: candidate.address, username: candidate.username,
-            ignoreTlsErrors: trust, rememberPassword: changed ? false : d.rememberPassword }
-        : d)
-      if (changed) {
-        sessions.get(before.id)?.logout()
-        sessions.delete(before.id)
-        delete deviceSummaries[before.id]
-        routerPreloadCache.delete(before.id)
-        await deleteDevicePassword(before.id)
-      }
-    } else {
-      if (devices.value.some(d => d.address === candidate.address && d.username === candidate.username)) {
-        throw new Error('同一地址及用户名的路由器已经添加')
-      }
-      devices.value = [...devices.value, candidate]
+    const current=normalizeRouterAlternates(deviceForm.address,deviceForm.alternateAddresses)
+    if (deviceForm.address!==device.address ||
+        JSON.stringify(current)!==JSON.stringify(device.alternateAddresses || [])) {
+      deviceEditorMessage.value='地址有未保存的修改，请先保存后再验证备用入口'
+      return
     }
-    devices.value = saveDevices(devices.value)
-    deviceDialog.value = false
-    editDeviceId.value = ''
-    await refreshDeviceStatuses()
-  } catch (e) {
-    listError.value = shortError(e)
-  }
+    await verifyRouterAlternates(current)
+    verifiedEditorAddresses.value=loadPairedRoutes(localStorage,device.id).map(item=>item.address)
+  } catch(error) { deviceEditorMessage.value=shortError(error) }
+}
+async function saveDeviceEntry() {
+  if (deviceEditorBusy.value) return
+  deviceEditorBusy.value = true
+  listError.value = ''
+  deviceEditorMessage.value = ''
+  try {
+    const candidate = newDevice(deviceForm)
+    const editing = Boolean(editDeviceId.value)
+    const before = editing ? devices.value.find(d=>d.id===editDeviceId.value) : null
+    if (editing && !before) throw new Error('未找到需要编辑的路由器')
+    if (devices.value.some(d=>d.id!==before?.id && d.address===candidate.address && d.username===candidate.username))
+      throw new Error('同一地址及用户名的路由器已经添加')
+    const id = before?.id || candidate.id
+    const sensitiveChanged = Boolean(before && (
+      before.address!==candidate.address || before.username!==candidate.username ||
+      before.ignoreTlsErrors!==candidate.ignoreTlsErrors
+    ))
+    const password = deviceForm.password
+    const remember = isNative && deviceForm.rememberPassword && (
+      Boolean(password) || (!sensitiveChanged && before?.rememberPassword)
+    )
+    // Never serialize passwords into the saved router list, even transiently.
+    // A failed Android Keystore write leaves the editor open for correction.
+    if (isNative && password && remember) await storeDevicePassword(id,password)
+    else if (isNative && (sensitiveChanged || !remember)) await deleteDevicePassword(id)
+    const saved = {
+      ...candidate,id,
+      createdAt:before?.createdAt || candidate.createdAt,
+      rememberPassword: Boolean(remember)
+    }
+    if (editing) {
+      devices.value = devices.value.map(d=>d.id===id?saved:d)
+      if (sensitiveChanged || Boolean(password)) {
+        sessions.get(id)?.logout()
+        sessions.delete(id)
+        delete deviceSummaries[id]
+        routerPreloadCache.delete(id)
+      }
+    } else devices.value=[...devices.value,saved]
+    devices.value=saveDevices(devices.value)
+    // Removing an endpoint immediately revokes its previous trusted pairing.
+    pruneRouterAlternates(id,saved.alternateAddresses)
+    verifiedEditorAddresses.value=loadPairedRoutes(localStorage,id).map(x=>x.address)
+    const needsReconnect = Boolean(editing && (sensitiveChanged || Boolean(password)) &&
+      selectedDeviceId.value===id && connected.value)
+    const validateNow = Boolean(editing && !needsReconnect && connected.value &&
+      selectedDeviceId.value===id && client.value?.session)
+    deviceForm.password=''
+    deviceDialog.value=false
+    editDeviceId.value=''
+    if (needsReconnect) {
+      resetSession()
+      listError.value='登录信息已更新，请使用新配置重新连接该路由器'
+    } else if (validateNow && saved.alternateAddresses.length) {
+      // A short-lived authenticated RPC session is needed to confirm that
+      // each address really leads to the same physical router.
+      void verifyRouterAlternates(saved.alternateAddresses)
+    }
+    void refreshDeviceStatuses()
+  } catch (error) {
+    listError.value = shortError(error)
+    deviceEditorMessage.value = listError.value
+  } finally { deviceEditorBusy.value = false }
 }
 
 function askDeleteDevice(device) {
@@ -1905,7 +1995,40 @@ async function confirmDeleteDevice() {
   delete deviceSummaries[id]
   deviceCounterCache.delete(id)
   routerPreloadCache.delete(id)
+  removePairedRoute(localStorage,id)
   if (id === selectedDeviceId.value) resetSession()
+}
+
+/** The saved main endpoint is always attempted first. A fallback endpoint
+ * is eligible for automatic password login only after its router identity was
+ * verified in an earlier authenticated session. Never send a saved secret to
+ * an arbitrary, merely typed backup hostname. */
+async function loginWithRouterEndpoints(device,password) {
+  const trusted = loadPairedRoutes(localStorage,device.id)
+    .filter(item => (device.alternateAddresses || []).includes(item.address))
+  const primary = new RouterClient(device.address,{ignoreTlsErrors:device.ignoreTlsErrors})
+  try {
+    await primary.login(device.username,password)
+    return primary
+  } catch(error) {
+    if (!/无法连接|网络通信失败|timeout|timed.out|ECONN|failed to fetch|network error|HTTP 50/i.test(shortError(error)) ||
+        !(device.autoSwitch ?? labSettings.value.smartSwitch) || !trusted.length) throw error
+    const reasons=[shortError(error)]
+    for (const route of trusted) {
+      const alternative=new RouterClient(route.address,{ignoreTlsErrors:device.ignoreTlsErrors})
+      try {
+        await alternative.login(device.username,password)
+        const identity=await readRouterIdentity(alternative)
+        if (!sameRouterIdentity(route.identity,identity))
+          throw new Error('备用入口硬件身份不一致')
+        return alternative
+      } catch(fallbackError) {
+        alternative.logout()
+        reasons.push(route.address+': '+shortError(fallbackError))
+      }
+    }
+    throw new Error('主入口和已验证备用入口均无法连接：'+reasons.join('；'))
+  }
 }
 
 async function refreshDeviceStatuses() {
@@ -1927,9 +2050,7 @@ async function refreshDeviceStatuses() {
           try {
             const secret = await fetchDevicePassword(d.id)
             if (secret) {
-              const session = new RouterClient(d.address, { ignoreTlsErrors: d.ignoreTlsErrors })
-              await session.login(d.username, secret)
-              api = session
+              api = await loginWithRouterEndpoints(d,secret)
               sessions.set(d.id, api)
             }
           } catch (_) { api = null }
@@ -2019,6 +2140,7 @@ async function openDevice(device) {
     viewMode.value = 'detail'
     activeTab.value = 'home'
     const fresh = applyRouterPreload(device.id, cached)
+    if (device.alternateAddresses?.length) void verifyRouterAlternates(device.alternateAddresses)
     void preloadRouterExtras(device.id, cached)
     void preloadRouterClients(device.id, cached)
     if (!fresh) void refreshDashboard()
@@ -2048,9 +2170,8 @@ async function connect() {
   try {
     const device = selectedDevice.value
     if (!device) throw new Error('请先从设备列表选择路由器')
-    const api = new RouterClient(device.address, { ignoreTlsErrors: loginIgnoreTls.value })
     const password = form.password
-    await api.login(device.username, password)
+    const api = await loginWithRouterEndpoints(device,password)
     client.value = api
     sessions.set(device.id, api)
     connected.value = true
@@ -2059,9 +2180,8 @@ async function connect() {
     activeTab.value = 'home'
     deviceStatuses[device.id] = 'reachable'
     localStorage.setItem(storage.host, api.baseUrl)
-    // TLS exception is remembered per saved router, independently of the password.
-    devices.value = saveDevices(devices.value.map(d => d.id === device.id
-      ? { ...d, ignoreTlsErrors: api.ignoreTlsErrors } : d))
+    // TLS exception is configured only in the router editor; switching to a
+    // backup URL must never rewrite the primary endpoint's certificate policy.
     if (isNative && loginRemember.value) {
       try {
         await storeDevicePassword(device.id, password)
@@ -2078,6 +2198,7 @@ async function connect() {
     // Start device-list discovery immediately after authentication; it must
     // not wait for a visit to the Devices tab or for Overview to finish.
     void preloadRouterClients(device.id, api)
+    if (device.alternateAddresses?.length) void verifyRouterAlternates(device.alternateAddresses)
     await Promise.all([refreshDashboard(), refreshInstalledRouterApps(api)])
   } catch (e) {
     errorMessage.value = shortError(e)
@@ -2719,8 +2840,6 @@ onUnmounted(() => {
             <template v-else-if="settingsCategory === 'lab'">
               <LabPanel :settings="labSettings" :intervals="labIntervals" :cards="labCards"
                 :router="connected ? selectedDevice : null" :rpc-records="labRpcRecords"
-                :alternate="labAlternate" :active-address="connected ? (client?.baseUrl || '') : ''"
-                :smart-busy="labSmartBusy" :smart-message="labSmartMessage"
                 :global-message="labGlobalMessage" :rpc-message="labRpcMessage"
                 :health-rows="labHealthRows" :deep-rows="labDeepRows" :health-busy="labHealthBusy"
                 :icon-choices="appIconChoices" :icon-choice="appIconChoice"
@@ -2730,9 +2849,6 @@ onUnmounted(() => {
                 @toggle-cards="value => applyLabSettings({ cardsEnabled:value })"
                 @toggle-card="setLabCardVisibility" @move-card="moveLabCard" @reset-cards="resetLabCards"
                 @toggle-rpc="toggleLabRpc" @clear-rpc="clearRpcTrace" @copy-rpc="copyLabRpc"
-                @toggle-smart="value => applyLabSettings({ smartSwitch:value })"
-                @pair-alternate="pairLabAlternative" @remove-alternate="unpairLabAlternative"
-                @switch-route="() => swapLabConnection()"
                 @toggle-health="value => applyLabSettings({ healthEnabled:value })"
                 @check-health="runLabHealthCheck" @reset-all="resetLabAll"
                 @icon-select="selectAppIcon" @icon-upload="uploadAppIcon"
@@ -3840,21 +3956,109 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="deviceDialog" max-width="430">
-      <v-card rounded="xl">
-        <v-card-title>{{ editDeviceId ? '编辑 OpenWrt 设备' : '添加 OpenWrt 设备' }}</v-card-title>
-        <v-card-text>
-          <form id="device-editor" @submit.prevent="saveDeviceEntry">
-            <v-text-field v-model.trim="deviceForm.name" label="设备名称 / 备注" variant="outlined" density="comfortable" placeholder="例如：QWRT 主路由" required/>
-            <v-text-field v-model.trim="deviceForm.address" label="IP / 域名 / 端口" variant="outlined" density="comfortable" placeholder="http://192.168.100.1" autocomplete="url" autocapitalize="off" required/>
-            <v-text-field v-model.trim="deviceForm.username" label="登录用户名" variant="outlined" density="comfortable" autocomplete="username" required/>
-            <v-checkbox v-if="isNative && deviceForm.address.startsWith('https://')"
-              v-model="deviceForm.ignoreTlsErrors" color="warning" hide-details
-              label="忽略此设备 HTTPS 证书错误（不安全）"/>
-            <p class="muted-hint">设备地址可以是 HTTPS 公网域名。更换地址时会自动取消此前的证书例外。</p>
+    <!-- One source of truth for saved router credentials and trusted routes. -->
+    <v-dialog v-model="deviceDialog" max-width="560" scrollable :persistent="deviceEditorBusy">
+      <v-card rounded="xl" class="router-login-editor">
+        <v-card-title class="router-editor-title">
+          <span>{{ editDeviceId ? '编辑 OpenWrt 设备' : '添加 OpenWrt 设备' }}</span>
+          <v-btn icon="mdi-close" size="small" variant="text" aria-label="关闭路由器配置"
+            :disabled="deviceEditorBusy" @click="closeDeviceEditor"/>
+        </v-card-title>
+        <v-card-subtitle class="router-editor-subtitle">一次填写所有地址、登录信息与备用连接方式</v-card-subtitle>
+        <v-card-text class="router-editor-body">
+          <form id="device-editor" @submit.prevent="saveDeviceEntry" autocomplete="off">
+            <div class="router-editor-section-heading">
+              <v-icon icon="mdi-router-wireless" color="primary" size="20"/>
+              <div><h3>路由器信息</h3><p>为这台设备设置名称与默认连接入口</p></div>
+            </div>
+            <v-text-field v-model.trim="deviceForm.name" label="设备名称 / 备注" variant="outlined"
+              density="comfortable" placeholder="例如：QWRT 主路由" required/>
+            <v-text-field v-model.trim="deviceForm.address" label="IP / 域名 / 端口" variant="outlined"
+              density="comfortable" placeholder="http://192.168.100.1" autocomplete="url"
+              autocapitalize="off" required/>
+            <div class="router-editor-section-heading router-editor-section-separator">
+              <v-icon icon="mdi-shield-key-outline" color="primary" size="20"/>
+              <div><h3>登录配置</h3><p>账号密码、TLS 验证与额外的登录地址</p></div>
+            </div>
+            <v-text-field v-model.trim="deviceForm.username" label="登录用户名" variant="outlined"
+              density="comfortable" autocomplete="username" required/>
+            <v-text-field v-model="deviceForm.password" label="路由器密码" variant="outlined"
+              density="comfortable" autocomplete="new-password"
+              :type="deviceForm.showPassword ? 'text' : 'password'"
+              :append-inner-icon="deviceForm.showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+              @click:append-inner="deviceForm.showPassword = !deviceForm.showPassword"
+              :placeholder="editDeviceId && deviceForm.rememberPassword ? '已保存加密密码，留空不修改' : '输入登录密码'"/>
+            <p class="router-editor-helper" v-if="editDeviceId && deviceForm.rememberPassword">
+              密码不会明文显示。留空保留已保存的密码；更换主地址或用户名时，需要重新填写密码才能继续自动登录。
+            </p>
+            <v-switch v-if="isNative" v-model="deviceForm.rememberPassword" inset density="compact"
+              color="primary" hide-details class="router-editor-switch"
+              label="使用 Android Keystore 加密保存密码（用于自动登录）"/>
+            <p v-else class="router-editor-helper">网页模式不持久保存密码；Android 安装版可安全记住密码并自动连接。</p>
+            <v-checkbox v-if="isNative && /^https:\/\//i.test(deviceForm.address)"
+              v-model="deviceForm.ignoreTlsErrors" color="warning" density="compact"
+              hide-details class="router-editor-switch"
+              label="忽略 HTTPS 证书错误（仅可信自签名路由器）"/>
+            <v-alert v-if="isNative && deviceForm.ignoreTlsErrors && /^https:\/\//i.test(deviceForm.address)"
+              type="warning" variant="tonal" density="compact" class="mb-3">
+              忽略证书校验可能泄露密码。优先修复证书；此选项只对你明确配置的路由器入口生效。
+            </v-alert>
+            <div class="router-editor-alt-heading">
+              <div>
+                <h4>额外登录 IP / 域名</h4>
+                <p>主入口不可用时，可通过同一台路由器的其他入口连接</p>
+              </div>
+              <span>{{ deviceForm.alternateAddresses.length }}/{{ MAX_ROUTER_ALTERNATIVES }}</span>
+            </div>
+            <div v-for="(alternate, index) in deviceForm.alternateAddresses" :key="index"
+              class="router-editor-alternate-row">
+              <v-text-field v-model.trim="deviceForm.alternateAddresses[index]" variant="outlined"
+                density="comfortable" hide-details="auto" autocapitalize="off"
+                :label="'备用登录 IP / 域名 ' + (index + 1)"
+                placeholder="https://router.example.com"/>
+              <v-btn icon="mdi-close-circle-outline" variant="text" size="small"
+                :aria-label="'删除备用入口 ' + (index + 1)"
+                @click="removeDeviceAlternate(index)"/>
+              <v-chip v-if="verifiedEditorAddresses.includes(alternate)" size="x-small"
+                color="success" variant="tonal">已验证</v-chip>
+              <v-btn v-if="editDeviceId === selectedDeviceId && connected &&
+                verifiedEditorAddresses.includes(alternate) && client?.baseUrl !== alternate"
+                size="x-small" color="primary" variant="tonal"
+                :loading="labSmartBusy" @click="swapLabConnection({address:alternate})">切换至此</v-btn>
+              <v-chip v-else-if="client?.baseUrl === alternate && connected" size="x-small"
+                color="info" variant="tonal">当前入口</v-chip>
+            </div>
+            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" color="primary"
+              class="router-editor-add-alternate"
+              :disabled="deviceForm.alternateAddresses.length >= MAX_ROUTER_ALTERNATIVES"
+              @click="addDeviceAlternate">添加备用登录地址</v-btn>
+            <div v-if="editDeviceId && editDeviceId === selectedDeviceId && connected"
+              class="router-editor-verify-actions">
+              <v-btn size="small" color="primary" variant="outlined"
+                prepend-icon="mdi-shield-check-outline"
+                :disabled="labSmartBusy || deviceEditorBusy || !deviceForm.alternateAddresses.length"
+                :loading="labSmartBusy" @click="verifyEditorAlternates">重新验证已保存入口</v-btn>
+              <span v-if="client?.baseUrl" class="router-editor-helper">当前：{{ client.baseUrl }}</span>
+            </div>
+            <v-switch v-model="deviceForm.autoSwitch" inset density="compact"
+              class="router-editor-switch mt-2" color="primary" hide-details
+              label="主入口连接失败时自动切换已验证的备用入口"/>
+            <p class="router-editor-helper">
+              支持可信 HTTPS 域名或私有 IPv4 HTTP 地址，最多 5 个。
+              保存后可在路由器登录成功时核验各入口的硬件身份；未验证通过的地址不会用于自动切换。
+              额外地址及验证结果仅保存在本机。
+            </p>
+            <p v-if="deviceEditorMessage" role="alert" class="router-editor-error">{{ deviceEditorMessage }}</p>
+            <p v-if="editDeviceId && editDeviceId === selectedDeviceId && labSmartMessage"
+              class="router-editor-helper" role="status">{{ labSmartMessage }}</p>
           </form>
         </v-card-text>
-        <v-card-actions><v-spacer/><v-btn variant="text" @click="deviceDialog = false">取消</v-btn><v-btn type="submit" form="device-editor" color="primary">保存设备</v-btn></v-card-actions>
+        <v-card-actions class="router-editor-actions">
+          <v-btn variant="text" :disabled="deviceEditorBusy" @click="closeDeviceEditor">取消</v-btn>
+          <v-spacer/>
+          <v-btn type="submit" form="device-editor" color="primary" rounded="lg"
+            :loading="deviceEditorBusy" prepend-icon="mdi-content-save-outline">保存设备</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="loginDialog" max-width="430" :persistent="connecting">
@@ -3865,18 +4069,16 @@ onUnmounted(() => {
           <form id="router-login" @submit.prevent="connect">
             <v-text-field v-model.trim="form.username" density="comfortable" variant="outlined" label="用户名" autocomplete="username" readonly/>
             <v-text-field v-model="form.password" density="comfortable" variant="outlined" label="路由器密码" autocomplete="current-password" :type="form.showPassword ? 'text' : 'password'" :append-inner-icon="form.showPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="form.showPassword = !form.showPassword" required/>
-            <v-checkbox v-if="isNative" v-model="loginRemember" label="使用 Android Keystore 加密记住密码" color="primary" hide-details/>
-            <v-checkbox v-if="isNative && selectedDevice?.address?.startsWith('https://')"
-              v-model="loginIgnoreTls" label="忽略此路由器 HTTPS 证书错误（不安全）"
-              color="warning" hide-details class="mt-2"/>
-            <v-alert v-if="loginIgnoreTls && selectedDevice?.address?.startsWith('https://')"
-              type="warning" variant="tonal" density="compact" class="mt-2">
-              将跳过此路由器的证书链和域名校验，可能泄露登录密码。仅用于完全可信的自签名路由器；优先修复证书。
-            </v-alert>
-            <p v-else class="muted-hint">网页预览不保存密码；Android 安装版支持安全存储。</p>
+            <p class="muted-hint">此处仅用于临时登录。如需保存加密密码、设置 TLS 选项或备用 IP/域名，请在路由器的「登录配置」中统一修改。</p>
           </form>
         </v-card-text>
-        <v-card-actions><v-spacer/><v-btn variant="text" :disabled="connecting" @click="loginDialog = false">返回列表</v-btn><v-btn type="submit" form="router-login" color="primary" :loading="connecting">登录并进入</v-btn></v-card-actions>
+        <v-card-actions class="router-editor-login-actions">
+          <v-btn variant="text" :disabled="connecting" @click="loginDialog = false">返回列表</v-btn>
+          <v-btn variant="text" :disabled="connecting"
+            @click="loginDialog = false; showDeviceDialog(selectedDevice)">登录配置</v-btn>
+          <v-spacer/>
+          <v-btn type="submit" form="router-login" color="primary" :loading="connecting">登录并进入</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="deleteDialog" max-width="360">

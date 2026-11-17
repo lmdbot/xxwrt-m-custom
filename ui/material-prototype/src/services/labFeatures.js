@@ -46,13 +46,14 @@ export function saveLabSettings(storage, value) {
   return clean
 }
 /**
- * Factory reset affects *only* laboratory keys, including all per-router layouts
- * and verified alternative endpoints. Core router credentials remain untouched.
+ * Factory reset affects only laboratory preferences and per-router layouts.
+ * Login endpoints and verified identities are no longer laboratory options:
+ * they must survive a laboratory reset alongside router profiles.
  * If persistent storage rejects removal, leave the in-memory settings unchanged.
  */
 export function resetAllLabPreferences(storage) {
   try {
-    for (const key of [LAB_PREFS_KEY, LAB_CARDS_KEY, LAB_ROUTES_KEY, APP_ICON_CHOICE_KEY, APP_ICON_CUSTOM_KEY]) storage.removeItem(key)
+    for (const key of [LAB_PREFS_KEY, LAB_CARDS_KEY, APP_ICON_CHOICE_KEY, APP_ICON_CUSTOM_KEY]) storage.removeItem(key)
     return true
   } catch { return false }
 }
@@ -169,17 +170,49 @@ export function sameRouterIdentity(a,b) {
   return Boolean(a?.marker && b?.marker && a.marker === b.marker &&
     a.model && a.model === b.model && a.target === b.target)
 }
-export function loadPairedRoute(storage,deviceId) {
+/**
+ * v1 held a single verified route. v2 stores a list while transparently
+ * loading existing v1 data, so upgrading never discards a paired address.
+ */
+export function loadPairedRoutes(storage,deviceId) {
   const all = safelyRead(storage,LAB_ROUTES_KEY,{})
-  const route = deviceId ? all?.[deviceId] : null
-  if (!route?.address || !route?.identity) return null
-  try { return { address:normalizeTrustedAlternative(route.address),identity:route.identity } } catch { return null }
+  const item = deviceId ? all?.[deviceId] : null
+  const list = Array.isArray(item?.routes) ? item.routes
+    : item?.address && item?.identity ? [item] : []
+  const seen = new Set()
+  return list.flatMap(route => {
+    if (!route?.identity?.marker) return []
+    try {
+      const address = normalizeTrustedAlternative(route.address)
+      if (seen.has(address)) return []
+      seen.add(address)
+      return [{address,identity:route.identity}]
+    } catch { return [] }
+  }).slice(0,5)
+}
+export function savePairedRoutes(storage,deviceId,routes) {
+  if (!deviceId || !Array.isArray(routes)) return false
+  const all = safelyRead(storage,LAB_ROUTES_KEY,{})
+  const source = all && typeof all === 'object' && !Array.isArray(all) ? all : {}
+  const verified = []
+  const seen = new Set()
+  for (const route of routes) {
+    if (!route?.identity?.marker) continue
+    let address
+    try { address = normalizeTrustedAlternative(route.address) } catch { continue }
+    if (seen.has(address)) continue
+    seen.add(address)
+    verified.push({address,identity:route.identity})
+    if (verified.length >= 5) break
+  }
+  return safelyWrite(storage,LAB_ROUTES_KEY,{...source,[deviceId]:{routes:verified}})
+}
+export function loadPairedRoute(storage,deviceId) {
+  return loadPairedRoutes(storage,deviceId)[0] || null
 }
 export function savePairedRoute(storage,deviceId,route) {
-  if (!deviceId) return false
-  const all = safelyRead(storage,LAB_ROUTES_KEY,{})
-  return safelyWrite(storage,LAB_ROUTES_KEY,{ ...(all && typeof all === 'object' && !Array.isArray(all) ? all : {}),
-    [deviceId]:route })
+  const list=loadPairedRoutes(storage,deviceId).filter(x=>x.address!==route?.address)
+  return savePairedRoutes(storage,deviceId,[...list,route])
 }
 export function removePairedRoute(storage,deviceId) {
   if (!deviceId) return false
