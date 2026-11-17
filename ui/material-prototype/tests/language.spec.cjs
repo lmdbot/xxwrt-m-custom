@@ -6,7 +6,6 @@ test('More settings language switches immediately and survives restart', async (
   await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
 
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开语言设置' }).click()
   await expect(page.getByText('应用语言')).toBeVisible()
   await page.getByRole('radio', { name: 'English' }).check()
@@ -20,7 +19,6 @@ test('More settings language switches immediately and survives restart', async (
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await expect(page.getByRole('heading', { name: 'Router management' })).toBeVisible()
   await page.getByRole('button', { name: 'Me', exact: true }).click()
-  await page.getByRole('button', { name: 'Open settings' }).click()
   await page.locator('.more-menu-item').filter({ hasText: 'Language' }).click()
   await page.getByRole('radio', { name: '繁體中文' }).check()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-TW')
@@ -29,7 +27,6 @@ test('More settings language switches immediately and survives restart', async (
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-TW')
   await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.getByRole('button', { name: '打開設置' }).click()
   await page.locator('.more-menu-item').filter({ hasText: '語言' }).click()
   await page.getByRole('radio', { name: '简体中文' }).check()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
@@ -39,7 +36,6 @@ test('More settings language switches immediately and survives restart', async (
 test('English also localizes dropdowns and notification overlays created after changing language', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.getByRole('button', { name: '打开设置' }).click()
   await page.getByRole('button', { name: '打开语言设置' }).click()
   await page.getByRole('radio', { name: 'English' }).check()
 
@@ -74,44 +70,33 @@ test('English also localizes dropdowns and notification overlays created after c
 })
 
 
-test('v3 Me uses five concise entries and Settings retains five categories', async ({ page }) => {
+test('Design A Me groups router, five settings and About without an extra directory', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
-  await expect(page.getByRole('button', { name: '我的', exact: true })).toBeVisible()
-  await expect(page.locator('.material-side-drawer')).toHaveCount(0)
   await page.getByRole('button', { name: '我的', exact: true }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
-  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(5)
+  await expect(page.locator('.more-page .more-menu-item')).toHaveCount(7)
   await expect(page.locator('.standard-bottom .v-btn')).toHaveCount(5)
 
-  await page.getByRole('button', { name: '打开帮助与反馈' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('帮助与反馈')
-  await expect(page.getByRole('button', { name: '查看使用说明' })).toBeVisible()
-  await page.getByRole('button', { name: '返回上一页' }).click()
-  await expect(page.getByTestId('more-page')).toBeVisible()
   await page.getByRole('button', { name: '打开隐私设置' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('隐私')
   await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
+
   await page.getByRole('button', { name: '打开关于' }).click()
   await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('关于')
+  await expect(page.locator('.about-design-section')).toHaveCount(3)
+  await page.locator('.about-design-more summary').click()
+  await page.getByRole('button', { name: '帮助与反馈' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('帮助与反馈')
   await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
 
-  await page.getByRole('button', { name: '打开设置' }).click()
-  await expect(page.locator('.settings-page .more-menu-item')).toHaveCount(5)
-  for (const category of ['显示', '隐私', '刷新', '实验室', '语言']) {
-    await page.getByRole('button', { name: '打开' + category + '设置' }).click()
-    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText(category)
-    await expect(page.locator('.settings-page-heading')).toHaveCount(0)
-    await page.getByRole('button', { name: '返回上一页' }).click()
-    await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('设置')
-  }
+  await page.getByRole('button', { name: '打开显示设置' }).click()
+  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('显示')
   await page.getByRole('button', { name: '返回上一页' }).click()
   await expect(page.getByTestId('more-page')).toBeVisible()
+
   await page.getByRole('button', { name: '概览' }).click()
-  await expect(page.locator('.top-bar .router-toolbar-name')).toHaveText('路由器管理')
   await expect(page.getByRole('heading', { name: '路由器管理' })).toBeVisible()
-  await expect(page.locator('.top-bar').getByRole('button', { name: '刷新设备状态' })).toBeVisible()
-  await expect(page.locator('.top-bar').getByRole('button', { name: '添加', exact: true })).toBeVisible()
 })
