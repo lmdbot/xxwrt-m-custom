@@ -1380,7 +1380,7 @@ const overviewIpv6State = computed(() => {
 let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
 let refreshQueuedForce = false
-let pendingManualDeviceRefresh = false
+const pendingManualDeviceRefresh = ref(false)
 let processRefreshBusy = false
 let hardwareSampleAt = 0
 
@@ -2049,7 +2049,7 @@ async function loginWithRouterEndpoints(device,password) {
 
 async function refreshDeviceStatuses({ manual = false } = {}) {
   if (probeBusy.value) {
-    if (manual) pendingManualDeviceRefresh = true
+    if (manual) pendingManualDeviceRefresh.value = true
     return
   }
   probeBusy.value = true
@@ -2102,8 +2102,8 @@ async function refreshDeviceStatuses({ manual = false } = {}) {
   } finally {
     routerListRefreshedAt.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
     probeBusy.value = false
-    if (pendingManualDeviceRefresh) {
-      pendingManualDeviceRefresh = false
+    if (pendingManualDeviceRefresh.value) {
+      pendingManualDeviceRefresh.value = false
       void refreshDeviceStatuses({ manual: true })
     }
   }
@@ -2679,8 +2679,13 @@ onUnmounted(() => {
         </div>
       </v-toolbar-title>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
-        class="v3-top-action" icon="mdi-refresh" size="small" variant="text" color="primary"
-        :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses({ manual: true })"/>
+        class="v3-top-action" icon size="small" variant="text" color="primary"
+        :aria-busy="probeBusy" aria-label="刷新设备状态"
+        :title="pendingManualDeviceRefresh ? '已排队，当前检测结束后再次刷新' : '刷新设备状态'"
+        @click="refreshDeviceStatuses({ manual: true })">
+        <v-icon :icon="probeBusy ? 'mdi-loading' : 'mdi-refresh'"
+          :class="{ 'mdi-spin': probeBusy }"/>
+      </v-btn>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
         class="router-list-add-topbar" color="primary" rounded="xl"
         size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
@@ -2982,8 +2987,9 @@ onUnmounted(() => {
                 @click="routerListLayout = routerListLayout === 'card' ? 'list' : 'card'"/>
             </div>
           </div>
-          <div v-if="routerListRefreshedAt && devices.length" class="text-caption text-medium-emphasis text-end mt-1 mb-2" role="status" aria-live="polite">
-            最近检测 {{ routerListRefreshedAt }}
+          <div v-if="devices.length && (probeBusy || routerListRefreshedAt)"
+            class="text-caption text-medium-emphasis text-end mt-1 mb-2" role="status" aria-live="polite">
+            {{ probeBusy ? (pendingManualDeviceRefresh ? '正在检测 · 已排队再次刷新' : '正在检测路由器…') : '最近检测 ' + routerListRefreshedAt }}
           </div>
           <v-card v-if="!devices.length" rounded="xl" elevation="1" class="empty-devices">
             <v-avatar color="primary" variant="tonal" size="72"><v-icon icon="mdi-router-wireless" size="36"/></v-avatar>
