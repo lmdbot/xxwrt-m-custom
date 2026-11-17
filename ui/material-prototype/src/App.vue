@@ -2234,7 +2234,7 @@ onUnmounted(() => {
 
 <template>
   <v-app class="material-demo xxwrt-v3" :class="{ 'theme-is-dark': dark, 'app-motion-enabled': effectiveMotion }">
-    <v-app-bar flat color="surface" height="64" class="top-bar">
+    <v-app-bar flat color="surface" height="61" class="top-bar">
       <v-btn v-if="settingsOpen || !!toolPanel || activeTab === 'statistics' || (activeTab === 'home' && homeDetailsExpanded) || (activeTab === 'network' && networkSection !== 'hub')"
         icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack()"/>
       <v-toolbar-title class="app-name">
@@ -2255,10 +2255,12 @@ onUnmounted(() => {
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
-      <v-btn v-if="viewMode === 'detail' && connected"
+      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && !toolPanel
+        && activeTab !== 'statistics' && !(activeTab === 'home' && homeDetailsExpanded)
+        && !(activeTab === 'network' && networkSection !== 'hub')"
         class="v3-router-switch v3-router-switch--design-a" size="small" variant="text"
         icon="mdi-chevron-down" aria-label="切换路由器" @click="requestRouterSwitch"/>
-      <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen && !toolPanel && activeTab !== 'statistics'"
+      <v-btn v-if="viewMode === 'detail' && connected"
         class="v3-theme-switch" size="small" variant="text"
         :icon="dark ? 'mdi-weather-sunny' : 'mdi-theme-light-dark'"
         :aria-label="dark ? '切换浅色主题' : '切换深色主题'"
