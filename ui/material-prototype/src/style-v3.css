@@ -1408,6 +1408,45 @@
 .xxwrt-v3.theme-is-dark .v3-design-a-tool-live .lucky-app-panel{
   box-shadow:0 10px 30px rgba(0,0,0,.16)
 }
+/* Actual RPC/UCI controls must use the same opaque Design A surfaces as
+ * navigation lists: the prototype's colored hero is not a form background. */
+.xxwrt-v3 .v3-design-a-tool-live :is(
+  .router-operations,.advanced-manager,.router-app-panel,.lucky-app-panel
+) h3{
+  margin:0 0 11px;
+  font-size:16px;line-height:23px;font-weight:700;
+  color:var(--ui-text)
+}
+.xxwrt-v3 .v3-design-a-tool-live :is(.v-field--variant-outlined,.v-field--variant-filled){
+  background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:12px!important;
+  box-shadow:none!important
+}
+.xxwrt-v3 .v3-design-a-tool-live .v-field--focused{
+  border-color:var(--ui-primary)!important;
+  box-shadow:0 0 0 1px var(--ui-primary)!important
+}
+.xxwrt-v3 .v3-design-a-tool-live .v-field__outline{opacity:0}
+.xxwrt-v3 .v3-design-a-tool-live .v-btn:not(.v-btn--icon){
+  min-height:44px;
+  border-radius:12px!important;
+  font-weight:650
+}
+.xxwrt-v3 .v3-design-a-tool-live .v-card{
+  border-radius:16px!important;
+  border-color:var(--ui-border)!important
+}
+.xxwrt-v3 .v3-design-a-tool-live :is(.data-row,.app-compact-row,.settings-detail-row){
+  border-bottom:1px solid var(--ui-border)
+}
+.xxwrt-v3 .v3-design-a-tool-live :is(.muted-hint,.text-medium-emphasis,.text-caption){
+  color:var(--ui-muted)!important
+}
+.xxwrt-v3 .v3-design-a-tool-live .v-alert{
+  border-radius:12px!important
+}
+
 
 
 /* Design A phone gutter: 393dp uses 18dp, 360dp uses 16dp;
