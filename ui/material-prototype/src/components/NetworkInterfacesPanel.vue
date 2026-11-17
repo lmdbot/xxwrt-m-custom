@@ -300,20 +300,28 @@ defineExpose({ refreshAction, handleBack })
 
     <v-dialog v-model="editorOpen" :fullscreen="smAndDown" max-width="590" persistent class="v3-network-editor-dialog">
       <v-card v-if="editor" rounded="xl" class="network-interface-editor">
-        <v-card-title class="d-flex align-center justify-space-between ga-2">
-          <span>配置网络接口 · {{ current }}</span>
-          <v-btn icon="mdi-close" variant="text" size="small" :disabled="pending || busy"
-            aria-label="关闭接口配置" @click="closeEditor"/>
-        </v-card-title>
-        <v-card-subtitle>对应 /etc/config/network{{ hasDhcpConfig ? ' 与 /etc/config/dhcp' : '' }}</v-card-subtitle>
-        <v-divider class="mt-3"/>
-        <v-tabs v-model="activeTab" color="primary" show-arrows class="mb-2" density="comfortable">
-          <v-tab value="general">常规</v-tab>
-          <v-tab value="ipv6">IPv6 / 高级</v-tab>
-          <v-tab value="dhcp">DHCP 服务端</v-tab>
-        </v-tabs>
+        <header class="network-editor-header">
+          <div class="network-editor-header-copy">
+            <span class="network-editor-kicker">网络管理 / 接口设置</span>
+            <h2>配置网络接口 <span class="network-editor-name">{{ current }}</span></h2>
+            <p>/etc/config/network{{ hasDhcpConfig ? ' · /etc/config/dhcp' : '' }}</p>
+          </div>
+          <v-btn icon="mdi-close" variant="text" size="small" class="network-editor-close"
+            :disabled="pending || busy" aria-label="关闭接口配置" @click="closeEditor"/>
+        </header>
+        <div class="network-editor-tabs">
+          <v-tabs v-model="activeTab" color="primary" grow density="comfortable">
+            <v-tab value="general">常规</v-tab>
+            <v-tab value="ipv6">IPv6 / 高级</v-tab>
+            <v-tab value="dhcp">DHCP 服务端</v-tab>
+          </v-tabs>
+        </div>
         <v-card-text class="network-interface-form">
           <template v-if="activeTab === 'general'">
+            <div class="network-editor-section-intro">
+              <v-icon icon="mdi-lan-connect" size="20" color="primary"/>
+              <div><strong>基础网络配置</strong><small>修改接口协议、地址和路由参数</small></div>
+            </div>
             <v-switch v-model="editor.auto" label="开机自动启用接口" color="primary" hide-details inset class="mb-3"
               :disabled="pending || busy"/>
             <v-select v-model="editor.proto" label="接口协议" :items="protocols"
@@ -345,6 +353,10 @@ defineExpose({ refreshAction, handleBack })
               type="number" min="0" max="65535" variant="outlined" density="comfortable"/>
           </template>
           <template v-else-if="activeTab === 'ipv6'">
+            <div class="network-editor-section-intro">
+              <v-icon icon="mdi-ip-network-outline" size="20" color="primary"/>
+              <div><strong>IPv6 与高级参数</strong><small>依据当前接口协议提供可编辑配置</small></div>
+            </div>
             <template v-if="editor.proto === 'static'">
               <v-text-field v-model.trim="editor.ip6assign" label="IPv6 前缀分配长度（如 64，可留空）"
                 variant="outlined" density="comfortable"/>
@@ -360,6 +372,10 @@ defineExpose({ refreshAction, handleBack })
             <p v-else class="text-body-2 text-medium-emphasis">当前协议的 IPv6 高级参数请使用原生 LuCI 设置，以免覆盖 PPPoE、隧道等协议的专用选项。</p>
           </template>
           <template v-else>
+            <div class="network-editor-section-intro">
+              <v-icon icon="mdi-router-network" size="20" color="primary"/>
+              <div><strong>DHCP 服务端</strong><small>管理本地网络的地址自动分配</small></div>
+            </div>
             <v-alert type="info" variant="tonal" density="compact" class="mb-3">
               这里配置的是路由器向 LAN 设备分配地址的 DHCP 服务器，不是上级网络的 DHCP 客户端。
             </v-alert>
@@ -396,8 +412,7 @@ defineExpose({ refreshAction, handleBack })
             RPC 未确认应用结果，请检查网络后等待自动回滚，暂勿再次提交。
           </v-alert>
         </v-card-text>
-        <v-divider/>
-        <v-card-actions class="d-flex flex-wrap ga-2 pa-3">
+        <v-card-actions class="network-editor-actions d-flex flex-wrap ga-2">
           <v-btn v-if="!pending" variant="text" :disabled="busy" @click="closeEditor">取消</v-btn>
           <v-spacer/>
           <template v-if="pending">
@@ -410,10 +425,13 @@ defineExpose({ refreshAction, handleBack })
       </v-card>
     </v-dialog>
 
-    <v-dialog :model-value="Boolean(runtimeTarget)" max-width="420"
+    <v-dialog :model-value="Boolean(runtimeTarget)" max-width="420" class="v3-network-runtime-dialog"
       @update:model-value="!$event && (runtimeTarget = null)">
       <v-card rounded="xl">
-        <v-card-title>确认{{ runtimeTarget?.action === 'up' ? '连接' : '断开' }}网络接口？</v-card-title>
+        <v-card-title class="d-flex align-center ga-2">
+          <v-icon icon="mdi-alert-circle-outline" color="warning" size="23"/>
+          确认{{ runtimeTarget?.action === 'up' ? '连接' : '断开' }}网络接口？
+        </v-card-title>
         <v-card-text>
           即将向 netifd 提交 {{ runtimeTarget?.name }} 接口的运行操作。
           <template v-if="runtimeTarget?.action === 'down'">断开会立即中断此接口的网络连接，且不会自动恢复。</template>
