@@ -14,15 +14,68 @@ const props = defineProps({
   rpcMessage: { type:String, default:'' },
   healthRows: { type:Array, default:()=>[] },
   deepRows: { type:Array, default:()=>[] },
-  healthBusy: { type:Boolean, default:false }
+  healthBusy: { type:Boolean, default:false },
+  iconChoices: { type:Array, default:()=>[] },
+  iconChoice: { type:String, default:'anime' },
+  iconCustomSrc: { type:String, default:'' },
+  iconBusy: { type:Boolean, default:false },
+  iconMessage: { type:String, default:'' },
+  iconIsNative: { type:Boolean, default:false }
 })
 const emit = defineEmits([
   'set-profile','set-interval','toggle-cards','toggle-card','move-card','reset-cards',
   'toggle-rpc','clear-rpc','copy-rpc','toggle-smart','pair-alternate','remove-alternate',
-  'switch-route','toggle-health','check-health','reset-all'
+  'switch-route','toggle-health','check-health','reset-all',
+  'icon-select','icon-upload','icon-pin-shortcut'
 ])
 const alternateInput = ref('')
 const resetConfirmation = ref(false)
+const iconFileInput = ref(null)
+const iconUploadError = ref('')
+const iconUploading = ref(false)
+async function handleIconFile(event) {
+  const file = event.target?.files?.[0]
+  if (event.target) event.target.value = ''
+  if (!file) return
+  iconUploadError.value = ''
+  if (!['image/png','image/jpeg','image/webp'].includes(file.type)) {
+    iconUploadError.value = '只支持 PNG、JPG、WebP 图片'
+    return
+  }
+  if (file.size > 8*1024*1024) {
+    iconUploadError.value = '请选择不超过 8 MB 的图片'
+    return
+  }
+  iconUploading.value = true
+  let url = ''
+  try {
+    url = URL.createObjectURL(file)
+    const image = new Image()
+    await new Promise((resolve,reject) => {
+      image.onload = resolve
+      image.onerror = () => reject(new Error('图片无法解码'))
+      image.src = url
+    })
+    const width = image.naturalWidth, height = image.naturalHeight
+    if (width < 64 || height < 64) throw new Error('建议上传至少 64×64 像素的图片')
+    const size = Math.min(width,height)
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 256
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('无法处理图片')
+    ctx.clearRect(0,0,256,256)
+    ctx.drawImage(image,(width-size)/2,(height-size)/2,size,size,0,0,256,256)
+    const png = canvas.toDataURL('image/png')
+    if (png.length > 1024*1024*4/3) throw new Error('处理后图片超过 1 MB')
+    emit('icon-upload',png)
+  } catch (error) {
+    iconUploadError.value = error?.message || '上传图片失败'
+  } finally {
+    if (url) URL.revokeObjectURL(url)
+    iconUploading.value = false
+  }
+}
 watch(()=>props.router?.id,()=>{ alternateInput.value = '' })
 const presets = [
   {label:'省电',value:'saver'},{label:'均衡',value:'balanced'},
@@ -69,6 +122,43 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-card rounded="xl" elevation="1" class="settings-option-card lab-option">
+      <div class="settings-option-heading">
+        <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-palette-outline" size="23"/></v-avatar>
+        <div><h2>自定义应用图标</h2><p>预置图标可切换 Android 桌面图标；也支持上传照片制作应用内图标及桌面快捷方式。</p></div>
+      </div>
+      <div class="lab-icon-grid" role="group" aria-label="应用图标样式">
+        <button v-for="item in iconChoices" :key="item.id" type="button" class="lab-icon-option"
+          :class="{ 'is-selected': iconChoice === item.id }"
+          :aria-pressed="iconChoice === item.id" :disabled="iconBusy || iconUploading"
+          @click="emit('icon-select',item.id)">
+          <img :src="item.src" :alt="item.title" width="66" height="66"/>
+          <strong>{{ item.title }}</strong>
+          <small>{{ item.description }}</small>
+          <v-icon v-if="iconChoice===item.id" class="lab-icon-selected" icon="mdi-check-circle" color="primary" size="19"/>
+        </button>
+        <button v-if="iconCustomSrc" type="button" class="lab-icon-option"
+          :class="{ 'is-selected': iconChoice === 'custom' }"
+          :aria-pressed="iconChoice === 'custom'" :disabled="iconBusy || iconUploading"
+          @click="emit('icon-select','custom')">
+          <img :src="iconCustomSrc" alt="自定义上传的应用图标" width="66" height="66"/>
+          <strong>我的图片</strong><small>应用内 / 桌面快捷方式</small>
+          <v-icon v-if="iconChoice==='custom'" class="lab-icon-selected" icon="mdi-check-circle" color="primary" size="19"/>
+        </button>
+      </div>
+      <input ref="iconFileInput" type="file" accept="image/png,image/jpeg,image/webp"
+        class="lab-icon-file-input" aria-label="上传应用图标图片" @change="handleIconFile"/>
+      <div class="lab-actions">
+        <v-btn variant="tonal" size="small" color="primary" prepend-icon="mdi-image-plus"
+          :loading="iconUploading" :disabled="iconBusy" @click="iconFileInput?.click()">{{ iconCustomSrc ? '更换上传图片' : '上传自定义图片' }}</v-btn>
+        <v-btn v-if="iconCustomSrc && iconIsNative" variant="outlined" size="small" prepend-icon="mdi-cellphone-arrow-down"
+          :disabled="iconBusy || iconUploading" @click="emit('icon-pin-shortcut')">添加自定义桌面快捷方式</v-btn>
+      </div>
+      <p v-if="iconUploadError" class="lab-note lab-icon-error" role="alert">{{ iconUploadError }}</p>
+      <p v-if="iconMessage" class="lab-note" role="status">{{ iconMessage }}</p>
+      <p class="lab-note">默认仍是原来的二次元图标。图片上传后会自动居中裁剪为正方形（256×256）；应用内图标立即更新，原始图片不会上传到服务器。Android 仅支持直接切换打包时预置的桌面图标；自定义图片需要另行添加桌面快捷方式，不能替换应用的系统图标。</p>
+    </v-card>
 
     <v-card rounded="xl" elevation="1" class="settings-option-card lab-option">
       <div class="settings-option-heading">
@@ -224,6 +314,17 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
 .lab-introduction h2{font-size:18px;line-height:26px;font-weight:750}
 .lab-introduction p{font-size:12px;line-height:1.6;color:var(--ui-text-muted);margin-top:3px}
 .lab-option{padding:17px}
+.lab-icon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:14px}
+.lab-icon-option{appearance:none;-webkit-appearance:none;position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 8px 11px;border:1px solid var(--ui-border);border-radius:13px;background:var(--ui-surface);color:var(--ui-text);cursor:pointer;text-align:center}
+.lab-icon-option.is-selected{border:2px solid rgb(var(--v-theme-primary));padding:13px 7px 10px;background:rgba(var(--v-theme-primary),.05)}
+.lab-icon-option img{width:66px;height:66px;border-radius:16px;object-fit:contain;background:rgba(var(--v-theme-primary),.06)}
+.lab-icon-option strong{font-size:12px;line-height:1.45;font-weight:700}
+.lab-icon-option small{font-size:10px;line-height:1.5;color:var(--ui-muted)}
+.lab-icon-option .lab-icon-selected{position:absolute;top:7px;right:7px}
+.lab-icon-option:focus-visible{outline:2px solid rgb(var(--v-theme-primary));outline-offset:2px}
+.lab-icon-option:disabled{opacity:.65;cursor:not-allowed}
+.lab-icon-file-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.lab-icon-error{color:rgb(var(--v-theme-error))}
 .lab-profile-toggle{display:flex;width:100%;margin-top:12px}
 .lab-profile-toggle :deep(.v-btn){flex:1 1 0;min-width:0;padding:0 6px;font-size:12px;letter-spacing:0}
 .lab-rate-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:13px}
