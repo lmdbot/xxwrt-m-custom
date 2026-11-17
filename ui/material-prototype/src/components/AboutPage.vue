@@ -65,7 +65,7 @@ const updateStatus = computed(() => {
       </div>
       <p v-if="updateState.checked || updateState.checking || updateState.error"
         class="about-design-status" role="status">{{ updateStatus }}
-        <span v-if="updateState.latestRelease?.source === 'aliyun'" class="about-design-source">阿里云</span>
+        <span v-if="updateState.latestRelease?.source === 'mirror'" class="about-design-source">阿里云</span>
         <span v-else-if="updateState.latestRelease?.source === 'github'" class="about-design-source">GitHub</span>
       </p>
       <div v-if="updateState.available && updateState.latestRelease?.apkUrl"
