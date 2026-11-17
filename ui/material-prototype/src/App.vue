@@ -2587,7 +2587,7 @@ onUnmounted(() => {
             <section v-if="activeTab === 'home' && !homeDetailsExpanded" class="v3-overview">
               <div class="v3-health-card">
                 <div class="v3-health-heading">
-                  <v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-progress-clock'" :color="connected ? 'success' : 'warning'" size="30"/>
+                  <v-icon class="v3-health-state-icon" :icon="connected ? 'mdi-check-circle' : 'mdi-progress-clock'" :color="connected ? 'success' : 'warning'" size="22"/>
                   <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
                     <p>{{ selectedDevice ? displayDeviceName(selectedDevice) : (snapshot?.board?.hostname || 'OpenWrt / QWRT') }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
                 </div>
@@ -2605,12 +2605,12 @@ onUnmounted(() => {
                 @click="openDetailedMonitor" @keydown.enter.prevent="openDetailedMonitor"
                 @keydown.space.prevent="openDetailedMonitor">
                 <div class="v3-rates">
-                  <span><v-icon icon="mdi-arrow-down" color="primary" size="17"/> RX {{ currentRate?.rx || '等待采样' }}</span>
-                  <span><v-icon icon="mdi-arrow-up" color="secondary" size="17"/> TX {{ currentRate?.tx || '等待采样' }}</span>
+                  <span><v-icon icon="mdi-arrow-down" color="primary" size="17"/> {{ currentRate?.rx || '等待采样' }}</span>
+                  <span><v-icon icon="mdi-arrow-up" color="success" size="17"/> {{ currentRate?.tx || '等待采样' }}</span>
                 </div>
                 <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
                   :series="rxTxSeries" unit=" KB/s" title="实时流量趋势" compact/>
-                <p v-if="bandwidthHistory.length" class="v3-traffic-hint">来自路由器的真实流量采样</p>
+                <p v-if="bandwidthHistory.length" class="v3-traffic-hint">实时曲线基于路由器实际接口采样</p>
                 <p v-else class="muted-hint">正在等待路由器接口的实际流量采样，不显示模拟数据。</p>
               </v-card>
               <div class="v3-module-heading"><h2>快捷操作</h2></div>
@@ -2805,7 +2805,7 @@ onUnmounted(() => {
                   :aria-pressed="terminalOnlineFilter === option.id"
                   @click="terminalOnlineFilter = option.id">{{ option.label }}</button>
               </div>
-              <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
+              <v-text-field v-model="clientSearch" variant="outlined" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
                 aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
                 @click:clear="clientSearch = ''"
@@ -3028,7 +3028,7 @@ onUnmounted(() => {
                         :aria-expanded="(appSearchActive || expandedAppCategories.includes(category.id))"
                         :aria-controls="'app-category-' + category.id"
                         :aria-label="((appSearchActive || expandedAppCategories.includes(category.id)) ? '收起' : '展开') + category.title"
-                        @click="toggleAppCategory(category.id)">
+                        @click="!appSearchActive && toggleAppCategory(category.id)">
                         <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项</small></span>
                         <v-icon :icon="(appSearchActive || expandedAppCategories.includes(category.id)) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                           size="20" class="app-tool-chevron"/>
