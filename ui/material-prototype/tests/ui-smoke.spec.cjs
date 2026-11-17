@@ -1547,7 +1547,7 @@ test('theme survives reload and refresh keeps existing cards mounted without che
   // Hardware is intentionally collapsed on Design A home; expand before checking
   // that a background refresh does not unmount it.
   await expect(page.locator('.v3-health-card')).toBeVisible()
-  await page.getByRole('button', { name: '展开系统与硬件详情' }).click()
+  await page.locator('.v3-home-system-entry button').click()
   await expect(page.locator('.device-card.v-card')).toBeVisible()
   await expect(page.getByText('磁盘占用')).toBeVisible()
 
@@ -1618,6 +1618,8 @@ test('software packages shows opkg lists, filters and protects installation acti
   await expect(page.getByText('J4125 SoftRouter').first()).toBeVisible()
   await page.getByRole('button', { name: '工具', exact: true }).click()
   await openApplication(page, '软件包')
+  await expect(page.locator('.v3-design-a-index')).toBeVisible()
+  await page.getByRole('button', { name: '查看实际功能' }).click()
   await expect(page.locator('.package-manager-panel')).toBeVisible()
   await expect(page.getByText('正在显示 1–100，共 108')).toBeVisible()
   await expect(page.locator('.package-entry')).toHaveCount(100)
@@ -1657,8 +1659,9 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await page.getByRole('button', { name: '设备', exact: true }).click()
     // Default is the combined multi-source list; select DHCPv4 for the
     // original three-lease QoS regression scenario.
+    await page.locator('.v3-client-source-details summary').click()
     await page.getByRole('button', { name: /DHCPv4，\d+ 条/ }).click()
-    await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
+    await expect(page.locator('.terminal-design-a-item')).toHaveCount(3, { timeout: 15000 })
     await page.getByText('Phone', { exact: true }).click()
 
     const modal = page.getByRole('dialog').filter({ hasText: '终端管理' })
