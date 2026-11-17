@@ -54,6 +54,16 @@ jobs:
       - name: Verify launcher alias patch and extracted icon assets
         run: python3 -m unittest discover -s scripts -p 'test_patch_android_launcher_icons.py' -v
 
+      - name: Verify preset launcher PNG/adaptive icon generation
+        run: |
+          python3 -m pip install --quiet pillow
+          mkdir -p android/app/src/main/res
+          python3 scripts/generate_app_icons.py
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_classic.png
+          test -s android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_openwrt.png
+          test -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_classic.xml
+          test -s android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_openwrt.xml
+
       - name: Verify per-version release notes needed by main publishing
         shell: bash
         run: |
