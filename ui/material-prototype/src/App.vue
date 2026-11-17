@@ -13,6 +13,7 @@ import {
 import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
 import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
+import { loadPairedRoutes, savePairedRoutes, removePairedRoute } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -57,8 +58,8 @@ import {
   bandwidthSample, prettyRate, readWirelessStations
 } from './services/telemetry.js'
 import {
-  loadDevices, saveDevices, newDevice, probeDevice,
-  storeDevicePassword, fetchDevicePassword, deleteDevicePassword
+  loadDevices, saveDevices, newDevice, probeDevice, normalizeRouterAlternates,
+  MAX_ROUTER_ALTERNATIVES, storeDevicePassword, fetchDevicePassword, deleteDevicePassword
 } from './services/devices.js'
 import {
   RouterClient, readDashboard, readClients, readServices, readInstalledRouterApps,
@@ -460,7 +461,14 @@ function dismissGeneralFeedback() {
 }
 const deviceStatuses = reactive({})
 const deviceSummaries = reactive({})
-const deviceForm = reactive({ name: '', address: 'http://192.168.100.1', username: 'root', ignoreTlsErrors: false })
+const deviceForm = reactive({
+  name: '', address: 'http://192.168.100.1', username: 'root',
+  password: '', showPassword: false, rememberPassword: true,
+  ignoreTlsErrors: false, alternateAddresses: [], autoSwitch: false
+})
+const deviceEditorBusy = ref(false)
+const deviceEditorMessage = ref('')
+const verifiedEditorAddresses = ref([])
 const sessions = new Map()
 const selectedDevice = computed(() => devices.value.find(d => d.id === selectedDeviceId.value) || null)
 const probeBusy = ref(false)
@@ -743,12 +751,12 @@ const errorMessage = ref('')
 const lastUpdated = ref('')
 const snapshot = ref(null)
 const {
-  labSettings, labIntervals, labCards, labRpcRecords, labAlternate,
+  labSettings, labIntervals, labCards, labRpcRecords, labAlternate, labAlternates,
   labSmartBusy, labSmartMessage, labGlobalMessage, labRpcMessage, labHealthBusy, labDeepRows, labHealthRows,
   applyLabSettings, setLabRefreshProfile, setLabCustomInterval,
   setLabCardVisibility, moveLabCard, resetLabCards, toggleLabRpc,
   copyLabRpc, clearRpcTrace, resetLabAll, pairLabAlternative, unpairLabAlternative,
-  swapLabConnection, maybeLabFailover, runLabHealthCheck
+  swapLabConnection, maybeLabFailover, verifyRouterAlternates, pruneRouterAlternates, runLabHealthCheck
 } = useLabController({
   storage: localStorage, selectedDeviceId, selectedDevice, connected,
   client, snapshot, sessions,
@@ -1697,7 +1705,11 @@ async function handleBack() {
     return 'dialog'
   }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
-  if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
+  if (deviceDialog.value) {
+    if (deviceEditorBusy.value) return 'busy'
+    closeDeviceEditor()
+    return 'dialog'
+  }
   // A nested network editor is a separate Vuetify overlay. Consume Android
   // Back in the editor before navigating away from the router detail screen.
   if (viewMode.value === 'detail' && activeTab.value === 'network' && !settingsOpen.value) {
@@ -1843,48 +1855,102 @@ function resetSession() {
 
 function showDeviceDialog(device = null) {
   listError.value = ''
+  deviceEditorMessage.value = ''
   editDeviceId.value = device?.id || ''
-  Object.assign(deviceForm, device ? {
-    name: device.name, address: device.address, username: device.username,
-    ignoreTlsErrors: !!device.ignoreTlsErrors
-  } : { name: '', address: 'http://192.168.100.1', username: 'root', ignoreTlsErrors: false })
+  const inherited = device ? loadPairedRoutes(localStorage,device.id).map(x=>x.address) : []
+  const alternateAddresses = [...new Set([
+    ...(device?.alternateAddresses || []),...inherited
+  ])].slice(0,MAX_ROUTER_ALTERNATIVES)
+  Object.assign(deviceForm, {
+    name: device?.name || '',
+    address: device?.address || 'http://192.168.100.1',
+    username: device?.username || 'root',
+    password: '', showPassword: false,
+    rememberPassword: isNative && (device ? !!device.rememberPassword : true),
+    ignoreTlsErrors: !!device?.ignoreTlsErrors,
+    alternateAddresses,
+    autoSwitch: device ? (device.autoSwitch ?? labSettings.value.smartSwitch) : false
+  })
+  verifiedEditorAddresses.value=device ? loadPairedRoutes(localStorage,device.id).map(x=>x.address) : []
   deviceDialog.value = true
 }
-
+function closeDeviceEditor() {
+  if (deviceEditorBusy.value) return
+  deviceDialog.value = false
+  deviceForm.password = ''
+  deviceForm.showPassword = false
+  deviceEditorMessage.value = ''
+}
+function addDeviceAlternate() {
+  if (deviceForm.alternateAddresses.length>=MAX_ROUTER_ALTERNATIVES) return
+  deviceForm.alternateAddresses.push('')
+}
+function removeDeviceAlternate(index) {
+  deviceForm.alternateAddresses.splice(index,1)
+}
 async function saveDeviceEntry() {
+  if (deviceEditorBusy.value) return
+  deviceEditorBusy.value = true
   listError.value = ''
+  deviceEditorMessage.value = ''
   try {
-    const candidate = newDevice(deviceForm) // validates name, address, username
-    if (editDeviceId.value) {
-      const before = devices.value.find(d => d.id === editDeviceId.value)
-      if (!before) throw new Error('未找到需要编辑的路由器')
-      const changedAddress = before.address !== candidate.address
-      const trust = changedAddress ? false : candidate.ignoreTlsErrors
-      const changed = changedAddress || before.username !== candidate.username || before.ignoreTlsErrors !== trust
-      devices.value = devices.value.map(d => d.id === before.id
-        ? { ...d, name: candidate.name, address: candidate.address, username: candidate.username,
-            ignoreTlsErrors: trust, rememberPassword: changed ? false : d.rememberPassword }
-        : d)
-      if (changed) {
-        sessions.get(before.id)?.logout()
-        sessions.delete(before.id)
-        delete deviceSummaries[before.id]
-        routerPreloadCache.delete(before.id)
-        await deleteDevicePassword(before.id)
-      }
-    } else {
-      if (devices.value.some(d => d.address === candidate.address && d.username === candidate.username)) {
-        throw new Error('同一地址及用户名的路由器已经添加')
-      }
-      devices.value = [...devices.value, candidate]
+    const candidate = newDevice(deviceForm)
+    const editing = Boolean(editDeviceId.value)
+    const before = editing ? devices.value.find(d=>d.id===editDeviceId.value) : null
+    if (editing && !before) throw new Error('未找到需要编辑的路由器')
+    if (devices.value.some(d=>d.id!==before?.id && d.address===candidate.address && d.username===candidate.username))
+      throw new Error('同一地址及用户名的路由器已经添加')
+    const id = before?.id || candidate.id
+    const sensitiveChanged = Boolean(before && (
+      before.address!==candidate.address || before.username!==candidate.username ||
+      before.ignoreTlsErrors!==candidate.ignoreTlsErrors
+    ))
+    const password = deviceForm.password
+    const remember = isNative && deviceForm.rememberPassword && (
+      Boolean(password) || (!sensitiveChanged && before?.rememberPassword)
+    )
+    // Never serialize passwords into the saved router list, even transiently.
+    // A failed Android Keystore write leaves the editor open for correction.
+    if (isNative && password && remember) await storeDevicePassword(id,password)
+    else if (isNative && (sensitiveChanged || !remember)) await deleteDevicePassword(id)
+    const saved = {
+      ...candidate,id,
+      createdAt:before?.createdAt || candidate.createdAt,
+      rememberPassword: Boolean(remember)
     }
-    devices.value = saveDevices(devices.value)
-    deviceDialog.value = false
-    editDeviceId.value = ''
-    await refreshDeviceStatuses()
-  } catch (e) {
-    listError.value = shortError(e)
-  }
+    if (editing) {
+      devices.value = devices.value.map(d=>d.id===id?saved:d)
+      if (sensitiveChanged || Boolean(password)) {
+        sessions.get(id)?.logout()
+        sessions.delete(id)
+        delete deviceSummaries[id]
+        routerPreloadCache.delete(id)
+      }
+    } else devices.value=[...devices.value,saved]
+    devices.value=saveDevices(devices.value)
+    // Removing an endpoint immediately revokes its previous trusted pairing.
+    pruneRouterAlternates(id,saved.alternateAddresses)
+    verifiedEditorAddresses.value=loadPairedRoutes(localStorage,id).map(x=>x.address)
+    const needsReconnect = Boolean(editing && (sensitiveChanged || Boolean(password)) &&
+      selectedDeviceId.value===id && connected.value)
+    const validateNow = Boolean(editing && !needsReconnect && connected.value &&
+      selectedDeviceId.value===id && client.value?.session)
+    deviceForm.password=''
+    deviceDialog.value=false
+    editDeviceId.value=''
+    if (needsReconnect) {
+      resetSession()
+      listError.value='登录信息已更新，请使用新配置重新连接该路由器'
+    } else if (validateNow && saved.alternateAddresses.length) {
+      // A short-lived authenticated RPC session is needed to confirm that
+      // each address really leads to the same physical router.
+      void verifyRouterAlternates(saved.alternateAddresses)
+    }
+    void refreshDeviceStatuses()
+  } catch (error) {
+    listError.value = shortError(error)
+    deviceEditorMessage.value = listError.value
+  } finally { deviceEditorBusy.value = false }
 }
 
 function askDeleteDevice(device) {
@@ -1905,6 +1971,7 @@ async function confirmDeleteDevice() {
   delete deviceSummaries[id]
   deviceCounterCache.delete(id)
   routerPreloadCache.delete(id)
+  removePairedRoute(localStorage,id)
   if (id === selectedDeviceId.value) resetSession()
 }
 
