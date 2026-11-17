@@ -994,11 +994,11 @@ const overviewResources = computed(() => {
 })
 const overviewWanState = computed(() => {
   const wan = snapshot.value?.interfaces?.find(item => item.interface === 'wan')
-  return !wan ? '未知' : wan.up ? '已连接' : '未连接'
+  return !wan || typeof wan.up !== 'boolean' ? '待确认' : wan.up ? '已连接' : '未连接'
 })
 const overviewIpv6State = computed(() => {
   const address = String(snapshot.value?.wan6Ip || '')
-  return address && address !== '--' ? '已分配' : '未获取'
+  return address && address !== '--' ? '已分配' : '待确认'
 })
 let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
@@ -2353,7 +2353,7 @@ onUnmounted(() => {
           <section class="more-page v3-me-page" data-testid="more-page">
             <header class="v3-me-profile">
               <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
-              <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
+              <div class="v3-me-profile-copy"><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p><span class="v3-me-connection" :class="{ 'is-connected': connected }"><v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-information-outline'" size="15"/>{{ connected ? '已连接路由器' : '未连接路由器' }}</span></div>
               <v-btn v-if="connected" icon="mdi-logout" variant="text" size="small"
                 aria-label="退出当前路由器" @click="resetSession"/>
             </header>
@@ -2642,6 +2642,10 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'clients'">
             <div class="terminal-screen">
+              <div class="v3-terminal-page-heading">
+                <div><h2>终端设备</h2><p>在线状态依据实际网络证据判断，DHCP 租约不代表在线</p></div>
+                <span class="v3-terminal-total">{{ terminalDevices.length }} 台</span>
+              </div>
               <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
@@ -2724,7 +2728,7 @@ onUnmounted(() => {
                 <button type="button" @click="openNetworkSection('devices')"><v-icon icon="mdi-ethernet" color="primary"/><span><strong>物理设备</strong><small>以太网端口、物理网络设备</small></span><v-icon icon="mdi-chevron-right"/></button>
                 <button type="button" @click="openNetworkSection('wireless')"><v-icon icon="mdi-wifi" color="primary"/><span><strong>无线设备</strong><small>当前无线硬件与网络状态（只读）</small></span><v-icon icon="mdi-chevron-right"/></button>
               </div>
-              <div class="v3-section-label">路由、DNS 与安全</div>
+              <div class="v3-section-label">网络服务与策略</div>
               <div class="v3-feature-list v3-feature-list-secondary">
                 <button v-for="tool in networkFeatureTools" :key="tool.id" type="button" @click="launchV3Tool(tool.id)">
                   <v-icon :icon="tool.icon" color="primary"/><span><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span><v-icon icon="mdi-chevron-right"/>
