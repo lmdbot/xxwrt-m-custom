@@ -90,7 +90,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
         <span v-if="showAddress && (item.ip || item.ip6)" class="terminal-ip terminal-ip6">{{ item.ip || item.ip6 }}</span>
         <span v-if="item.mac" class="terminal-mac">{{ item.mac }}</span>
       </div>
-      <div v-if="sourceLabels.length > 1 || item.wifi || connectionLabel" class="terminal-tags">
+      <div v-if="sourceLabels.length > 1 || (item.wifi && item.online) || connectionLabel" class="terminal-tags">
         <v-chip v-if="connectionLabel" size="x-small" variant="tonal"
           :color="item.connectionType === 'wireless' ? 'primary' : 'secondary'"
           :prepend-icon="item.connectionType === 'wireless' ? 'mdi-wifi' : 'mdi-ethernet'"
@@ -105,7 +105,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
           class="terminal-tag"
         >{{ source }}</v-chip>
         <v-chip
-          v-if="item.wifi"
+          v-if="item.wifi && item.online"
           size="x-small"
           variant="tonal"
           class="terminal-tag terminal-tag--wifi"

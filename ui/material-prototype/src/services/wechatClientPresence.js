@@ -62,7 +62,7 @@ export function parseWechatClientPresence(snapshot, services, procd, aliasFile) 
     const connection = resolveWechatConnection(entry, data.wlan)
     const alias = aliases.get(mac.toLowerCase()) || aliases.get(ip) || ''
     const record = {
-      mac, ip, name: alias || (validName(entry.name) !== mac ? validName(entry.name) : ''),
+      mac, ip, name: alias || (validName(entry.name).toLowerCase() === mac.toLowerCase() ? '' : validName(entry.name)),
       status, connectionType: connection.type, band: connection.band
     }
     const previous = byMac.get(mac)
