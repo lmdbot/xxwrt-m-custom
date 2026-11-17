@@ -546,6 +546,7 @@ function launchV3Tool(id) {
 }
 const systemDark = ref(false)
 const dark = computed(() => colorMode.value === 'dark' || (colorMode.value === 'system' && systemDark.value))
+function toggleQuickTheme() { colorMode.value = dark.value ? 'light' : 'dark' }
 const pageTitle = computed(() => activeTab.value === 'statistics' ? '详细监控'
   : pages.find(page => page.id === currentNavTab.value)?.label || '概览')
 const toolbarSection = computed(() => {
@@ -580,7 +581,7 @@ const clientsPrefetching = ref(false)
 let clientFetchToken = 0
 const terminalView = ref('all')
 const terminalOnlineFilter = ref('all')
-const showTerminalSourceFilters = ref(false)
+const showTerminalSourceFilters = ref(true)
 const wifiClientData = ref({ available: false, stations: [] })
 const appFilterUsers = ref({ available: false, users: [] })
 const terminalCategories = computed(() => [
@@ -878,7 +879,7 @@ const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
   installedRouterApps.value?.[tool.id] !== false))
 const appSearch = ref('')
 const pluginDirectoryOpen = ref(false)
-const expandedAppCategories = ref([])
+const expandedAppCategories = ref(['plugins'])
 const favoriteEditorOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 // V3 information architecture: a feature has one canonical home. The
@@ -909,7 +910,7 @@ watch(() => selectedDevice.value?.id, id => {
   favoriteEditorOpen.value = false
   appSearch.value = ''
   pluginDirectoryOpen.value = false
-  expandedAppCategories.value = []
+  expandedAppCategories.value = ['plugins']
 }, { immediate: true })
 
 function updateFavorite(toolId) {
@@ -929,10 +930,6 @@ function reorderFavorite(toolId, direction) {
 
 function toggleAppCategory(id) {
   if (!appCategories.value.some(group => group.id === id)) return
-  if (id === 'plugins') {
-    pluginDirectoryOpen.value = true
-    return
-  }
   expandedAppCategories.value = expandedAppCategories.value.includes(id)
     ? expandedAppCategories.value.filter(value => value !== id)
     : [...expandedAppCategories.value, id]
@@ -2131,6 +2128,12 @@ onUnmounted(() => {
         icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
         @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
+      <v-btn v-if="viewMode === 'detail' && !settingsOpen && !toolPanel && activeTab !== 'statistics'"
+        class="v3-theme-toggle" size="small" variant="text"
+        :icon="dark ? 'mdi-white-balance-sunny' : 'mdi-weather-night'"
+        :aria-label="dark ? '切换至浅色主题' : '切换至深色主题'"
+        :title="dark ? '切换至浅色主题' : '切换至深色主题'"
+        @click="toggleQuickTheme"/>
       <v-btn v-if="viewMode === 'detail' && connected"
         class="v3-router-switch" size="small" variant="tonal" color="primary"
         append-icon="mdi-chevron-down" aria-label="切换路由器" @click="requestRouterSwitch">
@@ -2463,9 +2466,9 @@ onUnmounted(() => {
                   <span><v-icon icon="mdi-arrow-down" color="primary" size="17"/> RX {{ currentRate?.rx || '等待采样' }}</span>
                   <span><v-icon icon="mdi-arrow-up" color="secondary" size="17"/> TX {{ currentRate?.tx || '等待采样' }}</span>
                 </div>
-                <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
+                <RealtimeChart v-if="bandwidthHistory.length >= 2" :samples="bandwidthHistory"
                   :series="rxTxSeries" unit=" KB/s" title="实时流量趋势"/>
-                <p v-else class="muted-hint">正在等待路由器接口的实际流量采样，不显示模拟数据。</p>
+                <p v-else class="muted-hint v3-chart-empty"><v-icon icon="mdi-chart-line" size="25"/>等待第二次有效流量采样，不显示模拟数据</p>
               </v-card>
               <div class="v3-module-heading"><h2>快捷操作</h2></div>
               <div class="v3-shortcuts">
@@ -2473,12 +2476,6 @@ onUnmounted(() => {
                 <button class="v3-shortcut" @click="launchV3Tool('firewall')"><v-icon icon="mdi-shield-outline"/>防火墙</button>
                 <button class="v3-shortcut" @click="launchV3Tool('ddns')"><v-icon icon="mdi-earth"/>DDNS</button>
                 <button class="v3-shortcut" @click="launchV3Tool('diagnostics')"><v-icon icon="mdi-lan-check"/>诊断</button>
-              </div>
-              <div class="v3-module-heading"><h2>网络状态</h2></div>
-              <div class="v3-overview-network-state" aria-label="网络状态摘要">
-                <div><span>WAN</span><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong></div>
-                <div><span>IPv6</span><strong :class="{ 'v3-status-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</strong></div>
-                <div><span>终端</span><strong>{{ snapshot?.users == null ? '--' : snapshot.users + ' 台' }}</strong></div>
               </div>
               <div class="v3-module-heading">
                 <h2>系统与硬件详情</h2>
@@ -2773,26 +2770,7 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
-              <section v-if="pluginDirectoryOpen" class="v3-plugin-directory" aria-label="插件中心">
-                <header class="v3-plugin-directory-intro">
-                  <h2>插件中心</h2>
-                  <p>{{ installedRouterAppsLoading ? '正在检测插件与访问权限…' : '已检测到的插件与访问状态' }}</p>
-                </header>
-                <div class="v3-plugin-list" role="group" aria-label="插件及检测状态">
-                  <button v-for="tool in pluginDirectoryTools" :key="tool.id"
-                    type="button" class="v3-plugin-row" :aria-label="tool.title + '，' + pluginDetectionState(tool.id).label"
-                    @click="launchV3Tool(tool.id)">
-                    <span class="v3-plugin-icon"><v-icon :icon="tool.icon" size="22"/></span>
-                    <span class="v3-plugin-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
-                    <v-chip size="x-small" variant="tonal" :color="pluginDetectionState(tool.id).color">
-                      {{ pluginDetectionState(tool.id).label }}
-                    </v-chip>
-                    <v-icon icon="mdi-chevron-right" size="19"/>
-                  </button>
-                </div>
-                <p class="v3-plugin-note">结果来自当前账号可读取的 UCI 与服务信息；未检测到不等于确定未安装，可进入详情查看权限与诊断原因。</p>
-              </section>
-              <div v-else class="app-hub">
+              <div class="app-hub">
                 <v-text-field v-model="appSearch" class="app-hub-search"
                   aria-label="搜索功能与插件" placeholder="搜索功能与插件"
                   prepend-inner-icon="mdi-magnify" clearable hide-details
@@ -2809,6 +2787,7 @@ onUnmounted(() => {
                       :aria-label="'打开' + tool.title" @click="launchV3Tool(tool.id)">
                       <span class="app-tool-icon"><v-icon :icon="tool.icon" size="21"/></span>
                       <span class="app-tool-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
+                      <v-chip v-if="pluginDirectoryTools.some(plugin => plugin.id === tool.id)" class="v3-plugin-state-tag" size="x-small" variant="tonal" :color="pluginDetectionState(tool.id).color">{{ pluginDetectionState(tool.id).label }}</v-chip>
                       <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
                     </button>
                   </div>
@@ -2863,6 +2842,7 @@ onUnmounted(() => {
                           :aria-label="'打开' + tool.title" @click="launchV3Tool(tool.id)">
                           <span class="app-tool-icon"><v-icon :icon="tool.icon" size="21"/></span>
                           <span class="app-tool-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
+                          <v-chip v-if="category.id === 'plugins'" class="v3-plugin-state-tag" size="x-small" variant="tonal" :color="pluginDetectionState(tool.id).color">{{ pluginDetectionState(tool.id).label }}</v-chip>
                           <v-icon icon="mdi-chevron-right" size="20" class="app-tool-chevron"/>
                         </button>
                       </div>
