@@ -1912,6 +1912,12 @@ function addDeviceAlternate() {
   if (deviceForm.alternateAddresses.length>=MAX_ROUTER_ALTERNATIVES) return
   deviceForm.alternateAddresses.push('')
 }
+function resetRouterWizardScroll() {
+  void nextTick(() => {
+    const scrollArea = document.querySelector('.router-wizard .router-editor-body')
+    if (scrollArea) scrollArea.scrollTop = 0
+  })
+}
 function nextDeviceEditorStep() {
   if (deviceEditorBusy.value) return
   deviceEditorMessage.value = ''
@@ -1921,6 +1927,7 @@ function nextDeviceEditorStep() {
     // The actual router profile is not written until the second step saves.
     newDevice({ ...deviceForm, username: deviceForm.username || 'root' })
     deviceEditorStep.value = 2
+    resetRouterWizardScroll()
   } catch (error) {
     deviceEditorMessage.value = shortError(error)
     listError.value = deviceEditorMessage.value
@@ -1934,6 +1941,7 @@ function previousDeviceEditorStep() {
   if (deviceEditorBusy.value) return
   deviceEditorMessage.value = ''
   deviceEditorStep.value = 1
+  resetRouterWizardScroll()
 }
 function removeDeviceAlternate(index) {
   deviceForm.alternateAddresses.splice(index,1)
