@@ -10,7 +10,7 @@ const props = defineProps({
 const emit = defineEmits([
   'show-version-details', 'copy-version', 'check-updates',
   'download-latest', 'cancel-download', 'install-downloaded',
-  'show-release-notes', 'show-project', 'show-issues',
+  'show-release-notes', 'show-project', 'show-issues', 'show-help',
   'show-licenses', 'show-privacy'
 ])
 const updateStatus = computed(() => {
@@ -64,7 +64,10 @@ const updateStatus = computed(() => {
         </button>
       </div>
       <p v-if="updateState.checked || updateState.checking || updateState.error"
-        class="about-design-status" role="status">{{ updateStatus }}</p>
+        class="about-design-status" role="status">{{ updateStatus }}
+        <span v-if="updateState.latestRelease?.source === 'aliyun'" class="about-design-source">阿里云</span>
+        <span v-else-if="updateState.latestRelease?.source === 'github'" class="about-design-source">GitHub</span>
+      </p>
       <div v-if="updateState.available && updateState.latestRelease?.apkUrl"
         class="about-design-update-actions">
         <v-btn color="primary" variant="tonal" prepend-icon="mdi-download"
@@ -114,7 +117,7 @@ const updateStatus = computed(() => {
         <div class="about-design-more-actions">
           <v-btn size="small" variant="tonal" @click="emit('show-version-details')">版本详情</v-btn>
           <v-btn size="small" variant="text" prepend-icon="mdi-content-copy" @click="emit('copy-version')">复制版本信息</v-btn>
-          <v-btn size="small" variant="text" prepend-icon="mdi-lifebuoy" @click="emit('show-issues')">帮助与反馈</v-btn>
+          <v-btn size="small" variant="text" prepend-icon="mdi-lifebuoy" @click="emit('show-help')">帮助与反馈</v-btn>
         </div>
       </div>
     </details>
@@ -207,4 +210,9 @@ button.about-entry:focus-visible,.about-version-pill:focus-visible{outline:2px s
   background:linear-gradient(128deg,#25486c,#27344f);color:#eef7ff}
 :global(.theme-is-dark) .about-design-hero p{color:#aab9ce}
 
+</style>
+
+<style>
+.about-design-source{display:inline-block;margin-left:8px;vertical-align:baseline;
+  color:rgb(var(--v-theme-primary));font-size:11px;font-weight:700}
 </style>
