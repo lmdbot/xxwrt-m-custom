@@ -2848,6 +2848,7 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
+            </div>
             <div class="v3-section-label v3-client-management-title">设备管理</div>
             <div class="v3-feature-list v3-client-management">
               <button type="button" @click="launchV3Tool('parental')">
@@ -2907,7 +2908,6 @@ onUnmounted(() => {
                 <small>{{ terminalDevices.filter(i => !i.online && i.onlineKnown).length }} 台</small>
               </button>
               </details>
-            </div>
             </section>
           </template>
 
