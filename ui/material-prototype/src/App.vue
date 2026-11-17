@@ -622,6 +622,7 @@ const factoryBusy = ref(false)
 const factoryError = ref('')
 const actionBusy = ref(false)
 const selectedClient = ref(null)
+const terminalDetailEditor = ref('')
 const terminalSettings = ref(null)
 const terminalSettingsBusy = ref(false)
 const terminalSaving = ref(false)
@@ -670,6 +671,7 @@ function changeTerminalQosBackend(backendId) {
 async function openTerminal(item) {
   if (terminalSaving.value) return
   selectedClient.value = item
+  terminalDetailEditor.value = ''
   terminalSettings.value = null
   terminalError.value = ''
   terminalNotice.value = ''
@@ -3063,21 +3065,54 @@ onUnmounted(() => {
     </v-dialog>
     <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog">
       <v-card v-if="selectedClient" rounded="xl" class="v3-terminal-detail">
-        <v-card-title class="d-flex align-center ga-2">
-          <v-icon icon="mdi-devices" color="primary"/>
-          <span>终端管理</span>
+        <v-card-title class="v3-terminal-detail-title">
+          <v-icon icon="mdi-arrow-left" color="primary" size="22"/>
+          <span>终端详情</span>
         </v-card-title>
         <v-card-text>
-          <div class="details">
-            <div><span>名称</span><strong>{{ selectedClient.displayName || selectedClient.name || '未知终端' }}</strong></div>
-            <div><span>IPv4</span><strong>{{ selectedClient.ip || '--' }}</strong></div>
+          <header class="v3-terminal-detail-hero">
+            <div class="v3-terminal-detail-heading">
+              <h2>{{ selectedClient.displayName || selectedClient.name || '未知终端' }}</h2>
+              <v-chip size="small" variant="tonal"
+                :color="selectedClient.online ? 'success' : selectedClient.onlineKnown ? 'error' : 'secondary'">
+                {{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '待确认' }}
+              </v-chip>
+            </div>
+            <p>IPv4　{{ selectedClient.ip || '--' }}</p>
+            <p>MAC　{{ selectedClient.mac || '--' }}</p>
+            <small>连接证据：{{ selectedClient.online
+              ? (selectedClient.sources?.includes('wireless') ? 'Wi-Fi 关联' : '网络邻居或可达性')
+              : selectedClient.onlineKnown ? '路由器检测为离线' : '尚无可靠的在线证据' }}</small>
+          </header>
+          <h3 class="v3-terminal-detail-section">设备信息</h3>
+          <div class="v3-terminal-detail-info">
+            <div><span>设备类型</span><strong>{{ selectedClient.kind || '未知' }}</strong></div>
+            <div><span>数据来源</span><strong>{{ selectedClient.sources?.join(' / ') || '--' }}</strong></div>
+            <div><span>IPv6 地址</span><strong>{{ selectedClient.ip6 || '未读取' }}</strong></div>
             <div><span>MAC 地址</span><strong>{{ selectedClient.mac || '--' }}</strong></div>
-            <div><span>在线状态</span><strong>{{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '状态未知' }}</strong></div>
+          </div>
+          <h3 class="v3-terminal-detail-section">常用操作</h3>
+          <div class="v3-terminal-detail-actions" role="group" aria-label="终端管理操作">
+            <button type="button" :disabled="!terminalSettings || terminalSaving"
+              :aria-expanded="terminalDetailEditor === 'qos'"
+              @click="terminalDetailEditor = terminalDetailEditor === 'qos' ? '' : 'qos'">
+              <span class="v3-terminal-action-icon"><v-icon icon="mdi-speedometer" size="22"/></span>
+              <span><strong>限速设置</strong><small>下载 / 上传速率限制</small></span>
+              <v-icon :icon="terminalDetailEditor === 'qos' ? 'mdi-chevron-up' : 'mdi-chevron-right'" size="21"/>
+            </button>
+            <button type="button" :disabled="!terminalSettings || terminalSaving"
+              :aria-expanded="terminalDetailEditor === 'static'"
+              @click="terminalDetailEditor = terminalDetailEditor === 'static' ? '' : 'static'">
+              <span class="v3-terminal-action-icon"><v-icon icon="mdi-ip-network" size="22"/></span>
+              <span><strong>固定 IP</strong><small>为该终端设置静态地址</small></span>
+              <v-icon :icon="terminalDetailEditor === 'static' ? 'mdi-chevron-up' : 'mdi-chevron-right'" size="21"/>
+            </button>
           </div>
           <v-progress-linear v-if="terminalSettingsBusy" indeterminate color="primary" class="my-4"/>
           <v-alert v-if="terminalError" type="error" variant="tonal" density="compact" class="mt-3">{{ terminalError }}</v-alert>
           <v-alert v-if="terminalNotice" type="success" variant="tonal" density="compact" class="mt-3">{{ terminalNotice }}</v-alert>
           <template v-if="terminalSettings">
+            <div v-if="terminalDetailEditor === 'static'" class="v3-terminal-detail-editor">
             <v-divider class="my-4"/>
             <div class="d-flex align-center ga-2 mb-2">
               <v-icon icon="mdi-ip-network" color="primary"/>
@@ -3096,6 +3131,8 @@ onUnmounted(() => {
               :disabled="terminalSettingsBusy" @click="saveTerminalStatic">
               {{ terminalForm.staticEnabled ? '保存静态 IP' : '取消静态 IP 绑定' }}
             </v-btn>
+            </div>
+            <div v-if="terminalDetailEditor === 'qos'" class="v3-terminal-detail-editor">
             <v-divider class="my-4"/>
             <div class="d-flex align-center ga-2 mb-2">
               <v-icon icon="mdi-speedometer" color="primary"/>
@@ -3178,6 +3215,7 @@ onUnmounted(() => {
             <v-alert v-else type="info" density="compact" variant="tonal" class="mt-2">
               {{ terminalSettings.reason }}。静态 IP 绑定仍可独立使用。
             </v-alert>
+            </div>
           </template>
         </v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" :disabled="terminalSaving"
