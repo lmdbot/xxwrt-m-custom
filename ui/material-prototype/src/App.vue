@@ -2620,11 +2620,6 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'clients'">
-            <div class="v3-section-label">连接终端与管理</div>
-            <div class="v3-inline-links">
-              <button type="button" class="v3-inline-action" @click="launchV3Tool('parental')"><v-icon icon="mdi-shield-account-outline"/>家长控制<v-icon icon="mdi-chevron-right" size="17"/></button>
-              <button type="button" class="v3-inline-action" @click="launchV3Tool('wol')"><v-icon icon="mdi-lan-connect"/>网络唤醒<v-icon icon="mdi-chevron-right" size="17"/></button>
-            </div>
             <div class="terminal-screen">
               <div class="terminal-header">
                 <div><h2>终端设备</h2><p>无线关联和邻居可达是在线证据；DHCP 租约不代表在线</p></div>
@@ -2641,37 +2636,15 @@ onUnmounted(() => {
                   :aria-pressed="terminalOnlineFilter === option.id"
                   @click="terminalOnlineFilter = option.id">{{ option.label }} {{ option.count }}</button>
               </div>
-              <div class="terminal-category-grid" role="group" aria-label="终端来源分类">
-                <v-btn
-                  v-for="category in terminalCategories"
-                  :key="category.value"
-                  :variant="terminalView === category.value ? 'tonal' : 'outlined'"
-                  :color="terminalView === category.value ? 'primary' : undefined"
-                  :class="{ 'is-selected': terminalView === category.value }"
+              <div class="terminal-category-grid" role="group" aria-label="按终端来源筛选">
+                <button v-for="category in terminalCategories" :key="category.value" type="button"
+                  class="v3-source-chip" :class="{ 'is-selected': terminalView === category.value }"
                   :aria-pressed="terminalView === category.value"
-                  :aria-label="`${category.label}，${category.count} 条`"
-                  class="terminal-category-card"
-                  @click="terminalView = category.value"
-                >
-                  <div class="terminal-category-card__inner">
-                    <v-avatar size="42" rounded="lg" color="primary" variant="tonal" class="terminal-category-card__icon">
-                      <v-icon :icon="category.icon" size="22" />
-                    </v-avatar>
-                    <div class="terminal-category-card__meta">
-                      <span class="terminal-category-card__title">{{ category.label }}</span>
-                      <v-chip size="x-small" color="primary" variant="tonal" class="terminal-category-card__count">
-                        {{ category.count }} 条
-                      </v-chip>
-                    </div>
-                    <v-icon
-                      v-if="terminalView === category.value"
-                      icon="mdi-check-circle"
-                      size="20"
-                      color="primary"
-                      class="terminal-category-card__check"
-                    />
-                  </div>
-                </v-btn>
+                  :aria-label="category.label + '，' + category.count + ' 条'"
+                  @click="terminalView = category.value">
+                  <v-icon :icon="category.icon" size="16"/>
+                  <span>{{ category.label }}</span><small>{{ category.count }}</small>
+                </button>
               </div>
               <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
                 hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
@@ -2698,6 +2671,11 @@ onUnmounted(() => {
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
             </div>
+            <div class="v3-section-label v3-device-actions-heading">设备管理</div>
+            <div class="v3-inline-links" role="group" aria-label="终端管理工具">
+              <button type="button" class="v3-inline-action" @click="launchV3Tool('parental')"><v-icon icon="mdi-shield-account-outline"/>家长控制<v-icon icon="mdi-chevron-right" size="18"/></button>
+              <button type="button" class="v3-inline-action" @click="launchV3Tool('wol')"><v-icon icon="mdi-lan-connect"/>网络唤醒<v-icon icon="mdi-chevron-right" size="18"/></button>
+            </div>
           </template>
 
           <template v-if="activeTab === 'network'">
@@ -2706,9 +2684,9 @@ onUnmounted(() => {
                 <h2>网络管理</h2>
                 <p>集中查看接口、物理设备和路由服务</p>
                 <div class="v3-network-kpis">
-                  <div><small>LAN IPv4</small><strong>{{ snapshot?.lanIp || '--' }}</strong></div>
-                  <div><small>WAN IPv4</small><strong>{{ snapshot?.wanIp || '--' }}</strong></div>
-                  <div><small>WAN IPv6</small><strong>{{ snapshot?.wan6Ip || '--' }}</strong></div>
+                  <div><small>WAN</small><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong><span>{{ snapshot?.wanIp || '--' }}</span></div>
+                  <div><small>LAN</small><strong>{{ snapshot?.lanIp || '--' }}</strong></div>
+                  <div><small>IPv6</small><strong :class="{ 'v3-status-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</strong><span>{{ snapshot?.wan6Ip || '--' }}</span></div>
                 </div>
               </header>
               <div class="v3-section-label">接口与连接</div>
@@ -3023,6 +3001,7 @@ onUnmounted(() => {
       class="standard-bottom" color="primary" elevation="6">
       <v-btn v-for="item in pages" :key="item.id" :value="item.id" density="comfortable"
         :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
+        :aria-label="item.label" :aria-current="currentNavTab === item.id ? 'page' : undefined"
         @click="navigateBottomTab(item.id)">
         <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
@@ -3038,7 +3017,7 @@ onUnmounted(() => {
       <div v-else class="glass-host">
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab"
-            :class="{selected:activeTab===item.id}" variant="text" rounded="xl"
+            :class="{selected:currentNavTab===item.id}" variant="text" rounded="xl"
             density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
             <v-icon :icon="item.icon" size="23"/><span>{{item.label}}</span>
           </v-btn>
