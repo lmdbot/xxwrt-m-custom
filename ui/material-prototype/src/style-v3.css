@@ -1112,3 +1112,38 @@
     width:36px;min-width:36px;height:38px
   }
 }
+
+
+/* Design A Tools search: use a native input directly bound to the Vue model.
+   This avoids a stale Vuetify field value from leaving category tiles visible
+   while the user has entered a search query. */
+.xxwrt-v3 .v3-tools-native-search{
+  display:flex;align-items:center;gap:12px;
+  width:100%;min-width:0;min-height:48px;
+  padding:0 13px;background:var(--ui-surface);
+  color:var(--ui-muted);border:1px solid var(--ui-border);
+  border-radius:13px;box-shadow:none
+}
+.xxwrt-v3 .v3-tools-native-search:focus-within{
+  border-color:var(--ui-primary);
+  box-shadow:0 0 0 2px rgba(36,119,238,.09)
+}
+.xxwrt-v3 .v3-tools-native-search>.v-icon{flex:none;color:var(--ui-muted)}
+.xxwrt-v3 .v3-tools-native-search>input{
+  display:block;flex:1 1 auto;width:100%;min-width:0;min-height:46px;
+  padding:0;background:transparent;border:0;outline:none;
+  box-shadow:none;color:var(--ui-text);font:inherit;
+  font-size:13px;line-height:20px
+}
+.xxwrt-v3 .v3-tools-native-search>input::placeholder{color:var(--ui-muted);opacity:1}
+.xxwrt-v3 .v3-tools-native-search>button{
+  display:flex;align-items:center;justify-content:center;
+  width:42px;height:42px;flex:none;
+  border:0;border-radius:11px;background:transparent;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-tools-native-search>button:focus-visible{
+  outline:2px solid var(--ui-primary);outline-offset:-2px
+}
+.xxwrt-v3.theme-is-dark .v3-tools-native-search{
+  background:var(--ui-surface);border-color:var(--ui-border)
+}

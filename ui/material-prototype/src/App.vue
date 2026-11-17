@@ -2793,11 +2793,17 @@ onUnmounted(() => {
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
               <div class="app-hub">
-                <v-text-field v-model="appSearch" class="app-hub-search"
-                  aria-label="搜索功能与插件" placeholder="搜索功能与插件"
-                  prepend-inner-icon="mdi-magnify" clearable hide-details
-                  variant="solo-filled" flat density="compact"
-                  @input="event => { appSearch = String(event?.target?.value ?? '') }"/>
+                <div class="app-hub-search v3-tools-native-search" role="search" aria-label="工具搜索">
+                  <v-icon icon="mdi-magnify" size="23" aria-hidden="true"/>
+                  <input type="text" :value="appSearch"
+                    @input="event => { appSearch = event.target.value }"
+                    aria-label="搜索功能与插件" placeholder="搜索功能与插件"
+                    autocomplete="off" enterkeyhint="search" spellcheck="false"/>
+                  <button v-if="hasAppSearch" type="button" aria-label="清除工具搜索"
+                    @click="appSearch = ''">
+                    <v-icon icon="mdi-close-circle" size="20"/>
+                  </button>
+                </div>
 
                 <template v-if="hasAppSearch">
                   <div class="app-hub-section-heading">
