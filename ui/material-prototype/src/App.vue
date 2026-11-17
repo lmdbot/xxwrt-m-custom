@@ -994,14 +994,33 @@ const resourceCards = computed(() => {
     { label: '连接数', value: snap.connPercent == null ? '--' : snap.connPercent + '%', detail: snap.connDetail || '--', icon: 'mdi-lan-connect', progress: snap.connPercent || 0 }
   ]
 })
-// Overview information comes from actual router telemetry, without estimates.
+// Show only real Internet Detector results, never treat an unavailable RPC as 0/0.
+const overviewDetectorStatus = computed(() => {
+  if (!snapshot.value?.detectorAvailable) return { value: '--/--', tone: '' }
+  const checks = allChecks.value
+  const total = checks.length
+  if (total === 0) return { value: '0/0', tone: '' }
+  const healthy = onlineCount.value
+  return {
+    value: healthy + '/' + total,
+    tone: healthy === 0 ? 'error' : healthy === total ? 'success' : 'warning'
+  }
+})
+// Overview metrics use live router values; missing data remains unknown.
 const overviewResources = computed(() => {
   const disk = diskData.value.primary
-  return [...resourceCards.value.slice(0, 2),
+  const snap = snapshot.value
+  return [
+    ...resourceCards.value.slice(0, 2),
     { label: '存储', value: disk ? disk.percent + '%' : '--',
-      progress: disk?.percent ?? 0, icon: 'mdi-harddisk' },
-    { label: '终端', value: snapshot.value?.users ?? '--',
-      progress: null, icon: 'mdi-devices' }]
+      progress: disk?.percent ?? null, icon: 'mdi-harddisk' },
+    { label: '温度', value: snap?.temperature && snap.temperature !== '--' ? snap.temperature : '--',
+      progress: null, icon: 'mdi-thermometer' },
+    { label: '终端', value: snap?.users ?? '--',
+      progress: null, icon: 'mdi-devices' },
+    { label: '联网监测', value: overviewDetectorStatus.value.value,
+      tone: overviewDetectorStatus.value.tone, progress: null, icon: 'mdi-web-check' }
+  ]
 })
 const overviewWanState = computed(() => {
   const wan = snapshot.value?.interfaces?.find(item => item.interface === 'wan')
@@ -2490,7 +2509,7 @@ onUnmounted(() => {
               </div>
               <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
                 <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
-                  <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
+                  <small>{{ item.label }}</small><strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
                 </div>
               </div>
               <div class="v3-module-heading"><h2>实时流量</h2>

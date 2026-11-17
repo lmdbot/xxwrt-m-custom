@@ -29,6 +29,7 @@ export default {
   "支持在线检查更新": "Online update checking available",
   "正在下载并校验更新包": "Downloading and verifying the update",
   "版本日志": "Release notes",
+  "查看版本更新内容": "See what's new in this version",
   "下载并安装": "Download & install",
   "下载最新 APK": "Download latest APK",
   "取消下载": "Cancel download",

@@ -96,9 +96,19 @@ const updateStatus = computed(() => {
           <v-progress-linear :model-value="updateState.percent" height="8" rounded color="primary"/>
           <small>{{ updateState.progressText }}</small>
         </div>
-        <div class="about-update-actions">
-          <v-btn variant="text" rounded="lg" prepend-icon="mdi-text-box-outline"
-            :loading="updateState.releaseNotesLoading" @click="emit('show-release-notes')">版本日志</v-btn>
+        <button type="button" class="about-release-note-link" aria-label="版本日志"
+          :disabled="updateState.releaseNotesLoading" @click="emit('show-release-notes')">
+          <span class="about-release-note-icon">
+            <v-progress-circular v-if="updateState.releaseNotesLoading" indeterminate size="21" width="2" color="primary"/>
+            <v-icon v-else icon="mdi-text-box-outline" size="21"/>
+          </span>
+          <span class="about-release-note-copy">
+            <strong>版本日志</strong>
+            <small>查看版本更新内容</small>
+          </span>
+          <v-icon icon="mdi-chevron-right" size="21" class="about-release-note-chevron"/>
+        </button>
+        <div v-if="updateState.available || updateState.downloading || updateState.downloadedApkReady" class="about-update-actions">
           <v-btn v-if="updateState.available && updateState.latestRelease?.apkUrl"
             color="primary" rounded="lg" prepend-icon="mdi-download" :disabled="updateState.downloading"
             @click="emit('download-latest')">{{ updateState.isNative ? '下载并安装' : '下载最新 APK' }}</v-btn>
@@ -183,6 +193,16 @@ button.about-entry:active{background:rgba(var(--v-theme-primary),.11)}
 .about-download-status{margin-top:14px}
 .about-download-label{display:flex;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:8px}
 .about-download-status small{display:block;margin-top:6px;color:var(--ui-text-muted);font-size:11px}
+.about-release-note-link{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;margin-top:14px;padding:11px 12px;border:1px solid rgba(var(--v-theme-primary),.13);border-radius:14px;background:rgba(var(--v-theme-primary),.055);color:rgb(var(--v-theme-on-surface));font:inherit;text-align:left;cursor:pointer;transition:background .15s,border-color .15s}
+.about-release-note-link:hover{background:rgba(var(--v-theme-primary),.095);border-color:rgba(var(--v-theme-primary),.23)}
+.about-release-note-link:active{background:rgba(var(--v-theme-primary),.13)}
+.about-release-note-link:disabled{opacity:.65;cursor:progress}
+.about-release-note-link:focus-visible{outline:2px solid rgb(var(--v-theme-primary));outline-offset:2px}
+.about-release-note-icon{display:flex;align-items:center;justify-content:center;flex:none;width:38px;height:38px;border-radius:12px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary))}
+.about-release-note-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.about-release-note-copy strong{font-size:13px;font-weight:700;line-height:1.4}
+.about-release-note-copy small{font-size:11px;line-height:1.45;color:var(--ui-text-muted)}
+.about-release-note-chevron{flex:none;color:var(--ui-text-muted)}
 .about-update-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:14px}
 .about-update-actions :deep(.v-btn){letter-spacing:0;max-width:100%;white-space:normal}
 .about-update-hint{margin-top:11px;font-size:11px;line-height:1.6;color:var(--ui-text-muted)}
