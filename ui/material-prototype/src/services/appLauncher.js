@@ -4,8 +4,12 @@
  */
 export const APP_FAVORITES_STORAGE_KEY = 'xxwrt_material_app_favorites_v1'
 export const APP_FAVORITES_LIMIT = 5
+// Design A presents four visible quick actions: Diagnostics, Backup,
+// Logs and Services. Keep a fifth editable favorite (Lucky) for legacy
+// preference compatibility; the root grid deliberately shows four tiles.
+// Saved per-router favorites are never overwritten by changing defaults.
 export const DEFAULT_APP_FAVORITES = Object.freeze([
-  'lucky', 'openclash', 'zerotier', 'wechatpush', 'firewall'
+  'diagnostics', 'backup', 'logs', 'services', 'lucky'
 ])
 
 export const APP_CATEGORIES = Object.freeze([
