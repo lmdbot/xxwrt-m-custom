@@ -1733,7 +1733,10 @@ async function handleBack() {
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) {
     if (deviceEditorBusy.value) return 'busy'
-    closeDeviceEditor()
+    // Step 2 is part of the same modal; Android Back should navigate to
+    // Step 1 without discarding the draft or closing the whole editor.
+    if (deviceEditorStep.value === 2) previousDeviceEditorStep()
+    else closeDeviceEditor()
     return 'dialog'
   }
   // A nested network editor is a separate Vuetify overlay. Consume Android
