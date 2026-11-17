@@ -886,6 +886,7 @@ const legacyTools = [
 const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
   installedRouterApps.value?.[tool.id] !== false))
 const appSearch = ref('')
+const hasAppSearch = computed(() => String(appSearch.value ?? '').trim().length > 0)
 const pluginDirectoryOpen = ref(false)
 const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
@@ -2795,9 +2796,10 @@ onUnmounted(() => {
                 <v-text-field v-model="appSearch" class="app-hub-search"
                   aria-label="搜索功能与插件" placeholder="搜索功能与插件"
                   prepend-inner-icon="mdi-magnify" clearable hide-details
-                  variant="solo-filled" flat density="compact"/>
+                  variant="solo-filled" flat density="compact"
+                  @input="event => { appSearch = String(event?.target?.value ?? '') }"/>
 
-                <template v-if="String(appSearch || '').trim()">
+                <template v-if="hasAppSearch">
                   <div class="app-hub-section-heading">
                     <strong>搜索结果</strong>
                     <small>{{ appSearchResults.length }} 项</small>
