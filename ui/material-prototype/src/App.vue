@@ -2402,10 +2402,10 @@ onUnmounted(() => {
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-refresh-auto" size="23"/></v-avatar>
                   <div><h2>当前刷新策略</h2><p>按页面状态执行自动刷新，避免无用的后台请求。</p></div>
                 </div>
-                <div class="settings-detail-row"><span>设备可达性检测</span><strong>设备列表停留期间每 15 秒</strong></div>
-                <div class="settings-detail-row"><span>路由器首页数据</span><strong>每 12 秒</strong></div>
-                <div class="settings-detail-row"><span>实时网络采样</span><strong>每 3 秒</strong></div>
-                <p class="muted-hint mt-3">当前版本使用内置刷新间隔，暂不提供自定义频率，避免误设导致路由器请求过于频繁。</p>
+                <div class="settings-detail-row"><span>设备可达性检测</span><strong>设备列表停留期间每 {{ labIntervals.devices / 1000 }} 秒</strong></div>
+                <div class="settings-detail-row"><span>路由器首页数据</span><strong>每 {{ labIntervals.overview / 1000 }} 秒</strong></div>
+                <div class="settings-detail-row"><span>实时网络采样</span><strong>每 {{ labIntervals.telemetry / 1000 }} 秒</strong></div>
+                <p class="muted-hint mt-3">当前策略：{{ labSettings.profile === 'saver' ? '省电' : labSettings.profile === 'realtime' ? '实时' : labSettings.profile === 'custom' ? '自定义' : '均衡' }}。可在“设置 → 实验室”调整或恢复默认，过短的请求间隔将被限制。</p>
                 <div class="settings-actions mt-4">
                   <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" :loading="probeBusy" @click="refreshDeviceStatuses">立即检测所有设备</v-btn>
                   <v-btn v-if="connected" variant="outlined" prepend-icon="mdi-refresh" :loading="refreshing" @click="refreshCurrent">刷新当前路由器</v-btn>
