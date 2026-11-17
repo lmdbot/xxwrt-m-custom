@@ -44,6 +44,17 @@ export function saveLabSettings(storage, value) {
   safelyWrite(storage, LAB_PREFS_KEY, clean)
   return clean
 }
+/**
+ * Factory reset affects *only* laboratory keys, including all per-router layouts
+ * and verified alternative endpoints. Core router credentials remain untouched.
+ * If persistent storage rejects removal, leave the in-memory settings unchanged.
+ */
+export function resetAllLabPreferences(storage) {
+  try {
+    for (const key of [LAB_PREFS_KEY, LAB_CARDS_KEY, LAB_ROUTES_KEY]) storage.removeItem(key)
+    return true
+  } catch { return false }
+}
 export function refreshIntervals(settings) {
   const clean = sanitizeLabSettings(settings)
   return clean.profile === 'custom' ? clean.custom : REFRESH_PRESETS[clean.profile]

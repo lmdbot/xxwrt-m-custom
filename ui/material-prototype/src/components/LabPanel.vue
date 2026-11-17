@@ -10,6 +10,8 @@ const props = defineProps({
   activeAddress: { type:String, default:'' },
   smartBusy: { type:Boolean, default:false },
   smartMessage: { type:String, default:'' },
+  globalMessage: { type:String, default:'' },
+  rpcMessage: { type:String, default:'' },
   healthRows: { type:Array, default:()=>[] },
   deepRows: { type:Array, default:()=>[] },
   healthBusy: { type:Boolean, default:false }
@@ -17,9 +19,10 @@ const props = defineProps({
 const emit = defineEmits([
   'set-profile','set-interval','toggle-cards','toggle-card','move-card','reset-cards',
   'toggle-rpc','clear-rpc','copy-rpc','toggle-smart','pair-alternate','remove-alternate',
-  'switch-route','toggle-health','check-health'
+  'switch-route','toggle-health','check-health','reset-all'
 ])
 const alternateInput = ref('')
+const resetConfirmation = ref(false)
 watch(()=>props.router?.id,()=>{ alternateInput.value = '' })
 const presets = [
   {label:'省电',value:'saver'},{label:'均衡',value:'balanced'},
@@ -42,6 +45,30 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
       <v-avatar rounded="lg" color="primary" variant="tonal" size="48"><v-icon icon="mdi-flask-outline" size="28"/></v-avatar>
       <div><h2>实验室</h2><p>试用高级能力。开关仅保存在本机，不修改路由器系统设置。</p></div>
     </div>
+    <div class="lab-reset-bar">
+      <span>出现异常时，可一键撤销全部实验设置</span>
+      <v-btn size="small" variant="outlined" color="primary" prepend-icon="mdi-restore"
+        :disabled="smartBusy || healthBusy"
+        @click="resetConfirmation = true">恢复默认值</v-btn>
+    </div>
+    <p v-if="globalMessage" class="lab-reset-notice" role="status">{{ globalMessage }}</p>
+    <v-dialog v-model="resetConfirmation" max-width="430">
+      <v-card rounded="xl" class="pa-4" title="恢复实验室默认值？">
+        <v-card-text class="lab-reset-dialog-text">
+          将刷新间隔恢复为均衡模式（概览 12 秒、流量 3 秒、设备 15 秒），
+          恢复所有已保存路由器的六张概览卡片及默认顺序，
+          关闭 RPC 调试、智能连接切换与健康检测，
+          清空本次 RPC 日志，并删除所有路由器的备用入口配对。
+          不影响已保存的路由器账号或路由器配置；当前连接不会被强制中断。
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer/>
+          <v-btn variant="text" @click="resetConfirmation = false">取消</v-btn>
+          <v-btn color="primary" variant="flat"
+            @click="resetConfirmation = false; emit('reset-all')">确认恢复</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-card rounded="xl" elevation="1" class="settings-option-card lab-option">
       <div class="settings-option-heading">
@@ -110,6 +137,7 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
           <v-btn size="small" variant="tonal" prepend-icon="mdi-content-copy" @click="emit('copy-rpc')">复制脱敏日志</v-btn>
           <v-btn size="small" variant="text" prepend-icon="mdi-delete-outline" @click="emit('clear-rpc')">清空</v-btn>
         </div>
+        <p v-if="rpcMessage" class="lab-note" role="status">{{ rpcMessage }}</p>
         <div v-if="latestRpc.length" class="lab-rpc-log" role="log" aria-label="RPC 请求诊断记录">
           <div v-for="(item,index) in latestRpc" :key="index" class="lab-rpc-row">
             <div><strong>{{ item.object }}.{{ item.method }}</strong><small>{{ item.at.slice(11,19) }}</small></div>
@@ -189,6 +217,10 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
 <style scoped>
 .lab-page{display:flex;flex-direction:column;gap:14px;padding-bottom:24px}
 .lab-introduction{display:flex;align-items:center;gap:13px;padding:12px 3px 5px}
+.lab-reset-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:rgba(var(--v-theme-primary),.055);border:1px solid rgba(var(--v-theme-primary),.1);border-radius:13px;font-size:11px;color:var(--ui-text-muted)}
+.lab-reset-bar :deep(.v-btn){flex:none;letter-spacing:0}
+.lab-reset-notice{margin:0;padding:8px 10px;font-size:12px;line-height:1.6;color:rgb(var(--v-theme-primary))}
+.lab-reset-dialog-text{font-size:13px;line-height:1.8}
 .lab-introduction h2{font-size:18px;line-height:26px;font-weight:750}
 .lab-introduction p{font-size:12px;line-height:1.6;color:var(--ui-text-muted);margin-top:3px}
 .lab-option{padding:17px}

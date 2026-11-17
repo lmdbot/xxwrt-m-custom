@@ -615,10 +615,10 @@ const lastUpdated = ref('')
 const snapshot = ref(null)
 const {
   labSettings, labIntervals, labCards, labRpcRecords, labAlternate,
-  labSmartBusy, labSmartMessage, labHealthBusy, labDeepRows, labHealthRows,
+  labSmartBusy, labSmartMessage, labGlobalMessage, labRpcMessage, labHealthBusy, labDeepRows, labHealthRows,
   applyLabSettings, setLabRefreshProfile, setLabCustomInterval,
   setLabCardVisibility, moveLabCard, resetLabCards, toggleLabRpc,
-  copyLabRpc, clearRpcTrace, pairLabAlternative, unpairLabAlternative,
+  copyLabRpc, clearRpcTrace, resetLabAll, pairLabAlternative, unpairLabAlternative,
   swapLabConnection, maybeLabFailover, runLabHealthCheck
 } = useLabController({
   storage: localStorage, selectedDeviceId, selectedDevice, connected,
@@ -2434,6 +2434,7 @@ onUnmounted(() => {
                 :router="connected ? selectedDevice : null" :rpc-records="labRpcRecords"
                 :alternate="labAlternate" :active-address="connected ? (client?.baseUrl || '') : ''"
                 :smart-busy="labSmartBusy" :smart-message="labSmartMessage"
+                :global-message="labGlobalMessage" :rpc-message="labRpcMessage"
                 :health-rows="labHealthRows" :deep-rows="labDeepRows" :health-busy="labHealthBusy"
                 @set-profile="setLabRefreshProfile" @set-interval="setLabCustomInterval"
                 @toggle-cards="value => applyLabSettings({ cardsEnabled:value })"
@@ -2443,7 +2444,7 @@ onUnmounted(() => {
                 @pair-alternate="pairLabAlternative" @remove-alternate="unpairLabAlternative"
                 @switch-route="() => swapLabConnection()"
                 @toggle-health="value => applyLabSettings({ healthEnabled:value })"
-                @check-health="runLabHealthCheck"/>
+                @check-health="runLabHealthCheck" @reset-all="resetLabAll"/>
             </template>
 
             <template v-else-if="settingsCategory === 'help'">

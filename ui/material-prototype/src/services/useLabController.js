@@ -1,7 +1,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterClient, readDashboard, shortError } from './router.js'
 import {
-  loadLabSettings, saveLabSettings, refreshIntervals, normalizeOverviewCards,
+  loadLabSettings, saveLabSettings, resetAllLabPreferences, refreshIntervals, normalizeOverviewCards,
   loadOverviewCards, saveOverviewCards, rearrangeOverviewCards, toggleOverviewCard,
   enableRpcTrace, subscribeRpcTrace, clearRpcTrace, getRpcTrace,
   normalizeTrustedAlternative, readRouterIdentity, sameRouterIdentity,
@@ -21,6 +21,8 @@ export function useLabController({
   const labAlternate = ref(null)
   const labSmartBusy = ref(false)
   const labSmartMessage = ref('')
+  const labGlobalMessage = ref('')
+  const labRpcMessage = ref('')
   const labHealthBusy = ref(false)
   const labDeepRows = ref([])
   const labHealthRows = computed(() => connected.value ? passiveNetworkHealth(snapshot.value) : [])
@@ -76,10 +78,32 @@ export function useLabController({
     try {
       if (!navigator.clipboard?.writeText) throw new Error('剪贴板功能不可用')
       await navigator.clipboard.writeText(JSON.stringify(getRpcTrace(),null,2))
-      labSmartMessage.value='已复制脱敏 RPC 日志'
+      labRpcMessage.value='已复制脱敏 RPC 日志'
     } catch {
-      labSmartMessage.value='复制失败：请检查系统剪贴板权限'
+      labRpcMessage.value='复制失败：请检查系统剪贴板权限'
     }
+  }
+  function resetLabAll() {
+    if (labSmartBusy.value || labHealthBusy.value) {
+      labGlobalMessage.value='配对、切换或诊断操作进行中，暂不能重置'
+      return
+    }
+    if (!resetAllLabPreferences(storage)) {
+      labGlobalMessage.value='恢复默认值失败：无法清除本机存储'
+      return
+    }
+    labSettings.value=loadLabSettings(storage)
+    labCards.value=normalizeOverviewCards()
+    labAlternate.value=null
+    labRpcMessage.value=''
+    labSmartMessage.value=''
+    labDeepRows.value=[]
+    lastFailoverAt=0
+    enableRpcTrace(false)
+    clearRpcTrace()
+    onRefreshSettingsChange()
+    labGlobalMessage.value='已恢复默认：均衡刷新、默认六张卡片、关闭实验开关并清除所有备用入口配对'
+    // The active authenticated session is intentionally not disconnected.
   }
   function candidateFrom(source,url,ignoreTlsErrors=false) {
     const result=new RouterClient(url,{ignoreTlsErrors})
@@ -167,10 +191,10 @@ export function useLabController({
 
   return {
     labSettings,labIntervals,labCards,labRpcRecords,labAlternate,labSmartBusy,
-    labSmartMessage,labHealthBusy,labDeepRows,labHealthRows,
+    labSmartMessage,labGlobalMessage,labRpcMessage,labHealthBusy,labDeepRows,labHealthRows,
     applyLabSettings,setLabRefreshProfile,setLabCustomInterval,
     setLabCardVisibility,moveLabCard,resetLabCards,toggleLabRpc,
-    copyLabRpc,clearRpcTrace,pairLabAlternative,unpairLabAlternative,
+    copyLabRpc,clearRpcTrace,resetLabAll,pairLabAlternative,unpairLabAlternative,
     swapLabConnection,maybeLabFailover,runLabHealthCheck
   }
 }
