@@ -2458,6 +2458,7 @@ onUnmounted(() => {
                 @show-release-notes="showLatestReleaseNotes"
                 @show-project="showProjectPage"
                 @show-issues="showIssuesPage"
+                @show-help="openMoreSection('help')"
                 @show-licenses="openSourceDialog = true"
                 @show-privacy="privacyDialog = true"/>
             </template>
@@ -2493,11 +2494,6 @@ onUnmounted(() => {
               <button type="button" class="more-menu-item" aria-label="打开关于" @click="openMoreSection('about')">
                 <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="24"/></span>
                 <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本、更新、开发者与开源许可</small></span>
-                <v-icon icon="mdi-chevron-right" size="21"/>
-              </button>
-              <button type="button" class="more-menu-item" aria-label="打开帮助与反馈" @click="openMoreSection('help')">
-                <span class="more-menu-icon"><v-icon icon="mdi-help-circle-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>帮助与反馈</strong><small>使用说明、问题反馈</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
             </div>
