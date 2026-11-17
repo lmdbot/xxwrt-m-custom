@@ -1,10 +1,36 @@
 import { Capacitor } from '@capacitor/core'
 import { SecureStorage } from '@aparajita/capacitor-secure-storage'
 import { normalizeRouterAddress, RouterClient } from './router.js'
+import { normalizeTrustedAlternative } from './labFeatures.js'
 
 const LIST_KEY = 'xxwrt_material_saved_devices_v1'
 const OLD_HOST_KEY = 'xxwrt_material_router_url'
 const SECRET_PREFIX = 'xxwrt_router_pass_'
+
+export const MAX_ROUTER_ALTERNATIVES = 5
+
+/** Only endpoints explicitly supplied by the user can receive an RPC token.
+ * Bare LAN IP means HTTP; bare domains mean HTTPS (never public HTTP). */
+export function normalizeRouterAlternates(primaryAddress, values) {
+  const primary = normalizeRouterAddress(primaryAddress)
+  if (!Array.isArray(values)) return []
+  if (values.filter(x => String(x || '').trim()).length > MAX_ROUTER_ALTERNATIVES)
+    throw new Error('最多配置 5 个备用登录入口')
+  const result = [], seen = new Set([primary])
+  for (const raw of values) {
+    let address = String(raw || '').trim()
+    if (!address) continue
+    if (!/^https?:\/\//i.test(address)) {
+      address = /^\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?$/.test(address)
+        ? 'http://' + address : 'https://' + address
+    }
+    const normalized = normalizeTrustedAlternative(address)
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    result.push(normalized)
+  }
+  return result
+}
 
 export function loadDevices() {
   let items = []
@@ -21,7 +47,12 @@ export function loadDevices() {
         username: String(item.username || 'root'),
         createdAt: Number(item.createdAt) || Date.now(),
         rememberPassword: !!item.rememberPassword,
-        ignoreTlsErrors: !!item.ignoreTlsErrors && item.address.startsWith('https://')
+        ignoreTlsErrors: !!item.ignoreTlsErrors && item.address.startsWith('https://'),
+        alternateAddresses: (() => {
+          try { return normalizeRouterAlternates(item.address,item.alternateAddresses || []) }
+          catch { return [] }
+        })(),
+        autoSwitch: typeof item.autoSwitch === 'boolean' ? item.autoSwitch : undefined
       }))
     }
   } catch (_) {}
@@ -52,13 +83,18 @@ export function saveDevices(items) {
     username: String(item.username || 'root').trim().slice(0, 64),
     createdAt: Number(item.createdAt) || Date.now(),
     rememberPassword: !!item.rememberPassword,
-    ignoreTlsErrors: !!item.ignoreTlsErrors && normalizeRouterAddress(item.address).startsWith('https://')
+    ignoreTlsErrors: !!item.ignoreTlsErrors && normalizeRouterAddress(item.address).startsWith('https://'),
+    alternateAddresses: normalizeRouterAlternates(item.address,item.alternateAddresses || []),
+    ...(typeof item.autoSwitch === 'boolean' ? {autoSwitch:item.autoSwitch} : {})
   }))
   localStorage.setItem(LIST_KEY, JSON.stringify(clean))
   return clean
 }
 
-export function newDevice({ name, address, username, ignoreTlsErrors = false }) {
+export function newDevice({
+  name, address, username, ignoreTlsErrors = false,
+  alternateAddresses = [], autoSwitch = false
+}) {
   const url = normalizeRouterAddress(address)
   const label = String(name || '').trim()
   if (!label) throw new Error('请输入设备名称')
@@ -72,7 +108,9 @@ export function newDevice({ name, address, username, ignoreTlsErrors = false }) 
     username: user,
     createdAt: Date.now(),
     rememberPassword: false,
-    ignoreTlsErrors: !!ignoreTlsErrors && url.startsWith('https://')
+    ignoreTlsErrors: !!ignoreTlsErrors && url.startsWith('https://'),
+    alternateAddresses: normalizeRouterAlternates(url,alternateAddresses),
+    autoSwitch: autoSwitch === true
   }
 }
 
