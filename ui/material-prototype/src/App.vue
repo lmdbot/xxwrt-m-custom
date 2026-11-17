@@ -1896,6 +1896,22 @@ function addDeviceAlternate() {
 function removeDeviceAlternate(index) {
   deviceForm.alternateAddresses.splice(index,1)
 }
+async function verifyEditorAlternates() {
+  const device=selectedDevice.value
+  if (!editDeviceId.value || !device || device.id!==editDeviceId.value ||
+      !connected.value || !client.value?.session || labSmartBusy.value) return
+  deviceEditorMessage.value=''
+  try {
+    const current=normalizeRouterAlternates(deviceForm.address,deviceForm.alternateAddresses)
+    if (deviceForm.address!==device.address ||
+        JSON.stringify(current)!==JSON.stringify(device.alternateAddresses || [])) {
+      deviceEditorMessage.value='地址有未保存的修改，请先保存后再验证备用入口'
+      return
+    }
+    await verifyRouterAlternates(current)
+    verifiedEditorAddresses.value=loadPairedRoutes(localStorage,device.id).map(item=>item.address)
+  } catch(error) { deviceEditorMessage.value=shortError(error) }
+}
 async function saveDeviceEntry() {
   if (deviceEditorBusy.value) return
   deviceEditorBusy.value = true
@@ -4005,11 +4021,25 @@ onUnmounted(() => {
                 @click="removeDeviceAlternate(index)"/>
               <v-chip v-if="verifiedEditorAddresses.includes(alternate)" size="x-small"
                 color="success" variant="tonal">已验证</v-chip>
+              <v-btn v-if="editDeviceId === selectedDeviceId && connected &&
+                verifiedEditorAddresses.includes(alternate) && client?.baseUrl !== alternate"
+                size="x-small" color="primary" variant="tonal"
+                :loading="labSmartBusy" @click="swapLabConnection({address:alternate})">切换至此</v-btn>
+              <v-chip v-else-if="client?.baseUrl === alternate && connected" size="x-small"
+                color="info" variant="tonal">当前入口</v-chip>
             </div>
             <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" color="primary"
               class="router-editor-add-alternate"
               :disabled="deviceForm.alternateAddresses.length >= MAX_ROUTER_ALTERNATIVES"
               @click="addDeviceAlternate">添加备用登录地址</v-btn>
+            <div v-if="editDeviceId && editDeviceId === selectedDeviceId && connected"
+              class="router-editor-verify-actions">
+              <v-btn size="small" color="primary" variant="outlined"
+                prepend-icon="mdi-shield-check-outline"
+                :disabled="labSmartBusy || deviceEditorBusy || !deviceForm.alternateAddresses.length"
+                :loading="labSmartBusy" @click="verifyEditorAlternates">重新验证已保存入口</v-btn>
+              <span v-if="client?.baseUrl" class="router-editor-helper">当前：{{ client.baseUrl }}</span>
+            </div>
             <v-switch v-model="deviceForm.autoSwitch" inset density="compact"
               class="router-editor-switch mt-2" color="primary" hide-details
               label="主入口连接失败时自动切换已验证的备用入口"/>
