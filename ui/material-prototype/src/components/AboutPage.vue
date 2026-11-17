@@ -46,9 +46,11 @@ const updateStatus = computed(() => {
       </div>
       <div v-if="updateState.checked || updateState.checking || updateState.error || updateState.available"
         class="about-update-status about-hero-update-status" role="status"
-        :class="{ 'about-update-error': updateState.error }">
-        <v-icon :icon="updateState.error ? 'mdi-alert-circle-outline' : updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'" size="18"/>
-        <span>{{ updateStatus }}</span>
+        :class="{ 'about-update-error': updateState.error, 'about-hero-status--action': updateState.available && updateState.latestRelease?.apkUrl }">
+        <span class="about-update-message">
+          <v-icon :icon="updateState.error ? 'mdi-alert-circle-outline' : updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'" size="18"/>
+          <span class="about-update-message-text">{{ updateStatus }}</span>
+        </span>
         <v-btn v-if="updateState.available && updateState.latestRelease?.apkUrl"
           class="about-update-now" color="primary" variant="flat" size="small" rounded="pill"
           prepend-icon="mdi-download" :loading="updateState.downloading" @click="emit('download-latest')">
@@ -163,10 +165,20 @@ const updateStatus = computed(() => {
 .about-version-actions{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;column-gap:6px;row-gap:8px;max-width:100%}
 .about-version-pill{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:99px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary));font-family:inherit;line-height:1.5;font-size:12px;font-weight:650;padding:7px 11px;min-height:34px;cursor:pointer}
 .about-check-update{min-height:34px!important;font-size:12px!important;letter-spacing:0!important;font-weight:700!important}
-.about-hero-update-status{max-width:min(100%,410px);margin:12px auto 0!important;text-align:left;padding:8px 11px!important}
-.about-hero-update-status{display:flex;flex-wrap:wrap;justify-content:center;gap:9px}
-.about-hero-update-status span{flex:1 1 170px;min-width:0;overflow-wrap:anywhere}
+.about-hero-update-status{
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  width:fit-content;max-width:100%;margin:12px auto 0!important;
+  padding:9px 15px!important;text-align:left
+}
+.about-update-message{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:0;flex:1 1 auto}
+.about-update-message .v-icon{flex:0 0 auto}
+.about-update-message-text{min-width:0;overflow-wrap:anywhere;font-size:12px;line-height:1.5}
+.about-hero-status--action{width:min(100%,410px);justify-content:space-between;flex-wrap:wrap}
 .about-update-now{flex:none;min-height:33px!important;font-size:12px!important;letter-spacing:0!important}
+@media(max-width:380px){
+  .about-hero-status--action{justify-content:center}
+  .about-hero-status--action .about-update-message{justify-content:center}
+}
 .about-tagline{margin:14px 0 6px;font-size:14px;font-weight:650;line-height:1.55}
 .about-summary{max-width:370px;font-size:12px;line-height:1.75;color:var(--ui-text-muted)}
 .about-section{margin:12px 0 23px}

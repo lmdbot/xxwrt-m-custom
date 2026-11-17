@@ -1612,3 +1612,70 @@
 .xxwrt-v3 .v3-network-supplement strong{color:var(--ui-text);font-size:12px;line-height:1.4;font-weight:650;overflow-wrap:anywhere}
 .xxwrt-v3 .v3-network-status .v3-network-kpis>div{justify-content:flex-start}
 @media(max-width:390px){.xxwrt-v3 .v3-lan-dhcp-status span{font-size:9px;padding:3px 4px}.xxwrt-v3 .v3-network-supplement{gap:9px}}
+
+
+/* 3.0.8: network summary without cramped three-column tiles or scattered metadata. */
+.xxwrt-v3 .v3-health-footer>.v-icon{margin-left:auto}
+.xxwrt-v3 .v3-network-kpis--tidy{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px
+}
+.xxwrt-v3 .v3-network-kpis--tidy>.v3-connection-tile{
+  display:flex;flex-direction:column;justify-content:flex-start;
+  min-width:0;min-height:98px;padding:12px 11px;gap:8px;
+  border-radius:13px;background:var(--ui-surface)
+}
+.xxwrt-v3 .v3-connection-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+.xxwrt-v3 .v3-connection-heading small{font-size:12px;line-height:18px;font-weight:650}
+.xxwrt-v3 .v3-connection-status{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:none;padding:3px 7px;border-radius:99px;
+  font-size:11px;line-height:16px;font-weight:700;
+  color:var(--ui-muted);background:rgba(112,127,148,.11)
+}
+.xxwrt-v3 .v3-connection-status.is-good{color:#087e62;background:rgba(14,165,127,.13)}
+.xxwrt-v3.theme-is-dark .v3-connection-status.is-good{color:#6cdec3;background:rgba(48,184,145,.18)}
+.xxwrt-v3 .v3-network-kpis--tidy .v3-connection-address{
+  display:block;color:var(--ui-text);font-size:14px;line-height:21px;font-weight:750;
+  overflow-wrap:anywhere;word-break:normal;font-variant-numeric:tabular-nums
+}
+.xxwrt-v3 .v3-network-kpis--tidy>.v3-connection-tile--ipv6{
+  grid-column:1 / -1;min-height:0;gap:5px;padding:11px 12px
+}
+.xxwrt-v3 .v3-network-kpis--tidy .v3-connection-address--ipv6{
+  font-size:12px;line-height:18px;font-weight:600;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-network-kpis--tidy .v3-lan-dhcp-status{
+  display:flex;flex-wrap:wrap;flex-direction:row;align-items:flex-start;gap:5px;margin-top:auto
+}
+.xxwrt-v3 .v3-network-kpis--tidy .v3-lan-dhcp-status span{
+  font-size:10px;line-height:15px;padding:3px 6px
+}
+.xxwrt-v3 .v3-network-supplement--tidy{
+  display:flex;flex-direction:column;gap:0;
+  padding:7px 2px 0;margin-top:12px;
+  border-top:1px solid rgba(100,134,174,.2)
+}
+.xxwrt-v3 .v3-network-supplement--tidy .v3-network-detail-row{
+  display:grid;grid-template-columns:88px minmax(0,1fr);align-items:start;
+  gap:9px;min-width:0;padding:7px 1px
+}
+.xxwrt-v3 .v3-network-supplement--tidy .v3-network-detail-row+div{
+  border-top:1px solid rgba(100,134,174,.09)
+}
+.xxwrt-v3 .v3-network-supplement--tidy .v3-network-detail-row>span{
+  color:var(--ui-muted);font-size:11px;line-height:18px
+}
+.xxwrt-v3 .v3-network-supplement--tidy .v3-network-detail-row>strong{
+  color:var(--ui-text);font-size:12px;line-height:18px;
+  font-weight:650;text-align:right;overflow-wrap:anywhere
+}
+.xxwrt-v3 .v3-network-dns-values{
+  display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:2px 8px
+}
+.xxwrt-v3 .v3-network-dns-values>span{font-size:12px;line-height:18px;color:var(--ui-text)}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-network-kpis--tidy{gap:8px}
+  .xxwrt-v3 .v3-network-kpis--tidy>.v3-connection-tile{padding:11px 9px}
+  .xxwrt-v3 .v3-network-kpis--tidy .v3-connection-heading small{font-size:11px}
+  .xxwrt-v3 .v3-network-kpis--tidy .v3-connection-address{font-size:13px}
+}
