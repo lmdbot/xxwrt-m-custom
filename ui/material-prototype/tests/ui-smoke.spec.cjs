@@ -538,6 +538,28 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     await expect(page.locator('.v3-health-card')).toContainText('路由器已连接')
     await expect(page.locator('.v3-health-metrics .v3-metric')).toHaveCount(6)
     await expect(page.locator('.v3-health-metrics')).toContainText('存储')
+    // Functional regression: a phone tilt must change the actual waterline
+    // on a connected overview screen, not just internal physics state.
+    const liquid = page.locator('.v3-metric-water').first()
+    await expect(liquid).toBeVisible()
+    const beforeTilt = await liquid.evaluate(node => getComputedStyle(node).clipPath)
+    await page.evaluate(() => {
+      const tilt = new Event('deviceorientation')
+      Object.defineProperty(tilt, 'gamma', { value: 65 })
+      window.dispatchEvent(tilt)
+    })
+    await expect.poll(() => liquid.evaluate(node =>
+      Number.parseFloat(node.style.getPropertyValue('--v3-water-slope')) || 0),
+    { timeout: 3000 }).toBeGreaterThan(3)
+    expect(await liquid.evaluate(node => getComputedStyle(node).clipPath)).not.toBe(beforeTilt)
+    await page.evaluate(() => {
+      const shake = new Event('devicemotion')
+      Object.defineProperty(shake, 'acceleration', { value: { x: 0, y: -5 } })
+      window.dispatchEvent(shake)
+    })
+    await expect.poll(() => liquid.evaluate(node =>
+      Number.parseFloat(node.style.getPropertyValue('--v3-water-bob')) || 0),
+    { timeout: 3000 }).toBeLessThan(-0.8)
 
     await page.getByRole('button', { name: '设备', exact: true }).click()
     await expect(page.locator('.v3-terminal-status button')).toHaveCount(3)
