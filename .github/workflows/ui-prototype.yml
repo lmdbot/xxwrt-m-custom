@@ -91,7 +91,7 @@ jobs:
 
       - name: Verify pre-merge Android-sized UI interactions
         if: github.event_name == 'pull_request' || github.ref_name == 'feature/network-interface-configuration-v2-0-29'
-        run: npm run test:ui
+        run: npm run test:ui -- --max-failures=1 --retries=0
 
       - name: Upload static prototype (not an Android APK)
         uses: actions/upload-artifact@v4
