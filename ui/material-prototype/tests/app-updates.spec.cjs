@@ -24,7 +24,7 @@ test('about displays newer official APK and filters prereleases', async ({ page 
       ])}))
   await openAbout(page)
   await expect(page.getByText('发现新版本 v'+nextAppVersion,{exact:false})).toBeVisible()
-  await expect(page.getByRole('button',{name:'下载最新 APK'})).toBeEnabled()
+  await expect(page.getByRole('button',{name:'下载 APK'})).toBeEnabled()
   await expect(page.getByText('v'+localAppVersion,{exact:true}).first()).toBeVisible()
 })
 test('older release does not show update', async ({ page }) => {
@@ -37,7 +37,7 @@ test('older release does not show update', async ({ page }) => {
       body:JSON.stringify([{tag_name:'v2.0.0',prerelease:false,draft:false,assets:[]}])}))
   await openAbout(page)
   await expect(page.getByText('当前已是最新版')).toBeVisible()
-  await expect(page.getByRole('button',{name:'下载最新 APK'})).toHaveCount(0)
+  await expect(page.getByRole('button',{name:'下载 APK'})).toHaveCount(0)
 })
 
 test('about opens MIT and third-party licensing information offline', async ({ page }) => {
