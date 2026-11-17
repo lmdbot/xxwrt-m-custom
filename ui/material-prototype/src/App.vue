@@ -1308,6 +1308,9 @@ function closeSettingsPage() {
 // Back: dialogs → More subpage → More hub → app tool → router list → minimize.
 async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
+  // The Tools > My Shortcuts editor is an overlay, not a navigation level.
+  // Consume the Android back gesture here so the Tools hub stays visible.
+  if (favoriteEditorOpen.value) { favoriteEditorOpen.value = false; return 'dialog' }
   if (releaseNotesDialog.value) { releaseNotesDialog.value = false; return 'dialog' }
   if (versionDetailsDialog.value) { versionDetailsDialog.value = false; return 'dialog' }
   if (privacyDialog.value) { privacyDialog.value = false; return 'dialog' }
