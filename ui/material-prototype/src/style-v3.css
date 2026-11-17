@@ -1173,3 +1173,22 @@
 .v3-design-a-risk-modal .v3-design-a-risk-actions .v-btn{
   flex:1;min-width:0;min-height:44px;
   border-radius:12px!important;font-size:12px}
+
+
+/* Design A Me hero is the same tinted card as the overview/network hero,
+ * not an opaque white profile panel. Keep the authentic device-independent copy. */
+.xxwrt-v3 .v3-me-profile{
+  padding:15px!important;border-radius:20px!important;
+  border:1px solid var(--ui-border)!important;
+  background:linear-gradient(128deg,#daefff,#e6e6ff)!important;
+  box-shadow:0 10px 30px rgba(36,74,120,.06)!important;
+  align-items:flex-start}
+.xxwrt-v3 .v3-me-profile h2{
+  font-size:17px!important;line-height:1.4;font-weight:700!important;color:#183150}
+.xxwrt-v3 .v3-me-profile p{
+  margin-top:8px;font-size:12px;line-height:1.6;color:#627994}
+.xxwrt-v3.theme-is-dark .v3-me-profile{
+  background:linear-gradient(128deg,#25486c,#27344f)!important;
+  box-shadow:0 10px 30px rgba(0,0,0,.14)!important}
+.xxwrt-v3.theme-is-dark .v3-me-profile h2{color:#eef7ff}
+.xxwrt-v3.theme-is-dark .v3-me-profile p{color:#aab9ce}
