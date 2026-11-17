@@ -226,10 +226,11 @@ async function showDdNsLog(){
   catch(e){handleError(e)}finally{busy.value=false}
 }
 function handleBack(){
-  if(queued.value){queued.value=null;return 'dialog'}
-  if(cronEditing.value){cronEditing.value=null;return 'dialog'}
+  // Pending configuration and in-flight writes override cancellation.
   if(pending.value){notify('存在等待确认的 UCI 配置，必须先确认保留或回滚',true);return 'busy'}
   if(busy.value)return 'busy'
+  if(queued.value){queued.value=null;return 'dialog'}
+  if(cronEditing.value){cronEditing.value=null;return 'dialog'}
   return null
 }
 function refreshAction(){return load()}
