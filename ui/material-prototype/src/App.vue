@@ -2829,6 +2829,20 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
+            <div class="v3-section-label v3-client-management-title">设备管理</div>
+            <div class="v3-feature-list v3-client-management">
+              <button type="button" @click="launchV3Tool('parental')">
+                <v-icon icon="mdi-shield-account-outline" color="primary"/>
+                <span><strong>家长控制</strong><small>访问规则与上网时段</small></span>
+                <v-icon icon="mdi-chevron-right"/>
+              </button>
+              <button type="button" @click="launchV3Tool('wol')">
+                <v-icon icon="mdi-lan-connect" color="primary"/>
+                <span><strong>网络唤醒</strong><small>已保存目标与网络邻居</small></span>
+                <v-icon icon="mdi-chevron-right"/>
+              </button>
+            </div>
+            <section class="v3-client-advanced-section" aria-label="高级数据来源与状态说明">
               <p class="v3-client-evidence-note">在线状态基于无线关联与邻居可达等证据，DHCP 租约不代表设备在线。</p>
               <details class="v3-client-source-details">
                 <summary>数据来源筛选 <span>{{ terminalCategories.find(c => c.value === terminalView)?.label || '全部终端' }}</span><v-icon icon="mdi-chevron-down" size="18"/></summary>
@@ -2875,19 +2889,7 @@ onUnmounted(() => {
               </button>
               </details>
             </div>
-            <div class="v3-section-label v3-client-management-title">设备管理</div>
-            <div class="v3-feature-list v3-client-management v3-inline-links">
-              <button type="button" @click="launchV3Tool('parental')">
-                <v-icon icon="mdi-shield-account-outline" color="primary"/>
-                <span><strong>家长控制</strong><small>访问规则与上网时段</small></span>
-                <v-icon icon="mdi-chevron-right"/>
-              </button>
-              <button type="button" @click="launchV3Tool('wol')">
-                <v-icon icon="mdi-lan-connect" color="primary"/>
-                <span><strong>网络唤醒</strong><small>已保存目标与网络邻居</small></span>
-                <v-icon icon="mdi-chevron-right"/>
-              </button>
-            </div>
+            </section>
           </template>
 
           <template v-if="activeTab === 'network'">
