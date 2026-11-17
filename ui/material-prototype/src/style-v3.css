@@ -1465,3 +1465,190 @@
   background:var(--ui-surface-2);font-weight:700;
   color:var(--ui-primary)
 }
+
+
+/* Design A visual implementation: root surfaces and hierarchy.
+ * Match prototype.html rather than treating the audit as a test suite.
+ * Keep router metrics, status and management interactions real. */
+.xxwrt-v3 .v3-overview{gap:0!important}
+.xxwrt-v3 .v3-health-card,
+.xxwrt-v3 .v3-network-status,
+.xxwrt-v3 .v3-me-profile{
+  border:1px solid var(--ui-border)!important;
+  border-radius:20px!important;
+  background:linear-gradient(128deg,#daefff,#e6e6ff)!important;
+  box-shadow:0 10px 30px rgba(36,74,120,.07)!important;
+  color:#183150!important
+}
+.xxwrt-v3 .v3-health-card{padding:15px!important;margin:0 0 12px}
+.xxwrt-v3 .v3-health-heading{gap:8px;align-items:flex-start}
+.xxwrt-v3 .v3-health-heading h2{font-size:17px;line-height:1.45;font-weight:700;color:#183150}
+.xxwrt-v3 .v3-health-heading p{margin:6px 0 0;font-size:12px;line-height:1.6;color:#627994;opacity:1}
+.xxwrt-v3 .v3-health-state-icon{flex:none;margin-top:1px}
+.xxwrt-v3 .v3-health-metrics{margin:12px 0 0!important;gap:7px!important}
+.xxwrt-v3 .v3-metric{
+  background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:14px!important;
+  padding:10px 7px!important;
+  min-height:65px;
+  gap:5px
+}
+.xxwrt-v3 .v3-metric small{font-size:10px;line-height:1.4;color:var(--ui-muted)}
+.xxwrt-v3 .v3-metric strong{
+  font-size:18px!important;line-height:1.35;
+  font-weight:750;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+  color:var(--ui-text)
+}
+.xxwrt-v3 .v3-module-heading{
+  min-height:23px;
+  margin:23px 3px 11px!important;
+  gap:8px
+}
+.xxwrt-v3 .v3-module-heading h2{font-size:16px;line-height:23px;font-weight:750;color:var(--ui-text)}
+.xxwrt-v3 .v3-module-heading .v-btn{font-size:12px;font-weight:700;min-height:36px}
+.xxwrt-v3 .v3-live-card{
+  margin:0!important;
+  padding:15px!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:18px!important;
+  background:var(--ui-surface)!important;
+  box-shadow:0 10px 30px rgba(36,74,120,.07)!important
+}
+.xxwrt-v3 .v3-live-card .v3-rates{
+  margin:0 0 5px!important;
+  font-size:12px;line-height:20px;
+  display:flex;justify-content:space-between;
+  color:var(--ui-primary)
+}
+.xxwrt-v3 .v3-live-card .v3-rates span:last-child,
+.xxwrt-v3 .v3-live-card .v3-rates span:last-child .v-icon{
+  color:var(--ui-success)!important
+}
+.xxwrt-v3 .v3-live-card .realtime-chart--compact{
+  height:132px!important;min-height:132px!important
+}
+.xxwrt-v3 .v3-live-card .v3-traffic-hint,
+.xxwrt-v3 .v3-live-card .muted-hint{
+  margin:6px 0 0;font-size:11px;line-height:1.6;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-shortcuts{gap:8px!important}
+.xxwrt-v3 .v3-shortcut{
+  min-width:0;min-height:77px!important;
+  border-radius:15px!important;
+  padding:13px 4px!important;
+  gap:8px!important;
+  font-size:11px!important;
+  font-weight:700!important;
+  background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  color:var(--ui-text)!important
+}
+.xxwrt-v3 .v3-shortcut .v-icon{font-size:23px!important;color:var(--ui-primary)!important}
+.xxwrt-v3 .v3-home-system-entry{margin:0 0 12px}
+.xxwrt-v3 .v3-network-status{
+  padding:15px!important;margin:0 0 0;
+  min-height:0
+}
+.xxwrt-v3 .v3-network-status h2{
+  font-size:17px!important;line-height:1.45;
+  font-weight:700!important;color:#183150
+}
+.xxwrt-v3 .v3-network-status .v3-network-status-summary{
+  margin:8px 0 0!important;font-size:12px;line-height:1.6;
+  color:#627994
+}
+.xxwrt-v3 .v3-network-home{gap:0!important}
+.xxwrt-v3 .v3-network-home .v3-section-label{
+  margin:23px 3px 11px!important;
+  font-size:16px;line-height:23px;font-weight:750
+}
+.xxwrt-v3 .v3-network-home .v3-feature-list,
+.xxwrt-v3 .v3-home-system-entry{
+  padding:0 12px;
+  border:1px solid var(--ui-border)!important;
+  border-radius:18px!important;
+  background:var(--ui-surface)!important;
+  box-shadow:0 10px 30px rgba(36,74,120,.07)!important
+}
+.xxwrt-v3 .v3-network-home .v3-feature-list button,
+.xxwrt-v3 .v3-home-system-entry button{
+  min-height:65px!important;padding:9px 6px!important;gap:12px!important
+}
+.xxwrt-v3 .v3-network-home .v3-feature-list button>.v-icon:first-child,
+.xxwrt-v3 .v3-home-system-entry button>.v-icon:first-child{
+  display:grid;place-items:center;
+  width:40px;height:40px;flex:0 0 40px;
+  box-sizing:border-box;padding:9px;
+  border-radius:13px;
+  background:var(--ui-surface-2);
+  color:var(--ui-primary)!important;font-size:21px
+}
+.xxwrt-v3 .v3-network-home .v3-feature-list button strong,
+.xxwrt-v3 .v3-home-system-entry button strong{
+  font-size:13px;font-weight:700
+}
+.xxwrt-v3 .v3-network-home .v3-feature-list button small,
+.xxwrt-v3 .v3-home-system-entry button small{
+  font-size:11px;line-height:1.4;margin-top:1px;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-network-home .v3-feature-list button>.v-icon:last-child,
+.xxwrt-v3 .v3-home-system-entry button>.v-icon:last-child{
+  color:var(--ui-muted)!important
+}
+.xxwrt-v3 .v3-client-directory .terminal-search .v-field,
+.xxwrt-v3 .app-hub-search .v-field{
+  background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  box-shadow:none!important;
+  border-radius:13px!important;
+  min-height:46px
+}
+.xxwrt-v3 .v3-client-directory .terminal-search .v-field__outline,
+.xxwrt-v3 .app-hub-search .v-field__outline{display:none}
+.xxwrt-v3 .app-category-card,
+.xxwrt-v3 .v3-client-directory .terminal-grid{
+  box-shadow:0 10px 30px rgba(36,74,120,.07)!important
+}
+.xxwrt-v3 .v3-client-directory .v3-terminal-status button,
+.xxwrt-v3 .app-category-toggle,
+.xxwrt-v3 .app-favorite-tile,
+.xxwrt-v3 .v3-shortcut{transition:background-color .18s,color .18s}
+.xxwrt-v3 .app-category-toggle:active,
+.xxwrt-v3 .app-tool-row:active,
+.xxwrt-v3 .v3-network-home .v3-feature-list button:active,
+.xxwrt-v3 .v3-home-system-entry button:active{
+  background:var(--ui-surface-2)
+}
+.xxwrt-v3.theme-is-dark .v3-health-card,
+.xxwrt-v3.theme-is-dark .v3-network-status,
+.xxwrt-v3.theme-is-dark .v3-me-profile{
+  background:linear-gradient(128deg,#25486c,#27344f)!important;
+  box-shadow:0 10px 30px rgba(0,0,0,.16)!important;
+  color:#eef7ff!important
+}
+.xxwrt-v3.theme-is-dark .v3-health-heading h2,
+.xxwrt-v3.theme-is-dark .v3-network-status h2{color:#eef7ff}
+.xxwrt-v3.theme-is-dark .v3-health-heading p,
+.xxwrt-v3.theme-is-dark .v3-network-status .v3-network-status-summary{
+  color:#aab9ce
+}
+.xxwrt-v3.theme-is-dark .v3-live-card,
+.xxwrt-v3.theme-is-dark .v3-network-home .v3-feature-list,
+.xxwrt-v3.theme-is-dark .v3-home-system-entry,
+.xxwrt-v3.theme-is-dark .app-category-card,
+.xxwrt-v3.theme-is-dark .v3-client-directory .terminal-grid{
+  box-shadow:0 10px 30px rgba(0,0,0,.16)!important
+}
+@media(max-width:375px){
+  /* The design system prioritizes readable values at 360dp and 1.3x text. */
+  .xxwrt-v3 .v3-health-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .xxwrt-v3 .v3-metric strong{font-size:20px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  .xxwrt-v3 .v3-shortcut,.xxwrt-v3 .app-favorite-tile,
+  .xxwrt-v3 .app-category-toggle,.xxwrt-v3 .app-tool-row{
+    transition:none!important
+  }
+}
