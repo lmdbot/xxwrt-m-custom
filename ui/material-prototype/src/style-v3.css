@@ -1869,3 +1869,117 @@
 .xxwrt-v3 .router-editor-verify-actions .router-editor-helper{
   margin:0;min-width:0;overflow-wrap:anywhere
 }
+
+/* v3.0.22 — Two-step router editor. Backup endpoints deliberately remain in Step 1. */
+.xxwrt-v3 .router-wizard{overflow:hidden}
+.xxwrt-v3 .router-wizard .router-editor-title{
+  font-size:18px;letter-spacing:-.25px;padding:17px 18px 5px;line-height:1.35
+}
+.xxwrt-v3 .router-wizard-progress{padding:0 20px 12px}
+.xxwrt-v3 .router-wizard-step-count{
+  display:block;color:var(--ui-text-muted);font-size:11px;font-weight:650;margin:0 0 12px
+}
+.xxwrt-v3 .router-wizard-track{display:flex;align-items:flex-start;justify-content:center;gap:6px}
+.xxwrt-v3 .router-wizard-node{
+  display:flex;flex-direction:column;align-items:center;gap:5px;min-width:86px;
+  color:var(--ui-text-muted)
+}
+.xxwrt-v3 .router-wizard-node>span{
+  display:grid;place-items:center;width:26px;height:26px;border-radius:50%;
+  background:var(--ui-surface-alt,var(--ui-surface));border:1px solid var(--ui-border);
+  font-size:12px;font-weight:800;color:var(--ui-text-muted)
+}
+.xxwrt-v3 .router-wizard-node.is-active>span,
+.xxwrt-v3 .router-wizard-node.is-complete>span{
+  background:rgb(var(--v-theme-primary));border-color:rgb(var(--v-theme-primary));color:#fff
+}
+.xxwrt-v3 .router-wizard-node.is-active>small{color:var(--ui-text);font-weight:750}
+.xxwrt-v3 .router-wizard-node>small{font-size:11px;white-space:nowrap}
+.xxwrt-v3 .router-wizard-line{
+  width:min(18vw,80px);height:2px;margin-top:12px;border-radius:2px;background:var(--ui-border)
+}
+.xxwrt-v3 .router-wizard-line.is-complete{background:rgb(var(--v-theme-primary))}
+.xxwrt-v3 .router-wizard .router-editor-body{
+  padding:3px 18px 10px;max-height:calc(100dvh - 215px);overflow-y:auto;
+  overscroll-behavior:contain
+}
+.xxwrt-v3 .router-wizard-step-pane{min-width:0}
+.xxwrt-v3 .router-wizard-section-title{
+  display:flex;align-items:center;gap:9px;margin:5px 0 12px
+}
+.xxwrt-v3 .router-wizard-section-title h3{
+  margin:0;color:var(--ui-text);font-size:16px;font-weight:780;line-height:1.35
+}
+.xxwrt-v3 .router-wizard-step-pane>.v-input{margin-bottom:3px}
+.xxwrt-v3 .router-wizard-alternates{
+  border:1px solid var(--ui-border);border-radius:14px;
+  background:rgba(var(--v-theme-primary),.035);padding:12px 12px 10px;margin:5px 0 13px
+}
+.xxwrt-v3 .router-wizard-alt-top{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0
+}
+.xxwrt-v3 .router-wizard-alt-heading{display:flex;align-items:center;gap:9px;min-width:0}
+.xxwrt-v3 .router-wizard-alt-heading>div{display:flex;flex-direction:column;min-width:0}
+.xxwrt-v3 .router-wizard-alt-heading strong{
+  color:var(--ui-text);font-weight:740;font-size:14px;white-space:nowrap
+}
+.xxwrt-v3 .router-wizard-alt-heading strong small{
+  color:var(--ui-text-muted);font-size:10px;font-weight:550;margin-left:3px
+}
+.xxwrt-v3 .router-wizard-alt-heading span{
+  color:var(--ui-text-muted);font-size:11px;line-height:1.5;overflow-wrap:anywhere
+}
+.xxwrt-v3 .router-wizard .router-editor-add-alternate{margin:0;flex:none}
+.xxwrt-v3 .router-wizard .router-editor-alternate-row{margin:11px 0 2px;gap:5px}
+.xxwrt-v3 .router-wizard .router-editor-alternate-row>.v-input{min-width:125px;flex:1}
+.xxwrt-v3 .router-wizard-tiny-hint{
+  margin:5px 0 9px;font-size:11px;line-height:1.5;color:var(--ui-text-muted)
+}
+.xxwrt-v3 .router-wizard-preview{
+  display:flex;align-items:center;gap:11px;width:100%;min-height:62px;text-align:left;
+  border:1px solid var(--ui-border);border-radius:14px;padding:10px 12px;
+  background:rgba(var(--v-theme-primary),.045);color:var(--ui-text);cursor:pointer
+}
+.xxwrt-v3 .router-wizard-preview:hover{border-color:rgba(var(--v-theme-primary),.5)}
+.xxwrt-v3 .router-wizard-preview>span{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.xxwrt-v3 .router-wizard-preview strong{font-size:13px;font-weight:750}
+.xxwrt-v3 .router-wizard-preview small{font-size:11px;color:var(--ui-text-muted)}
+.xxwrt-v3 .router-wizard-saved-summary{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  border:1px solid var(--ui-border);border-radius:12px;padding:10px 12px;
+  background:rgba(var(--v-theme-primary),.045);color:var(--ui-text);
+  text-align:left;cursor:pointer;margin:0 0 15px
+}
+.xxwrt-v3 .router-wizard-saved-summary>span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.xxwrt-v3 .router-wizard-saved-summary strong{font-size:12px;font-weight:750}
+.xxwrt-v3 .router-wizard-saved-summary small{
+  font-size:11px;color:var(--ui-text-muted);overflow-wrap:anywhere
+}
+.xxwrt-v3 .router-wizard-option{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border-bottom:1px solid var(--ui-border);padding:8px 1px
+}
+.xxwrt-v3 .router-wizard-option>div:first-child{
+  display:flex;flex-direction:column;gap:3px;flex:1;min-width:0
+}
+.xxwrt-v3 .router-wizard-option strong{color:var(--ui-text);font-size:13px;font-weight:720}
+.xxwrt-v3 .router-wizard-option span{
+  color:var(--ui-text-muted);font-size:11px;line-height:1.45;overflow-wrap:anywhere
+}
+.xxwrt-v3 .router-wizard-option .v-input{flex:none;margin:0}
+.xxwrt-v3 .router-wizard-option .v-selection-control{min-height:36px}
+.xxwrt-v3 .router-wizard-security-warning{
+  display:flex;align-items:center;gap:6px;margin:8px 0 0;font-size:11px;
+  line-height:1.5;color:rgb(var(--v-theme-warning))
+}
+.xxwrt-v3 .router-wizard .router-editor-actions{
+  padding:11px 17px 13px;gap:8px;border-top:1px solid var(--ui-border)
+}
+.xxwrt-v3 .router-wizard .router-editor-actions .v-btn:last-child{min-width:136px;font-weight:720}
+@media(max-width:390px){
+  .xxwrt-v3 .router-wizard .router-editor-title{font-size:17px;padding:14px 14px 4px}
+  .xxwrt-v3 .router-wizard-progress{padding:0 14px 9px}
+  .xxwrt-v3 .router-wizard .router-editor-body{padding:1px 13px 9px;max-height:calc(100dvh - 190px)}
+  .xxwrt-v3 .router-wizard-alternates{padding:10px}
+  .xxwrt-v3 .router-wizard .router-editor-actions{padding:10px 13px 12px}
+}
