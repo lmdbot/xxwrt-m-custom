@@ -2641,7 +2641,12 @@ onUnmounted(() => {
               </div>
             </section>
             <div v-if="homeDetailsExpanded && activeTab === 'home'" class="v3-home-details">
-            <v-card v-if="snapshot && activeTab === 'home'" rounded="xl" elevation="1" class="device-card">
+            <header class="v3-design-a-hero v3-system-detail-hero">
+              <h2>系统详情</h2>
+              <p>{{ snapshot?.board?.model || '路由器系统' }} · 运行 {{ snapshot?.uptime || '--' }}</p>
+            </header>
+            <h3 class="v3-design-a-section-title">基础信息</h3>
+            <v-card v-if="snapshot && activeTab === 'home'" rounded="xl" elevation="0" class="device-card v3-system-detail-card">
               <div class="device-heading">
                 <v-avatar color="primary" variant="tonal" rounded="lg" size="52"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
                 <div class="device-heading-label"><h2>{{ snapshot.board.model }}</h2><p>{{ snapshot.board.version }} · {{ snapshot.board.target }}</p></div>
@@ -2674,7 +2679,8 @@ onUnmounted(() => {
               </section>
             </v-card>
 
-            <div v-if="snapshot" class="resource-grid">
+            <h3 v-if="snapshot" class="v3-design-a-section-title">资源使用</h3>
+            <div v-if="snapshot" class="resource-grid v3-system-resource-grid">
               <v-card v-for="item in resourceCards" :key="item.label" rounded="xl" elevation="1" class="resource-card">
                 <div class="resource-top"><span>{{ item.label }}</span><v-icon :icon="item.icon" color="secondary" size="22"/></div>
                 <strong>{{ item.value }}</strong><small>{{ item.detail }}</small>
@@ -2682,7 +2688,8 @@ onUnmounted(() => {
               </v-card>
             </div>
 
-            <v-card v-if="snapshot && activeTab === 'home'" class="mt-4 network-card ethernet-card" rounded="xl" elevation="1">
+            <h3 v-if="snapshot" class="v3-design-a-section-title">网络接口</h3>
+            <v-card v-if="snapshot && activeTab === 'home'" class="network-card ethernet-card v3-system-detail-section" rounded="xl" elevation="0">
               <div class="section-heading">
                 <h2>以太网接口</h2>
                 <v-chip size="small" variant="tonal" color="primary">{{ ethernetPorts.length }} 个接口</v-chip>
@@ -2715,7 +2722,8 @@ onUnmounted(() => {
               <v-alert v-else type="info" variant="tonal" density="compact">暂未获取到物理以太网接口状态。</v-alert>
             </v-card>
 
-            <v-card v-if="snapshot && activeTab === 'home'" class="mt-4 network-card storage-card" rounded="xl" elevation="1">
+            <h3 v-if="snapshot" class="v3-design-a-section-title">存储空间</h3>
+            <v-card v-if="snapshot && activeTab === 'home'" class="network-card storage-card v3-system-detail-section" rounded="xl" elevation="0">
               <div class="section-heading"><h2>磁盘占用</h2><v-icon icon="mdi-harddisk" color="secondary" size="22"/></div>
               <template v-if="diskData.available && diskData.partitions.length">
                 <div class="storage-row" v-for="(partition, index) in diskData.partitions" :key="partition.device + partition.mount + index">
