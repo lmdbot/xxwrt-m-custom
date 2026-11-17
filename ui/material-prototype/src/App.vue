@@ -812,6 +812,7 @@ function clearRouterDisplayForSwitch() {
   diskData.value = { available: false, partitions: [], primary: null, temporary: null }
   lanDhcpStatus.value = { dhcp4: null, dhcp6: null }
   networkHardware.value = { wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] }
+  installedRouterApps.value = null
   lastUpdated.value = ''
   bandwidthHistory.value = []
   loadHistory.value = []
