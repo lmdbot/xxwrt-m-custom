@@ -1915,6 +1915,7 @@ function addDeviceAlternate() {
 function nextDeviceEditorStep() {
   if (deviceEditorBusy.value) return
   deviceEditorMessage.value = ''
+  listError.value = ''
   try {
     // Validate Step 1 including backup endpoints before revealing credentials.
     // The actual router profile is not written until the second step saves.
@@ -1922,6 +1923,7 @@ function nextDeviceEditorStep() {
     deviceEditorStep.value = 2
   } catch (error) {
     deviceEditorMessage.value = shortError(error)
+    listError.value = deviceEditorMessage.value
   }
 }
 function submitDeviceEditor() {
