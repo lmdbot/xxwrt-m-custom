@@ -4,7 +4,7 @@ const nextAppVersion = localAppVersion.replace(/(\d+)$/, patch => String(Number(
 async function openAbout(page) {
   await page.goto('/')
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.getByRole('button', { name: '打开关于' }).click()
+  await page.locator('.v3-me-support button').click()
 }
 test('about displays newer official APK and filters prereleases', async ({ page }) => {
   const tag='v'+nextAppVersion,name='XX-WRT-Material-'+tag+'.apk'

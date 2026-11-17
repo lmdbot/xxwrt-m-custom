@@ -554,7 +554,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     await expect(page.locator('.v3-network-home')).toBeVisible()
     await page.locator('.v3-network-home .v3-feature-list button')
       .filter({ hasText: '网络接口' }).click()
-    await expect(page.locator('.interface-card')).toHaveCount(2)
+    await expect(page.locator('.v3-interfaces-list .v3-interfaces-row')).toHaveCount(2)
     await page.getByRole('button', { name: '返回上一页' }).click()
     await expect(page.locator('.v3-network-home')).toBeVisible()
 
@@ -1401,8 +1401,7 @@ test('device list main parity and persistent hostname/address privacy', async ({
   await page.getByRole('button', { name: '隐藏路由器地址' }).click()
   await expect(page.locator('.router-address')).toContainText('•••')
   await page.getByRole('button', { name: '我的', exact: true }).click()
-  await page.getByRole('button', { name: '打开设置' }).click()
-  await page.getByRole('button', { name: '打开隐私设置' }).click()
+  await page.locator('.more-page .more-menu-item').filter({ hasText: '隐私与安全' }).click()
   await page.getByLabel('隐藏主机名').click()
   await page.getByRole('button', { name: '概览', exact: true }).click()
   await expect(page.locator('.router-name')).toHaveText('路由器 1')
@@ -1562,13 +1561,15 @@ test('terminal QoS backend selector keeps EQOS and HQoS writes separate', async 
     await page.getByRole('textbox', { name: '路由器密码' }).fill('mock-only')
     await page.getByRole('button', { name: '登录并进入' }).click()
     await page.getByRole('button', { name: '设备', exact: true }).click()
-    // Default is the combined multi-source list; select DHCPv4 for the
-    // original three-lease QoS regression scenario.
+    // Source filters are collapsed by default in the Design A device list.
+    // Expand the filter affordance before selecting the DHCPv4 fixture.
+    await page.getByRole('button', { name: '展开或收起终端来源筛选' }).click()
     await page.getByRole('button', { name: /DHCPv4，\d+ 条/ }).click()
     await expect(page.locator('.terminal-tile')).toHaveCount(3, { timeout: 15000 })
     await page.getByText('Phone', { exact: true }).click()
 
-    const modal = page.getByRole('dialog').filter({ hasText: '终端管理' })
+    const modal = page.getByRole('dialog').filter({ hasText: '终端详情' })
+    await modal.getByRole('button', { name: /限速设置/ }).click()
     const select = modal.getByRole('combobox', { name: '管理 QoS 后端' })
     await expect(select).toBeVisible()
     // Vuetify VSelect renders its selected item in the combobox input value,
