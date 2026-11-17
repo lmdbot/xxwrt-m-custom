@@ -83,7 +83,7 @@ def framed_icon(source: Image.Image, size: int, art_scale: float) -> Image.Image
 def generate_alternative_icons():
     """Generate built-in preset aliases from source icons extracted from XX-WRTM.7z."""
     variants = [
-        ("classic", "xxwrtm-classic", "85c3d8e8e88fd787cae5d841fac54ae2e94d9a5ab00acac84ee1d13e6d4fc743", "#1265cf"),
+        ("classic", "xxwrtm-classic", "1876c0783157698b4eeeb0f540196d348e2301897776688d6c61b02cf730e6f9", "#1265cf"),
         ("openwrt", "openwrt-brand", "d68692131e9935d8e68e96d2b83cdad24cdc99fc18cee20ae149b1993ec4c840", "#e6f6ff"),
     ]
     for icon_id, filename, digest, background in variants:

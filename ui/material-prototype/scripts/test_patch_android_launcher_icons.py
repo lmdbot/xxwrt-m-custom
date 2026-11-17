@@ -10,7 +10,7 @@ from patch_android_launcher_icons import patch, A
 
 ROOT = Path(__file__).resolve().parents[1]
 DIGESTS = {
-    "xxwrtm-classic": "85c3d8e8e88fd787cae5d841fac54ae2e94d9a5ab00acac84ee1d13e6d4fc743",
+    "xxwrtm-classic": "1876c0783157698b4eeeb0f540196d348e2301897776688d6c61b02cf730e6f9",
     "openwrt-brand": "d68692131e9935d8e68e96d2b83cdad24cdc99fc18cee20ae149b1993ec4c840",
 }
 
