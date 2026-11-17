@@ -1368,3 +1368,28 @@
 .v3-terminal-detail-dialog .v3-terminal-detail-toolbar .v-btn{
   min-height:44px!important;min-width:44px!important
 }
+
+
+/* Design A semantic status colors. A light-blue selected control or pale red
+ * danger button needs dark foreground in dark theme, not hardcoded white. */
+.v3-terminal-detail-dialog .v3-terminal-detail-chip.is-offline{
+  background:color-mix(in srgb,var(--ui-error,#dc505b),transparent 88%);
+  color:var(--ui-error,#dc505b)
+}
+.v3-terminal-detail-dialog{
+  --ui-error:#dc505b
+}
+.v3-terminal-detail-dialog.theme-is-dark{
+  --ui-error:#ff8790
+}
+.xxwrt-v3.theme-is-dark .v3-client-directory .v3-terminal-status button.is-selected{
+  color:#0f1727!important
+}
+.xxwrt-v3.theme-is-dark .v3-design-a-danger{
+  color:#0f1727!important
+}
+.xxwrt-v3.theme-is-dark .v3-client-directory .v3-terminal-status button.is-selected:focus-visible,
+.xxwrt-v3.theme-is-dark .v3-design-a-danger:focus-visible{
+  outline:2px solid var(--ui-surface);
+  outline-offset:2px
+}
