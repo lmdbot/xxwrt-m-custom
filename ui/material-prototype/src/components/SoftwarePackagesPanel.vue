@@ -222,7 +222,33 @@ watch(() => props.client, () => {
   supported.value = false
   void load()
 })
-defineExpose({ refreshAction: load })
+// Consume Android Back inside the package manager before leaving Tools.
+function handleBack() {
+  if (configSaveConfirm.value) {
+    if (busy.value) return 'busy'
+    configSaveConfirm.value = false
+    return 'dialog'
+  }
+  if (actionDialog.value) {
+    if (busy.value) return 'busy'
+    actionDialog.value = false
+    return 'dialog'
+  }
+  if (outputDialog.value) {
+    // A package installation/removal must not be hidden while still running.
+    if (busy.value) return 'busy'
+    outputDialog.value = false
+    return 'dialog'
+  }
+  if (configDialog.value) {
+    if (busy.value) return 'busy'
+    configDialog.value = false
+    return 'dialog'
+  }
+  if (busy.value) return 'busy'
+  return null
+}
+defineExpose({ refreshAction: load, handleBack })
 </script>
 
 <template>
