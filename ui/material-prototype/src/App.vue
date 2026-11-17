@@ -3271,7 +3271,7 @@ onUnmounted(() => {
         :aria-current="currentNavTab === item.id ? 'page' : undefined"
         :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'"
         @click="navigateBottomTab(item.id)">
-        <v-icon :icon="item.icon" size="23"/><span class="nav-label">{{ item.label }}</span>
+        <v-icon :icon="item.icon" size="21"/><span class="nav-label">{{ item.label }}</span>
       </v-btn>
     </v-bottom-navigation>
     <div v-else-if="viewMode === 'list' || connected" class="liquid-bottom">
@@ -3279,7 +3279,7 @@ onUnmounted(() => {
         <div class="glass-nav">
           <v-btn v-for="item in pages" :key="item.id" class="glass-tab" :class="{ selected: currentNavTab === item.id }"
             :aria-current="currentNavTab === item.id ? 'page' : undefined" variant="text" rounded="xl" density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
-            <v-icon :icon="item.icon" size="23"/><span>{{ item.label }}</span>
+            <v-icon :icon="item.icon" size="21"/><span>{{ item.label }}</span>
           </v-btn>
         </div>
       </VGlass>
@@ -3289,7 +3289,7 @@ onUnmounted(() => {
             :class="{selected:currentNavTab===item.id}"
             :aria-current="currentNavTab === item.id ? 'page' : undefined" variant="text" rounded="xl"
             density="compact" :aria-label="item.label" :disabled="viewMode === 'list' && item.id !== 'home' && item.id !== 'more'" @click="navigateBottomTab(item.id)">
-            <v-icon :icon="item.icon" size="23"/><span>{{item.label}}</span>
+            <v-icon :icon="item.icon" size="21"/><span>{{item.label}}</span>
           </v-btn>
         </div>
       </div>
