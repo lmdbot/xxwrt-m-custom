@@ -1724,16 +1724,17 @@
   position:absolute;
   z-index:0;
   inset:auto 0 0;
-  /* Keep the *average* liquid level equal to the real percentage while the
-   * surface leans with the accelerometer. The 12px overscan is trimmed with
-   * clip-path so the higher edge can rise without exposing a fake fill. */
-  height:calc(var(--v3-water-percent,0%) + 12px);
+  /* Extra overscan accommodates a visibly sloped edge at 18% water.
+   * Only visual clip geometry moves: stored % stays the actual metric.
+   * Transient vertical bob recedes to zero when shaking stops. */
+  height:calc(var(--v3-water-percent,0%) + 16px);
   clip-path:polygon(
-    0 calc(12px + var(--v3-water-slope,0px)),
-    100% calc(12px - var(--v3-water-slope,0px)),
+    0 calc(16px + var(--v3-water-bob,0px) + var(--v3-water-slope,0px)),
+    100% calc(16px + var(--v3-water-bob,0px) - var(--v3-water-slope,0px)),
     100% 100%,0 100%
   );
-  background:linear-gradient(180deg,rgba(38,158,238,.20) 0%,rgba(34,130,230,.30) 100%);
+  background:linear-gradient(180deg,rgba(37,160,239,.35) 0%,rgba(26,128,225,.49) 100%);
+  will-change:clip-path;
   pointer-events:none;
   overflow:hidden;
 }
@@ -1742,7 +1743,7 @@
 .xxwrt-v3 .v3-metric--water .v3-metric-water::after{
   content:'';
   position:absolute;
-  top:5px;
+  top:9px;
   left:-35%;
   width:185%;
   height:12px;
@@ -1752,7 +1753,7 @@
   will-change:transform;
 }
 .xxwrt-v3 .v3-metric--water .v3-metric-water::after{
-  top:7px;
+  top:11px;
   left:-27%;
   height:10px;
   opacity:.48;
@@ -1768,14 +1769,14 @@
 }
 /* The text uses stable contrasting colors at every water level, rather than
  * toggling colors as a moving waterline crosses the glyphs. */
-.xxwrt-v3 .v3-metric--water>small{color:#344961}
-.xxwrt-v3 .v3-metric--water>strong{color:#095ea9}
+.xxwrt-v3 .v3-metric--water>small{color:#243e54}
+.xxwrt-v3 .v3-metric--water>strong{color:#064b82}
 .xxwrt-v3.theme-is-dark .v3-metric.v3-metric--water{
   background:var(--ui-surface);
   border-color:var(--ui-border);
 }
 .xxwrt-v3.theme-is-dark .v3-metric--water .v3-metric-water{
-  background:linear-gradient(180deg,rgba(34,153,216,.26),rgba(32,125,199,.40));
+  background:linear-gradient(180deg,rgba(34,153,216,.38),rgba(32,125,199,.54));
 }
 .xxwrt-v3.theme-is-dark .v3-metric--water>small{
   color:#d1e0f4;

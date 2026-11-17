@@ -3,7 +3,7 @@ name: XX-WRT Material Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [feature/material-ui, feature/xxwrt-v3-redesign, feature/xxwrt-v3-poster-alignment, feat/experimental-lab-controls-20261117, feat/water-gravity-slosh-v3-0-13, main]
+    branches: [feature/material-ui, feature/xxwrt-v3-redesign, feature/xxwrt-v3-poster-alignment, feat/experimental-lab-controls-20261117, feat/water-gravity-slosh-v3-0-13, fix/water-slosh-visibility-v3-0-15, main]
     paths:
       - "ui/material-prototype/**"
       - "docs/releases/**"
