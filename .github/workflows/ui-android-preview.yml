@@ -118,36 +118,6 @@ jobs:
       - name: Build Material UI
         run: npm run build
 
-      - name: Cache Playwright Chromium
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
-
-      - name: Install Chromium for interaction tests
-        run: npx playwright install --with-deps chromium
-
-      - name: Verify Material rendering, touch controls, and scroll
-        run: npm run test:ui
-
-      - name: Upload mobile UI screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: material-ui-smoke-screenshots
-          path: ui/material-prototype/test-results/screenshots/
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Upload Playwright failure diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: material-ui-playwright-failure
-          path: ui/material-prototype/test-results/
-          if-no-files-found: ignore
-          retention-days: 14
-
       - name: Generate native Capacitor app
         run: |
           npx cap add android
@@ -242,6 +212,39 @@ jobs:
           path: dist/material-preview/XX-WRT-Material-v*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Keep APK compilation independent of the browser regression:
+      # the signed APK artifact is uploaded first, while the official
+      # GitHub Release remains gated by the following UI checks.
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/material-prototype/package.json') }}
+
+      - name: Install Chromium for interaction tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify Material rendering, touch controls, and scroll
+        run: npm run test:ui
+
+      - name: Upload mobile UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: material-ui-smoke-screenshots
+          path: ui/material-prototype/test-results/screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload Playwright failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: material-ui-playwright-failure
+          path: ui/material-prototype/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Publish Material APK release
         # V3 feature branch builds a signed APK artifact for acceptance testing,
