@@ -495,6 +495,51 @@ test('multiple saved routers remain on router management at startup', async ({ p
   await expect(page.getByRole('textbox', { name:'路由器密码' })).toHaveCount(0)
 })
 
+test('unified router editor saves login credentials and multiple IP/domain endpoints without plaintext passwords', async ({page}) => {
+  await page.goto('/')
+  await page.getByRole('button', {name:'添加',exact:true}).click()
+  await expect(page.getByRole('heading', {name:'登录配置'})).toBeVisible()
+  await page.getByRole('textbox', {name:'设备名称 / 备注'}).fill('家中主路由')
+  await page.getByRole('textbox', {name:'IP / 域名 / 端口'}).fill('http://192.168.100.1')
+  await page.getByRole('textbox', {name:'登录用户名'}).fill('root')
+  await page.getByRole('textbox', {name:'路由器密码'}).fill('do-not-persist-this-password')
+  await page.getByRole('button', {name:'添加备用登录地址'}).click()
+  await page.getByRole('textbox', {name:'备用登录 IP / 域名 1'}).fill('192.168.100.2')
+  await page.getByRole('button', {name:'添加备用登录地址'}).click()
+  await page.getByRole('textbox', {name:'备用登录 IP / 域名 2'}).fill('router.example.test')
+  await page.getByLabel('主入口连接失败时自动切换已验证的备用入口').click()
+  await page.getByRole('button', {name:'保存设备'}).click()
+  const stored=await page.evaluate(() => JSON.parse(
+    localStorage.getItem('xxwrt_material_saved_devices_v1') || '[]'
+  ))
+  expect(stored).toHaveLength(1)
+  expect(stored[0].alternateAddresses).toEqual(['http://192.168.100.2','https://router.example.test'])
+  expect(stored[0].autoSwitch).toBe(true)
+  expect(stored[0].rememberPassword).toBe(false) // Web preview cannot write Keystore.
+  expect(JSON.stringify(stored)).not.toContain('do-not-persist-this-password')
+  await page.getByRole('button', {name:'编辑家中主路由'}).click()
+  await expect(page.getByRole('textbox', {name:'备用登录 IP / 域名 1'}))
+    .toHaveValue('http://192.168.100.2')
+  await expect(page.getByRole('textbox', {name:'备用登录 IP / 域名 2'}))
+    .toHaveValue('https://router.example.test')
+  await expect(page.getByRole('textbox', {name:'路由器密码'})).toHaveValue('')
+  await page.getByRole('button', {name:'取消',exact:true}).click()
+})
+
+test('unified router login editor rejects insecure alternate host and keeps dialog open', async ({page}) => {
+  await page.goto('/')
+  await page.getByRole('button',{name:'添加',exact:true}).click()
+  await page.getByRole('textbox', {name:'设备名称 / 备注'}).fill('不安全入口')
+  await page.getByRole('button', {name:'添加备用登录地址'}).click()
+  await page.getByRole('textbox', {name:'备用登录 IP / 域名 1'}).fill('http://router.example.org')
+  await page.getByRole('button', {name:'保存设备'}).click()
+  await expect(page.locator('#device-editor [role="alert"]')).toContainText('HTTPS')
+  await expect(page.getByRole('textbox', {name:'设备名称 / 备注'})).toBeVisible()
+  expect(await page.evaluate(() => JSON.parse(
+    localStorage.getItem('xxwrt_material_saved_devices_v1')||'[]'
+  ))).toHaveLength(0)
+})
+
 test('outlined form labels do not overlap placeholders or entered text on narrow Android screens', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 780 })
   await page.goto('/')
