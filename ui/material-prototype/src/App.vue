@@ -788,7 +788,10 @@ const routerOperationsPanel = ref(null)
 const routerOperationsToolIds = ['diagnostics', 'logs', 'backup', 'dnsdhcp', 'services']
 const advancedManagementPanel = ref(null)
 const advancedToolIds = ['ddns', 'cron', 'capabilities', 'audit', 'trends', 'security']
-const installedRouterApps = ref(null)
+// Detection results include a non-configurable frozen __evidence object.
+// Vue deep reactive proxies violate proxy invariants on that object: keep
+// the immutable snapshot as-is and react only when it is replaced.
+const installedRouterApps = shallowRef(null)
 const installedRouterAppsLoading = ref(false)
 let installedRouterAppsRequest = 0
 const routerAppToolIds = ['ssr', 'wechatpush', 'openclash', 'detector', 'carbon', 'zerotier', 'firewall']
