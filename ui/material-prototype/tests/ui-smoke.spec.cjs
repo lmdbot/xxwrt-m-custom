@@ -546,7 +546,7 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
     await expect(page.locator('.v3-terminal-status button.is-selected')).toContainText('在线')
     await page.locator('.v3-terminal-status button').first().click()
     await page.getByRole('button', { name: '展开或收起终端来源筛选' }).click()
-    await expect(page.locator('.v3-source-chip')).toHaveCount(5)
+    await expect(page.locator('.v3-source-chip')).toHaveCount(6) // WeChatPush source is available
     await page.getByRole('button', { name: /DHCPv4/ }).click()
     await expect(page.locator('.terminal-tile')).toHaveCount(3)
 
