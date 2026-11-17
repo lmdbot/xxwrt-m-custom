@@ -2799,9 +2799,8 @@ onUnmounted(() => {
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
                   { id: 'online', label: '在线', count: terminalDevices.filter(i => i.online).length },
-                  { id: 'unknown', label: '待确认', count: terminalDevices.filter(i => !i.online && !i.onlineKnown).length },
-                  { id: 'offline', label: '离线', count: terminalDevices.filter(i => !i.online && i.onlineKnown).length }
-                ]" v-show="option.id !== 'offline' || option.count > 0 || terminalOnlineFilter === 'offline'" :key="option.id" type="button"
+                  { id: 'unknown', label: '待确认', count: terminalDevices.filter(i => !i.online && !i.onlineKnown).length }
+                ]" :key="option.id" type="button"
                   :class="{ 'is-selected': terminalOnlineFilter === option.id }"
                   :aria-pressed="terminalOnlineFilter === option.id"
                   @click="terminalOnlineFilter = option.id">{{ option.label }}</button>
@@ -2865,6 +2864,15 @@ onUnmounted(() => {
                   </div>
                 </v-btn>
               </div>
+              <button v-if="terminalDevices.some(i => !i.online && i.onlineKnown) || terminalOnlineFilter === 'offline'"
+                type="button" class="v3-offline-only"
+                :class="{ 'is-selected': terminalOnlineFilter === 'offline' }"
+                :aria-pressed="terminalOnlineFilter === 'offline'"
+                @click="terminalOnlineFilter = terminalOnlineFilter === 'offline' ? 'all' : 'offline'">
+                <v-icon icon="mdi-lan-disconnect" size="18"/>
+                {{ terminalOnlineFilter === 'offline' ? '取消离线筛选' : '仅查看离线终端' }}
+                <small>{{ terminalDevices.filter(i => !i.online && i.onlineKnown).length }} 台</small>
+              </button>
               </details>
             </div>
             <div class="v3-section-label v3-client-management-title">设备管理</div>
