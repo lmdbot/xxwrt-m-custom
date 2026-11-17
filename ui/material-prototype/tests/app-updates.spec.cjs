@@ -25,7 +25,7 @@ test('about displays newer official APK and filters prereleases', async ({ page 
   await openAbout(page)
   await expect(page.getByText('发现新版本 v'+nextAppVersion,{exact:false})).toBeVisible()
   await expect(page.getByRole('button',{name:'下载最新 APK'})).toBeEnabled()
-  await expect(page.getByText('v'+localAppVersion,{exact:true}).first()).toBeVisible()
+  await expect(page.locator('.about-design-hero p')).toContainText('v'+localAppVersion)
 })
 test('older release does not show update', async ({ page }) => {
   await page.route('https://update.12130812.xyz/version.json',route=>
@@ -106,7 +106,7 @@ test('version changelog displays Aliyun manifest notes without requesting GitHub
   await expect(dialog.getByText('新功能', { exact: true })).toBeVisible()
   expect(githubCalls).toBe(0)
   await dialog.getByRole('button', { name: '关闭' }).click()
-  await expect(page.getByRole('button', { name: '查看问题与反馈（Issues）' })).toBeVisible()
+  await expect(page.locator('.about-design-more summary')).toBeVisible()
 })
 
 test('legacy Aliyun manifest fetches exact-tag changelog from GitHub', async ({ page }) => {
