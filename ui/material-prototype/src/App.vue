@@ -461,6 +461,7 @@ function dismissGeneralFeedback() {
 }
 const deviceStatuses = reactive({})
 const deviceSummaries = reactive({})
+const routerListRefreshedAt = ref('')
 const deviceForm = reactive({
   name: '', address: 'http://192.168.100.1', username: 'root',
   password: '', showPassword: false, rememberPassword: true,
@@ -865,7 +866,13 @@ async function preloadRouterExtras(id, api) {
 async function preloadRouterClients(id, api, { force = false } = {}) {
   const entry = routerPreloadEntry(id, api)
   if (!entry) return
-  if (entry.clientsPromise) return entry.clientsPromise
+  if (entry.clientsPromise) {
+    // A manual refresh during startup prefetch must run again when the
+    // prefetched request finishes; awaiting only that old request is not a refresh.
+    await entry.clientsPromise
+    if (!force || routerPreloadCache.get(id) !== entry || !api.session) return
+    return preloadRouterClients(id, api, { force: true })
+  }
   if (!force && entry.clientsAt && Date.now() - entry.clientsAt < ROUTER_PREFETCH_FRESH_MS) {
     applyRouterClients(id, api, entry)
     return
@@ -887,8 +894,13 @@ async function preloadRouterClients(id, api, { force = false } = {}) {
     if ([leases, stations, oafUsers].some(item => item.status === 'fulfilled'))
       entry.clientsAt = Date.now()
     applyRouterClients(id, api, entry)
-  }).catch(() => { /* Client discovery is optional and must not block login. */ })
-    .finally(() => { if (entry.clientsPromise === pending) entry.clientsPromise = null })
+    // Explicit refresh must surface an RPC failure, rather than update the
+    // timestamp while leaving stale terminal data on-screen.
+    if (force && leases.status === 'rejected') throw leases.reason
+  }).catch(error => {
+    if (force) throw error
+    /* Background client discovery is optional and must not block login. */
+  }).finally(() => { if (entry.clientsPromise === pending) entry.clientsPromise = null })
   entry.clientsPromise = pending
   return pending
 }
@@ -1367,6 +1379,8 @@ const overviewIpv6State = computed(() => {
 })
 let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
+let refreshQueuedForce = false
+const pendingManualDeviceRefresh = ref(false)
 let processRefreshBusy = false
 let hardwareSampleAt = 0
 
@@ -1388,8 +1402,10 @@ function restartLabRefreshTimers() {
 }
 function drainQueuedRefresh() {
   if (!refreshQueued) return
+  const force = refreshQueuedForce
   refreshQueued = false
-  if (connected.value && client.value) void refreshCurrent()
+  refreshQueuedForce = false
+  if (connected.value && client.value) void refreshCurrent({ force })
 }
 
 function applyNetworkHardwareRates(data) {
@@ -2031,8 +2047,11 @@ async function loginWithRouterEndpoints(device,password) {
   }
 }
 
-async function refreshDeviceStatuses() {
-  if (probeBusy.value) return
+async function refreshDeviceStatuses({ manual = false } = {}) {
+  if (probeBusy.value) {
+    if (manual) pendingManualDeviceRefresh.value = true
+    return
+  }
   probeBusy.value = true
   const entries = [...devices.value]
   let cursor = 0
@@ -2081,7 +2100,12 @@ async function refreshDeviceStatuses() {
     }
     await Promise.all(Array.from({ length: Math.min(4, entries.length) }, () => worker()))
   } finally {
+    routerListRefreshedAt.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
     probeBusy.value = false
+    if (pendingManualDeviceRefresh.value) {
+      pendingManualDeviceRefresh.value = false
+      void refreshDeviceStatuses({ manual: true })
+    }
   }
 }
 
@@ -2281,17 +2305,18 @@ async function refreshDashboard() {
   }
 }
 
-async function fetchClientsInBackground(api = client.value) {
+async function fetchClientsInBackground(api = client.value, { force = false } = {}) {
   if (!api?.session || !selectedDeviceId.value) return
-  return preloadRouterClients(selectedDeviceId.value, api)
+  return preloadRouterClients(selectedDeviceId.value, api, { force })
 }
 
-async function refreshCurrent() {
+async function refreshCurrent({ force = false } = {}) {
   if (!client.value) return
   if (refreshing.value) {
     // A tab change during an in-flight refresh must not lose the new page's
-    // data request. Run one refresh for the latest active tab when idle.
+    // data request. Preserve explicit refresh intent while the RPC is busy.
     refreshQueued = true
+    refreshQueuedForce ||= force
     return
   }
   if (activeTab.value === 'home' || activeTab.value === 'statistics' || activeTab.value === 'network') {
@@ -2302,7 +2327,7 @@ async function refreshCurrent() {
   refreshing.value = true
   errorMessage.value = ''
   try {
-    if (activeTab.value === 'clients') await fetchClientsInBackground(client.value)
+    if (activeTab.value === 'clients') await fetchClientsInBackground(client.value, { force })
     if (activeTab.value === 'apps') {
       const [servicesResult] = await Promise.all([
         readServices(client.value), refreshInstalledRouterApps(client.value)
@@ -2654,15 +2679,20 @@ onUnmounted(() => {
         </div>
       </v-toolbar-title>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
-        class="v3-top-action" icon="mdi-refresh" size="small" variant="text" color="primary"
-        :loading="probeBusy" aria-label="刷新设备状态" @click="refreshDeviceStatuses"/>
+        class="v3-top-action" icon size="small" variant="text" color="primary"
+        :aria-busy="probeBusy" aria-label="刷新设备状态"
+        :title="pendingManualDeviceRefresh ? '已排队，当前检测结束后再次刷新' : '刷新设备状态'"
+        @click="refreshDeviceStatuses({ manual: true })">
+        <v-icon :icon="probeBusy ? 'mdi-loading' : 'mdi-refresh'"
+          :class="{ 'mdi-spin': probeBusy }"/>
+      </v-btn>
       <v-btn v-if="viewMode === 'list' && !settingsOpen && activeTab !== 'more'"
         class="router-list-add-topbar" color="primary" rounded="xl"
         size="small" prepend-icon="mdi-plus" @click="showDeviceDialog()">添加</v-btn>
       <v-btn v-if="viewMode === 'detail' && connected && !settingsOpen"
         class="v3-top-action" icon="mdi-refresh" size="small" variant="text" :loading="refreshing || toolLoading"
         aria-label="刷新当前页面"
-        @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent()"/>
+        @click="activeTab === 'more' ? refreshDashboard() : activeTab === 'apps' && toolPanel ? refreshCurrentTool() : refreshCurrent({ force: true })"/>
       <v-btn v-if="viewMode === 'detail' && !settingsOpen && !toolPanel && activeTab !== 'statistics'"
         class="v3-theme-toggle v3-top-action" size="small" variant="text"
         :icon="dark ? 'mdi-white-balance-sunny' : 'mdi-weather-night'"
@@ -2815,7 +2845,7 @@ onUnmounted(() => {
                 <div class="settings-detail-row"><span>实时网络采样</span><strong>每 {{ labIntervals.telemetry / 1000 }} 秒</strong></div>
                 <p class="muted-hint mt-3">当前策略：{{ labSettings.profile === 'saver' ? '省电' : labSettings.profile === 'realtime' ? '实时' : labSettings.profile === 'custom' ? '自定义' : '均衡' }}。可在“设置 → 实验室”调整或恢复默认，过短的请求间隔将被限制。</p>
                 <div class="settings-actions mt-4">
-                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" :loading="probeBusy" @click="refreshDeviceStatuses">立即检测所有设备</v-btn>
+                  <v-btn color="primary" variant="tonal" prepend-icon="mdi-radar" :loading="probeBusy" @click="refreshDeviceStatuses({ manual: true })">立即检测所有设备</v-btn>
                   <v-btn v-if="connected" variant="outlined" prepend-icon="mdi-refresh" :loading="refreshing" @click="refreshCurrent">刷新当前路由器</v-btn>
                 </div>
               </v-card>
@@ -2956,6 +2986,10 @@ onUnmounted(() => {
                 :aria-label="routerListLayout === 'card' ? '切换到列表模式' : '切换到卡片模式'"
                 @click="routerListLayout = routerListLayout === 'card' ? 'list' : 'card'"/>
             </div>
+          </div>
+          <div v-if="devices.length && (probeBusy || routerListRefreshedAt)"
+            class="text-caption text-medium-emphasis text-end mt-1 mb-2" role="status" aria-live="polite">
+            {{ probeBusy ? (pendingManualDeviceRefresh ? '正在检测 · 已排队再次刷新' : '正在检测路由器…') : '最近检测 ' + routerListRefreshedAt }}
           </div>
           <v-card v-if="!devices.length" rounded="xl" elevation="1" class="empty-devices">
             <v-avatar color="primary" variant="tonal" size="72"><v-icon icon="mdi-router-wireless" size="36"/></v-avatar>

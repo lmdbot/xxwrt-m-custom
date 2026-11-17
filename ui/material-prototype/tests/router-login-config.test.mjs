@@ -66,3 +66,30 @@ test('legacy laboratory single pairing migrates to a verified route list',()=>{
   assert.equal(resetAllLabPreferences(memory),true)
   assert.equal(loadPairedRoutes(memory,'router1').length,2)
 })
+
+test('deleted last router stays deleted even when legacy login host remains',()=>{
+  const original=globalThis.localStorage
+  const data=new Map([['xxwrt_material_router_url','https://istoreos.12130812.xyz']])
+  globalThis.localStorage={
+    getItem:key=>data.has(key)?data.get(key):null,
+    setItem:(key,value)=>data.set(key,String(value)),
+    removeItem:key=>data.delete(key)
+  }
+  try {
+    // A genuine first launch may migrate the single-host legacy preference.
+    const migrated=loadDevices()
+    assert.equal(migrated.length,1)
+    assert.equal(migrated[0].address,'https://istoreos.12130812.xyz')
+    assert.equal(data.has('xxwrt_material_saved_devices_v1'),true)
+    // Deleting the last router writes [] but does not clear legacy host keys
+    // used elsewhere by connection preferences.
+    saveDevices([])
+    assert.equal(data.get('xxwrt_material_saved_devices_v1'),'[]')
+    assert.deepEqual(loadDevices(),[])
+    assert.deepEqual(loadDevices(),[])
+    assert.equal(data.get('xxwrt_material_router_url'),'https://istoreos.12130812.xyz')
+    // An existing but malformed profile list must not import a ghost router.
+    data.set('xxwrt_material_saved_devices_v1','not-json')
+    assert.deepEqual(loadDevices(),[])
+  } finally { globalThis.localStorage=original }
+})
