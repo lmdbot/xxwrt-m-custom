@@ -985,7 +985,7 @@ const designASecondaryInfo = computed(() => {
     dnsdhcp: { title: 'DNS / DHCP', subtitle: '本地域名、地址分配和静态租约',
       entries: [['本地域名', '自定义 DNS 解析'], ['静态租约', 'MAC 与 IP 绑定'], ['DHCP 配置', '地址分配与租期']] },
     ddns: { title: 'DDNS', subtitle: '动态域名和 IPv6 地址更新',
-      entries: [['运行状态', '更新结果与最近一次执行'], ['域名配置', '服务提供商与记录'], ['任务日志', '查看真实更新记录']] },
+      entries: [['运行状态', '更新结果与最近一次执行'], ['配置与管理', '服务提供商与域名记录'], ['诊断日志', '查看真实更新记录']] },
     zerotier: { title: 'ZeroTier', subtitle: '虚拟组网与网络成员',
       entries: [['运行状态', '服务启停与连接'], ['已加入网络', '网络 ID 与授权状态'], ['网络信息', '路由与接口信息']] },
     lucky: { title: 'Lucky', subtitle: '反代与访问规则',
