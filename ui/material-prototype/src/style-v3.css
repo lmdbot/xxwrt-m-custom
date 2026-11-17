@@ -763,3 +763,23 @@
 .xxwrt-v3.theme-is-dark .v3-firewall-status small{
   color:var(--ui-warning)
 }
+
+
+/* Design A plugin subpage: fixed seven-entry list, explicit evidence status. */
+.xxwrt-v3 .v3-plugin-directory{display:flex;flex-direction:column;gap:12px}
+.xxwrt-v3 .v3-plugin-directory-intro{padding:17px 15px;border:1px solid var(--ui-border);border-radius:18px;background:linear-gradient(128deg,#e5f4ff,#cfdeff);color:#13274b}
+.xxwrt-v3 .v3-plugin-directory-intro h2{font-size:18px;line-height:25px;font-weight:700}
+.xxwrt-v3 .v3-plugin-directory-intro p{margin:6px 0 0;font-size:12px;color:#536f8f;line-height:18px}
+.xxwrt-v3 .v3-plugin-list{display:flex;flex-direction:column;gap:8px}
+.xxwrt-v3 .v3-plugin-row{width:100%;min-height:74px;display:flex;align-items:center;gap:10px;padding:11px 12px;text-align:left;background:var(--ui-surface);color:var(--ui-text);border:1px solid var(--ui-border);border-radius:14px}
+.xxwrt-v3 .v3-plugin-row:active{background:var(--ui-surface-2)}
+.xxwrt-v3 .v3-plugin-icon{width:38px;height:38px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:12px;background:var(--ui-surface-2);color:var(--ui-primary)}
+.xxwrt-v3 .v3-plugin-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.xxwrt-v3 .v3-plugin-copy strong{font-size:14px;line-height:21px;font-weight:700}
+.xxwrt-v3 .v3-plugin-copy small{font-size:12px;line-height:18px;color:var(--ui-muted)}
+.xxwrt-v3 .v3-plugin-row .v-chip{flex:none}
+.xxwrt-v3 .v3-plugin-row>.v-icon:last-child{flex:none;color:var(--ui-muted)}
+.xxwrt-v3 .v3-plugin-note{margin:0;padding:6px 2px;font-size:11px;line-height:18px;color:var(--ui-muted)}
+.xxwrt-v3.theme-is-dark .v3-plugin-directory-intro{background:linear-gradient(128deg,#25486c,#27344f);color:#eef7ff}
+.xxwrt-v3.theme-is-dark .v3-plugin-directory-intro p{color:#c3d4e9}
+@media(max-width:390px){.xxwrt-v3 .v3-plugin-row{padding:9px 8px;gap:6px}.xxwrt-v3 .v3-plugin-icon{width:33px;height:33px}.xxwrt-v3 .v3-plugin-row .v-chip{font-size:10px}.xxwrt-v3 .v3-plugin-row>.v-icon:last-child{display:none}}

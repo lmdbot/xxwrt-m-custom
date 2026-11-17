@@ -328,6 +328,8 @@ export async function readInstalledRouterApps(client) {
       key === 'wol' && wolStat == null ||
       key === 'parental' && parental == null
     ))]))
+  // Preserve the boolean API while exposing verified read evidence.
+  Object.defineProperty(installed, '__evidence', { value: map, enumerable: false })
   return installed
 }
 

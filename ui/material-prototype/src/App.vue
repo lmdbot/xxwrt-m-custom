@@ -552,6 +552,7 @@ const toolbarSection = computed(() => {
   if (settingsOpen.value || activeTab.value === 'more') return ''
   if (viewMode.value !== 'detail' || !connected.value) return ''
   if (toolPanel.value) return legacyTools.find(x => x.id === toolPanel.value)?.title || '工具详情'
+  if (activeTab.value === 'apps' && pluginDirectoryOpen.value) return '插件中心'
   if (activeTab.value === 'network' && networkSection.value !== 'hub') return networkSectionTitle.value
   return ''
 })
@@ -876,15 +877,23 @@ const legacyTools = [
 const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
   installedRouterApps.value?.[tool.id] !== false))
 const appSearch = ref('')
+const pluginDirectoryOpen = ref(false)
 const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 // V3 information architecture: a feature has one canonical home. The
 // favorites/search still accept legacy IDs, so existing per-router shortcuts
 // continue working after the redesign without changing RPC handlers.
-const appCategories = computed(() => groupV3Tools(visibleLegacyTools.value))
+const appCategories = computed(() => groupV3Tools(legacyTools))
+const pluginDirectoryTools = computed(() => appCategories.value.find(group => group.id === 'plugins')?.tools || [])
+function pluginDetectionState(id) {
+  if (installedRouterAppsLoading.value) return { label: '检测中', color: 'secondary' }
+  if (installedRouterApps.value?.__evidence?.[id] === true) return { label: '已发现', color: 'success' }
+  if (installedRouterApps.value?.[id] === false) return { label: '未检测到', color: 'warning' }
+  return { label: '待确认', color: 'secondary' }
+}
 const networkFeatureTools = computed(() => networkV3Tools(visibleLegacyTools.value))
-const appSearchResults = computed(() => searchV3Features(visibleLegacyTools.value, appSearch.value))
+const appSearchResults = computed(() => searchV3Features(legacyTools, appSearch.value))
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
 const favoriteCandidates = computed(() => visibleLegacyTools.value.filter(tool => !isDangerousApp(tool.id)))
@@ -899,6 +908,7 @@ watch(() => selectedDevice.value?.id, id => {
   appFavoriteIds.value = readAppFavorites(localStorage, id)
   favoriteEditorOpen.value = false
   appSearch.value = ''
+  pluginDirectoryOpen.value = false
   expandedAppCategories.value = []
 }, { immediate: true })
 
@@ -919,6 +929,10 @@ function reorderFavorite(toolId, direction) {
 
 function toggleAppCategory(id) {
   if (!appCategories.value.some(group => group.id === id)) return
+  if (id === 'plugins') {
+    pluginDirectoryOpen.value = true
+    return
+  }
   expandedAppCategories.value = expandedAppCategories.value.includes(id)
     ? expandedAppCategories.value.filter(value => value !== id)
     : [...expandedAppCategories.value, id]
@@ -1210,6 +1224,10 @@ function navigateBottomTab(tab) {
       settingsTrail.length = 0
       return
     }
+    if (tab === 'apps' && pluginDirectoryOpen.value && !toolPanel.value) {
+      pluginDirectoryOpen.value = false
+      return
+    }
     if (tab === 'apps' && toolPanel.value) {
       if (toolOriginTab.value) {
         // Tapping Tools explicitly switches to the Tools hub. The detail-page
@@ -1240,6 +1258,7 @@ function navigateBottomTab(tab) {
   toolOriginTab.value = ''
   networkOriginTab.value = ''
   if (tab === 'network') networkSection.value = 'hub'
+  if (tab !== 'apps') pluginDirectoryOpen.value = false
   activeTab.value = tab
 }
 function openMoreSection(categoryId) {
@@ -1253,6 +1272,7 @@ function openRouterTab(tab) {
   navigateBottomTab(tab)
 }
 watch(activeTab, (tab) => {
+  if (tab !== 'apps') pluginDirectoryOpen.value = false
   if (connected.value && tab !== 'more') refreshCurrent()
   if (tab === 'statistics') void pollTelemetry()
   if (tab !== 'apps') toolPanel.value = ''
@@ -1324,6 +1344,10 @@ async function handleBack() {
         routerAppToolIds.includes(toolPanel.value) ? routerAppsPanel.value?.handleBack?.() : null
     if (blocked) return blocked
     closeAppTool()
+    return 'page'
+  }
+  if (viewMode.value === 'detail' && activeTab.value === 'apps' && pluginDirectoryOpen.value) {
+    pluginDirectoryOpen.value = false
     return 'page'
   }
   if (viewMode.value === 'detail') {
@@ -2088,7 +2112,7 @@ onUnmounted(() => {
 <template>
   <v-app class="material-demo xxwrt-v3" :class="{ 'theme-is-dark': dark, 'app-motion-enabled': effectiveMotion }">
     <v-app-bar flat color="surface" height="64" class="top-bar">
-      <v-btn v-if="settingsOpen || !!toolPanel || activeTab === 'statistics' || (activeTab === 'network' && networkSection !== 'hub')"
+      <v-btn v-if="settingsOpen || !!toolPanel || pluginDirectoryOpen || activeTab === 'statistics' || (activeTab === 'network' && networkSection !== 'hub')"
         icon="mdi-arrow-left" size="small" aria-label="返回上一页" @click="handleBack()"/>
       <v-toolbar-title class="app-name">
         <div class="router-toolbar-title">
@@ -2745,7 +2769,26 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
-              <div class="app-hub">
+              <section v-if="pluginDirectoryOpen" class="v3-plugin-directory" aria-label="插件中心">
+                <header class="v3-plugin-directory-intro">
+                  <h2>插件中心</h2>
+                  <p>{{ installedRouterAppsLoading ? '正在检测插件与访问权限…' : '已检测到的插件与访问状态' }}</p>
+                </header>
+                <div class="v3-plugin-list" role="group" aria-label="插件及检测状态">
+                  <button v-for="tool in pluginDirectoryTools" :key="tool.id"
+                    type="button" class="v3-plugin-row" :aria-label="tool.title + '，' + pluginDetectionState(tool.id).label"
+                    @click="launchV3Tool(tool.id)">
+                    <span class="v3-plugin-icon"><v-icon :icon="tool.icon" size="22"/></span>
+                    <span class="v3-plugin-copy"><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span>
+                    <v-chip size="x-small" variant="tonal" :color="pluginDetectionState(tool.id).color">
+                      {{ pluginDetectionState(tool.id).label }}
+                    </v-chip>
+                    <v-icon icon="mdi-chevron-right" size="19"/>
+                  </button>
+                </div>
+                <p class="v3-plugin-note">结果来自当前账号可读取的 UCI 与服务信息；未检测到不等于确定未安装，可进入详情查看权限与诊断原因。</p>
+              </section>
+              <div v-else class="app-hub">
                 <v-text-field v-model="appSearch" class="app-hub-search"
                   aria-label="搜索功能与插件" placeholder="搜索功能与插件"
                   prepend-inner-icon="mdi-magnify" clearable hide-details
