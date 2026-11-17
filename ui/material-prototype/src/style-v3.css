@@ -1801,3 +1801,63 @@
 @media(prefers-reduced-motion:reduce){
   .xxwrt-v3 .v3-metric--water .v3-metric-water{animation:none!important}
 }
+
+/* v3.0.20 — Add/Edit Router: one compact, scrollable login configuration. */
+.xxwrt-v3 .router-login-editor{background:var(--ui-surface);color:var(--ui-text)}
+.xxwrt-v3 .router-editor-title{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:17px 19px 4px;font-size:19px;font-weight:780;white-space:normal
+}
+.xxwrt-v3 .router-editor-subtitle{
+  padding:0 19px 12px!important;white-space:normal;font-size:12px;
+  line-height:1.55;color:var(--ui-text-muted)!important;opacity:1
+}
+.xxwrt-v3 .router-editor-body{padding:6px 18px 12px;max-height:calc(100dvh - 190px)}
+.xxwrt-v3 .router-editor-section-heading{
+  display:flex;align-items:center;gap:10px;padding:11px 0 9px
+}
+.xxwrt-v3 .router-editor-section-heading h3{
+  margin:0;font-size:15px;line-height:1.5;font-weight:750;color:var(--ui-text)
+}
+.xxwrt-v3 .router-editor-section-heading p{
+  margin:2px 0 0;font-size:11px;line-height:1.5;color:var(--ui-text-muted)
+}
+.xxwrt-v3 .router-editor-section-separator{
+  border-top:1px solid var(--ui-border);margin-top:2px;padding-top:18px
+}
+.xxwrt-v3 .router-editor-helper{
+  color:var(--ui-text-muted);font-size:11.5px;line-height:1.7;
+  margin:0 0 10px;overflow-wrap:anywhere
+}
+.xxwrt-v3 .router-editor-alt-heading{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin:14px 0 10px
+}
+.xxwrt-v3 .router-editor-alt-heading h4{margin:0;font-size:14px;font-weight:740;color:var(--ui-text)}
+.xxwrt-v3 .router-editor-alt-heading p{margin:3px 0 0;font-size:11px;line-height:1.5;color:var(--ui-text-muted)}
+.xxwrt-v3 .router-editor-alt-heading>span{font-size:12px;flex:none;color:var(--ui-text-muted)}
+.xxwrt-v3 .router-editor-alternate-row{
+  display:flex;align-items:center;gap:5px;margin:8px 0;min-width:0;flex-wrap:wrap
+}
+.xxwrt-v3 .router-editor-alternate-row>.v-input{min-width:160px;flex:1}
+.xxwrt-v3 .router-editor-alternate-row>.v-chip{margin-left:4px}
+.xxwrt-v3 .router-editor-add-alternate{margin:0 0 9px}
+.xxwrt-v3 .router-editor-switch{margin:2px 0 9px}
+.xxwrt-v3 .router-editor-switch .v-label{font-size:12px;line-height:1.6;opacity:1}
+.xxwrt-v3 .router-editor-error{
+  color:rgb(var(--v-theme-error));font-size:12px;line-height:1.55;
+  padding:8px 10px;margin:8px 0;border-radius:9px;
+  background:rgba(var(--v-theme-error),.08)
+}
+.xxwrt-v3 .router-editor-actions{
+  border-top:1px solid var(--ui-border);padding:12px 18px;
+  background:var(--ui-surface)
+}
+.xxwrt-v3 .router-editor-login-actions{flex-wrap:wrap;gap:3px}
+@media(max-width:390px){
+  .xxwrt-v3 .router-editor-title{font-size:17px;padding:14px 14px 4px}
+  .xxwrt-v3 .router-editor-subtitle{padding:0 14px 10px!important}
+  .xxwrt-v3 .router-editor-body{padding:5px 13px 10px}
+  .xxwrt-v3 .router-editor-actions{padding:10px 12px}
+  .xxwrt-v3 .router-editor-alternate-row>.v-input{min-width:128px}
+}
