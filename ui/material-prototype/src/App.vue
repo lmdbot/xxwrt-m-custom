@@ -3111,7 +3111,7 @@ onUnmounted(() => {
                 </div>
               </section>
               <!-- The existing RPC/UCI management panels are unchanged. -->
-              <v-card v-show="designAOperationOpen" rounded="xl" elevation="1" class="network-card app-subpage">
+              <v-card v-show="designAOperationOpen" rounded="xl" elevation="0" class="network-card app-subpage v3-design-a-tool-live">
                 <div v-if="designAOperationOpen" class="v3-design-a-operation-heading">
                   <v-btn icon="mdi-arrow-left" size="small" variant="text" aria-label="返回管理入口"
                     @click="designAOperationOpen = false"/>
