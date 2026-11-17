@@ -401,11 +401,11 @@ const moreCategories = [
   { id: 'help', title: '帮助与反馈', description: '使用说明与问题反馈', icon: 'mdi-help-circle-outline' }
 ]
 const settingsCategories = [
-  { id: 'display', title: '显示', description: '界面主题、导航与列表布局', icon: 'mdi-monitor' },
-  { id: 'privacy', title: '隐私', description: '主机名、IP 地址与隐私显示', icon: 'mdi-shield-lock-outline' },
-  { id: 'refresh', title: '刷新', description: '设备状态与数据更新策略', icon: 'mdi-refresh' },
-  { id: 'lab', title: '实验室', description: '高级选项与实验性功能', icon: 'mdi-flask-outline' },
-  { id: 'language', title: '语言', description: '简体中文、繁體中文和 English', icon: 'mdi-translate' }
+  { id: 'display', title: '显示与外观', description: '深浅主题 / 底栏样式', icon: 'mdi-theme-light-dark' },
+  { id: 'privacy', title: '隐私与安全', description: '名称与地址隐藏', icon: 'mdi-shield-lock-outline' },
+  { id: 'refresh', title: '刷新与同步', description: '数据更新和刷新策略', icon: 'mdi-refresh' },
+  { id: 'language', title: '语言', description: '简体中文 / 繁體中文 / English', icon: 'mdi-translate' },
+  { id: 'lab', title: '实验室', description: '高级选项与实验功能', icon: 'mdi-flask-outline' }
 ]
 const settingsPage = computed(() =>
   [...moreCategories, ...settingsCategories].find(category => category.id === settingsCategory.value) || moreCategories[1]
@@ -579,6 +579,7 @@ const clientsPrefetching = ref(false)
 let clientFetchToken = 0
 const terminalView = ref('all')
 const terminalOnlineFilter = ref('all')
+const showTerminalSourceFilters = ref(false)
 const wifiClientData = ref({ available: false, stations: [] })
 const appFilterUsers = ref({ available: false, users: [] })
 const terminalCategories = computed(() => [
@@ -2327,11 +2328,9 @@ onUnmounted(() => {
             <header class="v3-me-profile">
               <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
               <div><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p></div>
+              <v-btn v-if="connected" icon="mdi-logout" variant="text" size="small"
+                aria-label="退出当前路由器" @click="resetSession"/>
             </header>
-            <div v-if="connected" class="v3-me-session-actions">
-              <v-btn size="small" variant="text" prepend-icon="mdi-logout" aria-label="退出当前路由器"
-                @click="resetSession">退出当前路由器</v-btn>
-            </div>
             <div class="v3-section-label">路由器</div>
             <div class="more-menu-list v3-me-directory" role="group" aria-label="路由器入口">
               <button type="button" class="more-menu-item" aria-label="打开路由器管理" @click="goToDeviceList()">
@@ -2342,28 +2341,18 @@ onUnmounted(() => {
             </div>
             <div class="v3-section-label">应用设置</div>
             <div class="more-menu-list v3-me-directory" role="group" aria-label="应用设置入口">
-              <button type="button" class="more-menu-item" aria-label="打开设置" @click="openMoreSection('settings')">
-                <span class="more-menu-icon"><v-icon icon="mdi-cog-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>应用设置</strong><small>主题、语言、显示与行为</small></span>
-                <v-icon icon="mdi-chevron-right" size="21"/>
-              </button>
-              <button type="button" class="more-menu-item" aria-label="打开隐私设置" @click="openSettingsCategory('privacy', true)">
-                <span class="more-menu-icon"><v-icon icon="mdi-shield-lock-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>数据与隐私</strong><small>权限说明、隐私显示选项</small></span>
+              <button v-for="category in settingsCategories" :key="category.id"
+                type="button" class="more-menu-item"
+                :aria-label="'打开' + category.title" @click="openSettingsCategory(category.id, true)">
+                <span class="more-menu-icon"><v-icon :icon="category.icon" size="23"/></span>
+                <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
               </button>
             </div>
             <div class="v3-section-label">支持与更新</div>
-            <div class="more-menu-list v3-me-directory" role="group" aria-label="支持与更新入口">
-              <button type="button" class="more-menu-item" aria-label="打开帮助与反馈" @click="openMoreSection('help')">
-                <span class="more-menu-icon"><v-icon icon="mdi-help-circle-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>帮助与反馈</strong><small>使用说明、问题反馈</small></span>
-                <v-icon icon="mdi-chevron-right" size="21"/>
-              </button>
-              <button type="button" class="more-menu-item" aria-label="打开关于" @click="openMoreSection('about')">
-                <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="24"/></span>
-                <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本信息、开发者与更新</small></span>
-                <v-icon icon="mdi-chevron-right" size="21"/>
+            <div class="v3-me-support">
+              <button type="button" aria-label="查看关于、更新与反馈" @click="openMoreSection('about')">
+                关于 / 更新 / 反馈 <v-icon icon="mdi-chevron-right" size="18"/>
               </button>
             </div>
           </section>
@@ -2425,14 +2414,20 @@ onUnmounted(() => {
                     <p>{{ snapshot?.board?.model || 'OpenWrt / QWRT' }} · 运行 {{ snapshot?.uptime || '--' }}</p></div>
                   <v-chip size="small" :color="connected ? 'success' : 'warning'" variant="tonal">{{ connected ? '在线' : '检测中' }}</v-chip>
                 </div>
-                <div class="v3-health-metrics">
-                  <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
-                    <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
-                    <v-progress-linear v-if="item.progress != null" :model-value="item.progress" color="primary" height="4" rounded/>
-                  </div>
+                <div class="v3-health-footer">
+                  <span :class="{ 'v3-health-ok': overviewWanState === '已连接' }">
+                    <v-icon :icon="overviewWanState === '已连接' ? 'mdi-check-circle-outline' : 'mdi-information-outline'" size="16"/>
+                    {{ overviewWanState === '已连接' ? 'WAN 已连接' : overviewWanState === '未连接' ? 'WAN 未连接' : 'WAN 状态待确认' }}
+                  </span>
+                  <v-icon icon="mdi-chevron-right" size="22" color="primary"/>
                 </div>
               </div>
-              <div class="v3-module-heading"><h2>实时网络流量</h2>
+              <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
+                <div v-for="item in overviewResources" :key="item.label" class="v3-metric">
+                  <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
+                </div>
+              </div>
+              <div class="v3-module-heading"><h2>实时流量</h2>
                 <v-btn size="small" variant="text" append-icon="mdi-chevron-right" @click="openDetailedMonitor">详细监控</v-btn></div>
               <v-card variant="flat" rounded="xl" class="v3-live-card"
                 role="button" tabindex="0" aria-label="查看详细监控"
@@ -2621,10 +2616,6 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'clients'">
             <div class="terminal-screen">
-              <div class="terminal-header">
-                <div><h2>终端设备</h2><p>无线关联和邻居可达是在线证据；DHCP 租约不代表在线</p></div>
-                <v-chip color="primary" variant="tonal" size="small" prepend-icon="mdi-devices">{{ terminalDevices.length }} 台</v-chip>
-              </div>
               <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
@@ -2636,7 +2627,20 @@ onUnmounted(() => {
                   :aria-pressed="terminalOnlineFilter === option.id"
                   @click="terminalOnlineFilter = option.id">{{ option.label }} {{ option.count }}</button>
               </div>
-              <div class="terminal-category-grid" role="group" aria-label="按终端来源筛选">
+              <div class="v3-client-search-row">
+                <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
+                  hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索设备名称、IP、MAC"
+                  aria-label="搜索设备名称、IP、MAC" class="terminal-search">
+                  <template #append-inner>
+                    <v-btn icon="mdi-filter-variant" size="small" variant="text"
+                      :color="terminalView !== 'all' ? 'primary' : undefined"
+                      :aria-expanded="showTerminalSourceFilters" aria-controls="v3-terminal-sources"
+                      aria-label="展开或收起终端来源筛选" @click.stop="showTerminalSourceFilters = !showTerminalSourceFilters"/>
+                  </template>
+                </v-text-field>
+              </div>
+              <div v-if="showTerminalSourceFilters" id="v3-terminal-sources"
+                class="terminal-category-grid" role="group" aria-label="按终端来源筛选">
                 <button v-for="category in terminalCategories" :key="category.value" type="button"
                   class="v3-source-chip" :class="{ 'is-selected': terminalView === category.value }"
                   :aria-pressed="terminalView === category.value"
@@ -2646,16 +2650,15 @@ onUnmounted(() => {
                   <span>{{ category.label }}</span><small>{{ category.count }}</small>
                 </button>
               </div>
-              <v-text-field v-model="clientSearch" variant="solo-filled" density="compact" flat rounded="lg"
-                hide-details clearable prepend-inner-icon="mdi-magnify" placeholder="搜索名称、IP 或 MAC"
-                aria-label="搜索名称、IP 或 MAC" class="terminal-search mb-4"
-                @click:clear="clientSearch = ''"
-                @keydown.enter="clientSearch = String(clientSearch || '').trim()"/>
+              <div v-if="terminalView !== 'all' && !showTerminalSourceFilters" class="v3-active-source">
+                已筛选：{{ terminalCategories.find(category => category.value === terminalView)?.label || '终端来源' }}
+                <button type="button" aria-label="清除终端来源筛选" @click="terminalView = 'all'">清除</button>
+              </div>
               <div v-if="filteredClients.length" class="terminal-grid" role="list" aria-label="已发现终端列表">
                 <TerminalDeviceCard v-for="item in filteredClients" :key="item.mac || item.ip || item.ip6"
                   :item="item" @click="openTerminal(item)"/>
               </div>
-              <v-empty-state v-else-if="clientSearch || terminalOnlineFilter !== 'all'" icon="mdi-magnify-close"
+              <v-empty-state v-else-if="clientSearch || terminalOnlineFilter !== 'all' || terminalView !== 'all'" icon="mdi-magnify-close"
                 title="没有匹配的终端" text="请调整在线状态、数据来源或搜索条件"/>
               <v-alert v-else-if="terminalView === 'wireless' && !wifiClientData.available"
                 type="info" variant="tonal" density="compact">
@@ -2670,9 +2673,10 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
+              <p class="v3-client-evidence">无线关联、邻居可达等是在线证据；仅有 DHCP 租约不代表在线。</p>
             </div>
             <div class="v3-section-label v3-device-actions-heading">设备管理</div>
-            <div class="v3-inline-links" role="group" aria-label="终端管理工具">
+            <div class="v3-inline-links v3-device-actions" role="group" aria-label="终端管理工具">
               <button type="button" class="v3-inline-action" @click="launchV3Tool('parental')"><v-icon icon="mdi-shield-account-outline"/>家长控制<v-icon icon="mdi-chevron-right" size="18"/></button>
               <button type="button" class="v3-inline-action" @click="launchV3Tool('wol')"><v-icon icon="mdi-lan-connect"/>网络唤醒<v-icon icon="mdi-chevron-right" size="18"/></button>
             </div>
@@ -2681,8 +2685,7 @@ onUnmounted(() => {
           <template v-if="activeTab === 'network'">
             <section v-if="networkSection === 'hub'" class="v3-network-home">
               <header class="v3-network-status">
-                <h2>网络管理</h2>
-                <p>集中查看接口、物理设备和路由服务</p>
+                <h2>网络连接</h2>
                 <div class="v3-network-kpis">
                   <div><small>WAN</small><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong><span>{{ snapshot?.wanIp || '--' }}</span></div>
                   <div><small>LAN</small><strong>{{ snapshot?.lanIp || '--' }}</strong></div>
@@ -2690,13 +2693,13 @@ onUnmounted(() => {
                 </div>
               </header>
               <div class="v3-section-label">接口与连接</div>
-              <div class="v3-feature-list">
+              <div class="v3-feature-list v3-feature-list-primary">
                 <button type="button" @click="openNetworkSection('interfaces')"><v-icon icon="mdi-lan" color="primary"/><span><strong>网络接口</strong><small>WAN / LAN / PPPoE / IPv4 / IPv6 / DHCP</small></span><v-icon icon="mdi-chevron-right"/></button>
                 <button type="button" @click="openNetworkSection('devices')"><v-icon icon="mdi-ethernet" color="primary"/><span><strong>物理设备</strong><small>以太网端口、物理网络设备</small></span><v-icon icon="mdi-chevron-right"/></button>
                 <button type="button" @click="openNetworkSection('wireless')"><v-icon icon="mdi-wifi" color="primary"/><span><strong>无线设备</strong><small>当前无线硬件与网络状态（只读）</small></span><v-icon icon="mdi-chevron-right"/></button>
               </div>
               <div class="v3-section-label">路由、DNS 与安全</div>
-              <div class="v3-feature-list">
+              <div class="v3-feature-list v3-feature-list-secondary">
                 <button v-for="tool in networkFeatureTools" :key="tool.id" type="button" @click="launchV3Tool(tool.id)">
                   <v-icon :icon="tool.icon" color="primary"/><span><strong>{{ tool.title }}</strong><small>{{ tool.subtitle }}</small></span><v-icon icon="mdi-chevron-right"/>
                 </button>
@@ -2741,15 +2744,10 @@ onUnmounted(() => {
           <template v-if="activeTab === 'apps'">
             <template v-if="!toolPanel">
               <div class="app-hub">
-                <div class="app-launcher-heading">
-                  <h2>工具箱</h2>
-                  <p>{{ installedRouterAppsLoading ? '正在检查插件能力…' : '常用快捷入口 · 插件 · 系统管理 · 安全诊断' }}</p>
-                </div>
-
                 <v-text-field v-model="appSearch" class="app-hub-search"
-                  aria-label="搜索应用或功能" label="搜索应用或功能"
+                  aria-label="搜索功能与插件" placeholder="搜索功能与插件"
                   prepend-inner-icon="mdi-magnify" clearable hide-details
-                  variant="outlined" density="compact"/>
+                  variant="solo-filled" flat density="compact"/>
 
                 <template v-if="String(appSearch || '').trim()">
                   <div class="app-hub-section-heading">
@@ -2784,21 +2782,14 @@ onUnmounted(() => {
                         </v-avatar>
                         <span>{{ tool.title }}</span>
                       </button>
-                      <button type="button" class="app-favorite-tile is-more"
-                        aria-label="展开全部应用" @click="expandAllAppCategories">
-                        <v-avatar rounded="lg" size="44" color="secondary" variant="tonal">
-                          <v-icon icon="mdi-apps" size="23"/>
-                        </v-avatar>
-                        <span>全部应用</span>
-                      </button>
-                    </div>
+                      </div>
                     <p v-if="!favoriteTools.length" class="app-hub-hint">暂无常用应用，点击编辑添加。</p>
                   </section>
 
                   <section id="app-category-list" class="app-hub-categories" aria-label="全部功能">
                     <div class="app-hub-section-heading">
-                      <strong>全部功能</strong>
-                      <small>{{ appCategories.reduce((count, group) => count + group.tools.length, 0) }} 项</small>
+                      <strong>分类工具</strong>
+                      <small>共 {{ appCategories.reduce((count, group) => count + group.tools.length, 0) }} 项功能</small>
                     </div>
                     <div v-for="category in appCategories" :key="category.id" class="app-category-card">
                       <button type="button" class="app-category-toggle"
@@ -2807,7 +2798,11 @@ onUnmounted(() => {
                         :aria-label="(expandedAppCategories.includes(category.id) ? '收起' : '展开') + category.title"
                         @click="toggleAppCategory(category.id)">
                         <span class="app-category-icon"><v-icon :icon="category.icon" size="22"/></span>
-                        <span class="app-category-copy"><strong>{{ category.title }}</strong><small>{{ category.tools.length }} 项功能</small></span>
+                        <span class="app-category-copy"><strong>{{ category.title }}</strong>
+                          <small>{{ category.id === 'plugins' ? category.tools.length + ' 个服务与应用管理'
+                            : category.id === 'system' ? '软件包、服务、进程、Cron'
+                            : category.id === 'diagnostics' ? '网络诊断、日志、安全分析'
+                            : '备份、重启、恢复出厂' }}</small></span>
                         <v-icon :icon="expandedAppCategories.includes(category.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                           size="20" class="app-tool-chevron"/>
                       </button>
@@ -2825,6 +2820,7 @@ onUnmounted(() => {
                       </v-expand-transition>
                     </div>
                   </section>
+                  <p class="v3-app-capability-note">可用功能随固件、插件及 RPC 权限变化</p>
                 </template>
               </div>
 
