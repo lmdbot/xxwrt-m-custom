@@ -5,12 +5,14 @@
  * Every legacy feature has exactly one primary home (Overview, Devices,
  * Network or Tools), even if global search and favorites link elsewhere.
  */
+// Approved Design A icon mapping (doc/04-design-system.md §6):
+// consistent 20–24dp Material Design outline icons in both bottom bars.
 export const V3_TABS = Object.freeze([
-  { id: 'home', label: '概览', icon: 'mdi-home-outline' },
-  { id: 'clients', label: '设备', icon: 'mdi-monitor' },
-  { id: 'network', label: '网络', icon: 'mdi-swap-horizontal' },
-  { id: 'apps', label: '工具', icon: 'mdi-star-four-points' },
-  { id: 'more', label: '我的', icon: 'mdi-account-outline' }
+  { id: 'home', label: '概览', icon: 'mdi-view-dashboard-outline' },
+  { id: 'clients', label: '设备', icon: 'mdi-devices' },
+  { id: 'network', label: '网络', icon: 'mdi-lan' },
+  { id: 'apps', label: '工具', icon: 'mdi-apps' },
+  { id: 'more', label: '我的', icon: 'mdi-account-circle-outline' }
 ])
 export const V3_NETWORK_FEATURE_IDS = Object.freeze([
   'routes', 'dnsdhcp', 'firewall', 'ddns', 'zerotier'
