@@ -3937,21 +3937,93 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="deviceDialog" max-width="430">
-      <v-card rounded="xl">
-        <v-card-title>{{ editDeviceId ? '编辑 OpenWrt 设备' : '添加 OpenWrt 设备' }}</v-card-title>
-        <v-card-text>
-          <form id="device-editor" @submit.prevent="saveDeviceEntry">
-            <v-text-field v-model.trim="deviceForm.name" label="设备名称 / 备注" variant="outlined" density="comfortable" placeholder="例如：QWRT 主路由" required/>
-            <v-text-field v-model.trim="deviceForm.address" label="IP / 域名 / 端口" variant="outlined" density="comfortable" placeholder="http://192.168.100.1" autocomplete="url" autocapitalize="off" required/>
-            <v-text-field v-model.trim="deviceForm.username" label="登录用户名" variant="outlined" density="comfortable" autocomplete="username" required/>
-            <v-checkbox v-if="isNative && deviceForm.address.startsWith('https://')"
-              v-model="deviceForm.ignoreTlsErrors" color="warning" hide-details
-              label="忽略此设备 HTTPS 证书错误（不安全）"/>
-            <p class="muted-hint">设备地址可以是 HTTPS 公网域名。更换地址时会自动取消此前的证书例外。</p>
+    <!-- One source of truth for saved router credentials and trusted routes. -->
+    <v-dialog v-model="deviceDialog" max-width="560" scrollable :persistent="deviceEditorBusy">
+      <v-card rounded="xl" class="router-login-editor">
+        <v-card-title class="router-editor-title">
+          <span>{{ editDeviceId ? '编辑 OpenWrt 设备' : '添加 OpenWrt 设备' }}</span>
+          <v-btn icon="mdi-close" size="small" variant="text" aria-label="关闭路由器配置"
+            :disabled="deviceEditorBusy" @click="closeDeviceEditor"/>
+        </v-card-title>
+        <v-card-subtitle class="router-editor-subtitle">一次填写所有地址、登录信息与备用连接方式</v-card-subtitle>
+        <v-card-text class="router-editor-body">
+          <form id="device-editor" @submit.prevent="saveDeviceEntry" autocomplete="off">
+            <div class="router-editor-section-heading">
+              <v-icon icon="mdi-router-wireless" color="primary" size="20"/>
+              <div><h3>路由器信息</h3><p>为这台设备设置名称与默认连接入口</p></div>
+            </div>
+            <v-text-field v-model.trim="deviceForm.name" label="设备名称 / 备注" variant="outlined"
+              density="comfortable" placeholder="例如：QWRT 主路由" required/>
+            <v-text-field v-model.trim="deviceForm.address" label="IP / 域名 / 端口" variant="outlined"
+              density="comfortable" placeholder="http://192.168.100.1" autocomplete="url"
+              autocapitalize="off" required/>
+            <div class="router-editor-section-heading router-editor-section-separator">
+              <v-icon icon="mdi-shield-key-outline" color="primary" size="20"/>
+              <div><h3>登录配置</h3><p>账号密码、TLS 验证与额外的登录地址</p></div>
+            </div>
+            <v-text-field v-model.trim="deviceForm.username" label="登录用户名" variant="outlined"
+              density="comfortable" autocomplete="username" required/>
+            <v-text-field v-model="deviceForm.password" label="路由器密码" variant="outlined"
+              density="comfortable" autocomplete="new-password"
+              :type="deviceForm.showPassword ? 'text' : 'password'"
+              :append-inner-icon="deviceForm.showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+              @click:append-inner="deviceForm.showPassword = !deviceForm.showPassword"
+              :placeholder="editDeviceId && deviceForm.rememberPassword ? '已保存加密密码，留空不修改' : '输入登录密码'"/>
+            <p class="router-editor-helper" v-if="editDeviceId && deviceForm.rememberPassword">
+              密码不会明文显示。留空保留已保存的密码；更换主地址或用户名时，需要重新填写密码才能继续自动登录。
+            </p>
+            <v-switch v-if="isNative" v-model="deviceForm.rememberPassword" inset density="compact"
+              color="primary" hide-details class="router-editor-switch"
+              label="使用 Android Keystore 加密保存密码（用于自动登录）"/>
+            <p v-else class="router-editor-helper">网页模式不持久保存密码；Android 安装版可安全记住密码并自动连接。</p>
+            <v-checkbox v-if="isNative && /^https:\/\//i.test(deviceForm.address)"
+              v-model="deviceForm.ignoreTlsErrors" color="warning" density="compact"
+              hide-details class="router-editor-switch"
+              label="忽略 HTTPS 证书错误（仅可信自签名路由器）"/>
+            <v-alert v-if="isNative && deviceForm.ignoreTlsErrors && /^https:\/\//i.test(deviceForm.address)"
+              type="warning" variant="tonal" density="compact" class="mb-3">
+              忽略证书校验可能泄露密码。优先修复证书；此选项只对你明确配置的路由器入口生效。
+            </v-alert>
+            <div class="router-editor-alt-heading">
+              <div>
+                <h4>额外登录 IP / 域名</h4>
+                <p>主入口不可用时，可通过同一台路由器的其他入口连接</p>
+              </div>
+              <span>{{ deviceForm.alternateAddresses.length }}/{{ MAX_ROUTER_ALTERNATIVES }}</span>
+            </div>
+            <div v-for="(alternate, index) in deviceForm.alternateAddresses" :key="index"
+              class="router-editor-alternate-row">
+              <v-text-field v-model.trim="deviceForm.alternateAddresses[index]" variant="outlined"
+                density="comfortable" hide-details="auto" autocapitalize="off"
+                :label="'备用登录 IP / 域名 ' + (index + 1)"
+                placeholder="https://router.example.com"/>
+              <v-btn icon="mdi-close-circle-outline" variant="text" size="small"
+                :aria-label="'删除备用入口 ' + (index + 1)"
+                @click="removeDeviceAlternate(index)"/>
+              <v-chip v-if="verifiedEditorAddresses.includes(alternate)" size="x-small"
+                color="success" variant="tonal">已验证</v-chip>
+            </div>
+            <v-btn size="small" variant="tonal" prepend-icon="mdi-plus" color="primary"
+              class="router-editor-add-alternate"
+              :disabled="deviceForm.alternateAddresses.length >= MAX_ROUTER_ALTERNATIVES"
+              @click="addDeviceAlternate">添加备用登录地址</v-btn>
+            <v-switch v-model="deviceForm.autoSwitch" inset density="compact"
+              class="router-editor-switch mt-2" color="primary" hide-details
+              label="主入口连接失败时自动切换已验证的备用入口"/>
+            <p class="router-editor-helper">
+              支持可信 HTTPS 域名或私有 IPv4 HTTP 地址，最多 5 个。
+              保存后可在路由器登录成功时核验各入口的硬件身份；未验证通过的地址不会用于自动切换。
+              额外地址及验证结果仅保存在本机。
+            </p>
+            <p v-if="deviceEditorMessage" role="alert" class="router-editor-error">{{ deviceEditorMessage }}</p>
           </form>
         </v-card-text>
-        <v-card-actions><v-spacer/><v-btn variant="text" @click="deviceDialog = false">取消</v-btn><v-btn type="submit" form="device-editor" color="primary">保存设备</v-btn></v-card-actions>
+        <v-card-actions class="router-editor-actions">
+          <v-btn variant="text" :disabled="deviceEditorBusy" @click="closeDeviceEditor">取消</v-btn>
+          <v-spacer/>
+          <v-btn type="submit" form="device-editor" color="primary" rounded="lg"
+            :loading="deviceEditorBusy" prepend-icon="mdi-content-save-outline">保存设备</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="loginDialog" max-width="430" :persistent="connecting">
@@ -3962,18 +4034,16 @@ onUnmounted(() => {
           <form id="router-login" @submit.prevent="connect">
             <v-text-field v-model.trim="form.username" density="comfortable" variant="outlined" label="用户名" autocomplete="username" readonly/>
             <v-text-field v-model="form.password" density="comfortable" variant="outlined" label="路由器密码" autocomplete="current-password" :type="form.showPassword ? 'text' : 'password'" :append-inner-icon="form.showPassword ? 'mdi-eye-off' : 'mdi-eye'" @click:append-inner="form.showPassword = !form.showPassword" required/>
-            <v-checkbox v-if="isNative" v-model="loginRemember" label="使用 Android Keystore 加密记住密码" color="primary" hide-details/>
-            <v-checkbox v-if="isNative && selectedDevice?.address?.startsWith('https://')"
-              v-model="loginIgnoreTls" label="忽略此路由器 HTTPS 证书错误（不安全）"
-              color="warning" hide-details class="mt-2"/>
-            <v-alert v-if="loginIgnoreTls && selectedDevice?.address?.startsWith('https://')"
-              type="warning" variant="tonal" density="compact" class="mt-2">
-              将跳过此路由器的证书链和域名校验，可能泄露登录密码。仅用于完全可信的自签名路由器；优先修复证书。
-            </v-alert>
-            <p v-else class="muted-hint">网页预览不保存密码；Android 安装版支持安全存储。</p>
+            <p class="muted-hint">此处仅用于临时登录。如需保存加密密码、设置 TLS 选项或备用 IP/域名，请在路由器的「登录配置」中统一修改。</p>
           </form>
         </v-card-text>
-        <v-card-actions><v-spacer/><v-btn variant="text" :disabled="connecting" @click="loginDialog = false">返回列表</v-btn><v-btn type="submit" form="router-login" color="primary" :loading="connecting">登录并进入</v-btn></v-card-actions>
+        <v-card-actions class="router-editor-login-actions">
+          <v-btn variant="text" :disabled="connecting" @click="loginDialog = false">返回列表</v-btn>
+          <v-btn variant="text" :disabled="connecting"
+            @click="loginDialog = false; showDeviceDialog(selectedDevice)">登录配置</v-btn>
+          <v-spacer/>
+          <v-btn type="submit" form="router-login" color="primary" :loading="connecting">登录并进入</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
     <v-dialog v-model="deleteDialog" max-width="360">
