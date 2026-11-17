@@ -511,6 +511,16 @@
 @media(prefers-reduced-motion:reduce){.xxwrt-v3 .standard-bottom,.xxwrt-v3 .liquid-bottom .glass-host{backdrop-filter:none;-webkit-backdrop-filter:none}.xxwrt-v3 button{transition:none!important}}
 
 
+/* Secondary Design A: terminal details are read-first, editors open on tap.
+   The dialog is teleported; its root must carry Design A scope and tokens. */
+.v3-terminal-detail-dialog.xxwrt-v3{background:transparent!important}
+.v3-terminal-detail-dialog .v3-terminal-detail-title .v-btn{
+  min-width:48px;min-height:48px;flex:none;margin-left:-8px;
+  border-radius:12px
+}
+.v3-terminal-detail-dialog .v3-terminal-detail-title{
+  background:var(--ui-surface);color:var(--ui-text)
+}
 /* Secondary Design A: terminal details are read-first, editors open on tap. */
 .xxwrt-v3 .v3-terminal-detail-title{
   min-height:60px;display:flex;align-items:center;gap:12px;

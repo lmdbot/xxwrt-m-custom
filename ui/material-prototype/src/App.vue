@@ -3093,10 +3093,12 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog">
+    <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog xxwrt-v3" :class="{ 'theme-is-dark': dark }">
       <v-card v-if="selectedClient" rounded="xl" class="v3-terminal-detail">
         <v-card-title class="v3-terminal-detail-title">
-          <v-icon icon="mdi-arrow-left" color="primary" size="22"/>
+          <v-btn icon="mdi-arrow-left" size="small" variant="text" color="primary"
+            :disabled="terminalSaving" aria-label="返回终端列表"
+            @click="selectedClient = null; terminalRequestId++"/>
           <span>终端详情</span>
         </v-card-title>
         <v-card-text>
@@ -3104,7 +3106,7 @@ onUnmounted(() => {
             <div class="v3-terminal-detail-heading">
               <h2>{{ selectedClient.displayName || selectedClient.name || '未知终端' }}</h2>
               <v-chip size="small" variant="tonal"
-                :color="selectedClient.online ? 'success' : selectedClient.onlineKnown ? 'error' : 'secondary'">
+                :color="selectedClient.online ? 'success' : selectedClient.onlineKnown ? 'error' : undefined">
                 {{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '待确认' }}
               </v-chip>
             </div>
