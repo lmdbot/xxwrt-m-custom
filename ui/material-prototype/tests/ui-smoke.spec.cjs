@@ -478,6 +478,11 @@ test('one saved router opens login automatically and preloads terminal data befo
   await page.getByRole('button', { name:'设备', exact:true }).click()
   await expect(page.locator('.terminal-grid')).toBeVisible()
   await expect(page.locator('.terminal-grid .terminal-tile').first()).toBeVisible()
+  // Startup prefetch and automatic tab navigation may reuse the 45-second
+  // cache. The toolbar button must always issue a NEW terminal RPC.
+  const beforeManualRefresh = terminalReads
+  await page.getByRole('button', { name:'刷新当前页面' }).click()
+  await expect.poll(() => terminalReads).toBeGreaterThan(beforeManualRefresh)
 })
 
 test('multiple saved routers remain on router management at startup', async ({ page }) => {
@@ -493,6 +498,28 @@ test('multiple saved routers remain on router management at startup', async ({ p
   await expect(page.getByRole('button', { name:'进入 主路由' })).toBeVisible()
   await expect(page.getByRole('button', { name:'进入 副路由' })).toBeVisible()
   await expect(page.getByRole('textbox', { name:'路由器密码' })).toHaveCount(0)
+})
+
+test('manual router-list refresh probes saved routers again',async ({page})=>{
+  let probes=0
+  await page.route('**/ubus',async route=>{
+    const request=route.request().postDataJSON()
+    const calls=Array.isArray(request)?request:[request]
+    if(calls.some(item=>item.params?.[1]==='session' && item.params?.[2]==='access')) probes++
+    await handler(route)
+  })
+  await page.addInitScript(()=>localStorage.setItem('xxwrt_material_saved_devices_v1',JSON.stringify([
+    {id:'router-one',name:'主路由',address:'http://192.168.100.1',username:'root',createdAt:Date.now()},
+    {id:'router-two',name:'副路由',address:'http://192.168.100.2',username:'root',createdAt:Date.now()}
+  ])))
+  await page.goto('/')
+  const refresh=page.getByRole('button',{name:'刷新设备状态'})
+  await expect.poll(()=>probes).toBeGreaterThanOrEqual(2)
+  await expect(refresh).not.toHaveClass(/v-btn--loading/)
+  const before=probes
+  await refresh.click()
+  await expect.poll(()=>probes).toBeGreaterThan(before)
+  await expect(page.getByText(/最近检测/)).toBeVisible()
 })
 
 test('unified router editor saves login credentials and multiple IP/domain endpoints without plaintext passwords', async ({page}) => {
@@ -1452,10 +1479,15 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '编辑QWRT 主路由' }).click()
   await expect(page.getByText('编辑 OpenWrt 设备')).toBeVisible()
   await page.getByRole('button', { name: '取消' }).click()
+  await page.evaluate(()=>localStorage.setItem('xxwrt_material_router_url','https://istoreos.12130812.xyz'))
   await page.getByRole('button', { name: '删除QWRT 主路由' }).click()
   await expect(page.getByText('确定从设备列表移除这台 OpenWrt 吗？', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: '删除', exact: true }).click()
   await expect(page.getByText('还没有添加 OpenWrt 设备')).toBeVisible()
+  await page.reload()
+  // Deleting all routers must not resurrect the old single-host preference.
+  await expect(page.getByText('还没有添加 OpenWrt 设备')).toBeVisible()
+  await expect(page.locator('.router-list-card')).toHaveCount(0)
   expect(errors).toEqual([])
 })
 
