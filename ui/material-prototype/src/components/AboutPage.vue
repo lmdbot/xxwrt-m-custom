@@ -42,6 +42,15 @@ const updateStatus = computed(() => {
         </button>
         <v-btn icon="mdi-content-copy" size="x-small" variant="text" color="primary"
           aria-label="复制应用版本信息" @click="emit('copy-version')"/>
+        <v-btn class="about-check-update" color="primary" variant="tonal" size="small"
+          rounded="pill" prepend-icon="mdi-refresh" :loading="updateState.checking"
+          :disabled="updateState.downloading" @click="emit('check-updates')">检查更新</v-btn>
+      </div>
+      <div v-if="updateState.checked || updateState.checking || updateState.error || updateState.available"
+        class="about-update-status about-hero-update-status" role="status"
+        :class="{ 'about-update-error': updateState.error }">
+        <v-icon :icon="updateState.error ? 'mdi-alert-circle-outline' : updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'" size="18"/>
+        <span>{{ updateStatus }}</span>
       </div>
       <p class="about-tagline">让 OpenWrt / QWRT 路由管理更简单</p>
       <p class="about-summary">轻松查看路由状态、管理网络终端与常用服务。具体功能及权限以已连接路由器为准。</p>
@@ -79,10 +88,6 @@ const updateStatus = computed(() => {
         <div v-if="updateState.latestRelease" class="about-version-row">
           <span>更新来源</span><strong>{{ updateState.latestRelease.source === 'mirror' ? '阿里云' : 'GitHub 备用' }}</strong>
         </div>
-        <div class="about-update-status" role="status" :class="{ 'about-update-error': updateState.error }">
-          <v-icon :icon="updateState.error ? 'mdi-alert-circle-outline' : updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'" size="19"/>
-          <span>{{ updateStatus }}</span>
-        </div>
         <p v-if="updateState.notice" class="about-update-notice" role="status">{{ updateState.notice }}</p>
         <div v-if="updateState.downloading" class="about-download-status" role="status">
           <div class="about-download-label">
@@ -92,9 +97,6 @@ const updateStatus = computed(() => {
           <small>{{ updateState.progressText }}</small>
         </div>
         <div class="about-update-actions">
-          <v-btn color="primary" variant="tonal" rounded="lg" prepend-icon="mdi-refresh"
-            :loading="updateState.checking" :disabled="updateState.downloading"
-            @click="emit('check-updates')">检查更新</v-btn>
           <v-btn variant="text" rounded="lg" prepend-icon="mdi-text-box-outline"
             :loading="updateState.releaseNotesLoading" @click="emit('show-release-notes')">版本日志</v-btn>
           <v-btn v-if="updateState.available && updateState.latestRelease?.apkUrl"
@@ -147,8 +149,11 @@ const updateStatus = computed(() => {
 .about-hero{display:flex;align-items:center;flex-direction:column;text-align:center;padding:22px 12px 20px}
 .about-app-icon{display:block;width:104px;height:104px;object-fit:contain;border-radius:24px;box-shadow:0 8px 22px rgba(17,43,78,.13)}
 .about-app-name{font-size:30px;font-weight:750;line-height:1.25;letter-spacing:-.7px;margin:18px 0 8px}
-.about-version-actions{display:flex;align-items:center;gap:3px}
-.about-version-pill{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:99px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary));font-family:inherit;line-height:1.5;font-size:12px;font-weight:650;padding:5px 10px;cursor:pointer}
+.about-version-actions{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;column-gap:6px;row-gap:8px;max-width:100%}
+.about-version-pill{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:99px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary));font-family:inherit;line-height:1.5;font-size:12px;font-weight:650;padding:7px 11px;min-height:34px;cursor:pointer}
+.about-check-update{min-height:34px!important;font-size:12px!important;letter-spacing:0!important;font-weight:700!important}
+.about-hero-update-status{max-width:min(100%,410px);margin:12px auto 0!important;text-align:left;padding:8px 11px!important}
+.about-hero-update-status span{min-width:0;overflow-wrap:anywhere}
 .about-tagline{margin:14px 0 6px;font-size:14px;font-weight:650;line-height:1.55}
 .about-summary{max-width:370px;font-size:12px;line-height:1.75;color:var(--ui-text-muted)}
 .about-section{margin:12px 0 23px}

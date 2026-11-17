@@ -1503,3 +1503,56 @@
     padding-inline:17px
   }
 }
+
+
+/* Me: the existing app-identity hero is now the primary About/Updates
+   entry; keep the router logout control independently actionable. */
+.xxwrt-v3 .v3-me-page .v3-me-profile{gap:6px}
+.xxwrt-v3 .v3-me-page .v3-me-about-entry{
+  display:flex;align-items:center;flex:1 1 auto;gap:12px;
+  min-width:0;min-height:88px;
+  margin:0;padding:4px 0;
+  border:0;border-radius:15px;background:transparent;
+  color:var(--ui-text);text-align:left;
+  font:inherit;cursor:pointer
+}
+.xxwrt-v3 .v3-me-about-entry .more-app-icon{
+  flex:none;width:63px;height:63px;object-fit:cover
+}
+.xxwrt-v3 .v3-me-about-entry .v3-me-profile-copy{
+  display:flex;flex-direction:column;align-items:flex-start;
+  flex:1 1 0;min-width:0
+}
+.xxwrt-v3 .v3-me-about-entry .v3-me-profile-title{
+  display:block;width:100%;font-size:18px;line-height:25px;
+  font-weight:750;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.xxwrt-v3 .v3-me-about-entry .v3-me-profile-version{
+  display:block;margin-top:4px;color:var(--ui-muted);
+  font-size:12px;line-height:18px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  max-width:100%
+}
+.xxwrt-v3 .v3-me-about-entry .v3-me-connection{
+  margin-top:7px;white-space:nowrap
+}
+.xxwrt-v3 .v3-me-about-entry .v3-me-about-chevron{
+  flex:none;color:var(--ui-muted)
+}
+.xxwrt-v3 .v3-me-about-entry:active{
+  background:rgba(var(--v-theme-primary),.07)
+}
+.xxwrt-v3 .v3-me-about-entry:focus-visible{
+  outline:2px solid var(--ui-primary);outline-offset:2px
+}
+.xxwrt-v3 .v3-me-page .v3-me-profile>.v-btn{
+  flex:0 0 40px;width:40px;min-width:40px;height:40px;
+  border-radius:50%;margin:0
+}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-me-page .v3-me-about-entry{gap:9px;min-height:82px}
+  .xxwrt-v3 .v3-me-about-entry .more-app-icon{width:50px;height:50px}
+  .xxwrt-v3 .v3-me-about-entry .v3-me-profile-title{font-size:16px;line-height:23px}
+  .xxwrt-v3 .v3-me-about-entry .v3-me-profile-version{font-size:11px}
+  .xxwrt-v3 .v3-me-page .v3-me-profile>.v-btn{flex-basis:36px;width:36px;min-width:36px}
+}

@@ -2387,8 +2387,19 @@ onUnmounted(() => {
         <template v-else-if="activeTab === 'more'">
           <section class="more-page v3-me-page" data-testid="more-page">
             <header class="v3-me-profile">
-              <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
-              <div class="v3-me-profile-copy"><h2>XX-WRT 管理器</h2><p>v{{ installedVersion }} · OpenWrt / QWRT</p><span class="v3-me-connection" :class="{ 'is-connected': connected }"><v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-information-outline'" size="15"/>{{ connected ? '已连接路由器' : '未连接路由器' }}</span></div>
+              <button type="button" class="v3-me-about-entry"
+                aria-label="打开关于 XX-WRT、版本更新与反馈" @click="openMoreSection('about')">
+                <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
+                <span class="v3-me-profile-copy">
+                  <strong class="v3-me-profile-title">XX-WRT 管理器</strong>
+                  <span class="v3-me-profile-version">v{{ installedVersion }} · OpenWrt / QWRT</span>
+                  <span class="v3-me-connection" :class="{ 'is-connected': connected }">
+                    <v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-information-outline'" size="15"/>
+                    {{ connected ? '已连接路由器' : '未连接路由器' }}
+                  </span>
+                </span>
+                <v-icon icon="mdi-chevron-right" size="20" class="v3-me-about-chevron"/>
+              </button>
               <v-btn v-if="connected" icon="mdi-logout" variant="text" size="small"
                 aria-label="退出当前路由器" @click="resetSession"/>
             </header>
@@ -2408,12 +2419,6 @@ onUnmounted(() => {
                 <span class="more-menu-icon"><v-icon :icon="category.icon" size="23"/></span>
                 <span class="more-menu-copy"><strong>{{ category.title }}</strong><small>{{ category.description }}</small></span>
                 <v-icon icon="mdi-chevron-right" size="21"/>
-              </button>
-            </div>
-            <div class="v3-section-label">支持与更新</div>
-            <div class="v3-me-support">
-              <button type="button" aria-label="查看关于、更新与反馈" @click="openMoreSection('about')">
-                关于 / 更新 / 反馈 <v-icon icon="mdi-chevron-right" size="18"/>
               </button>
             </div>
           </section>
