@@ -606,13 +606,6 @@ const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
 const networkOriginTab = ref('') // preserve originating tab for network quick actions
 const homeDetailsExpanded = ref(false)
-const waterSloshEnabled = computed(() => effectiveMotion.value && waterPageVisible.value &&
-  connected.value && viewMode.value === 'detail' && activeTab.value === 'home' &&
-  !settingsOpen.value)
-watch([waterSloshEnabled, waterMetricsRoot], ([enabled, root]) => {
-  if (enabled && root) void waterSlosh.start()
-  else waterSlosh.stop()
-}, { flush: 'post' })
 const overviewFocusedMetric = ref('')
 const previousContentTab = ref('home')
 // V3 keeps legacy panel identifiers/RPC flows, while the visible navigation
@@ -703,6 +696,13 @@ function closeAppTool() {
 }
 const client = shallowRef(null)
 const connected = ref(false)
+const waterSloshEnabled = computed(() => effectiveMotion.value && waterPageVisible.value &&
+  connected.value && viewMode.value === 'detail' && activeTab.value === 'home' &&
+  !settingsOpen.value)
+watch([waterSloshEnabled, waterMetricsRoot], ([enabled, root]) => {
+  if (enabled && root) void waterSlosh.start()
+  else waterSlosh.stop()
+}, { flush: 'post' })
 const connecting = ref(false)
 const refreshing = ref(false)
 const errorMessage = ref('')
