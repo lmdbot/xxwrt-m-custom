@@ -398,14 +398,14 @@
 .xxwrt-v3 .app-hub-section-heading strong{color:var(--ui-text);font-size:16px;line-height:23px;font-weight:700}
 .xxwrt-v3 .app-hub-section-heading small{font-size:11px}
 .xxwrt-v3 .app-favorites-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.xxwrt-v3 .app-favorite-tile{min-height:77px;padding:10px 4px;border:1px solid var(--ui-border);border-radius:15px;gap:8px;background:var(--ui-surface);color:var(--ui-text);box-shadow:none}
-.xxwrt-v3 .app-favorite-tile:nth-child(2){background:var(--ui-surface)}
-.xxwrt-v3 .app-favorite-tile:nth-child(3){background:var(--ui-surface)}
-.xxwrt-v3 .app-favorite-tile:nth-child(4){background:var(--ui-surface)}
+.xxwrt-v3 .app-favorite-tile{min-height:77px;padding:10px 4px;border:0;border-radius:15px;gap:8px;background:#e9f1ff;color:var(--ui-text);box-shadow:none}
+.xxwrt-v3 .app-favorite-tile:nth-child(2){background:#f1eaff}
+.xxwrt-v3 .app-favorite-tile:nth-child(3){background:#e7f9f4}
+.xxwrt-v3 .app-favorite-tile:nth-child(4){background:#fff4e7}
 .xxwrt-v3 .app-favorite-tile .v-avatar{width:37px!important;height:37px!important;background:transparent!important}
 .xxwrt-v3 .app-favorite-tile .v-icon{color:#2477ee}
-.xxwrt-v3 .app-favorite-tile:nth-child(2) .v-icon,.xxwrt-v3 .app-favorite-tile:nth-child(4) .v-icon{color:var(--ui-primary)}
-.xxwrt-v3 .app-favorite-tile:nth-child(3) .v-icon{color:var(--ui-primary)}
+.xxwrt-v3 .app-favorite-tile:nth-child(2) .v-icon{color:#9868e9}.xxwrt-v3 .app-favorite-tile:nth-child(4) .v-icon{color:#d9981f}
+.xxwrt-v3 .app-favorite-tile:nth-child(3) .v-icon{color:#168e8b}
 .xxwrt-v3 .app-favorite-tile span{font-size:11px;line-height:16px;font-weight:700;overflow-wrap:anywhere}
 .xxwrt-v3 .app-hub-categories{margin-top:4px}
 .xxwrt-v3 .app-category-card{border:1px solid var(--ui-border)!important;border-radius:16px;margin:0 0 9px;overflow:hidden;background:var(--ui-surface)}
@@ -483,7 +483,7 @@
 .xxwrt-v3.theme-is-dark .v3-health-footer{color:#c3d4e9}
 .xxwrt-v3.theme-is-dark .v3-health-footer>span.v3-health-ok{color:var(--ui-teal)}
 .xxwrt-v3.theme-is-dark .v3-metric{background:var(--ui-surface);color:var(--ui-text)}
-.xxwrt-v3.theme-is-dark .v3-shortcut,.xxwrt-v3.theme-is-dark .app-favorite-tile{background:var(--ui-surface)}
+.xxwrt-v3.theme-is-dark .v3-shortcut,.xxwrt-v3.theme-is-dark .app-favorite-tile{background:var(--ui-surface-2)}
 .xxwrt-v3.theme-is-dark .v3-shortcut .v-icon,.xxwrt-v3.theme-is-dark .app-favorite-tile .v-icon{color:var(--ui-primary)}
 .xxwrt-v3.theme-is-dark .v3-device-actions .v3-inline-action{background:rgba(131,182,255,.14);color:var(--ui-primary)}
 .xxwrt-v3.theme-is-dark .v3-device-actions .v3-inline-action:last-child{background:rgba(98,206,192,.12);color:var(--ui-teal)}
@@ -1011,7 +1011,7 @@
 .xxwrt-v3 .v3-shortcuts{gap:8px}
 .xxwrt-v3 .v3-shortcut{
   min-height:77px;padding:12px 4px;border-radius:15px;
-  background:var(--ui-surface);border:1px solid var(--ui-border);
+  background:#e8f2ff;border:0;
   font-size:11px;line-height:16px;font-weight:700
 }
 .xxwrt-v3 .v3-shortcut .v-icon{font-size:23px}
@@ -1032,7 +1032,7 @@
   border-radius:17px;overflow:hidden
 }
 .xxwrt-v3 .app-category-toggle{
-  min-height:58px
+  min-height:68px
 }
 .xxwrt-v3 .v3-feature-list button,
 .xxwrt-v3 .v3-me-directory .more-menu-item{
@@ -1056,4 +1056,52 @@
   .xxwrt-v3 .liquid-bottom .glass-tab{
     transition:none!important;animation:none!important
   }
+}
+
+
+/* Primary-pages poster fidelity: the Me header sits directly on the
+   screen background, settings are individual grouped rows, and support
+   remains a quiet text link instead of an extra menu card. */
+.xxwrt-v3 .v3-me-page .v3-me-profile{
+  min-height:100px;padding:12px 10px 10px;
+  background:transparent!important;color:var(--ui-text)!important;
+  border:0!important;border-radius:0!important;box-shadow:none!important
+}
+.xxwrt-v3 .v3-me-page .v3-me-profile h2{color:var(--ui-text)}
+.xxwrt-v3 .v3-me-page .v3-me-profile p{color:var(--ui-muted)}
+.xxwrt-v3 .v3-me-page .v3-me-directory{
+  display:flex;flex-direction:column;gap:6px;overflow:visible;
+  padding:0;margin:0;border:0;background:transparent;
+  border-radius:0;box-shadow:none
+}
+.xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-item{
+  min-height:64px;padding:9px 12px;gap:10px;
+  background:var(--ui-surface)!important;
+  border:1px solid var(--ui-border)!important;
+  border-radius:13px!important;box-shadow:none!important
+}
+.xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-item:last-child{
+  border-bottom:1px solid var(--ui-border)!important
+}
+.xxwrt-v3 .v3-me-page .v3-me-support{margin:4px 2px 0}
+.xxwrt-v3 .v3-me-page .v3-me-support button{
+  width:100%;min-height:48px;display:flex;
+  align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 4px;border:0;border-radius:12px;
+  background:transparent;color:var(--ui-primary);
+  font-size:13px;line-height:20px;font-weight:700;text-align:left
+}
+.xxwrt-v3 .v3-me-page .v3-me-support .v-icon{color:var(--ui-primary)}
+.xxwrt-v3 .app-favorites-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.xxwrt-v3 .app-favorite-tile{min-width:0}
+.xxwrt-v3 .app-favorite-tile:focus-visible{
+  outline:2px solid var(--ui-primary);outline-offset:2px
+}
+.xxwrt-v3.theme-is-dark .v3-me-page .v3-me-profile{
+  background:transparent!important;color:var(--ui-text)!important
+}
+.xxwrt-v3.theme-is-dark .v3-me-page .v3-me-profile p{color:var(--ui-muted)}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-me-page .v3-me-profile{min-height:92px;padding-inline:4px}
+  .xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-item{min-height:62px;padding-inline:9px}
 }

@@ -879,7 +879,7 @@ const visibleLegacyTools = computed(() => legacyTools.filter(tool =>
   installedRouterApps.value?.[tool.id] !== false))
 const appSearch = ref('')
 const pluginDirectoryOpen = ref(false)
-const expandedAppCategories = ref(['plugins'])
+const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 // V3 information architecture: a feature has one canonical home. The
@@ -910,7 +910,7 @@ watch(() => selectedDevice.value?.id, id => {
   favoriteEditorOpen.value = false
   appSearch.value = ''
   pluginDirectoryOpen.value = false
-  expandedAppCategories.value = ['plugins']
+  expandedAppCategories.value = []
 }, { immediate: true })
 
 function updateFavorite(toolId) {
@@ -2379,11 +2379,9 @@ onUnmounted(() => {
               </button>
             </div>
             <div class="v3-section-label">支持与更新</div>
-            <div class="more-menu-list v3-me-directory v3-me-support" role="group" aria-label="支持与更新">
-              <button type="button" class="more-menu-item" aria-label="查看关于、更新与反馈" @click="openMoreSection('about')">
-                <span class="more-menu-icon"><v-icon icon="mdi-information-outline" size="23"/></span>
-                <span class="more-menu-copy"><strong>关于 XX-WRT</strong><small>版本、更新、开发者与开源许可</small></span>
-                <v-icon icon="mdi-chevron-right" size="21"/>
+            <div class="v3-me-support">
+              <button type="button" aria-label="查看关于、更新与反馈" @click="openMoreSection('about')">
+                关于 / 更新 / 反馈 <v-icon icon="mdi-chevron-right" size="18"/>
               </button>
             </div>
           </section>
@@ -2774,7 +2772,7 @@ onUnmounted(() => {
             <template v-if="!toolPanel">
               <div class="app-hub">
                 <v-text-field v-model="appSearch" class="app-hub-search"
-                  aria-label="搜索功能与插件" placeholder="搜索功能、插件或配置"
+                  aria-label="搜索功能与插件" placeholder="搜索功能与插件"
                   prepend-inner-icon="mdi-magnify" clearable hide-details
                   variant="solo-filled" flat density="compact"/>
 
@@ -2799,7 +2797,7 @@ onUnmounted(() => {
                 <template v-else>
                   <section class="app-hub-favorites" aria-label="常用应用">
                     <div class="app-hub-section-heading">
-                      <strong>常用快捷</strong>
+                      <strong>我的快捷</strong>
                       <v-btn size="small" variant="text" prepend-icon="mdi-pencil-outline"
                         aria-label="编辑常用应用" @click="favoriteEditorOpen = true">编辑</v-btn>
                     </div>
@@ -2833,7 +2831,6 @@ onUnmounted(() => {
                             : category.id === 'system' ? '软件包、服务、进程、Cron'
                             : category.id === 'diagnostics' ? '网络诊断、日志、安全分析'
                             : '备份、重启、恢复出厂' }}</small></span>
-                        <span class="app-category-count">{{ category.tools.length }} 项</span>
                         <v-icon :icon="expandedAppCategories.includes(category.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                           size="20" class="app-tool-chevron"/>
                       </button>
