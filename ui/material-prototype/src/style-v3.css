@@ -1192,3 +1192,57 @@
   box-shadow:0 10px 30px rgba(0,0,0,.14)!important}
 .xxwrt-v3.theme-is-dark .v3-me-profile h2{color:#eef7ff}
 .xxwrt-v3.theme-is-dark .v3-me-profile p{color:#aab9ce}
+
+
+/* Design A bottom navigation: precisely five evenly sized tap targets.
+ * Vuetify's default centered flex content and max button width can leave an
+ * apparent blank strip on wider phones. Match the five-column glass grid. */
+.xxwrt-v3 .standard-bottom{
+  width:100%!important;
+  left:0!important;
+  right:0!important;
+  box-sizing:border-box;
+  padding:4px 5px calc(4px + env(safe-area-inset-bottom, 0px))!important;
+}
+.xxwrt-v3 .standard-bottom .v-bottom-navigation__content{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  align-items:stretch!important;
+  justify-content:stretch!important;
+  width:100%!important;
+  min-width:0;
+}
+.xxwrt-v3 .standard-bottom .v-bottom-navigation__content>.v-btn{
+  display:flex!important;
+  min-width:0!important;
+  max-width:none!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:48px;
+  flex:none!important;
+  margin:0!important;
+  padding-inline:0!important;
+  justify-content:center!important;
+}
+.xxwrt-v3 .standard-bottom .v-btn__content{
+  width:100%;
+  align-items:center;
+  text-align:center;
+}
+.xxwrt-v3 .liquid-bottom .glass-nav{
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  width:100%;
+  box-sizing:border-box;
+}
+.xxwrt-v3 .liquid-bottom .glass-tab{
+  min-width:0!important;
+  width:100%!important;
+  margin:0!important;
+  justify-self:stretch;
+  text-align:center;
+}
+.xxwrt-v3 .liquid-bottom .glass-tab .v-btn__content{
+  width:100%;
+  align-items:center;
+  text-align:center;
+}
