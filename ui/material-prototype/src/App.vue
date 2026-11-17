@@ -488,10 +488,8 @@ const filteredClients = computed(() => {
     : terminalDevices.value.filter(item => item.sources.includes(terminalView.value))
   return sourceList.filter(item => {
     const online = item.online === true
-    const offline = !online && item.onlineKnown === true
     if (terminalOnlineFilter.value === 'online' && !online) return false
-    if (terminalOnlineFilter.value === 'offline' && !offline) return false
-    if (terminalOnlineFilter.value === 'unknown' && (online || offline)) return false
+    if (terminalOnlineFilter.value === 'other' && online) return false
     return !term || [item.displayName, item.kind, item.ip, item.ip6, item.mac, item.identity.brand?.n]
       .some(value => String(value || '').toLowerCase().includes(term))
   })
@@ -581,7 +579,7 @@ const clientsPrefetching = ref(false)
 let clientFetchToken = 0
 const terminalView = ref('all')
 const terminalOnlineFilter = ref('all')
-const showTerminalSourceFilters = ref(true)
+const showTerminalSourceFilters = ref(false)
 const wifiClientData = ref({ available: false, stations: [] })
 const appFilterUsers = ref({ available: false, users: [] })
 const terminalCategories = computed(() => [
@@ -2638,17 +2636,12 @@ onUnmounted(() => {
           </template>
 
           <template v-if="activeTab === 'clients'">
-            <div class="terminal-screen">
-              <div class="v3-terminal-page-heading">
-                <div><h2>终端设备</h2><p>在线状态依据实际网络证据判断，DHCP 租约不代表在线</p></div>
-                <span class="v3-terminal-total">{{ terminalDevices.length }} 台</span>
-              </div>
+            <div class="terminal-screen" aria-label="终端设备">
               <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
                   { id: 'online', label: '在线', count: terminalDevices.filter(i => i.online).length },
-                  { id: 'offline', label: '离线', count: terminalDevices.filter(i => !i.online && i.onlineKnown).length },
-                  { id: 'unknown', label: '待确认', count: terminalDevices.filter(i => !i.online && !i.onlineKnown).length }
+                  { id: 'other', label: '离线/未知', count: terminalDevices.filter(i => !i.online).length }
                 ]" :key="option.id" type="button"
                   :class="{ 'is-selected': terminalOnlineFilter === option.id }"
                   :aria-pressed="terminalOnlineFilter === option.id"

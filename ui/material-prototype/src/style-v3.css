@@ -196,7 +196,7 @@
 .xxwrt-v3 .app-category-card{box-shadow:0 3px 12px rgba(32,86,164,.035)}
 .xxwrt-v3 .v3-home-details{display:flex;flex-direction:column;gap:13px;margin-top:12px}
 .xxwrt-v3 .v3-home-details>.v-card{margin-top:0!important}
-.xxwrt-v3 .v3-terminal-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+.xxwrt-v3 .v3-terminal-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
   gap:5px;padding:5px;background:var(--design-subtle);border-radius:15px;margin:4px 0 13px}
 .xxwrt-v3 .v3-terminal-status button{min-width:0;min-height:48px;
   border-radius:11px;font-size:11px;font-weight:650;letter-spacing:0;
@@ -322,7 +322,7 @@
 .xxwrt-v3 .v3-home-details{gap:12px;margin-top:12px}
 .xxwrt-v3 .v3-home-details>.v-card{margin-top:0!important}
 /* Devices: source disclosure, separate list cards, explicit state chip. */
-.xxwrt-v3 .v3-terminal-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 12px;background:var(--ui-surface-2);border-radius:14px}
+.xxwrt-v3 .v3-terminal-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 12px;background:var(--ui-surface-2);border-radius:14px}
 .xxwrt-v3 .v3-terminal-status button{min-height:44px;min-width:0;padding:5px 2px;border-radius:11px;font-size:11px;line-height:17px;font-weight:650;color:var(--ui-muted);background:transparent}
 .xxwrt-v3 .v3-terminal-status button.is-selected{background:var(--ui-primary);color:rgb(var(--v-theme-on-primary));box-shadow:0 2px 8px rgba(32,86,164,.1)}
 .xxwrt-v3 .v3-client-search-row{margin:0 0 11px}
@@ -817,25 +817,6 @@
 
 /* Design A parity: visible terminal heading, truthful network states,
    compact profile status, and shared 48dp touch targets. */
-.xxwrt-v3 .v3-terminal-page-heading{
-  display:flex;align-items:flex-start;justify-content:space-between;
-  gap:12px;margin:0 2px 14px
-}
-.xxwrt-v3 .v3-terminal-page-heading>div{min-width:0;flex:1}
-.xxwrt-v3 .v3-terminal-page-heading h2{
-  font-size:20px;line-height:26px;font-weight:700;
-  color:var(--ui-text);margin:0
-}
-.xxwrt-v3 .v3-terminal-page-heading p{
-  font-size:12px;line-height:18px;color:var(--ui-muted);
-  margin:5px 0 0
-}
-.xxwrt-v3 .v3-terminal-total{
-  flex:none;display:inline-flex;align-items:center;justify-content:center;
-  min-height:27px;padding:4px 10px;border-radius:999px;
-  background:var(--ui-surface-2);color:var(--ui-primary);
-  font-size:11px;line-height:16px;font-weight:700
-}
 .xxwrt-v3 .v3-me-profile-copy{min-width:0;flex:1}
 .xxwrt-v3 .v3-me-profile-copy h2{
   overflow-wrap:anywhere;font-size:18px;line-height:25px
@@ -859,8 +840,6 @@
 .xxwrt-v3 .v3-me-support .more-menu-item{width:100%;display:flex;align-items:center;text-align:left}
 .xxwrt-v3 .v3-me-support .more-menu-item>.v-icon:last-child{color:var(--ui-muted)}
 @media(max-width:365px){
-  .xxwrt-v3 .v3-terminal-page-heading{gap:7px}
-  .xxwrt-v3 .v3-terminal-page-heading p{font-size:11px}
   .xxwrt-v3 .v3-me-profile{gap:9px}
   .xxwrt-v3 .v3-me-profile img{width:50px;height:50px}
 }
@@ -1104,4 +1083,19 @@
 @media(max-width:390px){
   .xxwrt-v3 .v3-me-page .v3-me-profile{min-height:92px;padding-inline:4px}
   .xxwrt-v3 .v3-me-page .v3-me-directory .more-menu-item{min-height:62px;padding-inline:9px}
+}
+
+
+/* Primary-pages device composition: the status segmented control begins the
+   content; optional source chips stay behind a clear filter affordance. */
+.xxwrt-v3 .terminal-screen{min-width:0}
+.xxwrt-v3 .v3-terminal-status{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:4px;padding:4px;margin:0 0 13px;border-radius:14px
+}
+.xxwrt-v3 .v3-terminal-status button{min-width:0;min-height:48px}
+.xxwrt-v3 .v3-client-search-row{margin-bottom:12px}
+.xxwrt-v3 .terminal-grid{min-width:0}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-terminal-status button{font-size:11px;letter-spacing:0}
 }
