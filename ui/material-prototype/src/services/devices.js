@@ -34,8 +34,12 @@ export function normalizeRouterAlternates(primaryAddress, values) {
 
 export function loadDevices() {
   let items = []
+  // An explicitly saved empty list is NOT an uninitialized installation.
+  // Otherwise deleting the last router resurrects the old single-host URL
+  // at the next launch, because OLD_HOST_KEY remains for session compatibility.
+  const savedList = localStorage.getItem(LIST_KEY)
   try {
-    const decoded = JSON.parse(localStorage.getItem(LIST_KEY) || '[]')
+    const decoded = JSON.parse(savedList ?? '[]')
     if (Array.isArray(decoded)) {
       items = decoded.filter(item =>
         item && typeof item.id === 'string' &&
@@ -56,8 +60,9 @@ export function loadDevices() {
       }))
     }
   } catch (_) {}
-  // Backwards-compatible with the single-router Material 0.2.x preference.
-  if (items.length === 0 && localStorage.getItem(OLD_HOST_KEY)) {
+  // Import a Material 0.2.x single-host preference only on first migration.
+  // Never import after the saved list exists, even if it is [] or malformed.
+  if (savedList === null && localStorage.getItem(OLD_HOST_KEY)) {
     try {
       const address = normalizeRouterAddress(localStorage.getItem(OLD_HOST_KEY))
       items = [{
