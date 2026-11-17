@@ -13,6 +13,7 @@ import {
 import { CapacitorHttp } from '@capacitor/core'
 import AdvancedManagementPanel from './AdvancedManagementPanel.vue'
 import { assertCleanUci } from '../services/managementCore.js'
+import { probeFirewallRuntime, firewallStatusPresentation } from '../services/firewallRuntime.js'
 
 const props = defineProps({ client: { type: Object, required: true }, kind: { type: String, required: true } })
 const advancedSubpanel = ref(null)
@@ -156,6 +157,7 @@ const carbonMirror = ref('')
 const zt = ref({ available: false, section: '', networks: [], service: null, runtime: [], node: null, runtimeUnavailable: false, virtualDevices: [] })
 const ztEnabled = ref(false), ztNewId = ref(''), ztDelete = ref(null), ztDeleteDialog = ref(false)
 const fw = ref({ available: false, zones: [], redirects: [], rules: [], service: null })
+const firewallRuntime = ref({ state: 'unknown', backend: '', nat: null })
 const fwRuleSearch = ref('')
 const fwRuleFilter = ref('all')
 const fwRuleConfirm = ref(false)
@@ -220,12 +222,11 @@ const statusText = item => {
   if (item.enabled === false) return '已停用'
   return item.enabled === true ? '已启用，运行状态待确认' : '运行状态待确认'
 }
-const firewallStatusText = computed(() => {
-  if (fw.value.service?.running === true) return '规则服务运行中'
-  if (fw.value.service?.enabled === false) return '启动服务已停用'
-  if (fw.value.available) return '已配置（运行待确认）'
-  return '无法读取配置'
-})
+// fw4/fw3 installs netfilter rules and exits; procd.running is not a
+// reliable measure of a firewall being active. Use verified kernel evidence.
+const firewallStatus = computed(() =>
+  firewallStatusPresentation(firewallRuntime.value, fw.value.available, fw.value.service))
+const firewallStatusText = computed(() => firewallStatus.value.text)
 const firewallKernel = ref({
   nat: '待检测', natDetail: '正在读取规则', congestion: '待检测', congestionDetail: ''
 })
@@ -1122,32 +1123,39 @@ async function deleteZt() {
 }
 
 async function loadFirewallKernel(cfg) {
-  const next = { nat: '待确认', natDetail: '未取得运行规则', congestion: '待确认', congestionDetail: '内核参数不可读取' }
-  try {
-    const [tcp, rules] = await Promise.all([
-      props.client.call('file', 'read', { path: '/proc/sys/net/ipv4/tcp_congestion_control' }, true),
-      props.client.call('file', 'exec', {
-        command: '/usr/sbin/nft', params: ['list', 'table', 'inet', 'fw4'], env: null
-      }, true)
-    ])
-    const algorithm = String(tcp?.data || '').trim()
-    if (/^[a-z0-9_-]{2,32}$/i.test(algorithm)) {
-      next.congestion = algorithm.toUpperCase()
-      next.congestionDetail = '内核当前算法'
-    }
-    const rulesText = Number(rules?.code) === 0 ? String(rules?.stdout || '') : ''
-    if (rulesText) {
-      const hasFullcone = /\bfullcone(?:nat)?\b/i.test(rulesText)
-      const hasMasquerade = /\bmasquerade\b/i.test(rulesText)
-      next.nat = hasFullcone ? 'Full Cone NAT' : hasMasquerade ? '普通源地址转换' : '未检测到 NAT 规则'
-      next.natDetail = '内核 nftables 规则'
-    } else {
-      const values = Object.values(cfg?.values || {})
-      const configFullcone = values.some(v => String(v?.fullcone ?? v?.fullcone4 ?? '') === '1')
-      next.nat = configFullcone ? 'Full Cone NAT' : '运行状态待确认'
-      next.natDetail = configFullcone ? '防火墙配置已启用，内核未核实' : '路由器未开放规则读取'
-    }
-  } catch (_) { /* An ACL denial must never be treated as NAT being disabled. */ }
+  // nftables and iptables queries are strictly read-only and use the exact
+  // LuCI firewall-status ACL form. TCP sysctl read is independent so that an
+  // RPC denial does not hide the other field.
+  const [tcp, runtime] = await Promise.all([
+    props.client.call('file', 'read', { path: '/proc/sys/net/ipv4/tcp_congestion_control' }, true)
+      .catch(() => null),
+    probeFirewallRuntime(props.client)
+  ])
+  firewallRuntime.value = runtime
+  const next = {
+    nat: '无法核实', natDetail: '未取得内核运行规则',
+    congestion: '待确认', congestionDetail: '内核参数不可读取'
+  }
+  const algorithm = String(tcp?.data || '').trim()
+  if (/^[a-z0-9_-]{2,32}$/i.test(algorithm)) {
+    next.congestion = algorithm.toUpperCase()
+    next.congestionDetail = '内核当前算法'
+  }
+  if (runtime.state === 'loaded') {
+    next.nat = runtime.nat || '未检测到 NAT 规则'
+    next.natDetail = runtime.backend === 'fw3'
+      ? '已核实内核 iptables 规则'
+      : '已核实内核 nftables 规则'
+  } else if (runtime.state === 'not-loaded') {
+    next.nat = '规则未加载'
+    next.natDetail = '未检测到 fw4 / fw3 防火墙规则'
+  } else {
+    const values = Object.values(cfg?.values || {})
+    const configFullcone = values.some(v =>
+      String(v?.fullcone ?? v?.fullcone4 ?? '') === '1')
+    next.nat = configFullcone ? 'Full Cone NAT（仅配置）' : '无法核实'
+    next.natDetail = '无法读取内核 NAT 规则，请检查防火墙状态读取权限'
+  }
   firewallKernel.value = next
 }
 
@@ -1674,8 +1682,8 @@ defineExpose({ refresh, refreshAction, handleBack })
           <div class="v3-firewall-status-line">
             <h2>防火墙状态</h2>
             <v-chip size="small" variant="tonal"
-              :color="fw.service?.running === true ? 'success' : 'warning'">
-              {{ fw.service?.running === true ? '运行中' : '待确认' }}
+              :color="firewallStatus.color">
+              {{ firewallStatus.label }}
             </v-chip>
           </div>
           <p>{{ firewallStatusText }}</p>

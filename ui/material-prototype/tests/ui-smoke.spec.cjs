@@ -260,7 +260,13 @@ const dataFor = (object, method, params = {}) => {
     return { code: 0, stdout: 'default via 10.12.4.1 dev pppoe-wan\n10.0.0.0/24 via 10.12.4.1 dev pppoe-wan\n192.168.100.88 dev br-lan proto kernel scope link\n' }
   }
   if (object === 'file' && method === 'exec' && params.command === '/usr/sbin/nft') {
-    return { code: 0, stdout: 'table inet fw4 { chain srcnat { fullcone ip saddr 192.168.100.0/24 } }' }
+    if (params.params?.join(' ') !== '--terse --json list ruleset') return null
+    return { code: 0, stdout: JSON.stringify({ nftables: [
+      { table: { family: 'inet', name: 'fw4' } },
+      { chain: { family: 'inet', table: 'fw4', name: 'input', hook: 'input', type: 'filter' } },
+      { chain: { family: 'inet', table: 'fw4', name: 'forward', hook: 'forward', type: 'filter' } },
+      { rule: { family: 'inet', table: 'fw4', chain: 'srcnat', expr: [{ fullcone: null }] } }
+    ] }) }
   }
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli' && !zeroTierCliAllowed) return null
   if (object === 'file' && method === 'exec' && params.command === '/usr/bin/zerotier-cli') {
@@ -1035,6 +1041,10 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await page.getByRole('button', { name: '返回上一页' }).click()
   await openApplication(page, '防火墙')
   await expect(page.getByText('区域策略', { exact: true })).toBeVisible()
+  // fw4 applies kernel rules then exits; runtime status is verified from the
+  // LuCI-ACL-allowed nft JSON ruleset, not rc.list().running.
+  await expect(page.locator('.v3-firewall-status .v-chip')).toContainText('规则已加载')
+  await expect(page.locator('.v3-firewall-status')).toContainText('fw4 / nftables')
   await expect(page.getByText('Full Cone NAT')).toBeVisible()
   await expect(page.getByText('BBR', { exact: true })).toBeVisible()
   await expect(page.locator('.firewall-policy-preview')).toHaveCount(2)
