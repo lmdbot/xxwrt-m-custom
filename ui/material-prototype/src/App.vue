@@ -2305,6 +2305,15 @@ onUnmounted(() => {
                 @click="settingsOpen = false; settingsTrail.length = 0; showDeviceDialog()">添加路由器</v-btn>
             </template>
             <template v-else-if="settingsCategory === 'display'">
+              <header class="v3-design-a-hero v3-settings-design-hero">
+                <h2>显示与外观</h2>
+                <p>主题、底栏导航、界面动效与设备列表布局</p>
+              </header>
+              <div class="v3-design-a-status-card v3-settings-design-status">
+                <v-chip color="primary" variant="tonal" size="small">本机显示设置</v-chip>
+                <p>以下选项在本机即时生效，不会修改路由器配置。</p>
+              </div>
+              <h3 class="v3-design-a-section-title v3-settings-design-section-title">功能分区</h3>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-theme-light-dark" size="23"/></v-avatar>
@@ -2357,6 +2366,11 @@ onUnmounted(() => {
             </template>
 
             <template v-else-if="settingsCategory === 'privacy'">
+              <header class="v3-design-a-hero v3-settings-design-hero">
+                <h2>隐私与安全</h2>
+                <p>本机隐藏设备名称及管理地址，不改变路由器数据</p>
+              </header>
+              <h3 class="v3-design-a-section-title v3-settings-design-section-title">隐私显示选项</h3>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-router" size="23"/></v-avatar>
