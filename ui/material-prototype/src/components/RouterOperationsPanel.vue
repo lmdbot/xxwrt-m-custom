@@ -264,12 +264,13 @@ function handleBack() {
     return 'busy'
   }
   if (busy.value) return 'busy'
+  // Confirmations must close before stepping out of a backup subpage.
+  if (recordDelete.value) { recordDelete.value = null; return 'dialog' }
+  if (serviceConfirm.value) { serviceConfirm.value = null; return 'dialog' }
   if (props.kind === 'backup' && backupSection.value) {
     backupSection.value = ''
     return 'subpage'
   }
-  if (recordDelete.value) { recordDelete.value = null; return 'dialog' }
-  if (serviceConfirm.value) { serviceConfirm.value = null; return 'dialog' }
   return null
 }
 defineExpose({ refreshAction, handleBack })
