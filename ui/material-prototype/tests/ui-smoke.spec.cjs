@@ -477,7 +477,7 @@ test('one saved router opens login automatically and preloads terminal data befo
   await expect.poll(() => terminalReads).toBeGreaterThan(0)
   await page.getByRole('button', { name:'设备', exact:true }).click()
   await expect(page.locator('.terminal-grid')).toBeVisible()
-  await expect(page.locator('.terminal-grid .terminal-device-card').first()).toBeVisible()
+  await expect(page.locator('.terminal-grid .terminal-tile').first()).toBeVisible()
 })
 
 test('multiple saved routers remain on router management at startup', async ({ page }) => {
