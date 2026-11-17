@@ -335,15 +335,16 @@
 .xxwrt-v3 .v3-source-chip.is-selected{background:var(--ui-surface-2);color:var(--ui-primary);border-color:var(--ui-primary)}
 .xxwrt-v3 .v3-active-source{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--ui-muted);font-size:12px;line-height:19px;padding:1px 3px 9px}
 .xxwrt-v3 .v3-active-source button{color:var(--ui-primary);font-weight:700;text-decoration:underline}
-.xxwrt-v3 .terminal-grid{display:flex;flex-direction:column;gap:8px;width:100%;padding:0;border:0;border-radius:0;overflow:visible;background:transparent}
-.xxwrt-v3 .terminal-grid .terminal-tile{flex:0 0 auto;min-height:74px!important;padding:10px 12px!important;margin:0;gap:10px!important;background:var(--ui-surface)!important;border:1px solid var(--ui-border)!important;border-radius:14px!important;box-shadow:0 3px 14px rgba(28,70,130,.035)!important}
-.xxwrt-v3 .terminal-grid .terminal-tile:last-child{border-bottom:1px solid var(--ui-border)!important}
+.xxwrt-v3 .terminal-grid{display:flex;flex-direction:column;gap:0;width:100%;padding:0;border:1px solid var(--ui-border);border-radius:16px;overflow:hidden;background:var(--ui-surface);box-shadow:var(--v3-card-shadow)}
+.xxwrt-v3 .terminal-grid .terminal-tile{flex:0 0 auto;min-height:76px!important;padding:11px 12px!important;margin:0;gap:10px!important;background:transparent!important;border:0!important;border-bottom:1px solid var(--ui-border)!important;border-radius:0!important;box-shadow:none!important}
+.xxwrt-v3 .terminal-grid .terminal-tile:last-child{border-bottom:0!important}
 .xxwrt-v3 .terminal-grid .terminal-tile:active{background:var(--ui-surface-2)!important}
 .xxwrt-v3 .terminal-grid .terminal-name{font-size:14px;font-weight:700}
 .xxwrt-v3 .terminal-grid .terminal-identity{flex:0 0 37px!important;width:37px!important;height:37px!important;border-radius:12px!important}
 .xxwrt-v3 .terminal-grid .terminal-meta{gap:3px}
 .xxwrt-v3 .terminal-grid .terminal-kind{font-size:10px}
-.xxwrt-v3 .terminal-grid .terminal-source-stack{display:none}
+.xxwrt-v3 .terminal-grid .terminal-source-stack{display:flex;max-width:75px;min-width:0}
+.xxwrt-v3 .terminal-grid .terminal-source-stack .v-chip{max-width:100%;font-size:10px}
 .xxwrt-v3 .terminal-grid .terminal-address-line{column-gap:7px;row-gap:2px;line-height:17px}
 .xxwrt-v3 .terminal-grid .terminal-ip{font-size:12px}
 .xxwrt-v3 .terminal-grid .terminal-mac{font-size:10px}
@@ -507,7 +508,7 @@
  .xxwrt-v3 .v3-monitor-subnav{flex-wrap:wrap}
  .xxwrt-v3 .standard-bottom .v-bottom-navigation__content{padding-inline:4px;gap:1px}
 }
-@media(max-width:430px){.xxwrt-v3 .terminal-trailing>.v-icon{display:none}}
+@media(max-width:430px){.xxwrt-v3 .terminal-trailing>.v-icon{display:inline-flex}}
 @media(prefers-reduced-motion:reduce){.xxwrt-v3 .standard-bottom,.xxwrt-v3 .liquid-bottom .glass-host{backdrop-filter:none;-webkit-backdrop-filter:none}.xxwrt-v3 button{transition:none!important}}
 
 
@@ -903,4 +904,19 @@
   .xxwrt-v3 .v3-network-home .v3-feature-list button .v-icon:first-child{padding:7px}
   .xxwrt-v3 .v3-plugin-state-tag{max-width:67px;font-size:9px}
   .xxwrt-v3 .app-category-card .app-tool-row{gap:7px;padding-inline:9px}
+}
+
+/* Device list: contiguous rows and visible provenance match Design A. */
+.xxwrt-v3 .terminal-grid .terminal-tile:focus-visible{
+  outline:2px solid var(--ui-primary);outline-offset:-2px;z-index:1
+}
+.xxwrt-v3 .terminal-grid .terminal-tags{flex-wrap:wrap;gap:4px;margin-top:3px}
+.xxwrt-v3 .terminal-grid .terminal-main-source{font-weight:700}
+.xxwrt-v3 .terminal-grid .terminal-source-stack .v-chip__content{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.xxwrt-v3 .terminal-grid .terminal-trailing>.v-icon{color:var(--ui-muted)!important;flex:none}
+.xxwrt-v3 .top-bar .v3-theme-toggle{min-height:48px;height:48px}
+@media(max-width:390px){
+  .xxwrt-v3 .terminal-grid .terminal-tile{padding:10px 8px!important;gap:7px!important}
+  .xxwrt-v3 .terminal-grid .terminal-source-stack{max-width:62px}
+  .xxwrt-v3 .terminal-grid .terminal-identity{flex-basis:34px!important;width:34px!important;height:34px!important}
 }

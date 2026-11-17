@@ -2608,7 +2608,7 @@ onUnmounted(() => {
                     <small>峰值 {{ bandwidthSummary?.txPeak ?? '--' }}</small>
                   </div>
                 </div>
-                <RealtimeChart v-if="bandwidthHistory.length" :samples="bandwidthHistory"
+                <RealtimeChart v-if="bandwidthHistory.length >= 2" :samples="bandwidthHistory"
                   :series="rxTxSeries" unit=" KB/s" title="实时网络带宽曲线"/>
                 <v-alert v-else class="mt-3" type="info" density="compact" variant="tonal">
                   {{ telemetryError || '正在采集接口字节计数器，至少需要两个采样点才能计算速率' }}
@@ -2618,9 +2618,9 @@ onUnmounted(() => {
                 <div class="section-heading"><h2>系统负载历史</h2>
                   <v-chip variant="tonal" size="small">1 / 5 / 15 分钟</v-chip>
                 </div>
-                <RealtimeChart v-if="loadHistory.length" :samples="loadHistory"
+                <RealtimeChart v-if="loadHistory.length >= 2" :samples="loadHistory"
                   :series="loadSeries" title="系统负载历史曲线"/>
-                <p v-else class="muted-hint">正在采集 system.info 负载信息</p>
+                <p v-else class="muted-hint">正在采集 system.info 负载数据，至少需要两个有效样本</p>
               </v-card>
             </template>
 
