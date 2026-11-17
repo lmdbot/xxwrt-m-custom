@@ -12,7 +12,7 @@ import {
 /** All experimental features are opt-in and never write router UCI. */
 export function useLabController({
   storage, selectedDeviceId, selectedDevice, connected, client, snapshot, sessions,
-  onRefreshSettingsChange, onConnectionSwitched
+  onRefreshSettingsChange, onConnectionSwitched, onAppIconReset
 }) {
   const labSettings = ref(loadLabSettings(storage))
   const labIntervals = computed(() => refreshIntervals(labSettings.value))
@@ -102,7 +102,8 @@ export function useLabController({
     enableRpcTrace(false)
     clearRpcTrace()
     onRefreshSettingsChange()
-    labGlobalMessage.value='已恢复默认：均衡刷新、默认六张卡片、关闭实验开关并清除所有备用入口配对'
+    onAppIconReset?.()
+    labGlobalMessage.value='已恢复默认：均衡刷新、默认六张卡片、默认二次元图标、关闭实验开关并清除所有备用入口配对'
     // The active authenticated session is intentionally not disconnected.
   }
   function candidateFrom(source,url,ignoreTlsErrors=false) {

@@ -5,6 +5,7 @@ import developerAvatar from '../../assets/developer-avatar.webp'
 
 const props = defineProps({
   installedVersion: { type: String, required: true },
+  iconSrc: { type:String, default:'' },
   installedBuild: { type: String, default: '' },
   updateState: { type: Object, required: true }
 })
@@ -31,7 +32,7 @@ const updateStatus = computed(() => {
 <template>
   <div class="about-page" data-testid="about-page">
     <header class="about-hero">
-      <img class="about-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="104" height="104"/>
+      <img class="about-app-icon" :src="iconSrc || appIcon" alt="XX-WRT 应用图标" width="104" height="104"/>
       <h2 class="about-app-name">XX-WRT</h2>
       <div class="about-version-actions">
         <button type="button" class="about-version-pill" aria-label="查看应用版本详情"

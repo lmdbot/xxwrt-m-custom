@@ -3,6 +3,12 @@ import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, sha
 import { useTheme, useDisplay } from 'vuetify'
 import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './services/featureCatalogV3.js'
 import { useLabController } from './services/useLabController.js'
+import {
+  APP_ICON_PRESETS, DEFAULT_APP_ICON, loadAppIconChoice,
+  loadCustomAppIcon, saveAppIconChoice, storeCustomAppIcon
+} from './services/appIconPreferences.js'
+import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
+import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
@@ -156,6 +162,68 @@ const loginRemember = ref(true)
 const loginIgnoreTls = ref(false)
 const isNative = Capacitor.isNativePlatform()
 const UiChrome = registerPlugin('UiChrome')
+const LauncherIcon = registerPlugin('LauncherIcon')
+const appIconChoices = APP_ICON_PRESETS.map(item => ({
+  ...item,
+  src:item.id === 'anime' ? appIcon
+    : 'data:image/png;base64,' + (item.id === 'classic' ? classicAppIconBase64.trim() : openwrtAppIconBase64.trim())
+}))
+const appIconChoice = ref(loadAppIconChoice(localStorage))
+const customAppIconSrc = ref(loadCustomAppIcon(localStorage) || '')
+const appIconBusy = ref(false)
+const appIconMessage = ref('')
+const currentAppIconSrc = computed(() =>
+  appIconChoice.value === 'custom' && customAppIconSrc.value ? customAppIconSrc.value
+    : appIconChoices.find(item => item.id === appIconChoice.value)?.src || appIcon
+)
+async function selectAppIcon(id) {
+  if (appIconBusy.value || !['anime','classic','openwrt','custom'].includes(id)) return
+  if (id === 'custom' && !customAppIconSrc.value) {
+    appIconMessage.value = '请先上传一张图片'
+    return
+  }
+  appIconBusy.value = true
+  try {
+    if (isNative && id !== 'custom') await LauncherIcon.setPreset({id})
+    if (!saveAppIconChoice(localStorage,id)) throw new Error('无法保存图标偏好')
+    appIconChoice.value = id
+    appIconMessage.value = id === 'custom'
+      ? '图片已应用到应用内；如需出现在手机桌面，请点击添加自定义桌面快捷方式'
+      : isNative
+        ? '已切换桌面预置图标；桌面启动器可能需要片刻刷新'
+        : '已切换应用内图标；网页版不能更改手机桌面图标'
+  } catch (error) { appIconMessage.value = '切换失败：' + shortError(error) }
+  finally { appIconBusy.value = false }
+}
+function uploadAppIcon(dataUrl) {
+  if (!storeCustomAppIcon(localStorage,dataUrl)) {
+    appIconMessage.value = '上传图标保存失败，请检查图片大小与本机存储空间'
+    return
+  }
+  customAppIconSrc.value = dataUrl
+  void selectAppIcon('custom')
+}
+async function pinCustomAppIcon() {
+  if (!isNative || !customAppIconSrc.value || appIconBusy.value) return
+  appIconBusy.value = true
+  try {
+    await LauncherIcon.pinCustomShortcut({pngBase64:customAppIconSrc.value.split(',')[1]})
+    appIconMessage.value = '已请求添加自定义桌面快捷方式，请在系统桌面弹窗中确认；原应用图标不受影响'
+  } catch(error) { appIconMessage.value = '添加快捷方式失败：' + shortError(error) }
+  finally { appIconBusy.value = false }
+}
+async function restoreDefaultAppIcon() {
+  appIconChoice.value = DEFAULT_APP_ICON
+  customAppIconSrc.value = ''
+  if (isNative) {
+    try {
+      await LauncherIcon.setPreset({id:DEFAULT_APP_ICON})
+      appIconMessage.value = '已恢复默认二次元桌面图标'
+    } catch(error) {
+      appIconMessage.value = '应用内图标已恢复，但桌面图标复位失败：' + shortError(error)
+    }
+  } else appIconMessage.value = '已恢复默认二次元图标'
+}
 const ApkDownloader = registerPlugin('ApkDownloader')
 const installedVersion = ref(packageInfo.version)
 const installedBuild = ref('')
@@ -624,6 +692,7 @@ const {
   storage: localStorage, selectedDeviceId, selectedDevice, connected,
   client, snapshot, sessions,
   onRefreshSettingsChange: () => restartLabRefreshTimers(),
+  onAppIconReset: () => { void restoreDefaultAppIcon() },
   onConnectionSwitched: ({ automatic }) => {
     if (automatic) refreshQueued = true
     else void refreshDashboard()
@@ -2165,6 +2234,14 @@ async function rebootRouter() {
 
 onMounted(() => {
   localizationController = mountLocalization(document.body, appLocale.value)
+  if (isNative) {
+    void LauncherIcon.getPreset().then(({id}) => {
+      if (appIconChoice.value !== 'custom' && APP_ICON_PRESETS.some(item => item.id === id)) {
+        appIconChoice.value = id
+        saveAppIconChoice(localStorage,id)
+      }
+    }).catch(() => {})
+  }
   void (async () => {
     if (isNative) {
       try {
@@ -2446,6 +2523,9 @@ onUnmounted(() => {
                 :smart-busy="labSmartBusy" :smart-message="labSmartMessage"
                 :global-message="labGlobalMessage" :rpc-message="labRpcMessage"
                 :health-rows="labHealthRows" :deep-rows="labDeepRows" :health-busy="labHealthBusy"
+                :icon-choices="appIconChoices" :icon-choice="appIconChoice"
+                :icon-custom-src="customAppIconSrc" :icon-busy="appIconBusy"
+                :icon-message="appIconMessage" :icon-is-native="isNative"
                 @set-profile="setLabRefreshProfile" @set-interval="setLabCustomInterval"
                 @toggle-cards="value => applyLabSettings({ cardsEnabled:value })"
                 @toggle-card="setLabCardVisibility" @move-card="moveLabCard" @reset-cards="resetLabCards"
@@ -2454,7 +2534,9 @@ onUnmounted(() => {
                 @pair-alternate="pairLabAlternative" @remove-alternate="unpairLabAlternative"
                 @switch-route="() => swapLabConnection()"
                 @toggle-health="value => applyLabSettings({ healthEnabled:value })"
-                @check-health="runLabHealthCheck" @reset-all="resetLabAll"/>
+                @check-health="runLabHealthCheck" @reset-all="resetLabAll"
+                @icon-select="selectAppIcon" @icon-upload="uploadAppIcon"
+                @icon-pin-shortcut="pinCustomAppIcon"/>
             </template>
 
             <template v-else-if="settingsCategory === 'help'">
@@ -2477,7 +2559,7 @@ onUnmounted(() => {
               </section>
             </template>
             <template v-else-if="settingsCategory === 'about'">
-              <AboutPage :installed-version="installedVersion" :installed-build="installedBuild"
+              <AboutPage :installed-version="installedVersion" :installed-build="installedBuild" :icon-src="currentAppIconSrc"
                 :update-state="{
                   latestRelease, available: updateAvailable, checking: updateChecking,
                   checked: updateChecked, error: updateError, notice: updateNotice,
@@ -2503,7 +2585,7 @@ onUnmounted(() => {
             <header class="v3-me-profile">
               <button type="button" class="v3-me-about-entry"
                 aria-label="打开关于 XX-WRT、版本更新与反馈" @click="openMoreSection('about')">
-                <img class="more-app-icon" :src="appIcon" alt="XX-WRT 应用图标" width="64" height="64"/>
+                <img class="more-app-icon" :src="currentAppIconSrc" alt="XX-WRT 应用图标" width="64" height="64"/>
                 <span class="v3-me-profile-copy">
                   <strong class="v3-me-profile-title">XX-WRT 管理器</strong>
                   <span class="v3-me-profile-version">v{{ installedVersion }} · OpenWrt / QWRT</span>

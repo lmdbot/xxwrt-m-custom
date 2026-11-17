@@ -5,6 +5,7 @@
 export const LAB_PREFS_KEY = 'xxwrt_lab_features_v1'
 export const LAB_CARDS_KEY = 'xxwrt_lab_overview_cards_v1'
 export const LAB_ROUTES_KEY = 'xxwrt_lab_paired_routes_v1'
+import { APP_ICON_CHOICE_KEY, APP_ICON_CUSTOM_KEY } from './appIconPreferences.js'
 export const OVERVIEW_METRICS = Object.freeze(['CPU 占用', '内存占用', '存储', '温度', '终端', '联网监测'])
 export const REFRESH_PRESETS = Object.freeze({
   balanced: { overview: 12000, telemetry: 3000, devices: 15000 },
@@ -51,7 +52,7 @@ export function saveLabSettings(storage, value) {
  */
 export function resetAllLabPreferences(storage) {
   try {
-    for (const key of [LAB_PREFS_KEY, LAB_CARDS_KEY, LAB_ROUTES_KEY]) storage.removeItem(key)
+    for (const key of [LAB_PREFS_KEY, LAB_CARDS_KEY, LAB_ROUTES_KEY, APP_ICON_CHOICE_KEY, APP_ICON_CUSTOM_KEY]) storage.removeItem(key)
     return true
   } catch { return false }
 }
