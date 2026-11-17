@@ -566,6 +566,7 @@ const toolbarSection = computed(() => {
   return ''
 })
 function closeAppTool() {
+  if (toolPanel.value === 'packages' && softwarePackagesPanel.value?.handleBack?.()) return
   if (routerOperationsToolIds.includes(toolPanel.value) && routerOperationsPanel.value?.handleBack?.()) return
   if (advancedToolIds.includes(toolPanel.value) && advancedManagementPanel.value?.handleBack?.()) return
   if (routerAppToolIds.includes(toolPanel.value) && routerAppsPanel.value?.handleBack?.()) return
@@ -893,6 +894,7 @@ const hasAppSearch = computed(() => String(appSearch.value ?? '').trim().length 
 const pluginDirectoryOpen = ref(false)
 const expandedAppCategories = ref([])
 const favoriteEditorOpen = ref(false)
+const terminalDisplayMenuOpen = ref(false)
 const appFavoriteIds = ref([...DEFAULT_APP_FAVORITES])
 // V3 information architecture: a feature has one canonical home. The
 // favorites/search still accept legacy IDs, so existing per-router shortcuts
@@ -1220,7 +1222,9 @@ function navigateBottomTab(tab) {
   if (!pages.some(page => page.id === tab)) return
   if (viewMode.value === 'list' && tab !== 'home' && tab !== 'more') return
   if (activeTab.value === 'apps' && toolPanel.value) {
-    const blocked = advancedToolIds.includes(toolPanel.value)
+    const blocked = toolPanel.value === 'packages'
+      ? softwarePackagesPanel.value?.handleBack?.() :
+      advancedToolIds.includes(toolPanel.value)
       ? advancedManagementPanel.value?.handleBack?.() :
       routerOperationsToolIds.includes(toolPanel.value)
         ? routerOperationsPanel.value?.handleBack?.() :
@@ -1308,6 +1312,13 @@ function closeSettingsPage() {
 // Back: dialogs → More subpage → More hub → app tool → router list → minimize.
 async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
+  // Consume transient menus and dialogs before changing any page or router.
+  if (terminalDisplayMenuOpen.value) { terminalDisplayMenuOpen.value = false; return 'dialog' }
+  if (updateDialog.value) {
+    if (downloadBusy.value) return 'busy'
+    updateDialog.value = false
+    return 'dialog'
+  }
   // The Tools > My Shortcuts editor is an overlay, not a navigation level.
   // Consume the Android back gesture here so the Tools hub stays visible.
   if (favoriteEditorOpen.value) { favoriteEditorOpen.value = false; return 'dialog' }
@@ -1326,7 +1337,11 @@ async function handleBack() {
     return 'dialog'
   }
   if (qosWriteConfirm.value) { qosWriteConfirm.value = false; return 'dialog' }
-  if (selectedClient.value) { selectedClient.value = null; return 'dialog' }
+  if (selectedClient.value) {
+    if (terminalSaving.value) return 'busy'
+    selectedClient.value = null
+    return 'dialog'
+  }
   if (loginDialog.value) { loginDialog.value = false; return 'dialog' }
   if (deviceDialog.value) { deviceDialog.value = false; return 'dialog' }
   // A nested network editor is a separate Vuetify overlay. Consume Android
@@ -1349,7 +1364,9 @@ async function handleBack() {
   }
 
   if (viewMode.value === 'detail' && activeTab.value === 'apps' && toolPanel.value) {
-    const blocked = routerOperationsToolIds.includes(toolPanel.value)
+    const blocked = toolPanel.value === 'packages'
+      ? softwarePackagesPanel.value?.handleBack?.() :
+      routerOperationsToolIds.includes(toolPanel.value)
       ? routerOperationsPanel.value?.handleBack?.() :
       advancedToolIds.includes(toolPanel.value)
         ? advancedManagementPanel.value?.handleBack?.() :
@@ -2673,7 +2690,7 @@ onUnmounted(() => {
                       :color="terminalView !== 'all' ? 'primary' : undefined"
                       :aria-expanded="showTerminalSourceFilters" aria-controls="v3-terminal-sources"
                       aria-label="展开或收起终端来源筛选" @click.stop="showTerminalSourceFilters = !showTerminalSourceFilters"/>
-                    <v-menu location="bottom end">
+                    <v-menu v-model="terminalDisplayMenuOpen" location="bottom end">
                       <template #activator="{ props }">
                         <v-btn v-bind="props" icon="mdi-dots-vertical" size="small" variant="text"
                           aria-label="终端显示与排序"/>
