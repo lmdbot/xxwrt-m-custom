@@ -1679,3 +1679,32 @@
   .xxwrt-v3 .v3-network-kpis--tidy .v3-connection-heading small{font-size:11px}
   .xxwrt-v3 .v3-network-kpis--tidy .v3-connection-address{font-size:13px}
 }
+
+
+/* 3.0.9: group the actual WAN/WAN6 network state separately from LAN services. */
+.xxwrt-v3 .v3-network-sections{display:flex;flex-direction:column;gap:16px;min-width:0}
+.xxwrt-v3 .v3-network-section{display:flex;flex-direction:column;gap:9px;min-width:0}
+.xxwrt-v3 .v3-network-group-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:1px 2px}
+.xxwrt-v3 .v3-network-group-title{display:flex;align-items:center;gap:8px;min-width:0}
+.xxwrt-v3 .v3-network-group-title .v-icon{flex:none;color:var(--ui-primary)}
+.xxwrt-v3 .v3-network-group-title h3{margin:0;font-size:15px;line-height:22px;font-weight:750;color:var(--ui-text)}
+.xxwrt-v3 .v3-network-section-panel{min-width:0;overflow:hidden;background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:14px;padding:5px 12px}
+.xxwrt-v3 .v3-network-section-row{display:grid;grid-template-columns:minmax(92px,auto) minmax(0,1fr);align-items:center;gap:10px;min-height:39px;padding:9px 0;min-width:0}
+.xxwrt-v3 .v3-network-section-row+.v3-network-section-row{border-top:1px solid rgba(100,134,174,.12)}
+.xxwrt-v3 .v3-network-row-label{font-size:11px;line-height:18px;color:var(--ui-muted);white-space:nowrap}
+.xxwrt-v3 .v3-network-row-value{text-align:right;font-size:12px;line-height:19px;font-weight:700;color:var(--ui-text);min-width:0;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.xxwrt-v3 .v3-network-section-row--ipv6{display:flex;flex-direction:column;align-items:stretch;gap:7px}
+.xxwrt-v3 .v3-network-ipv6-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.xxwrt-v3 .v3-network-ipv6-value{font-size:12px;line-height:20px;font-weight:650;color:var(--ui-text);overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.xxwrt-v3 .v3-network-section-row .v3-network-dns-values{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:1px 9px}
+.xxwrt-v3 .v3-network-section-row .v3-network-dns-values span{font-size:12px;line-height:19px;color:var(--ui-text)}
+.xxwrt-v3 .v3-lan-service-badge{justify-self:end;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;padding:4px 11px;font-size:11px;line-height:18px;font-weight:700;color:var(--ui-muted);background:rgba(112,127,148,.14)}
+.xxwrt-v3 .v3-lan-service-badge.is-on{color:#087e62;background:rgba(14,165,127,.13)}
+.xxwrt-v3.theme-is-dark .v3-lan-service-badge.is-on{color:#6cdec3;background:rgba(48,184,145,.18)}
+@media(max-width:390px){
+  .xxwrt-v3 .v3-network-sections{gap:13px}
+  .xxwrt-v3 .v3-network-section-panel{padding:4px 10px}
+  .xxwrt-v3 .v3-network-section-row{gap:7px}
+  .xxwrt-v3 .v3-network-row-label{font-size:10.5px}
+  .xxwrt-v3 .v3-network-row-value,.xxwrt-v3 .v3-network-ipv6-value{font-size:11.5px}
+}
