@@ -13,8 +13,9 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 /**
- * Scoped, permission-free sensor access. Runs only while overview is visible,
- * the user allows interface animation, and the app is in the foreground.
+ * Permission-free accelerometer + gravity sampling. Android sources expose
+ * linear acceleration when possible, otherwise an accelerometer high-pass
+ * estimate (rather than losing shake entirely on some device families).
  */
 @CapacitorPlugin(name = "WaterMotion")
 public class WaterMotionPlugin extends Plugin implements SensorEventListener {
@@ -23,8 +24,11 @@ public class WaterMotionPlugin extends Plugin implements SensorEventListener {
     private Sensor acceleration;
     private boolean wanted = false;
     private boolean registered = false;
+    private boolean gravityInitialized = false;
     private float gravityX = 0;
+    private float gravityY = 0;
     private float accelerationX = 0;
+    private float accelerationY = 0;
     private long lastEventAt = 0;
 
     private synchronized boolean registerSensors() {
@@ -33,12 +37,14 @@ public class WaterMotionPlugin extends Plugin implements SensorEventListener {
             sensors = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
         }
         if (sensors == null) return false;
+        Sensor accelerometer = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         gravity = sensors.getDefaultSensor(Sensor.TYPE_GRAVITY);
-        if (gravity == null) gravity = sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        if (gravity == null) gravity = accelerometer;
         acceleration = sensors.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+        if (acceleration == null) acceleration = accelerometer;
         if (gravity == null) return false;
         registered = sensors.registerListener(this, gravity, SensorManager.SENSOR_DELAY_GAME);
-        if (registered && acceleration != null) {
+        if (registered && acceleration != null && acceleration != gravity) {
             sensors.registerListener(this, acceleration, SensorManager.SENSOR_DELAY_GAME);
         }
         return registered;
@@ -47,9 +53,12 @@ public class WaterMotionPlugin extends Plugin implements SensorEventListener {
     private synchronized void unregisterSensors() {
         if (sensors != null) sensors.unregisterListener(this);
         registered = false;
+        gravityInitialized = false;
         lastEventAt = 0;
         gravityX = 0;
+        gravityY = 0;
         accelerationX = 0;
+        accelerationY = 0;
     }
 
     @PluginMethod
@@ -86,17 +95,45 @@ public class WaterMotionPlugin extends Plugin implements SensorEventListener {
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (!registered || event.values.length < 1) return;
-        if (event.sensor == gravity) gravityX = event.values[0];
-        else if (event.sensor == acceleration) accelerationX = event.values[0];
-        else return;
+        if (!registered || event.values.length < 2) return;
+        if (event.sensor == gravity) {
+            if (gravity.getType() == Sensor.TYPE_ACCELEROMETER) {
+                // First reading calibrates immediately to avoid a large false shake.
+                if (!gravityInitialized) {
+                    gravityX = event.values[0];
+                    gravityY = event.values[1];
+                    gravityInitialized = true;
+                } else {
+                    gravityX = gravityX * .89f + event.values[0] * .11f;
+                    gravityY = gravityY * .89f + event.values[1] * .11f;
+                }
+            } else {
+                gravityX = event.values[0];
+                gravityY = event.values[1];
+                gravityInitialized = true;
+            }
+            if (gravity == acceleration) {
+                accelerationX = event.values[0] - gravityX;
+                accelerationY = event.values[1] - gravityY;
+            }
+        } else if (event.sensor == acceleration) {
+            if (acceleration.getType() == Sensor.TYPE_ACCELEROMETER) {
+                accelerationX = event.values[0] - gravityX;
+                accelerationY = event.values[1] - gravityY;
+            } else {
+                accelerationX = event.values[0];
+                accelerationY = event.values[1];
+            }
+        } else return;
+
         long now = SystemClock.elapsedRealtimeNanos();
-        // At most ~30 events/sec even on 100Hz+ sensors.
+        // Avoid flooding the bridge even on 100-400Hz sensor hardware.
         if (now - lastEventAt < 33_000_000L) return;
         lastEventAt = now;
         JSObject sample = new JSObject();
         sample.put("gravityX", gravityX);
         sample.put("accelerationX", accelerationX);
+        sample.put("accelerationY", accelerationY);
         notifyListeners("sample", sample);
     }
 
