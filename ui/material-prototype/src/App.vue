@@ -13,7 +13,7 @@ import {
 import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
 import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
-import { loadPairedRoutes, savePairedRoutes, removePairedRoute } from './services/labFeatures.js'
+import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -1975,6 +1975,38 @@ async function confirmDeleteDevice() {
   if (id === selectedDeviceId.value) resetSession()
 }
 
+/** The saved main endpoint is always attempted first. A fallback endpoint
+ * is eligible for automatic password login only after its router identity was
+ * verified in an earlier authenticated session. Never send a saved secret to
+ * an arbitrary, merely typed backup hostname. */
+async function loginWithRouterEndpoints(device,password) {
+  const trusted = loadPairedRoutes(localStorage,device.id)
+    .filter(item => (device.alternateAddresses || []).includes(item.address))
+  const primary = new RouterClient(device.address,{ignoreTlsErrors:device.ignoreTlsErrors})
+  try {
+    await primary.login(device.username,password)
+    return primary
+  } catch(error) {
+    if (!/无法连接|网络通信失败|timeout|timed.out|ECONN|failed to fetch|network error|HTTP 50/i.test(shortError(error)) ||
+        !device.autoSwitch || !trusted.length) throw error
+    const reasons=[shortError(error)]
+    for (const route of trusted) {
+      const alternative=new RouterClient(route.address,{ignoreTlsErrors:device.ignoreTlsErrors})
+      try {
+        await alternative.login(device.username,password)
+        const identity=await readRouterIdentity(alternative)
+        if (!sameRouterIdentity(route.identity,identity))
+          throw new Error('备用入口硬件身份不一致')
+        return alternative
+      } catch(fallbackError) {
+        alternative.logout()
+        reasons.push(route.address+': '+shortError(fallbackError))
+      }
+    }
+    throw new Error('主入口和已验证备用入口均无法连接：'+reasons.join('；'))
+  }
+}
+
 async function refreshDeviceStatuses() {
   if (probeBusy.value) return
   probeBusy.value = true
@@ -1994,9 +2026,7 @@ async function refreshDeviceStatuses() {
           try {
             const secret = await fetchDevicePassword(d.id)
             if (secret) {
-              const session = new RouterClient(d.address, { ignoreTlsErrors: d.ignoreTlsErrors })
-              await session.login(d.username, secret)
-              api = session
+              api = await loginWithRouterEndpoints(d,secret)
               sessions.set(d.id, api)
             }
           } catch (_) { api = null }
@@ -2086,6 +2116,7 @@ async function openDevice(device) {
     viewMode.value = 'detail'
     activeTab.value = 'home'
     const fresh = applyRouterPreload(device.id, cached)
+    if (device.alternateAddresses?.length) void verifyRouterAlternates(device.alternateAddresses)
     void preloadRouterExtras(device.id, cached)
     void preloadRouterClients(device.id, cached)
     if (!fresh) void refreshDashboard()
@@ -2115,9 +2146,8 @@ async function connect() {
   try {
     const device = selectedDevice.value
     if (!device) throw new Error('请先从设备列表选择路由器')
-    const api = new RouterClient(device.address, { ignoreTlsErrors: loginIgnoreTls.value })
     const password = form.password
-    await api.login(device.username, password)
+    const api = await loginWithRouterEndpoints(device,password)
     client.value = api
     sessions.set(device.id, api)
     connected.value = true
@@ -2126,9 +2156,8 @@ async function connect() {
     activeTab.value = 'home'
     deviceStatuses[device.id] = 'reachable'
     localStorage.setItem(storage.host, api.baseUrl)
-    // TLS exception is remembered per saved router, independently of the password.
-    devices.value = saveDevices(devices.value.map(d => d.id === device.id
-      ? { ...d, ignoreTlsErrors: api.ignoreTlsErrors } : d))
+    // TLS exception is configured only in the router editor; switching to a
+    // backup URL must never rewrite the primary endpoint's certificate policy.
     if (isNative && loginRemember.value) {
       try {
         await storeDevicePassword(device.id, password)
@@ -2145,6 +2174,7 @@ async function connect() {
     // Start device-list discovery immediately after authentication; it must
     // not wait for a visit to the Devices tab or for Overview to finish.
     void preloadRouterClients(device.id, api)
+    if (device.alternateAddresses?.length) void verifyRouterAlternates(device.alternateAddresses)
     await Promise.all([refreshDashboard(), refreshInstalledRouterApps(api)])
   } catch (e) {
     errorMessage.value = shortError(e)
