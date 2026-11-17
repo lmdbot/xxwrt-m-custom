@@ -70,4 +70,23 @@ export default Object.freeze({
   "已连接": "Connected",
   "查看设备列表": "View router list",
   "路由器管理、连接与系统信息": "Router management, connections & system information",
+
+  // Current Design A Me labels, accessibility attributes and functional settings
+  // use the complete Chinese category names; old shortened aliases remain above.
+  "显示与外观": "Display & appearance",
+  "隐私与安全": "Privacy & security",
+  "刷新与同步": "Refresh & sync",
+  "打开显示与外观设置": "Open display & appearance settings",
+  "打开隐私与安全设置": "Open privacy & security settings",
+  "打开刷新与同步设置": "Open refresh & sync settings",
+  "本机显示设置": "Local display settings",
+  "主题、底栏导航、界面动效与设备列表布局": "Theme, bottom navigation, motion & device list layout",
+  "以下选项在本机即时生效，不会修改路由器配置。": "Changes apply locally without altering router configuration.",
+  "隐私显示选项": "Privacy display options",
+  "本机隐藏设备名称及管理地址，不改变路由器数据": "Hide names and management addresses locally without changing router data",
+  "常用快捷": "Quick access",
+  "分类工具": "Tool categories",
+  "没有找到匹配的应用或功能。": "No matching apps or features.",
+  "CPU": "CPU",
+  "内存": "Memory",
 })
