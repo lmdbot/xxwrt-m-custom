@@ -960,9 +960,16 @@ const appSearchActive = computed(() => Boolean(String(appSearch.value || '').tri
 const displayedAppCategories = computed(() => {
   if (!appSearchActive.value) return appCategories.value
   const matches = new Set(appSearchResults.value.map(tool => tool.id))
-  return appCategories.value
+  const groups = appCategories.value
     .map(group => ({ ...group, tools: group.tools.filter(tool => matches.has(tool.id)) }))
     .filter(group => group.tools.length)
+  // Search is global: network/device-owned features must remain discoverable
+  // even though the default Tools tab doesn't duplicate their primary menus.
+  const groupedIds = new Set(groups.flatMap(group => group.tools.map(tool => tool.id)))
+  const otherTools = appSearchResults.value.filter(tool => !groupedIds.has(tool.id))
+  return otherTools.length
+    ? [...groups, { id: 'cross-sections', title: '其他相关功能', tools: otherTools }]
+    : groups
 })
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
