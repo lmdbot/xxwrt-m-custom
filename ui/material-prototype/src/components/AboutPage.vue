@@ -233,7 +233,7 @@ const updateStatusIcon = computed(() => {
   pointer-events:none
 }
 .about-download-meter-label{position:relative;z-index:1;color:#fff;font-size:12px;font-weight:750;line-height:1}
-.about-update-status .about-download-meter-spinner{color:#fff;animation:about-download-spin 1.1s linear infinite}
+.about-hero .about-update-status .about-download-meter-spinner{color:#fff;animation:about-download-spin 1.1s linear infinite}
 @keyframes about-download-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){
   .about-download-meter-fill{transition:none}
