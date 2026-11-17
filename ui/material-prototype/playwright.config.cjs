@@ -3,9 +3,9 @@ module.exports = defineConfig({
   testDir: './tests',
   timeout: 60000,
   retries: 1,
-  // Tests use isolated Playwright browser contexts; run two at once to
-  // reduce Android CI latency without overloading the hosted runner.
-  workers: 2,
+  // Run four isolated Chromium test workers in CI to shorten the
+  // UI regression gate after APK signing; keep local runs conservative.
+  workers: process.env.CI ? 4 : 2,
   use: {
     baseURL: 'http://127.0.0.1:5173',
     ...devices['Pixel 7'],
