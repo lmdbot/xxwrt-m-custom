@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useTheme, useDisplay } from 'vuetify'
 import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './services/featureCatalogV3.js'
+import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
 import { Browser } from '@capacitor/browser'
@@ -515,6 +516,7 @@ const colorMode = ref(localStorage.getItem(storage.theme) || 'system')
 const activeTab = ref('home')
 const networkOriginTab = ref('') // preserve originating tab for network quick actions
 const homeDetailsExpanded = ref(false)
+const overviewFocusedMetric = ref('')
 const previousContentTab = ref('home')
 // V3 keeps legacy panel identifiers/RPC flows, while the visible navigation
 // follows the feature's real home section instead of forcing the Tools tab.
@@ -543,6 +545,30 @@ function openOverviewInterfaces() {
   networkOriginTab.value = 'home'
   openNetworkSection('interfaces')
   activeTab.value = 'network'
+}
+// KPI navigation expands the detail and aligns its actual destination in view.
+async function focusHomeDetail(id) {
+  homeDetailsExpanded.value = true
+  await nextTick()
+  document.getElementById(id)?.scrollIntoView({ behavior: 'auto', block: 'center' })
+}
+async function toggleHomeDetails() {
+  homeDetailsExpanded.value = !homeDetailsExpanded.value
+  if (homeDetailsExpanded.value) await focusHomeDetail('overview-system-details')
+}
+async function openOverviewMetric(label) {
+  if (!connected.value) return
+  if (label === '终端') { navigateBottomTab('clients'); return }
+  if (label === '联网监测') { launchV3Tool('detector'); return }
+  const destinations = {
+    'CPU 占用': 'overview-detail-cpu',
+    '内存占用': 'overview-detail-memory',
+    '温度': 'overview-detail-temperature',
+    '存储': 'overview-detail-storage'
+  }
+  if (!destinations[label]) return
+  overviewFocusedMetric.value = label
+  await focusHomeDetail(destinations[label])
 }
 function launchV3Tool(id) {
   if (!connected.value || toolLoading.value) return
@@ -832,6 +858,7 @@ const parentalData = ref({ available: false, base: {}, status: {}, advanced: {},
 const parentalForm = reactive({ enable: false, record_enable: false, work_mode: 0 })
 const parentalSaving = ref(false)
 const networkHardware = ref({ wiredAvailable: false, wirelessAvailable: false, wired: [], wireless: [] })
+const lanDhcpStatus = ref({ dhcp4: null, dhcp6: null })
 const networkInterfacesPanel = ref(null)
 const networkView = ref('interfaces')
 const networkInterfaces = computed(() =>
@@ -1661,6 +1688,7 @@ async function openDevice(device) {
   loginIgnoreTls.value = Boolean(device.ignoreTlsErrors && device.address.startsWith('https://'))
   // Never show snapshot data from another router while switching.
   snapshot.value = null
+  lanDhcpStatus.value = { dhcp4: null, dhcp6: null }
   const cached = sessions.get(device.id)
   if (cached?.session) {
     client.value = cached
@@ -1752,11 +1780,14 @@ async function refreshDashboard() {
   refreshing.value = true
   errorMessage.value = ''
   try {
-    const [dashboardResult, partitionsResult, hardwareResult] = await Promise.allSettled([
-      readDashboard(client.value), readDiskUsage(client.value), readNetworkHardware(client.value)
+    const [dashboardResult, partitionsResult, hardwareResult, dhcpResult] = await Promise.allSettled([
+      readDashboard(client.value), readDiskUsage(client.value),
+      readNetworkHardware(client.value), readLanDhcpStatus(client.value)
     ])
     if (dashboardResult.status === 'rejected') throw dashboardResult.reason
     snapshot.value = dashboardResult.value
+    lanDhcpStatus.value = dhcpResult.status === 'fulfilled'
+      ? dhcpResult.value : { dhcp4: null, dhcp6: null }
     if (selectedDeviceId.value) {
       try { recordMetricSample(localStorage, selectedDeviceId.value, snapshot.value) }
       catch (_) { /* Private mode or storage quota: never block dashboard refresh. */ }
@@ -2390,7 +2421,6 @@ onUnmounted(() => {
                   releaseNotesLoading, isNative
                 }"
                 @show-version-details="versionDetailsDialog = true"
-                @copy-version="copyAboutVersion"
                 @check-updates="checkAppUpdates()"
                 @download-latest="downloadLatestApk"
                 @cancel-download="cancelApkDownload"
@@ -2490,9 +2520,9 @@ onUnmounted(() => {
             <section v-if="activeTab === 'home'" class="v3-overview">
               <div class="v3-health-card" role="button" tabindex="0"
                 :aria-expanded="homeDetailsExpanded" aria-label="查看系统与硬件详情"
-                @click="homeDetailsExpanded = !homeDetailsExpanded"
-                @keydown.enter.prevent="homeDetailsExpanded = !homeDetailsExpanded"
-                @keydown.space.prevent="homeDetailsExpanded = !homeDetailsExpanded">
+                @click="toggleHomeDetails"
+                @keydown.enter.prevent="toggleHomeDetails"
+                @keydown.space.prevent="toggleHomeDetails">
                 <div class="v3-health-heading">
                   <v-icon :icon="connected ? 'mdi-check-circle-outline' : 'mdi-progress-clock'" :color="connected ? 'success' : 'warning'" size="30"/>
                   <div><h2>{{ connected ? '路由器已连接' : '正在连接路由器' }}</h2>
@@ -2504,20 +2534,17 @@ onUnmounted(() => {
                     <v-icon :icon="overviewWanState === '已连接' ? 'mdi-check-circle-outline' : 'mdi-information-outline'" size="16"/>
                     {{ overviewWanState === '已连接' ? 'WAN 已连接' : overviewWanState === '未连接' ? 'WAN 未连接' : 'WAN 状态待确认' }}
                   </span>
-                  <v-icon icon="mdi-chevron-right" size="22" color="primary"/>
+                  <span class="v3-health-detail-link">{{ homeDetailsExpanded ? '收起详情' : '查看系统详情' }}</span>
+                  <v-icon :icon="homeDetailsExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'" size="22" color="primary"/>
                 </div>
               </div>
               <div class="v3-health-metrics" role="group" aria-label="实时资源指标">
-                <template v-for="item in overviewResources" :key="item.label">
-                  <button v-if="item.label === '联网监测'" type="button" class="v3-metric v3-metric-action"
-                    :aria-label="'打开 Internet Detector，联网监测 ' + item.value"
-                    @click="launchV3Tool('detector')">
-                    <small>{{ item.label }}</small><strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
-                  </button>
-                  <div v-else class="v3-metric">
-                    <small>{{ item.label }}</small><strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
-                  </div>
-                </template>
+                <button v-for="item in overviewResources" :key="item.label" type="button"
+                  class="v3-metric v3-metric-action" :aria-label="'查看' + item.label + '详情：' + item.value"
+                  @click="openOverviewMetric(item.label)">
+                  <small>{{ item.label }}</small>
+                  <strong :class="item.tone ? 'v3-metric-value--' + item.tone : ''">{{ item.value }}</strong>
+                </button>
               </div>
               <div class="v3-module-heading"><h2>实时流量</h2>
                 <v-btn size="small" variant="text" append-icon="mdi-chevron-right" @click="openDetailedMonitor">详细监控</v-btn></div>
@@ -2546,10 +2573,10 @@ onUnmounted(() => {
                   :append-icon="homeDetailsExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                   :aria-expanded="homeDetailsExpanded"
                   :aria-label="homeDetailsExpanded ? '收起系统与硬件详情' : '展开系统与硬件详情'"
-                  @click="homeDetailsExpanded = !homeDetailsExpanded">{{ homeDetailsExpanded ? '收起' : '展开' }}</v-btn>
+                  @click="toggleHomeDetails">{{ homeDetailsExpanded ? '收起' : '展开' }}</v-btn>
               </div>
             </section>
-            <div v-if="homeDetailsExpanded && activeTab === 'home'" class="v3-home-details">
+            <div v-if="homeDetailsExpanded && activeTab === 'home'" id="overview-system-details" class="v3-home-details">
             <v-card v-if="snapshot && activeTab === 'home'" rounded="xl" elevation="1" class="device-card">
               <div class="device-heading">
                 <v-avatar color="primary" variant="tonal" rounded="lg" size="52"><v-icon icon="mdi-router-wireless" size="30"/></v-avatar>
@@ -2561,7 +2588,9 @@ onUnmounted(() => {
                 <div><span>主机名</span><strong>{{ maskHostname(snapshot.board.hostname) }}</strong></div>
                 <div><span>处理器</span><strong>{{ snapshot.board.system }}</strong></div>
                 <div><span>内核版本</span><strong>{{ snapshot.board.kernel }}</strong></div>
-                <div><span>温度</span><strong>{{ snapshot.temperature }}</strong></div>
+                <div id="overview-detail-cpu" class="overview-detail-target" :class="{ 'overview-detail-selected': overviewFocusedMetric === 'CPU 占用' }"><span>CPU 占用</span><strong>{{ snapshot.cpuPercent == null ? '--' : snapshot.cpuPercent + '%' }}</strong></div>
+                <div id="overview-detail-memory" class="overview-detail-target" :class="{ 'overview-detail-selected': overviewFocusedMetric === '内存占用' }"><span>内存占用</span><strong>{{ snapshot.memoryPercent == null ? '--' : snapshot.memoryPercent + '%' }}</strong></div>
+                <div id="overview-detail-temperature" class="overview-detail-target" :class="{ 'overview-detail-selected': overviewFocusedMetric === '温度' }"><span>温度</span><strong>{{ snapshot.temperature }}</strong></div>
                 <div><span>本地时间</span><strong>{{ snapshot.localtime }}</strong></div>
                 <div><span>运行时间</span><strong>{{ snapshot.uptime }}</strong></div>
               </div>
@@ -2624,7 +2653,7 @@ onUnmounted(() => {
               <v-alert v-else type="info" variant="tonal" density="compact">暂未获取到物理以太网接口状态。</v-alert>
             </v-card>
 
-            <v-card v-if="snapshot && activeTab === 'home'" class="mt-4 network-card storage-card" rounded="xl" elevation="1">
+            <v-card v-if="snapshot && activeTab === 'home'" id="overview-detail-storage" class="mt-4 network-card storage-card" :class="{ 'overview-detail-selected': overviewFocusedMetric === '存储' }" rounded="xl" elevation="1">
               <div class="section-heading"><h2>磁盘占用</h2><v-icon icon="mdi-harddisk" color="secondary" size="22"/></div>
               <template v-if="diskData.available && diskData.partitions.length">
                 <div class="storage-row" v-for="(partition, index) in diskData.partitions" :key="partition.device + partition.mount + index">
@@ -2791,8 +2820,19 @@ onUnmounted(() => {
                 <h2>网络连接</h2>
                 <div class="v3-network-kpis">
                   <div><small>WAN</small><strong :class="{ 'v3-status-good': overviewWanState === '已连接' }">{{ overviewWanState }}</strong><span>{{ snapshot?.wanIp || '--' }}</span></div>
-                  <div><small>LAN</small><strong>{{ snapshot?.lanIp || '--' }}</strong></div>
+                  <div class="v3-network-lan">
+                    <small>LAN</small><strong>{{ snapshot?.lanIp || '--' }}</strong>
+                    <div class="v3-lan-dhcp-status" aria-label="LAN DHCP 服务状态">
+                      <span :class="lanDhcpStatus.dhcp4 === true ? 'is-on' : 'is-off'">DHCPv4 {{ lanDhcpStatus.dhcp4 === null ? '未知' : lanDhcpStatus.dhcp4 ? '开启' : '关闭' }}</span>
+                      <span :class="lanDhcpStatus.dhcp6 === true ? 'is-on' : 'is-off'">DHCPv6 {{ lanDhcpStatus.dhcp6 === null ? '未知' : lanDhcpStatus.dhcp6 ? '开启' : '关闭' }}</span>
+                    </div>
+                  </div>
                   <div><small>IPv6</small><strong :class="{ 'v3-status-good': overviewIpv6State === '已分配' }">{{ overviewIpv6State }}</strong><span>{{ snapshot?.wan6Ip || '--' }}</span></div>
+                </div>
+                <div v-if="snapshot" class="v3-network-supplement" aria-label="网络附加信息">
+                  <div><span>默认网关</span><strong>{{ snapshot.gateway || '--' }}</strong></div>
+                  <div><span>DNS</span><strong>{{ snapshot.dns || '--' }}</strong></div>
+                  <div v-if="snapshot.wan6ValidSeconds != null"><span>WAN6 剩余有效期</span><strong>{{ formatInterfaceUptime(snapshot.wan6ValidSeconds) }}</strong></div>
                 </div>
               </header>
               <div class="v3-section-label">接口与连接</div>
@@ -2809,17 +2849,6 @@ onUnmounted(() => {
               </div>
             </section>
             <template v-else>
-            <v-card v-if="networkSection !== 'interfaces'" rounded="xl" elevation="1" class="network-card mb-4">
-              <h2>网络概览</h2>
-              <div v-if="snapshot" class="details">
-                <div><span>LAN IPv4</span><strong>{{ snapshot.lanIp }}</strong></div>
-                <div><span>WAN IPv4</span><strong>{{ snapshot.wanIp }}</strong></div>
-                <div><span>WAN IPv6</span><strong>{{ snapshot.wan6Ip }}</strong></div>
-                <div v-if="snapshot.wan6ValidSeconds !== null"><span>WAN6 剩余有效期</span><strong>{{ formatInterfaceUptime(snapshot.wan6ValidSeconds) }}</strong></div>
-                <div><span>默认网关</span><strong>{{ snapshot.gateway }}</strong></div>
-                <div><span>DNS</span><strong>{{ snapshot.dns }}</strong></div>
-              </div>
-            </v-card>
             <!-- The Network hub is the single level of interface/hardware selection. -->
             <div class="xxwrt-network-view">
             <template v-if="networkView === 'interfaces'">
@@ -2939,7 +2968,7 @@ onUnmounted(() => {
               <v-dialog v-model="favoriteEditorOpen" max-width="480" scrollable>
                 <v-card rounded="xl" class="app-favorite-dialog">
                   <v-card-title>编辑常用应用</v-card-title>
-                  <v-card-subtitle>最多 5 个快捷入口，使用箭头调整顺序</v-card-subtitle>
+                  <v-card-subtitle>最多 {{ APP_FAVORITES_LIMIT }} 个快捷入口，使用箭头调整顺序</v-card-subtitle>
                   <v-divider class="mt-3"/>
                   <v-card-text>
                     <div v-for="tool in favoriteEditorTools" :key="tool.id" class="app-favorite-edit-row">

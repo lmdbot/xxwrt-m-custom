@@ -71,6 +71,20 @@ function findDhcpSection(dhcp, name) {
     data?.['.type'] === 'dhcp' &&
     (id === name || data.interface === name || data['.name'] === name)) || null
 }
+/** Missing RPC evidence is unknown, not a fabricated disabled service. */
+export function parseLanDhcpStatus(raw) {
+  if (!raw?.values || typeof raw.values !== 'object' || Array.isArray(raw.values))
+    return { dhcp4: null, dhcp6: null }
+  const lan = findDhcpSection(raw, 'lan')?.[1]
+  if (!lan) return { dhcp4: false, dhcp6: false }
+  return {
+    dhcp4: String(lan.ignore ?? '0') !== '1',
+    dhcp6: ['server', 'relay', 'hybrid'].includes(String(lan.dhcpv6 || 'disabled'))
+  }
+}
+export async function readLanDhcpStatus(client) {
+  return parseLanDhcpStatus(await client.call('uci', 'get', { config: 'dhcp' }, true))
+}
 export function findNetworkSection(config, name) {
   const section = config?.values?.[name]
   return section?.['.type'] === 'interface' ? section : null

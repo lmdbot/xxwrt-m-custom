@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import {
   NETWORK_APPLY_TIMEOUT, buildInterfaceChanges, confirmInterfaceChanges,
   formFromConfig, ipv4Valid, ipv6Valid, validNetmask, isCriticalInterface,
-  setInterfaceRuntime, stageAndApplyInterface, stagedChangesPresent
+  setInterfaceRuntime, stageAndApplyInterface, stagedChangesPresent,
+  parseLanDhcpStatus
 } from '../src/services/networkInterfaceConfig.js'
 
 const network = {
@@ -43,6 +44,12 @@ test('validate IPv4, IPv6 and contiguous netmasks', () => {
   assert.equal(validNetmask('255.255.255.0'), true)
   assert.equal(validNetmask('255.0.255.0'), false)
   assert.equal(validNetmask('24'), true)
+})
+test('LAN DHCP status follows UCI config and reports unknown on missing RPC data', () => {
+  assert.deepEqual(parseLanDhcpStatus(dhcp), { dhcp4: true, dhcp6: true })
+  assert.deepEqual(parseLanDhcpStatus({ values: { lan: { ...dhcp.values.lan, ignore: '1', dhcpv6: 'disabled' } } }), { dhcp4: false, dhcp6: false })
+  assert.deepEqual(parseLanDhcpStatus({ values: {} }), { dhcp4: false, dhcp6: false })
+  assert.deepEqual(parseLanDhcpStatus(null), { dhcp4: null, dhcp6: null })
 })
 test('load static LAN plus distinct DHCP server configuration', () => {
   const form = edit('lan')

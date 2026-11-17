@@ -20,7 +20,7 @@ const updateStatus = computed(() => {
   if (state.error) return state.error
   if (state.available) {
     return state.latestRelease?.apkUrl
-      ? '发现新版本 v' + state.latestRelease.version + '，可下载正式版 APK'
+      ? '发现新版本 v' + state.latestRelease.version
       : '发现新版本 v' + state.latestRelease.version + '，但当前 Release 暂无可用的安装包'
   }
   if (state.checked) return state.latestRelease ? '当前已是最新版' : '未找到可用的正式版本'
@@ -40,8 +40,6 @@ const updateStatus = computed(() => {
           <span>v{{ installedVersion }}</span>
           <v-icon icon="mdi-chevron-right" size="16"/>
         </button>
-        <v-btn icon="mdi-content-copy" size="x-small" variant="text" color="primary"
-          aria-label="复制应用版本信息" @click="emit('copy-version')"/>
         <v-btn class="about-check-update" color="primary" variant="tonal" size="small"
           rounded="pill" prepend-icon="mdi-refresh" :loading="updateState.checking"
           :disabled="updateState.downloading" @click="emit('check-updates')">检查更新</v-btn>
@@ -51,6 +49,11 @@ const updateStatus = computed(() => {
         :class="{ 'about-update-error': updateState.error }">
         <v-icon :icon="updateState.error ? 'mdi-alert-circle-outline' : updateState.available ? 'mdi-arrow-up-circle-outline' : 'mdi-check-circle-outline'" size="18"/>
         <span>{{ updateStatus }}</span>
+        <v-btn v-if="updateState.available && updateState.latestRelease?.apkUrl"
+          class="about-update-now" color="primary" variant="flat" size="small" rounded="pill"
+          prepend-icon="mdi-download" :loading="updateState.downloading" @click="emit('download-latest')">
+          {{ updateState.isNative ? '立即更新' : '下载 APK' }}
+        </v-btn>
       </div>
       <p class="about-tagline">让 OpenWrt / QWRT 路由管理更简单</p>
       <p class="about-summary">轻松查看路由状态、管理网络终端与常用服务。具体功能及权限以已连接路由器为准。</p>
@@ -59,13 +62,11 @@ const updateStatus = computed(() => {
     <section class="about-section" aria-labelledby="about-info-title">
       <h3 id="about-info-title" class="about-section-title">应用信息</h3>
       <div class="about-group">
-        <div class="about-entry about-entry-static">
+        <button type="button" class="about-entry" aria-label="关于 XX-WRT" @click="emit('show-version-details')">
           <div class="about-entry-icon"><v-icon icon="mdi-router-wireless" size="23"/></div>
-          <div class="about-entry-copy">
-            <strong>关于 XX-WRT</strong>
-            <small>Android 路由器管理客户端</small>
-          </div>
-        </div>
+          <div class="about-entry-copy"><strong>关于 XX-WRT</strong><small>应用介绍、版本与构建信息</small></div>
+          <v-icon icon="mdi-chevron-right" size="21" class="about-entry-chevron"/>
+        </button>
         <button type="button" class="about-entry" aria-label="查看开发者与项目"
           @click="emit('show-project')">
           <div class="about-entry-icon about-entry-avatar"><img class="about-developer-image" :src="developerAvatar" alt="开发者头像" width="45" height="45" decoding="async"/></div>
@@ -163,7 +164,9 @@ const updateStatus = computed(() => {
 .about-version-pill{display:inline-flex;align-items:center;gap:5px;border:0;border-radius:99px;background:rgba(var(--v-theme-primary),.12);color:rgb(var(--v-theme-primary));font-family:inherit;line-height:1.5;font-size:12px;font-weight:650;padding:7px 11px;min-height:34px;cursor:pointer}
 .about-check-update{min-height:34px!important;font-size:12px!important;letter-spacing:0!important;font-weight:700!important}
 .about-hero-update-status{max-width:min(100%,410px);margin:12px auto 0!important;text-align:left;padding:8px 11px!important}
-.about-hero-update-status span{min-width:0;overflow-wrap:anywhere}
+.about-hero-update-status{display:flex;flex-wrap:wrap;justify-content:center;gap:9px}
+.about-hero-update-status span{flex:1 1 170px;min-width:0;overflow-wrap:anywhere}
+.about-update-now{flex:none;min-height:33px!important;font-size:12px!important;letter-spacing:0!important}
 .about-tagline{margin:14px 0 6px;font-size:14px;font-weight:650;line-height:1.55}
 .about-summary{max-width:370px;font-size:12px;line-height:1.75;color:var(--ui-text-muted)}
 .about-section{margin:12px 0 23px}

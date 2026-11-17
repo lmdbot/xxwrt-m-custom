@@ -3,7 +3,7 @@
  * Destructive actions remain in Device maintenance, never in favorites.
  */
 export const APP_FAVORITES_STORAGE_KEY = 'xxwrt_material_app_favorites_v1'
-export const APP_FAVORITES_LIMIT = 5
+export const APP_FAVORITES_LIMIT = 8
 export const DEFAULT_APP_FAVORITES = Object.freeze([
   'lucky', 'openclash', 'zerotier', 'wechatpush', 'firewall'
 ])

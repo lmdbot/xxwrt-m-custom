@@ -1593,3 +1593,22 @@
 @media(prefers-reduced-motion:reduce){
   .xxwrt-v3 .v3-metric-action{transition:none}
 }
+
+/* 3.0.7: actionable overview disclosure, KPI focus, and consolidated network status. */
+.xxwrt-v3 .v3-health-detail-link{margin-left:auto;color:var(--ui-primary);font-weight:700;white-space:nowrap}
+.xxwrt-v3 .v3-health-footer>.v-icon{flex:none}
+.xxwrt-v3 .v3-metric-action{min-height:74px}
+.xxwrt-v3 .overview-detail-target,.xxwrt-v3 .storage-card{scroll-margin-top:100px;scroll-margin-bottom:115px}
+.xxwrt-v3 .v3-home-details{scroll-margin-top:100px}
+.xxwrt-v3 .overview-detail-selected{background:rgba(var(--v-theme-primary),.075)!important;border-radius:12px;outline:2px solid rgba(var(--v-theme-primary),.2);outline-offset:2px}
+.xxwrt-v3 .storage-card.overview-detail-selected{border-color:rgba(var(--v-theme-primary),.3)!important}
+.xxwrt-v3 .v3-lan-dhcp-status{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:7px}
+.xxwrt-v3 .v3-lan-dhcp-status span{display:inline-flex;align-items:center;max-width:100%;padding:3px 6px;border-radius:7px;font-size:10px;line-height:15px;font-weight:650;white-space:nowrap;background:rgba(112,127,148,.13);color:var(--ui-muted)}
+.xxwrt-v3 .v3-lan-dhcp-status span.is-on{color:#087e62;background:rgba(14,165,127,.13)}
+.xxwrt-v3.theme-is-dark .v3-lan-dhcp-status span.is-on{color:#6cdec3;background:rgba(48,184,145,.18)}
+.xxwrt-v3 .v3-network-supplement{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;padding:12px 3px 1px;margin-top:13px;border-top:1px solid rgba(100,134,174,.19)}
+.xxwrt-v3 .v3-network-supplement>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.xxwrt-v3 .v3-network-supplement span{font-size:11px;line-height:16px;color:var(--ui-muted)}
+.xxwrt-v3 .v3-network-supplement strong{color:var(--ui-text);font-size:12px;line-height:1.4;font-weight:650;overflow-wrap:anywhere}
+.xxwrt-v3 .v3-network-status .v3-network-kpis>div{justify-content:flex-start}
+@media(max-width:390px){.xxwrt-v3 .v3-lan-dhcp-status span{font-size:9px;padding:3px 4px}.xxwrt-v3 .v3-network-supplement{gap:9px}}

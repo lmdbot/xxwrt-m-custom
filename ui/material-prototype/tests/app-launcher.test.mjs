@@ -25,8 +25,10 @@ const tools = [
   { id: 'reset', title: '恢复出厂', subtitle: '需二次确认' }
 ]
 
-test('default favorites are safe and fit on two rows with All apps shortcut', () => {
-  assert.equal(DEFAULT_APP_FAVORITES.length, APP_FAVORITES_LIMIT)
+test('default favorites remain five and users may customize up to eight', () => {
+  assert.equal(APP_FAVORITES_LIMIT, 8)
+  assert.equal(DEFAULT_APP_FAVORITES.length, 5)
+  assert.ok(DEFAULT_APP_FAVORITES.length <= APP_FAVORITES_LIMIT)
   assert.equal(DEFAULT_APP_FAVORITES.some(isDangerousApp), false)
   assert.equal(isDangerousApp('reboot'), true)
   assert.equal(isDangerousApp('reset'), true)
@@ -49,7 +51,7 @@ test('corrupted preferences recover; invalid, repeated and dangerous IDs are exc
   writeAppFavorites(storage, 'router-a',
     ['reset', 'lucky', 'lucky', 'unknown', 'reboot', 'ssr', 'zerotier', 'openclash', 'wechatpush', 'firewall'])
   assert.deepEqual(readAppFavorites(storage, 'router-a'),
-    ['lucky', 'ssr', 'zerotier', 'openclash', 'wechatpush'])
+    ['lucky', 'ssr', 'zerotier', 'openclash', 'wechatpush', 'firewall'])
 })
 
 test('blocked localStorage must not break application launch', () => {
@@ -80,7 +82,8 @@ test('favorite order is editable; missing plugins and destructive actions never 
   assert.deepEqual(toggleAppFavorite(['lucky'], 'ssr'), ['lucky', 'ssr'])
   assert.deepEqual(toggleAppFavorite(['lucky', 'ssr'], 'lucky'), ['ssr'])
   assert.deepEqual(toggleAppFavorite(['lucky'], 'reset'), ['lucky'])
-  assert.deepEqual(toggleAppFavorite([...DEFAULT_APP_FAVORITES], 'ssr'), DEFAULT_APP_FAVORITES)
+  assert.equal(toggleAppFavorite([...DEFAULT_APP_FAVORITES], 'ssr').length, 6)
+  assert.equal(toggleAppFavorite(['lucky','ssr','wol','openclash','zerotier','firewall','ddns','detector'], 'wechatpush').length, APP_FAVORITES_LIMIT)
   assert.deepEqual(moveAppFavorite(['lucky', 'ssr', 'zerotier'], 'zerotier', -1),
     ['lucky', 'zerotier', 'ssr'])
   assert.deepEqual(moveAppFavorite(['lucky', 'ssr'], 'lucky', -1), ['lucky', 'ssr'])
