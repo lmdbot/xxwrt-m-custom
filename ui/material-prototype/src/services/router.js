@@ -2,6 +2,10 @@ import { macFromDuid, normalizeMac } from './deviceIdentity.js'
 import { recordRpcAudit } from './managementCore.js'
 import { recordRpcTrace } from './labFeatures.js'
 import { formatRouterUptime } from './routerUptime.js'
+import {
+  WECHAT_DEVICE_ALIASES_PATH, parseWechatClientPresence,
+  matchedWechatClient, resolveWechatClientName, preferredWechatOnlineStatus
+} from './wechatClientPresence.js'
 import { extractLuciCookie, describeLuciHttpFailure, isSsrUpgradeEndpoint, ssrLuciReadTimeout } from './luciHttp.js'
 import { Capacitor, CapacitorHttp, registerPlugin } from '@capacitor/core'
 const RouterTlsHttp = registerPlugin('RouterTlsHttp')
@@ -580,61 +584,21 @@ const NEIGHBOR_REQUESTS = [
  * It actively probes devices and can enrich the list using MiWiFi Mesh info.
  * Never use an old cache while the WeChatPush service is stopped.
  */
-function parseWechatPushDevices(file, services, procd) {
-  const byMac = new Map()
-  const byIp = new Map()
-  // rc.list often reports autostart but not live process status. Prefer the
-  // named procd instance status, and do not reuse a cache from a stopped service.
-  const instances = procd?.wechatpush?.instances || {}
-  const procdRunning = Object.values(instances).some(x => x?.running === true)
-  const rcRunning = services?.wechatpush?.running === true
-  if ((!procdRunning && !rcRunning) || typeof file?.data !== 'string' || file.data.length > 524288) {
-    return { byMac, byIp }
-  }
-  try {
-    const raw = JSON.parse(file.data)
-    if (!Array.isArray(raw?.devices)) return { byMac, byIp }
-    for (const item of raw.devices.slice(0, 1024)) {
-      const mac = normalizeMac(item.mac || '').toUpperCase()
-      const ip = String(item.ip || '').trim()
-      if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) continue
-      const status = ['online', 'offline', 'unknown'].includes(item.status) ? item.status : ''
-      const candidateName = String(item.name || '').trim()
-      const name = candidateName && !['unknown', 'null', mac.toLowerCase(), mac].includes(candidateName.toLowerCase())
-        ? candidateName : ''
-      const entry = { mac, ip, name, status }
-      const previous = byMac.get(mac)
-      // Prefer a recent online record to a duplicate stale record.
-      if (!previous || (previous.status !== 'online' && status === 'online')) byMac.set(mac, entry)
-      if (ip && validIPv4(ip) && !byIp.has(ip)) byIp.set(ip, entry)
-    }
-  } catch (_) { /* Missing or partially written monitor cache is not evidence. */ }
-  return { byMac, byIp }
-}
-
-function monitoredClient(monitor, mac, ip) {
-  const normalized = String(mac || '').toUpperCase()
-  if (monitor.byMac.has(normalized)) return monitor.byMac.get(normalized)
-  const found = monitor.byIp.get(String(ip || ''))
-  // IP fallback is useful when a DHCPv6 DUID lacks an Ethernet MAC.
-  return found && (!normalized || !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(normalized)) ? found : null
-}
-
-function preferredClientStatus(monitored, neighbor) {
-  // A live monitor record is authoritative for its matched device.
-  // Only a missing or unverified monitor state falls back to ARP/NDP.
-  return monitored?.status === 'online' || monitored?.status === 'offline'
-    ? monitored.status : neighbor
-}
+// Match WeChatPush live evidence by MAC and apply independently configured
+// device aliases even when the daemon is stopped; stale daemon cache is ignored.
+const parseWechatPushDevices = parseWechatClientPresence
+const monitoredClient = matchedWechatClient
+const preferredClientStatus = preferredWechatOnlineStatus
 
 export async function readClients(client) {
-  const [leases, hints, ipv4Neighbors, ipv6Neighbors, wechatDevices, runningServices, wechatProcd] = await client.batch([
+  const [leases, hints, ipv4Neighbors, ipv6Neighbors, wechatDevices, runningServices, wechatProcd, aliasFile] = await client.batch([
     ['luci-rpc', 'getDHCPLeases'],
     ['luci-rpc', 'getHostHints'],
     ...NEIGHBOR_REQUESTS,
     ['file', 'read', { path: '/tmp/wechatpush/devices.json' }],
     ['rc', 'list'],
-    ['service', 'list', { name: 'wechatpush' }]
+    ['service', 'list', { name: 'wechatpush' }],
+    ['file', 'read', { path: WECHAT_DEVICE_ALIASES_PATH }]
   ])
   let neighbors = parseNeighborTables([ipv4Neighbors, ipv6Neighbors])
 
@@ -664,7 +628,7 @@ export async function readClients(client) {
     }
   }
 
-  const monitored = parseWechatPushDevices(wechatDevices, runningServices, wechatProcd)
+  const monitored = parseWechatPushDevices(wechatDevices, runningServices, wechatProcd, aliasFile)
   const names = hints || {}
   const lookupHint = mac => names[mac] || names[mac.toUpperCase()] || names[mac.toLowerCase()] || {}
   const data = (leases?.dhcp_leases || []).map(item => {
@@ -676,8 +640,11 @@ export async function readClients(client) {
     const state = preferredClientStatus(monitorDevice, neighborStatus(neighbors, mac, ip, ip6))
     return {
       mac, ip, ip6,
-      name: monitorDevice?.name || item.hostname || hint.name || '',
+      name: resolveWechatClientName(monitored, mac, ip, item.hostname || hint.name || ''),
       identityName: item.hostname || hint.name || '',
+      monitorStatus: monitorDevice?.status || '',
+      connectionType: monitorDevice?.connectionType || '',
+      connectionBand: monitorDevice?.band || '',
       expires: item.expires,
       active: Number(item.expires) > 0,
       online: state === 'online',
@@ -695,8 +662,11 @@ export async function readClients(client) {
     return {
       ...item,
       mac: mac.toUpperCase(),
-      name: monitorDevice?.name || item.hostname || hint.name || '',
+      name: resolveWechatClientName(monitored, mac, ip4, item.hostname || hint.name || ''),
       identityName: item.hostname || hint.name || '',
+      monitorStatus: monitorDevice?.status || '',
+      connectionType: monitorDevice?.connectionType || '',
+      connectionBand: monitorDevice?.band || '',
       ip, ip4,
       online: state === 'online',
       onlineKnown: state !== 'unknown',
@@ -707,7 +677,10 @@ export async function readClients(client) {
     data, ipv6, hints,
     hintsAvailable: Boolean(hints),
     neighborsAvailable: neighbors.available,
-    monitorAvailable: monitored.byMac.size > 0,
+    monitorAvailable: monitored.available,
+    wechatInstalled: monitored.installed,
+    wechatRecords: monitored.devices,
+    wechatAliases: [...monitored.aliases.entries()],
     leasesAvailable: Boolean(leases)
   }
 }
