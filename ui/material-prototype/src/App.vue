@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, onUnmounted, provide, reactive, ref, sha
 import { useTheme, useDisplay } from 'vuetify'
 import { V3_TABS, groupV3Tools, networkV3Tools, searchV3Features } from './services/featureCatalogV3.js'
 import { useLabController } from './services/useLabController.js'
+import { getDownloadDisplay } from './services/downloadDisplay.js'
 import {
   APP_ICON_PRESETS, DEFAULT_APP_ICON, loadAppIconChoice,
   loadCustomAppIcon, saveAppIconChoice, storeCustomAppIcon
@@ -257,6 +258,7 @@ const releaseNotesBlocks = computed(() => String(releaseNotesText.value || '').s
 const openSourceDialog = ref(false)
 const downloadBusy = ref(false)
 const downloadPercent = ref(0)
+const downloadOutcome = ref('idle')
 const downloadBytes = ref(0)
 const downloadTotal = ref(0)
 const downloadedApkReady = ref(false)
@@ -265,10 +267,15 @@ let nativeApkProgressSubscription = null
 let nativeApkProgressPromise = null
 const updateAvailable = computed(() => !!latestRelease.value
   && compareAppVersions(latestRelease.value.version, installedVersion.value) > 0)
-const downloadProgressText = computed(() => {
-  const mb = bytes => (Number(bytes || 0) / (1024 * 1024)).toFixed(1)
-  return mb(downloadBytes.value) + ' / ' + mb(downloadTotal.value) + ' MB'
-})
+const downloadDisplay = computed(() => getDownloadDisplay({
+  downloading: downloadBusy.value,
+  downloadedApkReady: downloadedApkReady.value,
+  outcome: downloadOutcome.value,
+  receivedBytes: downloadBytes.value,
+  totalBytes: downloadTotal.value,
+  percent: downloadPercent.value
+}))
+const downloadProgressText = computed(() => downloadDisplay.value.sizeText)
 
 function listenNativeApkProgress() {
   if (!nativeApkProgressPromise) {
@@ -284,6 +291,7 @@ function listenNativeApkProgress() {
 }
 
 function handleInstallLaunch(result) {
+  downloadOutcome.value = 'ready'
   downloadedApkReady.value = true
   installPermissionPending.value = result?.status === 'permissionRequired'
   if (installPermissionPending.value) {
@@ -369,6 +377,7 @@ async function checkAppUpdates({ automatic = false } = {}) {
     if (latestRelease.value?.tag !== next?.tag) {
       downloadedApkReady.value = false
       installPermissionPending.value = false
+      downloadOutcome.value = 'idle'
     }
     latestRelease.value = next
     updateChecked.value = true
@@ -401,6 +410,7 @@ async function downloadLatestApk() {
     return
   }
   downloadBusy.value = true
+  downloadOutcome.value = 'downloading'
   downloadedApkReady.value = false
   installPermissionPending.value = false
   downloadBytes.value = 0
@@ -416,8 +426,13 @@ async function downloadLatestApk() {
     updateDialog.value = false
   } catch (error) {
     const message = shortError(error)
-    if (/下载已取消|cancel/i.test(message)) updateNotice.value = '已取消 APK 下载'
-    else updateError.value = 'APP 内下载或安装失败：' + message
+    if (/下载已取消|cancel/i.test(message)) {
+      downloadOutcome.value = 'cancelled'
+      updateNotice.value = '已取消 APK 下载'
+    } else {
+      downloadOutcome.value = 'failed'
+      updateError.value = 'APP 内下载或安装失败：' + message
+    }
   } finally { downloadBusy.value = false }
 }
 
@@ -2565,6 +2580,8 @@ onUnmounted(() => {
                   checked: updateChecked, error: updateError, notice: updateNotice,
                   downloading: downloadBusy, percent: downloadPercent,
                   progressText: downloadProgressText, downloadedApkReady,
+                  receivedBytes: downloadBytes, totalBytes: downloadTotal,
+                  downloadOutcome,
                   releaseNotesLoading, isNative
                 }"
                 @show-version-details="versionDetailsDialog = true"
