@@ -42,13 +42,14 @@ test('WechatPush online status is authoritative only when live and explicit', ()
   assert.equal(preferredWechatOnlineStatus(activeDevice, 'unknown'), 'online')
   assert.equal(preferredWechatOnlineStatus(sleeping, 'online'), 'offline')
   assert.equal(preferredWechatOnlineStatus({ status: 'unknown' }, 'online'), 'online')
-  const stopped = parseWechatClientPresence(snapshot, { wechatpush: { enabled: true } },
+  const untracked = parseWechatClientPresence(snapshot, { wechatpush: { enabled: true } },
     { wechatpush: { instances: { primary: { running: false } } } }, aliasFile)
-  assert.equal(stopped.installed, true)
-  assert.equal(stopped.available, false)
-  assert.equal(stopped.devices.length, 0)
-  assert.equal(resolveWechatClientName(stopped, 'aa:bb:cc:dd:ee:ff', '', 'DHCP-MacBook'), '家里的电脑')
-  assert.equal(preferredWechatOnlineStatus(matchedWechatClient(stopped, 'aa:bb:cc:dd:ee:ff', ''), 'unknown'), 'unknown')
+  assert.equal(untracked.installed, true)
+  // WeChatPush can update its router-side file without a procd-running instance.
+  assert.equal(untracked.available, true)
+  assert.equal(untracked.devices.length, 4)
+  assert.equal(resolveWechatClientName(untracked, 'aa:bb:cc:dd:ee:ff', '', 'DHCP-MacBook'), '家里的电脑')
+  assert.equal(preferredWechatOnlineStatus(matchedWechatClient(untracked, 'aa:bb:cc:dd:ee:ff', ''), 'unknown'), 'online')
 })
 
 test('2.4G, 5G and mapped Wi-Fi interfaces are wireless; LAN and empty are wired', () => {
