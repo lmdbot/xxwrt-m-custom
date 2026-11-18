@@ -491,6 +491,76 @@ test('one saved router opens login automatically and preloads terminal data befo
   await expect.poll(() => terminalReads).toBeGreaterThan(beforeManualRefresh)
 })
 
+test('manual terminal refresh keeps WeChatPush status/name when monitor read briefly fails', async ({ page }) => {
+  let mode = 'live'
+  let monitorReads = 0
+  await page.route('**/ubus', async route => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: {
+        'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': '*'
+      } })
+      return
+    }
+    const request = route.request().postDataJSON()
+    const reply = item => {
+      const args = item.params || []
+      let output
+      if (args[1] === 'file' && args[2] === 'read' && args[3]?.path === '/tmp/wechatpush/devices.json') {
+        monitorReads++
+        output = mode === 'invalid' ? { data:'{broken json' } : { data: JSON.stringify({ devices: [
+          { mac: 'AA:BB:CC:DD:EE:FF', ip: '192.168.100.88',
+            name: '监控命名电脑', status: mode === 'offline' ? 'offline' : 'online', interface: 'LAN' },
+          { mac: 'A6:83:E7:2C:91:0F', ip: '192.168.100.89',
+            name: '监控命名手机', status: 'offline', interface: '5G' },
+          // Missing from DHCP: still part of the WeChatPush roster, offline.
+          { mac: '66:55:44:33:22:11', ip: '192.168.100.42',
+            name: '监控记忆设备', status: 'offline', interface: 'LAN' }
+        ] }) }
+      } else if (args[1] === 'file' && args[2] === 'read' &&
+        args[3]?.path === '/usr/share/wechatpush/api/device_aliases.list') {
+        output = mode === 'invalid' ? null : { data:'AA:BB:CC:DD:EE:FF 我的电脑\\n' }
+      } else output = dataFor(args[1], args[2], args[3])
+      return { jsonrpc:'2.0', id:item.id, result: output == null ? [6] : [0,output] }
+    }
+    await route.fulfill({ status:200, contentType:'application/json',
+      headers: { 'Access-Control-Allow-Origin':'*' },
+      body:JSON.stringify(Array.isArray(request) ? request.map(reply) : reply(request)) })
+  })
+  await page.addInitScript(() => localStorage.setItem('xxwrt_material_saved_devices_v1', JSON.stringify([{
+    id:'wechat-terminal', name:'主路由', address:'http://192.168.100.1',
+    username:'root', createdAt:Date.now(), rememberPassword:false
+  }])))
+  await page.goto('/')
+  await page.getByRole('textbox', { name:'路由器密码' }).fill('mock-only')
+  await page.getByRole('button', { name:'登录并进入' }).click()
+  await expect(page.locator('.v3-health-card')).toContainText('路由器已连接')
+  await page.getByRole('button', { name:'设备', exact:true }).click()
+
+  const computer = page.locator('.terminal-tile').filter({hasText:'AA:BB:CC:DD:EE:FF'})
+  const phone = page.locator('.terminal-tile').filter({hasText:'A6:83:E7:2C:91:0F'})
+  const remembered = page.locator('.terminal-tile').filter({hasText:'66:55:44:33:22:11'})
+  await expect(computer).toContainText('我的电脑')
+  await expect(computer.locator('.v3-client-state')).toHaveText('在线')
+  await expect(phone.locator('.v3-client-state')).toHaveText('离线')
+  await expect(remembered).toContainText('监控记忆设备')
+  await expect(remembered.locator('.v3-client-state')).toHaveText('离线')
+
+  mode = 'invalid'
+  const before = monitorReads
+  await page.getByRole('button', {name:'刷新当前页面'}).click()
+  await expect.poll(()=>monitorReads).toBeGreaterThan(before)
+  await expect(computer).toContainText('我的电脑')
+  await expect(computer.locator('.v3-client-state')).toHaveText('在线')
+  await expect(phone.locator('.v3-client-state')).toHaveText('离线')
+  await expect(remembered).toHaveCount(1)
+
+  // When WeChatPush really changes a status, its next valid snapshot wins.
+  mode = 'offline'
+  await page.getByRole('button', {name:'刷新当前页面'}).click()
+  await expect(computer.locator('.v3-client-state')).toHaveText('离线')
+})
+
 test('multiple saved routers remain on router management at startup', async ({ page }) => {
   await page.route('**/ubus', handler)
   await page.addInitScript(() => localStorage.setItem('xxwrt_material_saved_devices_v1', JSON.stringify([
