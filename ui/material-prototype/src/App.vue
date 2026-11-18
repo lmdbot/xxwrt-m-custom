@@ -881,7 +881,10 @@ async function preloadRouterClients(id, api, { force = false } = {}) {
     if (!force || routerPreloadCache.get(id) !== entry || !api.session) return
     return preloadRouterClients(id, api, { force: true })
   }
-  if (!force && entry.clientsAt && Date.now() - entry.clientsAt < ROUTER_PREFETCH_FRESH_MS) {
+  // A detected WeChatPush installation always requires a new router-side
+  // monitor file read. Do not reuse the 45-second app prefetch snapshot.
+  if (!force && !entry.clientData?.wechatInstalled &&
+      entry.clientsAt && Date.now() - entry.clientsAt < ROUTER_PREFETCH_FRESH_MS) {
     applyRouterClients(id, api, entry)
     return
   }
@@ -892,6 +895,13 @@ async function preloadRouterClients(id, api, { force = false } = {}) {
     if (routerPreloadCache.get(id) !== entry || !api.session) return
     if (leases.status === 'fulfilled') {
       entry.clientData = reconcileTerminalClientData(leases.value, entry.clientData)
+    } else if (entry.clientData?.wechatInstalled) {
+      // An RPC rejection must invalidate the last observed WeChatPush
+      // state immediately, including names, status and cached aliases.
+      entry.clientData = {
+        ...emptyClientData(), wechatInstalled: true,
+        monitorAvailable: false, monitorReason: '本轮终端数据 RPC 请求失败'
+      }
     }
     if (stations.status === 'fulfilled' &&
         (stations.value.available || !entry.wirelessData?.available))
@@ -3312,11 +3322,16 @@ onUnmounted(() => {
 
           <template v-if="activeTab === 'clients'">
             <div class="terminal-screen" aria-label="终端设备">
+              <v-alert v-if="clientData.wechatInstalled && clientData.monitorAvailable !== true"
+                class="mb-3" type="warning" variant="tonal" density="compact" role="status">
+                微信推送实时终端数据不可用：{{ clientData.monitorReason || '本轮未能获取有效设备状态' }}。
+                当前在线状态待确认，未使用 App 端历史缓存。
+              </v-alert>
               <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
-                  { id: 'online', label: '在线', count: terminalDevices.filter(i => i.online).length },
-                  { id: 'other', label: '离线/未知', count: terminalDevices.filter(i => !i.online).length }
+                  { id: 'online', label: '在线', count: clientData.wechatInstalled && !clientData.monitorAvailable ? '—' : terminalDevices.filter(i => i.online).length },
+                  { id: 'other', label: '离线/未知', count: clientData.wechatInstalled && !clientData.monitorAvailable ? '—' : terminalDevices.filter(i => !i.online).length }
                 ]" :key="option.id" type="button"
                   :class="{ 'is-selected': terminalOnlineFilter === option.id }"
                   :aria-pressed="terminalOnlineFilter === option.id"
@@ -3386,7 +3401,7 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
-              <p class="v3-client-evidence">已安装微信推送时优先使用其设备备注、在线记录和连接方式；无实时数据时回退到无线关联及邻居可达状态。仅有 DHCP 租约不代表在线。</p>
+              <p class="v3-client-evidence">已安装微信推送时，每次刷新重新读取路由器上的设备数据与备注；DHCP、无线及邻居信息只补充设备属性。监控数据不可用时不沿用 App 历史状态，租约不代表在线。</p>
             </div>
             <div class="v3-section-label v3-device-actions-heading">设备管理</div>
             <div class="v3-inline-links v3-device-actions" role="group" aria-label="终端管理工具">
