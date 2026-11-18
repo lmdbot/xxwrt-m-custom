@@ -475,6 +475,12 @@ test('one saved router opens login automatically and preloads terminal data befo
   await page.getByRole('button', { name:'登录并进入' }).click()
   await expect(page.locator('.v3-health-card')).toContainText('路由器已连接')
   await expect.poll(() => terminalReads).toBeGreaterThan(0)
+  // Without opening Devices or tapping Refresh, the Overview screen must
+  // automatically fetch fresh DHCP leases on the configured 15s device timer,
+  // bypassing the separate 45s startup preload cache.
+  const startupReads = terminalReads
+  await expect.poll(() => terminalReads, { timeout: 22000, intervals: [500] })
+    .toBeGreaterThan(startupReads)
   await page.getByRole('button', { name:'设备', exact:true }).click()
   await expect(page.locator('.terminal-grid')).toBeVisible()
   await expect(page.locator('.terminal-grid .terminal-tile').first()).toBeVisible()
