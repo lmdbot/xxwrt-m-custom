@@ -1379,21 +1379,44 @@ const overviewIpv6State = computed(() => {
   const address = String(snapshot.value?.wan6Ip || '')
   return address && address !== '--' ? '已分配' : '待确认'
 })
-let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, probeTimer, telemetryTimer, processTimer, historyTimer
+let mediaQuery, systemListener, motionMediaQuery, motionListener, refreshTimer, terminalTimer, probeTimer, telemetryTimer, processTimer, historyTimer
 let refreshQueued = false
 let refreshQueuedForce = false
 const pendingManualDeviceRefresh = ref(false)
 let processRefreshBusy = false
 let hardwareSampleAt = 0
 
+function autoRefreshConnectedClients() {
+  // Keep the Devices tab current while the user is on Overview, without
+  // blocking the overview cards or requiring a visit to the Devices tab.
+  if (document.hidden || settingsOpen.value || viewMode.value !== 'detail' ||
+      !connected.value || !['home', 'clients'].includes(activeTab.value)) return
+  const api = client.value
+  const id = selectedDeviceId.value
+  if (!id || !api?.session) return
+  const entry = routerPreloadEntry(id, api)
+  // A startup preload or manual refresh already owns this RPC batch.
+  // Skip this tick instead of queuing another forced fetch.
+  if (!entry || entry.clientsPromise) return
+  void preloadRouterClients(id, api, { force: true }).catch(() => {
+    // Transient automatic refresh failures retain the last known devices;
+    // the next scheduled tick can retry without disrupting the UI.
+  })
+}
+
 function restartLabRefreshTimers() {
   if (probeTimer) clearInterval(probeTimer)
   if (telemetryTimer) clearInterval(telemetryTimer)
   if (refreshTimer) clearInterval(refreshTimer)
+  if (terminalTimer) clearInterval(terminalTimer)
   const intervals = labIntervals.value
   probeTimer = setInterval(() => {
     if (!document.hidden && viewMode.value === 'list') void refreshDeviceStatuses()
   }, intervals.devices)
+  // Use the existing device refresh profile (balanced 15s, saver 30s,
+  // realtime 10s). Unlike the 45s startup prefetch cache, every tick must
+  // request live DHCP/Wi-Fi/appfilter terminal data.
+  terminalTimer = setInterval(autoRefreshConnectedClients, intervals.devices)
   telemetryTimer = setInterval(() => {
     if (!document.hidden) void pollTelemetry()
   }, intervals.telemetry)
@@ -2696,6 +2719,7 @@ onUnmounted(() => {
   mediaQuery?.removeEventListener?.('change', systemListener)
   motionMediaQuery?.removeEventListener?.('change', motionListener)
   if (refreshTimer) clearInterval(refreshTimer)
+  if (terminalTimer) clearInterval(terminalTimer)
   if (historyTimer) clearInterval(historyTimer)
   if (probeTimer) clearInterval(probeTimer)
   if (telemetryTimer) clearInterval(telemetryTimer)
