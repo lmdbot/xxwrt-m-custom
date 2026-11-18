@@ -54,10 +54,14 @@ export function parseWechatClientPresence(snapshot, services, procd, aliasFile) 
     if (key && !aliases.has(key) && validName(entry.alias)) aliases.set(key, entry.alias.trim())
   }
   const byMac = new Map(), byIp = new Map()
-  if (!running || typeof snapshot?.data !== 'string' || snapshot.data.length > 524288) {
-    const reason = explicitlyStopped ? '微信推送服务未运行' :
-      typeof snapshot?.data !== 'string' ? '无法读取 /tmp/wechatpush/devices.json' :
-      '微信推送设备数据超过大小限制'
+  // WeChatPush may run as a shell/timer-based monitor without a procd-tracked
+  // instance. A fresh RPC file read is stronger evidence than rc/service.list
+  // (which can report stopped even while the monitor is producing data).
+  // Never replace a failed file read with an earlier App-side snapshot.
+  if (typeof snapshot?.data !== 'string' || snapshot.data.length > 524288) {
+    const reason = typeof snapshot?.data !== 'string'
+      ? '无法读取 /tmp/wechatpush/devices.json（文件不存在或 RPC 无读取权限）'
+      : '微信推送设备数据超过大小限制'
     return { installed, running, available: false, reason, byMac, byIp, aliases, devices: [] }
   }
   let data
