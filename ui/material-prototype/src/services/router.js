@@ -681,6 +681,7 @@ export async function readClients(client) {
     hintsAvailable: Boolean(hints),
     neighborsAvailable: neighbors.available,
     monitorAvailable: monitored.available,
+    monitorReason: monitored.reason || '',
     monitorStopped: Boolean(wechatProcd?.wechatpush?.instances && !monitored.running),
     wechatInstalled: monitored.installed,
     wechatRecords: monitored.devices,
