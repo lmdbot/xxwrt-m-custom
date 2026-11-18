@@ -14,7 +14,8 @@ export function reconcileTerminalClientData(current, previous = null, now = Date
   // The DHCP RPC occasionally fails or returns no payload even though the
   // monitor snapshot is valid. Keep last known identities/addresses instead
   // of making the device list disappear for one polling interval.
-  if (!current.leasesAvailable && previous?.leasesAvailable) {
+  if (!current.leasesAvailable && previous &&
+      (Array.isArray(previous.data) || Array.isArray(previous.ipv6))) {
     next.data = previous.data
     next.ipv6 = previous.ipv6
     next.hints = current.hintsAvailable ? current.hints : previous.hints
