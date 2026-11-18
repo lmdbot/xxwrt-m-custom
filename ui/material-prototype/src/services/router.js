@@ -682,7 +682,8 @@ export async function readClients(client) {
     neighborsAvailable: neighbors.available,
     monitorAvailable: monitored.available,
     monitorReason: monitored.reason || '',
-    monitorStopped: Boolean(wechatProcd?.wechatpush?.instances && !monitored.running),
+    // A readable monitor file takes priority over unreliable procd status.
+    monitorStopped: Boolean(wechatProcd?.wechatpush?.instances && !monitored.running && !monitored.available),
     wechatInstalled: monitored.installed,
     wechatRecords: monitored.devices,
     wechatAliases: [...monitored.aliases.entries()],

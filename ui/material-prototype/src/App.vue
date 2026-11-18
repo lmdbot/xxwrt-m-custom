@@ -1251,6 +1251,19 @@ function pluginDetectionState(id) {
 const networkFeatureTools = computed(() => networkV3Tools(visibleLegacyTools.value))
 const appSearchResults = computed(() => searchV3Features(legacyTools, appSearch.value))
 const favoriteTools = computed(() => sortFavoriteTools(visibleLegacyTools.value, appFavoriteIds.value))
+// Break only longer shortcut names at natural word/feature boundaries.
+// Short labels remain on one line; all icons share the same aligned label area.
+const favoriteLabelBreaks = Object.freeze({
+  ssr: ['ShadowSocksR', 'Plus+'],
+  detector: ['Internet', 'Detector'],
+  carbon: ['Carbon', '主题设置'],
+  vlmcsd: ['Vlmcsd', 'KMS'],
+  backup: ['配置备份', '恢复'],
+  dnsdhcp: ['DNS /', 'DHCP'],
+  cron: ['系统', '定时任务'],
+  capabilities: ['系统能力', '识别']
+})
+const favoriteTitleLines = tool => favoriteLabelBreaks[tool.id] || [tool.title]
 const activeFavoriteIds = computed(() => favoriteTools.value.map(tool => tool.id))
 const favoriteCandidates = computed(() => visibleLegacyTools.value.filter(tool => !isDangerousApp(tool.id)))
 const favoriteEditorTools = computed(() => [
@@ -3559,7 +3572,10 @@ onUnmounted(() => {
                         <v-avatar rounded="lg" size="44" color="primary" variant="tonal">
                           <v-icon :icon="tool.icon" size="23"/>
                         </v-avatar>
-                        <span>{{ tool.title }}</span>
+                        <span class="app-favorite-label">
+                          <span v-for="(line, index) in favoriteTitleLines(tool)" :key="index"
+                            class="app-favorite-label-line">{{ line }}</span>
+                        </span>
                       </button>
                       </div>
                     <p v-if="!favoriteTools.length" class="app-hub-hint">暂无常用应用，点击编辑添加。</p>
