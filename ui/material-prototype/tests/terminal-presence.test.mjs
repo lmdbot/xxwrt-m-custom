@@ -72,13 +72,16 @@ test('missing service status RPC does not discard a newly fetched valid WeChatPu
   assert.equal(value.devices[0].status, 'online')
 })
 
-test('explicitly stopped service and invalid JSON do not provide online observations', () => {
+test('valid router-side WeChatPush file wins over false stopped reports; missing or invalid files do not', () => {
   const snapshot = { data: JSON.stringify({ devices:[online] }) }
-  const stopped = parseWechatClientPresence(snapshot, {}, {
+  const reportedStopped = parseWechatClientPresence(snapshot, {wechatpush:{running:false}}, {
     wechatpush: { instances: { main: { running: false } } }
   }, null)
-  assert.equal(stopped.available, false)
-  assert.equal(stopped.reason, '微信推送服务未运行')
+  assert.equal(reportedStopped.available, true)
+  assert.equal(reportedStopped.devices[0].status, 'online')
+  const missing = parseWechatClientPresence(null, {wechatpush:{running:false}}, null, null)
+  assert.equal(missing.available, false)
+  assert.match(missing.reason, /无法读取/)
   const invalid = parseWechatClientPresence({data:'{'}, {}, null, null)
   assert.equal(invalid.available, false)
   assert.match(invalid.reason, /数据格式无效/)
