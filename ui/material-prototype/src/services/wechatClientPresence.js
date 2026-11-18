@@ -32,10 +32,18 @@ export function resolveWechatConnection(item, wlan = []) {
 
 export function parseWechatClientPresence(snapshot, services, procd, aliasFile) {
   const installed = typeof aliasFile?.data === 'string' ||
+    typeof snapshot?.data === 'string' ||
     Boolean(services?.wechatpush || procd?.wechatpush)
   const instances = procd?.wechatpush?.instances || {}
-  const running = Object.values(instances).some(instance => instance?.running === true) ||
-    services?.wechatpush?.running === true
+  const procdInstances = Object.values(instances)
+  const procdRunning = procdInstances.some(instance => instance?.running === true)
+  const rcRunning = services?.wechatpush?.running === true
+  // A missing/inaccessible service.list result must not invalidate the
+  // WeChatPush file we just read. Only an explicit stopped service means
+  // its on-router devices.json should not be treated as current.
+  const explicitlyStopped = (procdInstances.length > 0 && !procdRunning && !rcRunning) ||
+    (procdInstances.length === 0 && services?.wechatpush?.running === false)
+  const running = procdRunning || rcRunning || !explicitlyStopped
 
   const aliasText = typeof aliasFile?.data === 'string' &&
     new TextEncoder().encode(aliasFile.data).length <= WECHAT_ALIAS_MAX_BYTES
@@ -47,12 +55,16 @@ export function parseWechatClientPresence(snapshot, services, procd, aliasFile) 
   }
   const byMac = new Map(), byIp = new Map()
   if (!running || typeof snapshot?.data !== 'string' || snapshot.data.length > 524288) {
-    return { installed, running, available: false, byMac, byIp, aliases, devices: [] }
+    const reason = explicitlyStopped ? '微信推送服务未运行' :
+      typeof snapshot?.data !== 'string' ? '无法读取 /tmp/wechatpush/devices.json' :
+      '微信推送设备数据超过大小限制'
+    return { installed, running, available: false, reason, byMac, byIp, aliases, devices: [] }
   }
   let data
   try { data = JSON.parse(snapshot.data) } catch { data = null }
   if (!Array.isArray(data?.devices)) {
-    return { installed, running, available: false, byMac, byIp, aliases, devices: [] }
+    return { installed, running, available: false, reason: 'devices.json 数据格式无效',
+      byMac, byIp, aliases, devices: [] }
   }
   for (const entry of data.devices.slice(0, 1024)) {
     const mac = normalizeMac(entry?.mac).toUpperCase()
@@ -73,7 +85,7 @@ export function parseWechatClientPresence(snapshot, services, procd, aliasFile) 
   for (const entry of byMac.values()) {
     if (entry.ip && !byIp.has(entry.ip)) byIp.set(entry.ip, entry)
   }
-  return { installed, running, available: true, byMac, byIp, aliases,
+  return { installed, running, available: true, reason: '', byMac, byIp, aliases,
     devices: [...byMac.values()] }
 }
 
