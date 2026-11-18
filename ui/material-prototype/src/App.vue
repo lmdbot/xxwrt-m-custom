@@ -13,6 +13,7 @@ import {
 import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
 import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
+import { reconcileTerminalClientData, resolveTerminalPresence } from './services/terminalPresence.js'
 import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
@@ -572,13 +573,15 @@ const terminalDevices = computed(() => {
       ip6: hint.ip6addrs?.[0] || '', online: true, onlineKnown: true
     }, 'wireless')
   })
-  // WeChatPush sees some always-on devices on a downstream AP even when
-  // they have no fresh DHCP lease or a locally associated Wi-Fi station.
-  // Add only active online devices as standalone entries; cached offline
-  // devices are used solely to enrich other known DHCP/OAF records.
-  wechatRecords.filter(item => item.status === 'online').forEach(item => {
-    add({ ...item, name: item.name || '', online: true, onlineKnown: true,
-      monitorStatus: 'online' }, 'wechatpush')
+  // WeChatPush is the authoritative presence roster when installed.
+  // Include offline/unknown records as well so an intermittent DHCP or
+  // monitor read cannot make remembered terminals vanish from "All".
+  // The monitor's explicit status—not this merge—is used below.
+  wechatRecords.forEach(item => {
+    add({ ...item, name: item.name || '',
+      online: item.status === 'online',
+      onlineKnown: item.status === 'online' || item.status === 'offline',
+      monitorStatus: item.status }, 'wechatpush')
   })
   // OpenAppFilter users are another discovery source, not proof of being online.
   // Merge by MAC so one terminal does not appear twice across DHCP, Wi-Fi and apps.
@@ -600,10 +603,13 @@ const terminalDevices = computed(() => {
     // source, with the DHCP / host hint and device identity as fallbacks.
     const hostname = alias || monitored?.name || item.name || item.hostname || ''
     const identity = identifyDevice(item.identityName || item.name || item.hostname, mac)
-    const status = monitored?.status === 'online' || monitored?.status === 'offline'
-      ? monitored.status : null
-    const online = status ? status === 'online' : item.online === true
-    const onlineKnown = status !== null || item.onlineKnown === true
+    const presence = resolveTerminalPresence({
+      wechatInstalled: clientData.value.wechatInstalled,
+      monitored,
+      fallbackOnline: item.online,
+      fallbackKnown: item.onlineKnown
+    })
+    const { online, onlineKnown } = presence
     const connectionType = monitored?.connectionType ||
       (item.wifi ? 'wireless' : '')
     const connectionBand = monitored?.band || ''
@@ -617,7 +623,7 @@ const terminalDevices = computed(() => {
       active: online && connectionType === 'wireless',
       online,
       onlineKnown,
-      monitorStatus: status || item.monitorStatus || '',
+      monitorStatus: presence.monitorStatus,
       connectionType,
       connectionBand,
       privateMac: identity.privateMac
@@ -884,7 +890,9 @@ async function preloadRouterClients(id, api, { force = false } = {}) {
     api.call('appfilter', 'get_all_users', { flag: 3 }, true)
   ]).then(([leases, stations, oafUsers]) => {
     if (routerPreloadCache.get(id) !== entry || !api.session) return
-    if (leases.status === 'fulfilled') entry.clientData = leases.value
+    if (leases.status === 'fulfilled') {
+      entry.clientData = reconcileTerminalClientData(leases.value, entry.clientData)
+    }
     if (stations.status === 'fulfilled' &&
         (stations.value.available || !entry.wirelessData?.available))
       entry.wirelessData = stations.value
