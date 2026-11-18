@@ -519,7 +519,7 @@ test('manual terminal refresh keeps WeChatPush status/name when monitor read bri
         ] }) }
       } else if (args[1] === 'file' && args[2] === 'read' &&
         args[3]?.path === '/usr/share/wechatpush/api/device_aliases.list') {
-        output = mode === 'invalid' ? null : { data:'AA:BB:CC:DD:EE:FF 我的电脑\\n' }
+        output = mode === 'invalid' ? null : { data:'AA:BB:CC:DD:EE:FF 我的电脑\n' }
       } else output = dataFor(args[1], args[2], args[3])
       return { jsonrpc:'2.0', id:item.id, result: output == null ? [6] : [0,output] }
     }
