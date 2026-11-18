@@ -1,56 +1,22 @@
 /**
- * One reconciliation policy for terminal data, regardless of whether the
- * refresh was started by login, Overview polling, Devices polling or a tap.
+ * All client refresh entry points use one status policy.
  *
- * When WeChatPush is installed it owns online/offline truth. DHCP, ARP,
- * iwinfo and AppFilter may discover devices and supply metadata, but must
- * not replace a missing WeChatPush observation with a contradictory status.
+ * WeChatPush (when installed) is the only authority for its monitored
+ * devices. Each poll reads a new router-side snapshot; a failed poll is NOT
+ * replaced by a prior app snapshot, including within the old 90s grace.
+ * DHCP/ARP/iwinfo may supplement addresses and discovered clients.
  */
-export const WECHAT_SNAPSHOT_GRACE_MS = 90000
-
-export function reconcileTerminalClientData(current, previous = null, now = Date.now()) {
-  if (!current) return previous
-  const next = { ...current }
-  // The DHCP RPC occasionally fails or returns no payload even though the
-  // monitor snapshot is valid. Keep last known identities/addresses instead
-  // of making the device list disappear for one polling interval.
-  if (!current.leasesAvailable && previous &&
-      (Array.isArray(previous.data) || Array.isArray(previous.ipv6))) {
-    next.data = previous.data
-    next.ipv6 = previous.ipv6
-    next.hints = current.hintsAvailable ? current.hints : previous.hints
-    next.leasesStale = true
+export function reconcileTerminalClientData(current, previous = null) {
+  if (!current) return null
+  // Installation is capability metadata, not cached terminal observations.
+  // Retain that flag if the next RPC has insufficient permissions to detect it.
+  return {
+    ...current,
+    wechatInstalled: Boolean(current.wechatInstalled || previous?.wechatInstalled),
+    wechatRecords: Array.isArray(current.wechatRecords) ? current.wechatRecords : [],
+    wechatAliases: Array.isArray(current.wechatAliases) ? current.wechatAliases : [],
+    monitorAvailable: current.monitorAvailable === true
   }
-
-  // A failed alias read is not a request to delete all user-defined names.
-  // Conversely, a successful empty alias file is an explicit removal.
-  if (!current.aliasesAvailable && previous?.wechatAliases) {
-    next.wechatAliases = previous.wechatAliases
-  }
-
-  if (current.monitorAvailable) {
-    next.monitorReadAt = now
-    next.monitorStale = false
-    return next
-  }
-
-  if (!(current.wechatInstalled || previous?.wechatInstalled)) return next
-  next.wechatInstalled = true
-  if (!Array.isArray(previous?.wechatRecords) || !previous.wechatRecords.length) return next
-
-  const age = now - Number(previous.monitorReadAt)
-  const recent = Number.isFinite(age) && age >= 0 && age <= WECHAT_SNAPSHOT_GRACE_MS
-  const keepPresence = recent && current.monitorStopped !== true
-  // A brief monitor RPC failure must not make the UI oscillate between ARP
-  // and WeChatPush. A confirmed stopped daemon or expired snapshot loses
-  // online authority, but cached names/identities remain visible as unknown.
-  next.wechatRecords = previous.wechatRecords.map(device => ({
-    ...device, status: keepPresence ? device.status : 'unknown'
-  }))
-  next.monitorReadAt = previous.monitorReadAt
-  next.monitorAvailable = keepPresence
-  next.monitorStale = true
-  return next
 }
 
 export function resolveTerminalPresence({ wechatInstalled, monitored, fallbackOnline, fallbackKnown }) {
