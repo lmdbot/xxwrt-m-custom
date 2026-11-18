@@ -600,12 +600,16 @@ export async function readClients(client) {
     ['service', 'list', { name: 'wechatpush' }],
     ['file', 'read', { path: WECHAT_DEVICE_ALIASES_PATH }]
   ])
+  const monitored = parseWechatPushDevices(wechatDevices, runningServices, wechatProcd, aliasFile)
   let neighbors = parseNeighborTables([ipv4Neighbors, ipv6Neighbors])
 
   // Refresh the kernel ARP cache using bounded router-side IPv4 probes.
   // Never infer offline status from missing ICMP responses: devices may block
   // ping while still answering ARP. Read the resulting neighbour states.
-  if (neighbors.available && Array.isArray(leases?.dhcp_leases)) {
+  // When WeChatPush is configured, its device monitor owns presence.
+  // Avoid expensive ping/ARP checks that disagree with the monitor and
+  // needlessly stretch every 15-second terminal refresh.
+  if (!monitored.installed && neighbors.available && Array.isArray(leases?.dhcp_leases)) {
     const ips = [...new Set(leases.dhcp_leases.map(item => item.ipaddr)
       .filter(validIPv4))]
       .filter(ip => neighbors.byIp.get(ip) !== 'online')
@@ -628,7 +632,6 @@ export async function readClients(client) {
     }
   }
 
-  const monitored = parseWechatPushDevices(wechatDevices, runningServices, wechatProcd, aliasFile)
   const names = hints || {}
   const lookupHint = mac => names[mac] || names[mac.toUpperCase()] || names[mac.toLowerCase()] || {}
   const data = (leases?.dhcp_leases || []).map(item => {
@@ -678,9 +681,11 @@ export async function readClients(client) {
     hintsAvailable: Boolean(hints),
     neighborsAvailable: neighbors.available,
     monitorAvailable: monitored.available,
+    monitorStopped: Boolean(wechatProcd?.wechatpush?.instances && !monitored.running),
     wechatInstalled: monitored.installed,
     wechatRecords: monitored.devices,
     wechatAliases: [...monitored.aliases.entries()],
+    aliasesAvailable: typeof aliasFile?.data === 'string',
     leasesAvailable: Boolean(leases)
   }
 }
