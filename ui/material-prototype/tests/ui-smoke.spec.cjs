@@ -546,6 +546,13 @@ test('manual terminal refresh reads new WeChatPush data and never replays prior 
   await expect(remembered).toContainText('监控记忆设备')
   await expect(remembered.locator('.v3-client-state')).toHaveText('离线')
 
+  // Even within the 45s prefetch window, returning to Devices must issue
+  // a new WeChatPush file read instead of showing app-cached observations.
+  const beforeReenter = monitorReads
+  await page.getByRole('button', {name:'概览',exact:true}).click()
+  await page.getByRole('button', {name:'设备',exact:true}).click()
+  await expect.poll(() => monitorReads).toBeGreaterThan(beforeReenter)
+
   mode = 'invalid'
   const before = monitorReads
   await page.getByRole('button', {name:'刷新当前页面'}).click()
