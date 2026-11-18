@@ -491,7 +491,7 @@ test('one saved router opens login automatically and preloads terminal data befo
   await expect.poll(() => terminalReads).toBeGreaterThan(beforeManualRefresh)
 })
 
-test('manual terminal refresh keeps WeChatPush status/name when monitor read briefly fails', async ({ page }) => {
+test('manual terminal refresh reads new WeChatPush data and never replays prior status on failure', async ({ page }) => {
   let mode = 'live'
   let monitorReads = 0
   await page.route('**/ubus', async route => {
@@ -550,15 +550,21 @@ test('manual terminal refresh keeps WeChatPush status/name when monitor read bri
   const before = monitorReads
   await page.getByRole('button', {name:'刷新当前页面'}).click()
   await expect.poll(()=>monitorReads).toBeGreaterThan(before)
-  await expect(computer).toContainText('我的电脑')
-  await expect(computer.locator('.v3-client-state')).toHaveText('在线')
-  await expect(phone.locator('.v3-client-state')).toHaveText('离线')
-  await expect(remembered).toHaveCount(1)
+  // Invalid live data must neither reuse the old online state nor old
+  // monitor-only devices/aliases. Report the source failure clearly.
+  await expect(page.getByText('微信推送实时终端数据不可用', {exact:false})).toBeVisible()
+  await expect(computer.locator('.v3-client-state')).toHaveText('待确认')
+  await expect(computer).not.toContainText('我的电脑')
+  await expect(phone.locator('.v3-client-state')).toHaveText('待确认')
+  await expect(remembered).toHaveCount(0)
 
-  // When WeChatPush really changes a status, its next valid snapshot wins.
+  // When WeChatPush recovers, new values become authoritative at once.
   mode = 'offline'
   await page.getByRole('button', {name:'刷新当前页面'}).click()
+  await expect(page.getByText('微信推送实时终端数据不可用', {exact:false})).toHaveCount(0)
+  await expect(computer).toContainText('我的电脑')
   await expect(computer.locator('.v3-client-state')).toHaveText('离线')
+  await expect(remembered).toHaveCount(1)
 })
 
 test('multiple saved routers remain on router management at startup', async ({ page }) => {
