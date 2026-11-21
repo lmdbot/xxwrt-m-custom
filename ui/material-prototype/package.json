@@ -1,7 +1,7 @@
 {
   "name": "xxwrt-material-ui-prototype",
   "private": true,
-  "version": "3.0.26",
+  "version": "3.0.27",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -10,7 +10,7 @@
     "android:sync": "npm run build && npx cap sync android",
     "test:ui": "playwright test",
     "test:versions": "node --test tests/app-releases.test.mjs",
-    "test:logic": "node --test tests/lease-time.test.mjs tests/drawer-swipe.test.mjs tests/luci-http.test.mjs tests/wechat-online-time.test.mjs tests/wechat-device-aliases.test.mjs tests/router-uptime.test.mjs tests/lucky-rpc.test.mjs tests/wan6-valid.test.mjs tests/licenses.test.mjs tests/localization.test.mjs tests/terminal-management.test.mjs tests/zerotier-interface.test.mjs tests/network-interface-config.test.mjs tests/software-packages.test.mjs tests/app-launcher.test.mjs tests/feature-catalog-v3.test.mjs tests/router-operations.test.mjs tests/management-core.test.mjs tests/advanced-management.test.mjs tests/router-insights.test.mjs tests/trend-visualization.test.mjs tests/motion-preferences.test.mjs tests/config-file-export.test.mjs tests/motion-engine.test.mjs tests/lab-features.test.mjs tests/app-icon-preferences.test.mjs tests/download-display.test.mjs tests/water-slosh.test.mjs tests/water-surface-path.test.mjs tests/wechat-client-presence.test.mjs tests/terminal-presence.test.mjs tests/firewall-runtime.test.mjs tests/router-login-config.test.mjs"
+    "test:logic": "node --test tests/lease-time.test.mjs tests/drawer-swipe.test.mjs tests/luci-http.test.mjs tests/wechat-online-time.test.mjs tests/wechat-device-aliases.test.mjs tests/router-uptime.test.mjs tests/lucky-rpc.test.mjs tests/wan6-valid.test.mjs tests/licenses.test.mjs tests/localization.test.mjs tests/terminal-management.test.mjs tests/zerotier-interface.test.mjs tests/network-interface-config.test.mjs tests/software-packages.test.mjs tests/app-launcher.test.mjs tests/feature-catalog-v3.test.mjs tests/router-operations.test.mjs tests/management-core.test.mjs tests/advanced-management.test.mjs tests/router-insights.test.mjs tests/trend-visualization.test.mjs tests/motion-preferences.test.mjs tests/config-file-export.test.mjs tests/motion-engine.test.mjs tests/lab-features.test.mjs tests/app-icon-preferences.test.mjs tests/download-display.test.mjs tests/water-slosh.test.mjs tests/water-surface-path.test.mjs tests/wechat-client-presence.test.mjs tests/xiaomi-client-data.test.mjs tests/terminal-presence.test.mjs tests/firewall-runtime.test.mjs tests/router-login-config.test.mjs"
   },
   "dependencies": {
     "@daisigu/vue-liquid-glass": "1.0.4",

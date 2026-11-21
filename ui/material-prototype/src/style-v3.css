@@ -1983,3 +1983,16 @@
   .xxwrt-v3 .router-wizard-alternates{padding:10px}
   .xxwrt-v3 .router-wizard .router-editor-actions{padding:10px 13px 12px}
 }
+
+/* Xiaomi source: compact, responsive and aligned with existing terminal filters. */
+.xxwrt-v3 .v3-xiaomi-source{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  border:1px solid var(--ui-border);border-radius:14px;padding:9px 11px;
+  background:rgba(var(--v-theme-primary),.035);margin:0 0 12px
+}
+.xxwrt-v3 .v3-xiaomi-source-label{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
+.xxwrt-v3 .v3-xiaomi-source-label>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.xxwrt-v3 .v3-xiaomi-source-label strong{font-size:13px;font-weight:700;color:var(--ui-text)}
+.xxwrt-v3 .v3-xiaomi-source-label small{font-size:11px;color:var(--ui-text-muted);line-height:1.45;overflow-wrap:anywhere}
+.xxwrt-v3 .v3-xiaomi-source-actions{display:flex;align-items:center;gap:2px;flex-shrink:0}
+@media(max-width:365px){.xxwrt-v3 .v3-xiaomi-source{gap:5px;padding:8px}.xxwrt-v3 .v3-xiaomi-source-label{gap:6px}}

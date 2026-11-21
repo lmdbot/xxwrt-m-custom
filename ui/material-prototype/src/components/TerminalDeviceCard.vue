@@ -30,14 +30,17 @@ const sourceLabels = computed(() => {
   if (props.item.sources?.includes('dhcp6')) labels.push('DHCPv6')
   if (props.item.sources?.includes('wireless')) labels.push('无线')
   if (props.item.sources?.includes('wechatpush')) labels.push('微信推送')
+  if (props.item.sources?.includes('xiaomi')) labels.push('小米接入')
   if (props.item.sources?.includes('oaf')) labels.push('应用用户')
   return labels
 })
 const connectionLabel = computed(() => {
-  if (props.item.online !== true) return ''
+  const fromXiaomi = props.item.connectionSource === 'xiaomi'
+  if (props.item.online !== true && !fromXiaomi) return ''
+  const prefix = fromXiaomi && props.item.online !== true ? '曾接入 · ' : ''
   if (props.item.connectionType === 'wireless')
-    return props.item.connectionBand ? '无线 · ' + props.item.connectionBand : '无线'
-  return props.item.connectionType === 'wired' ? '有线' : ''
+    return prefix + (props.item.connectionBand ? '无线 · ' + props.item.connectionBand : '无线')
+  return props.item.connectionType === 'wired' ? prefix + 'LAN' : ''
 })
 const title = computed(() => '查看终端 ' + (props.item.displayName || props.item.name || '未知设备'))
 </script>
@@ -95,7 +98,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
           :color="item.connectionType === 'wireless' ? 'primary' : 'secondary'"
           :prepend-icon="item.connectionType === 'wireless' ? 'mdi-wifi' : 'mdi-ethernet'"
           class="terminal-tag terminal-tag--connection"
-          :title="'实时连接方式：' + connectionLabel">{{ connectionLabel }}</v-chip>
+          :title="item.connectionSource === 'xiaomi' ? '小米路由器记录的连接类型，不参与在线判断' : '连接方式：' + connectionLabel">{{ connectionLabel }}</v-chip>
         <v-chip
           v-for="source in sourceLabels.slice(1)"
           :key="source"
