@@ -15,6 +15,7 @@ import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { reconcileTerminalClientData, resolveTerminalPresence } from './services/terminalPresence.js'
 import { normalizeXiaomiAddress } from './services/xiaomiClientData.js'
+import { XIAOMI_INSTALL_COMMAND } from './services/xiaomiQwrtTransport.js'
 import { readXiaomiAddress, readXiaomiPassword, saveXiaomiConfig, clearXiaomiConfig, fetchXiaomiDevices, resetXiaomiSession } from './services/xiaomiRouter.js'
 import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
@@ -805,6 +806,8 @@ const xiaomiForm = reactive({ address: '', password: '', showPassword: false })
 const xiaomiBusy = ref(false)
 const xiaomiError = ref('')
 const xiaomiNotice = ref('')
+const xiaomiInstallCopied = ref(false)
+const xiaomiNeedsBridge = computed(() => /安装专用组件|小米查询组件|错误码 6/.test(xiaomiError.value))
 const xiaomiRequests = new Map()
 const xiaomiLastPoll = new Map()
 
@@ -823,7 +826,26 @@ function openXiaomiDialog() {
   xiaomiForm.password = ''
   xiaomiForm.showPassword = false
   xiaomiError.value = ''
+  xiaomiInstallCopied.value = false
   xiaomiDialog.value = true
+}
+async function copyXiaomiInstallCommand() {
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(XIAOMI_INSTALL_COMMAND)
+    else {
+      const node = document.createElement('textarea')
+      node.value = XIAOMI_INSTALL_COMMAND
+      node.style.position = 'fixed'
+      node.style.opacity = '0'
+      document.body.appendChild(node)
+      node.select()
+      try { if (!document.execCommand('copy')) throw new Error('clipboard unavailable') }
+      finally { node.remove() }
+    }
+    xiaomiInstallCopied.value = true
+  } catch (_) {
+    xiaomiError.value = '复制失败，请从 GitHub 的 router/XX-WRT-QWRT-xiaomi-install.sh 获取安装脚本'
+  }
 }
 function closeXiaomiDialog() {
   if (xiaomiBusy.value) return
@@ -4398,6 +4420,16 @@ onUnmounted(() => {
           </p>
           <v-alert v-if="xiaomiError" density="compact" variant="tonal" type="warning"
             class="mt-2">{{ xiaomiError }}</v-alert>
+          <div v-if="xiaomiNeedsBridge" class="mt-2">
+            <v-btn prepend-icon="mdi-content-copy" variant="tonal" size="small"
+              color="primary" @click="copyXiaomiInstallCommand">
+              {{ xiaomiInstallCopied ? '已复制安装命令' : '复制 QWRT 安装命令' }}
+            </v-btn>
+            <p class="text-caption text-medium-emphasis mt-2">
+              请在 QWRT 的 SSH 终端以 root 执行，重新连接 QWRT 后再验证。
+              只安装受限的设备查询接口，不开放任意命令执行。
+            </p>
+          </div>
         </v-card-text>
         <v-card-actions>
           <v-btn v-if="xiaomiAddress" color="error" variant="text" :disabled="xiaomiBusy"
