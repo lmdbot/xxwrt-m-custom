@@ -15,7 +15,7 @@ import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { reconcileTerminalClientData, resolveTerminalPresence } from './services/terminalPresence.js'
 import { normalizeXiaomiAddress } from './services/xiaomiClientData.js'
-import { readXiaomiAddress, readXiaomiPassword, saveXiaomiConfig, clearXiaomiConfig, fetchXiaomiDevices } from './services/xiaomiRouter.js'
+import { readXiaomiAddress, readXiaomiPassword, saveXiaomiConfig, clearXiaomiConfig, fetchXiaomiDevices, resetXiaomiSession } from './services/xiaomiRouter.js'
 import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
@@ -841,9 +841,11 @@ async function refreshXiaomiSource({ force = false } = {}) {
   xiaomiBusy.value = true
   const job = (async () => {
     try {
+      const api = client.value
       const password = await readXiaomiPassword(routerId)
-      const devices = await fetchXiaomiDevices(address, password)
-      if (routerId !== selectedDeviceId.value || readXiaomiAddress(routerId) !== address) return
+      const devices = await fetchXiaomiDevices(api, address, password)
+      if (routerId !== selectedDeviceId.value || client.value !== api ||
+          readXiaomiAddress(routerId) !== address) return
       xiaomiSource.value = { routerId, devices }
       xiaomiError.value = ''
     } catch (error) {
@@ -870,7 +872,10 @@ async function saveXiaomiSource() {
   try {
     const address = normalizeXiaomiAddress(xiaomiForm.address)
     // Verify credentials and inventory BEFORE storing a password or enabling polling.
-    const devices = await fetchXiaomiDevices(address, password)
+    const api = client.value
+    const devices = await fetchXiaomiDevices(api, address, password)
+    if (routerId !== selectedDeviceId.value || api !== client.value)
+      throw new Error('QWRT 已切换，请重新配置小米路由器')
     await saveXiaomiConfig(routerId, address, password)
     if (routerId !== selectedDeviceId.value) return
     xiaomiSource.value = { routerId, devices }
@@ -891,6 +896,7 @@ async function deleteXiaomiSource() {
   xiaomiBusy.value = true
   try {
     await clearXiaomiConfig(selectedDeviceId.value)
+    resetXiaomiSession(client.value)
     xiaomiAddress.value = ''
     xiaomiSource.value = { routerId: selectedDeviceId.value, devices: [] }
     xiaomiError.value = ''
@@ -2216,6 +2222,7 @@ async function confirmDeleteDevice() {
   sessions.get(id)?.logout()
   sessions.delete(id)
   try { await deleteDevicePassword(id) } catch (e) { listError.value = '删除本地密码失败：' + shortError(e) }
+  resetXiaomiSession(sessions.get(id))
   try { await clearXiaomiConfig(id) } catch (e) { listError.value = '删除小米路由器凭据失败：' + shortError(e) }
   devices.value = saveDevices(devices.value.filter(d => d.id !== id))
   delete deviceStatuses[id]
@@ -4374,7 +4381,7 @@ onUnmounted(() => {
       aria-label="小米路由器接入信息配置">
       <v-card rounded="xl" class="pa-2">
         <v-card-title class="d-flex align-center ga-2"><v-icon icon="mdi-router-wireless" color="primary"/>小米路由器</v-card-title>
-        <v-card-subtitle>读取小米设备列表，补充 2.4G、5G 和 LAN 接入类型</v-card-subtitle>
+        <v-card-subtitle>通过 QWRT 读取小米设备，补充 2.4G、5G 和 LAN 接入类型</v-card-subtitle>
         <v-card-text>
           <v-text-field v-model="xiaomiForm.address" label="路由器局域网 IP"
             placeholder="192.168.100.2" variant="outlined" density="comfortable"
@@ -4386,8 +4393,8 @@ onUnmounted(() => {
             autocomplete="new-password" :disabled="xiaomiBusy"
             @click:append-inner="xiaomiForm.showPassword = !xiaomiForm.showPassword"/>
           <p class="text-caption text-medium-emphasis">
-            密码仅加密存入 Android 安全存储；小米设备的在线标记不会影响 QWRT 终端在线判断。
-            小米路由器必须可从手机局域网访问。
+            密码加密存放在 Android 设备中，QWRT 只转发加密登录摘要。
+            由 QWRT 访问小米路由器，小米接入信息不参与终端在线判断。
           </p>
           <v-alert v-if="xiaomiError" density="compact" variant="tonal" type="warning"
             class="mt-2">{{ xiaomiError }}</v-alert>
