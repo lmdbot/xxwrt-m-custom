@@ -1017,21 +1017,25 @@ async function preloadRouterClients(id, api, { force = false } = {}) {
     if (routerPreloadCache.get(id) !== entry || !api.session) return
     if (leases.status === 'fulfilled') {
       entry.clientData = reconcileTerminalClientData(leases.value, entry.clientData)
-    } else if (entry.clientData?.wechatInstalled) {
-      // An RPC rejection must invalidate the last observed WeChatPush
-      // state immediately, including names, status and cached aliases.
+    } else {
+      // A failed current QWRT discovery is NOT permission to replay an older
+      // device list. Preserve installation metadata, never cached clients.
       entry.clientData = {
-        ...emptyClientData(), wechatInstalled: true,
+        ...emptyClientData(),
+        wechatInstalled: Boolean(entry.clientData?.wechatInstalled),
         monitorAvailable: false, monitorReason: '本轮终端数据 RPC 请求失败'
       }
     }
-    if (stations.status === 'fulfilled' &&
-        (stations.value.available || !entry.wirelessData?.available))
-      entry.wirelessData = stations.value
+    // A failed optional Wi-Fi/OAF poll likewise must not keep its previous
+    // candidate roster alive as if QWRT had detected it this round.
+    entry.wirelessData = stations.status === 'fulfilled' && stations.value?.available
+      ? stations.value : emptyWirelessData()
     if (oafUsers.status === 'fulfilled') {
       const list = oafUsers.value?.data?.list || oafUsers.value?.list
       entry.oafData = { available: !!oafUsers.value,
         users: Array.isArray(list) ? list : [] }
+    } else {
+      entry.oafData = emptyAppFilterUsers()
     }
     if ([leases, stations, oafUsers].some(item => item.status === 'fulfilled'))
       entry.clientsAt = Date.now()
@@ -1560,8 +1564,8 @@ function autoRefreshConnectedClients() {
   // Skip this tick instead of queuing another forced fetch.
   if (!entry || entry.clientsPromise) return
   void preloadRouterClients(id, api, { force: true }).catch(() => {
-    // Transient automatic refresh failures retain the last known devices;
-    // the next scheduled tick can retry without disrupting the UI.
+    // On a failed poll the device roster is reset, not treated as fresh.
+    // The next scheduled tick will retry without blocking the UI.
   })
 }
 
