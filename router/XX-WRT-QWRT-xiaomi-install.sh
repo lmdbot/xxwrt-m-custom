@@ -1,16 +1,30 @@
 #!/bin/sh
-# One-time root installation of XX-WRT's narrowly scoped Xiaomi RPC backend.
-# Copy BOTH companion files to /tmp/ first, then run this installer as root.
+# Install and VERIFY the narrowly scoped Xiaomi RPC executable on QWRT.
+# Run as root after copying luci.xxwrt-xiaomi and this installer to /tmp.
 set -eu
-[ "$(id -u)" -eq 0 ] || { echo 'Run as root on QWRT.' >&2; exit 1; }
-[ -x /etc/init.d/rpcd ] || { echo 'rpcd is not installed.' >&2; exit 1; }
-[ -r /usr/share/libubox/jshn.sh ] || { echo 'jshn.sh is missing.' >&2; exit 1; }
-[ -r /tmp/luci.xxwrt-xiaomi ] || {
-    echo 'Copy luci.xxwrt-xiaomi to /tmp/ before installing.' >&2; exit 1;
+
+fail() {
+    printf 'ERROR: %s\n' "$1" >&2
+    exit 1
 }
+
+[ "$(id -u)" -eq 0 ] || fail 'Run as root on QWRT.'
+[ -x /etc/init.d/rpcd ] || fail 'rpcd is not installed.'
+[ -r /usr/share/libubox/jshn.sh ] || fail 'jshn.sh is missing; install libubox/jshn.'
+command -v ubus >/dev/null 2>&1 || fail 'ubus CLI is required to verify registration.'
+[ -r /tmp/luci.xxwrt-xiaomi ] || fail 'Copy the companion luci.xxwrt-xiaomi to /tmp/ first.'
+
 mkdir -p /usr/libexec/rpcd /usr/share/rpcd/acl.d
 cp /tmp/luci.xxwrt-xiaomi /usr/libexec/rpcd/luci.xxwrt-xiaomi
 chmod 0755 /usr/libexec/rpcd/luci.xxwrt-xiaomi
+
+# Confirm rpcd can execute this file and read its method signature BEFORE
+# changing rpcd. Missing libraries or invalid shebangs cannot pass silently.
+signature="$(/usr/libexec/rpcd/luci.xxwrt-xiaomi list)" ||
+    fail 'Backend list mode failed; check shebang and file permissions.'
+[ "$signature" = '{"Fetch":{"address":"str","path":"str","form":"str"}}' ] ||
+    fail 'Backend returned an invalid method signature.'
+
 cat > /usr/share/rpcd/acl.d/xxwrt-xiaomi.json <<'ACL'
 {
   "xxwrt-xiaomi": {
@@ -29,8 +43,42 @@ if [ -f /etc/sysupgrade.conf ]; then
         grep -qxF "$f" /etc/sysupgrade.conf || printf '%s\n' "$f" >> /etc/sysupgrade.conf
     done
 fi
-/etc/init.d/rpcd restart
-echo 'Installed luci.xxwrt-xiaomi.Fetch. Re-login to QWRT from the App.'
-if command -v ubus >/dev/null 2>&1; then
-    ubus -S list 'luci.xxwrt-xiaomi' || true
+
+printf '%s\n' 'Reloading rpcd and verifying Xiaomi RPC registration ...'
+/etc/init.d/rpcd restart || fail 'rpcd restart failed.'
+
+registered=0
+attempt=0
+while [ "$attempt" -lt 6 ]; do
+    # -v proves the Fetch method exists, not merely a matching object name.
+    if ubus -v list 'luci.xxwrt-xiaomi' 2>/dev/null | grep -q '"Fetch"'; then
+        registered=1
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+
+if [ "$registered" -ne 1 ]; then
+    printf '%s\n' 'Failed to register luci.xxwrt-xiaomi.Fetch.' >&2
+    printf '%s\n' 'Check whether this QWRT rpcd loads /usr/libexec/rpcd/ executables:' >&2
+    ls -l /usr/libexec/rpcd/luci.xxwrt-xiaomi >&2
+    if command -v logread >/dev/null 2>&1; then
+        logread -e rpcd 2>/dev/null | tail -n 15 >&2 || true
+    fi
+    fail 'The Xiaomi ubus object is missing; App cannot work until this is resolved.'
 fi
+
+# Execute a deliberately invalid, non-routable target. A result of code 400
+# proves the method runs and validates inputs without contacting any device.
+probe="$(ubus call 'luci.xxwrt-xiaomi' Fetch \
+    '{"address":"http://127.0.0.1","path":"/cgi-bin/luci/api/xqsystem/init_info","form":""}' 2>&1)" ||
+    fail 'The Xiaomi RPC method is registered but cannot be called.'
+printf '%s' "$probe" | grep -Eq '"code"[[:space:]]*:[[:space:]]*400' ||
+    fail 'The Xiaomi RPC method returned an unexpected self-test result.'
+
+printf '\n%s\n' 'SUCCESS: QWRT has registered and executed luci.xxwrt-xiaomi.Fetch.'
+if ! command -v curl >/dev/null 2>&1; then
+    printf '%s\n' 'WARNING: curl is not installed; please install curl on QWRT.'
+fi
+printf '%s\n' 'Reconnect QWRT in the App, then verify the Xiaomi router again.'

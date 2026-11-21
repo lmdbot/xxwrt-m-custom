@@ -27,6 +27,9 @@ export async function xiaomiRequestFromQwrt(qwrt, address, path, form = null) {
     result = await qwrt.call('luci.xxwrt-xiaomi', 'Fetch', payload)
   } catch (error) {
     const detail = String(error?.message || error)
+    if (/(?:代码\s*-32000|Object not found)/i.test(detail)) {
+      throw new Error('QWRT 没有注册小米查询 RPC 对象（-32000），并非小米密码错误。请在 QWRT 重新运行最新版 XX-WRT-QWRT-xiaomi-install.sh，确认显示 SUCCESS，再在 App 中重新连接 QWRT。')
+    }
     if (/代码\s*(?:4|6|9)|(?:permission|access)\s*denied|not\s*found/i.test(detail)) {
       throw new Error('QWRT 尚未安装或授权小米查询扩展（也可能是登录已过期）；请安装 XX-WRT 小米 RPC 扩展并重新登录 QWRT。' + detail)
     }
