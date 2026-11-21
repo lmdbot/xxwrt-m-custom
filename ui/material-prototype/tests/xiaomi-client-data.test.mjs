@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  normalizeXiaomiAddress, xiaomiConnection, parseXiaomiDevices, parseXiaomiLoginPage
+  normalizeXiaomiAddress, xiaomiConnection, parseXiaomiDevices, parseXiaomiLoginPage,
+  mergeXiaomiDeviceLists, queryXiaomiDeviceLists, formatTerminalConnectionLabel
 } from '../src/services/xiaomiClientData.js'
 import { resolveTerminalPresence } from '../src/services/terminalPresence.js'
 
@@ -85,4 +86,115 @@ test('Xiaomi login page requires a valid key and MAC before trying a password', 
     '<html><script>var x = {key:"anyKey"};</script></html>',
     '<html><script>var deviceId="aa:bb:cc:dd:ee:ff";var x={key:"<bad>"};</script></html>'
   ]) assert.throws(() => parseXiaomiLoginPage(page))
+})
+
+
+test('historical Xiaomi list supports dev response variants, line LAN and unnamed client', () => {
+  const rows = parseXiaomiDevices({ code: 0, data: { dev: [
+    { mac: 'AA:BB:CC:DD:EE:01', origin_name: 'old-router', type: 'line', online: 0 },
+    { mac: 'AA:BB:CC:DD:EE:02', name: 'camera', type: 'wifi', online: 1 },
+    { mac: 'AA:BB:CC:DD:EE:03', name: 'sensor', type: 1, online: 0 }
+  ] } })
+  assert.deepEqual(rows.map(r => r.connectionType), ['wired', 'wireless', 'wireless'])
+  assert.deepEqual(rows.map(r => r.band), ['', '', '2.4G'])
+  assert.equal(rows[0].name, 'old-router')
+  assert.equal(xiaomiConnection('line').connectionType, 'wired')
+  assert.ok(rows.every(row => !('online' in row)))
+})
+
+test('current inventory takes precedence; historical 2.4G/5G/LAN remain visible by MAC', () => {
+  const current = parseXiaomiDevices({ code: 0, list: [
+    { mac: 'AA:BB:CC:DD:EE:01', name: 'Phone', ip: [{ ip: '192.168.100.12' }], type: 2, online: 1 },
+    { mac: 'AA:BB:CC:DD:EE:02', name: 'Camera', type: 1, online: 1 }
+  ] })
+  const history = parseXiaomiDevices({ code: 0, list: [
+    { mac: 'aa:bb:cc:dd:ee:01', name: 'Old phone', type: 1, online: 0 },
+    ...Array.from({ length: 10 }, (_, i) => ({
+      mac: 'AA:BB:CC:DD:FF:' + String(i).padStart(2, '0'),
+      name: 'history-' + i, type: i === 0 ? 0 : i % 2 ? 1 : 2,
+      ip: [{ ip: '192.168.100.99', active: 0 }], online: 0
+    }))
+  ] })
+  const merged = mergeXiaomiDeviceLists(current, history)
+  assert.equal(merged.length, 12)
+  assert.equal(merged.find(r => r.mac === 'AA:BB:CC:DD:EE:01').band, '5G')
+  assert.equal(merged.find(r => r.mac === 'AA:BB:CC:DD:EE:01').xiaomiHistoryOnly, false)
+  const firstOld = merged.find(r => r.mac === 'AA:BB:CC:DD:FF:00')
+  assert.equal(firstOld.connectionType, 'wired')
+  assert.equal(firstOld.ip, '') // Historical IP is not a live QWRT IP.
+  assert.equal(firstOld.xiaomiHistoryOnly, true)
+  assert.equal(merged.find(r => r.mac === 'AA:BB:CC:DD:FF:01').band, '2.4G')
+  assert.ok(merged.every(r => !('online' in r) && !('onlineKnown' in r) && !('status' in r)))
+})
+
+test('generic current WiFi with historical 5G is marked as a historical band', () => {
+  const [row] = mergeXiaomiDeviceLists(
+    [{ mac: 'AA:BB:CC:DD:EE:10', name: 'now', connectionType: 'wireless', band: '' }],
+    [{ mac: 'AA:BB:CC:DD:EE:10', name: 'old', connectionType: 'wireless', band: '5G' }]
+  )
+  assert.equal(row.band, '5G')
+  assert.equal(row.xiaomiHistoryOnly, true)
+  const [wired] = mergeXiaomiDeviceLists(
+    [{ mac: 'AA:BB:CC:DD:EE:11', connectionType: 'wired', band: '' }],
+    [{ mac: 'AA:BB:CC:DD:EE:11', connectionType: 'wireless', band: '2.4G' }]
+  )
+  assert.equal(wired.connectionType, 'wired')
+  assert.equal(wired.band, '')
+  assert.equal(wired.xiaomiHistoryOnly, false)
+})
+
+test('both Xiaomi API paths are queried even if current inventory succeeds', async () => {
+  const seen = []
+  const rows = await queryXiaomiDeviceLists(async path => {
+    seen.push(path)
+    return path === 'misystem/devicelist'
+      ? { code: 0, list: [{ mac: 'AA:BB:CC:DD:EE:01', type: 2 }] }
+      : { code: 0, dev: [{ mac: 'AA:BB:CC:DD:EE:02', type: 1 }] }
+  })
+  assert.deepEqual(seen, ['misystem/devicelist', 'xqsystem/device_list?all=1'])
+  assert.equal(rows.length, 2)
+  assert.equal(rows.find(r => r.mac.endsWith(':02')).xiaomiHistoryOnly, true)
+})
+
+test('single available Xiaomi API yields partial data; both failed rejects', async () => {
+  const partial = await queryXiaomiDeviceLists(async path => {
+    if (path === 'misystem/devicelist') throw new Error('unsupported')
+    return { code: 0, list: [{ mac: 'AA:BB:CC:DD:EE:01', type: 0 }] }
+  })
+  assert.equal(partial.length, 1)
+  assert.equal(partial[0].xiaomiHistoryOnly, true)
+  await assert.rejects(
+    queryXiaomiDeviceLists(async () => { throw new Error('expired') }),
+    /expired/
+  )
+})
+
+test('current QWRT online status and Xiaomi past attachment never cross streams', () => {
+  assert.equal(formatTerminalConnectionLabel({
+    connectionType: 'wireless', connectionBand: '2.4G',
+    connectionSource: 'xiaomi', online: false, xiaomiHistoryOnly: true
+  }), '曾接入 · 2.4G')
+  assert.equal(formatTerminalConnectionLabel({
+    connectionType: 'wireless', connectionBand: '5G',
+    connectionSource: 'xiaomi', online: true, xiaomiHistoryOnly: true
+  }), '曾接入 · 5G')
+  assert.equal(formatTerminalConnectionLabel({
+    connectionType: 'wired', connectionSource: 'xiaomi', online: false
+  }), '曾接入 · LAN')
+  assert.equal(formatTerminalConnectionLabel({
+    connectionType: 'wireless', connectionBand: '',
+    connectionSource: 'xiaomi', online: false
+  }), '曾接入 · 无线（频段未知）')
+  assert.equal(formatTerminalConnectionLabel({
+    connectionType: 'wireless', connectionBand: '5G',
+    connectionSource: 'xiaomi', online: true, xiaomiHistoryOnly: false
+  }), '无线 · 5G')
+  assert.equal(formatTerminalConnectionLabel({
+    connectionType: 'wireless', connectionBand: '5G',
+    connectionSource: 'wechatpush', online: false
+  }), '')
+  assert.deepEqual(resolveTerminalPresence({
+    wechatInstalled: true, monitored: { status: 'offline' },
+    fallbackOnline: true, fallbackKnown: true
+  }), { online: false, onlineKnown: true, monitorStatus: 'offline' })
 })
