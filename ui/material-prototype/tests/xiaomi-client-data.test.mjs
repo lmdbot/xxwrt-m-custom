@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  normalizeXiaomiAddress, xiaomiConnection, parseXiaomiDevices
+  normalizeXiaomiAddress, xiaomiConnection, parseXiaomiDevices, parseXiaomiLoginPage
 } from '../src/services/xiaomiClientData.js'
 import { resolveTerminalPresence } from '../src/services/terminalPresence.js'
 
@@ -59,4 +59,30 @@ test('presence remains WeChatPush-led even for Xiaomi-reported clients', () => {
   assert.deepEqual(resolveTerminalPresence({
     wechatInstalled: true, monitored: null, fallbackOnline: false, fallbackKnown: false
   }), { online: false, onlineKnown: false, monitorStatus: '' })
+})
+
+
+test('BE5000 / RD18 firmware serves key and deviceId in login HTML, not init_info', () => {
+  const page = [
+    '<!doctype html><html><script>',
+    "var deviceId = 'ac:12:34:56:78:90';",
+    "var Encrypt = { key: 'publicChallengeKey123', encrypt: function() {} };",
+    '</script></html>'
+  ].join('\n')
+  assert.deepEqual(parseXiaomiLoginPage(page), {
+    key: 'publicChallengeKey123', deviceId: 'ac:12:34:56:78:90'
+  })
+  assert.deepEqual(parseXiaomiLoginPage(
+    '<html><script>var deviceId="AA:BB:CC:DD:EE:FF"; let x={key:"a1b2c3d4"};</script></html>'
+  ), { key: 'a1b2c3d4', deviceId: 'aa:bb:cc:dd:ee:ff' })
+})
+
+test('Xiaomi login page requires a valid key and MAC before trying a password', () => {
+  for (const page of [
+    '{"code":0,"newEncryptMode":1}',
+    '<html><script>var deviceId = "xx:xx:xx:xx:xx:xx";</script></html>',
+    '<html><script>var deviceId = "aa:bb:cc:dd:ee:ff";</script></html>',
+    '<html><script>var x = {key:"anyKey"};</script></html>',
+    '<html><script>var deviceId="aa:bb:cc:dd:ee:ff";var x={key:"<bad>"};</script></html>'
+  ]) assert.throws(() => parseXiaomiLoginPage(page))
 })
