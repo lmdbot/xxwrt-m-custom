@@ -71,11 +71,24 @@ fi
 
 # Execute a deliberately invalid, non-routable target. A result of code 400
 # proves the method runs and validates inputs without contacting any device.
-probe="$(ubus call 'luci.xxwrt-xiaomi' Fetch \
-    '{"address":"http://127.0.0.1","path":"/cgi-bin/luci/api/xqsystem/init_info","form":""}' 2>&1)" ||
-    fail 'The Xiaomi RPC method is registered but cannot be called.'
-printf '%s' "$probe" | grep -Eq '"code"[[:space:]]*:[[:space:]]*400' ||
-    fail 'The Xiaomi RPC method returned an unexpected self-test result.'
+# Keep the original ubus error output instead of reporting only a
+# generic failure. The probe uses loopback, so it never contacts Xiaomi.
+probe_input='{"address":"http://127.0.0.1","path":"/cgi-bin/luci/api/xqsystem/init_info","form":""}'
+probe="$(ubus call 'luci.xxwrt-xiaomi' Fetch "$probe_input" 2>&1)" || {
+    printf '%s\n' "ubus error: $probe" >&2
+    # Run the same validation directly to distinguish a script crash from
+    # rpcd plugin execution / ACL problems. No secrets are included.
+    direct="$(printf '%s' "$probe_input" | /usr/libexec/rpcd/luci.xxwrt-xiaomi call Fetch 2>&1)" || {
+        printf '%s\n' "direct backend error: $direct" >&2
+        fail 'Xiaomi backend failed to execute. Check jshn support and shell errors.'
+    }
+    printf '%s\n' "direct backend result: $direct" >&2
+    fail 'Backend works directly but rpcd failed. Check rpcd logs and method permissions.'
+}
+printf '%s' "$probe" | grep -Eq '"code"[[:space:]]*:[[:space:]]*400' || {
+    printf '%s\n' "unexpected ubus response: $probe" >&2
+    fail 'Xiaomi RPC returned an unexpected self-test result.'
+}
 
 printf '\n%s\n' 'SUCCESS: QWRT has registered and executed luci.xxwrt-xiaomi.Fetch.'
 if ! command -v curl >/dev/null 2>&1; then
