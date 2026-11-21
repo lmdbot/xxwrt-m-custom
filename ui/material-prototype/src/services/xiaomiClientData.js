@@ -21,7 +21,7 @@ export function normalizeXiaomiAddress(value) {
 
 export function xiaomiConnection(raw) {
   const value = String(raw ?? '').trim().toLowerCase();
-  if (value === '0' || ['lan', 'wired', 'ethernet', '有线'].includes(value))
+  if (value === '0' || ['line', 'lan', 'wired', 'ethernet', '有线'].includes(value))
     return { connectionType: 'wired', band: '' };
   if (value === '1' || /^(2[.]4|2[.]4g|2g|2[.]4ghz|2[.]4g wifi)$/.test(value))
     return { connectionType: 'wireless', band: '2.4G' };
@@ -38,20 +38,23 @@ function validMac(value) {
 }
 
 export function parseXiaomiDevices(payload) {
-  const body = payload?.data?.list ? payload.data : payload;
-  if (!body || Number(body.code ?? 0) !== 0 || !Array.isArray(body.list))
+  const nested = payload?.data;
+  const body = nested && (Array.isArray(nested.list) || Array.isArray(nested.dev)) ? nested : payload;
+  const entries = Array.isArray(body?.list) ? body.list : body?.dev;
+  if (!body || Number(payload?.code ?? body.code ?? 0) !== 0 || !Array.isArray(entries))
     throw new Error('小米路由器未返回有效设备列表');
   const result = new Map();
-  for (const entry of body.list.slice(0, 2048)) {
+  for (const entry of entries.slice(0, 2048)) {
     const mac = validMac(entry?.mac || entry?.macaddr);
     if (!mac) continue;
     const ips = Array.isArray(entry.ip) ? entry.ip : [];
     const ip = ips.find(row => row?.active && row?.ip)?.ip || ips[0]?.ip ||
       (typeof entry.ip === 'string' ? entry.ip : '') || entry.ipaddr || '';
-    const attachment = xiaomiConnection(entry.type ?? entry.connectType ?? entry.connection_type);
+    const attachment = xiaomiConnection(
+      entry.type ?? entry.connectType ?? entry.connection_type ?? entry.connectionType);
     const row = {
       mac,
-      name: String(entry.name || entry.oname || entry.hostname || '').trim().slice(0, 100),
+      name: String(entry.name || entry.oname || entry.hostname || entry.origin_name || '').trim().slice(0, 100),
       ip: String(ip || '').trim(),
       connectionType: attachment.connectionType,
       band: attachment.band
@@ -59,10 +62,79 @@ export function parseXiaomiDevices(payload) {
     const previous = result.get(mac);
     // If a Mesh node repeats the same MAC, prefer a row that identifies
     // the attachment; never infer online/offline from Xiaomi's "online".
-    if (!previous || (!previous.connectionType && row.connectionType))
+    if (!previous || (!previous.connectionType && row.connectionType) ||
+        (!previous.band && row.band && previous.connectionType === row.connectionType))
       result.set(mac, row);
   }
   return [...result.values()];
+}
+
+
+// Keep historical attachment records as metadata only: no Xiaomi online flag,
+// connection count or historical IP may ever become live QWRT presence data.
+export function mergeXiaomiDeviceLists(current = [], history = []) {
+  const byMac = new Map();
+  for (const row of history) {
+    if (!row?.mac) continue;
+    byMac.set(row.mac, {
+      mac: row.mac, name: row.name || '', ip: '',
+      connectionType: row.connectionType || '', band: row.band || '',
+      xiaomiHistoryOnly: true
+    });
+  }
+  for (const row of current) {
+    if (!row?.mac) continue;
+    const previous = byMac.get(row.mac);
+    const connectionType = row.connectionType || previous?.connectionType || '';
+    const inheritedType = !row.connectionType && !!previous?.connectionType;
+    const inheritedBand = connectionType === 'wireless' &&
+      !row.band && previous?.connectionType === 'wireless' && !!previous.band;
+    byMac.set(row.mac, {
+      mac: row.mac,
+      name: row.name || previous?.name || '',
+      ip: row.ip || '',
+      connectionType,
+      band: connectionType === 'wireless'
+        ? (row.band || (previous?.connectionType === 'wireless' ? previous.band : '') || '')
+        : '',
+      xiaomiHistoryOnly: inheritedType || inheritedBand
+    });
+  }
+  return [...byMac.values()];
+}
+
+/**
+ * Always attempt both inventory endpoints. Some firmware returns only current
+ * clients from misystem/devicelist and historical clients from
+ * xqsystem/device_list?all=1. A partial success is still useful; two failures
+ * remain an error so the caller can retry a revoked Xiaomi login token.
+ */
+export async function queryXiaomiDeviceLists(request) {
+  const [currentResult, historyResult] = await Promise.allSettled([
+    request('misystem/devicelist').then(parseXiaomiDevices),
+    request('xqsystem/device_list?all=1').then(parseXiaomiDevices)
+  ]);
+  if (currentResult.status === 'rejected' && historyResult.status === 'rejected')
+    throw currentResult.reason || historyResult.reason || new Error('小米设备列表获取失败');
+  return mergeXiaomiDeviceLists(
+    currentResult.status === 'fulfilled' ? currentResult.value : [],
+    historyResult.status === 'fulfilled' ? historyResult.value : []
+  );
+}
+
+/** Attachment label is descriptive, never evidence that a device is online. */
+export function formatTerminalConnectionLabel(item) {
+  if (!item?.connectionType) return '';
+  const fromXiaomi = item.connectionSource === 'xiaomi';
+  if (item.online !== true && !fromXiaomi) return '';
+  const historical = fromXiaomi && (item.online !== true || item.xiaomiHistoryOnly === true);
+  const medium = item.connectionType === 'wired' ? 'LAN'
+    : item.connectionType === 'wireless'
+      ? (historical
+          ? (item.connectionBand || '无线（频段未知）')
+          : (item.connectionBand ? '无线 · ' + item.connectionBand : '无线'))
+      : '';
+  return medium ? (historical ? '曾接入 · ' : '') + medium : '';
 }
 
 
