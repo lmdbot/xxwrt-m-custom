@@ -28,9 +28,12 @@ export async function saveXiaomiConfig(routerId, address, password) {
 
 export async function clearXiaomiConfig(routerId) {
   const origin = readXiaomiAddress(routerId);
+  if (Capacitor.isNativePlatform()) {
+    try { await SecureStorage.remove(PASSWORD_KEY + routerId); }
+    catch (error) { throw new Error('无法从安全存储中清除小米密码：' + String(error?.message || error)); }
+  }
   localStorage.removeItem(ADDRESS_KEY + routerId);
   if (origin) sessions.delete(origin);
-  if (Capacitor.isNativePlatform()) await SecureStorage.remove(PASSWORD_KEY + routerId);
 }
 
 export async function readXiaomiPassword(routerId) {
