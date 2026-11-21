@@ -1,6 +1,20 @@
 #!/bin/sh
 # XX-WRT dedicated Xiaomi RPC backend. No arbitrary file.exec access.
 set -eu
+
+# rpcd registers an executable only if "list" returns a valid signature.
+# Do this BEFORE sourcing any optional JSON helper; registration must work
+# even if libubox sourcing is broken or a package is partially upgraded.
+case "${1:-}:${2:-}" in
+    list:) printf '%s\n' '{"Fetch":{"address":"str","path":"str","form":"str"}}'; exit 0 ;;
+    call:Fetch) ;;
+    *) printf '%s\n' '{}'; exit 0 ;;
+esac
+
+if [ ! -r /usr/share/libubox/jshn.sh ]; then
+    printf '%s\n' '{"code":503,"body":""}'
+    exit 0
+fi
 . /usr/share/libubox/jshn.sh
 
 respond() {
@@ -11,18 +25,16 @@ respond() {
     printf '\n'
 }
 
-case "${1:-}:${2:-}" in
-    list:) printf '%s\n' '{"Fetch":{"address":"str","path":"str","form":"str"}}'; exit 0 ;;
-    call:Fetch) ;;
-    *) printf '%s\n' '{}'; exit 0 ;;
-esac
-
-IFS= read -r input || [ -n "${input:-}" ] || { respond 400; exit 0; }
+input=''
+IFS= read -r input || [ -n "$input" ] || { respond 400; exit 0; }
 [ "${#input}" -le 2048 ] || { respond 400; exit 0; }
 json_load "$input" >/dev/null 2>&1 || { respond 400; exit 0; }
-json_get_var address address
-json_get_var path path
-json_get_var form form
+address=''
+path=''
+form=''
+json_get_var address address || true
+json_get_var path path || true
+json_get_var form form || true
 
 # Only RFC1918 numeric IPv4 origins; never allow hostnames or URL paths.
 case "$address" in http://*|https://*) ;; *) respond 400; exit 0 ;; esac
