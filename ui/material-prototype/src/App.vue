@@ -797,7 +797,7 @@ const clientData = ref({ data: [], ipv6: [], wechatRecords: [], wechatAliases: [
   wechatInstalled: false, leasesAvailable: false })
 
 const xiaomiSource = ref({ routerId: '', devices: [] })
-const xiaomiAddress = computed(() => readXiaomiAddress(selectedDeviceId.value))
+const xiaomiAddress = ref(readXiaomiAddress(selectedDeviceId.value))
 const xiaomiDevices = computed(() => xiaomiSource.value.routerId === selectedDeviceId.value
   ? xiaomiSource.value.devices : [])
 const xiaomiDialog = ref(false)
@@ -809,6 +809,8 @@ const xiaomiRequests = new Map()
 const xiaomiLastPoll = new Map()
 
 watch(selectedDeviceId, () => {
+  xiaomiAddress.value = readXiaomiAddress(selectedDeviceId.value)
+  xiaomiBusy.value = false
   xiaomiSource.value = { routerId: '', devices: [] }
   xiaomiError.value = ''
   xiaomiNotice.value = ''
@@ -872,6 +874,7 @@ async function saveXiaomiSource() {
     await saveXiaomiConfig(routerId, address, password)
     if (routerId !== selectedDeviceId.value) return
     xiaomiSource.value = { routerId, devices }
+    xiaomiAddress.value = address
     xiaomiLastPoll.set(routerId, Date.now())
     xiaomiNotice.value = '已连接小米路由器，获取到 ' + devices.length + ' 台设备（仅作接入类型参考）'
     xiaomiDialog.value = false
@@ -888,6 +891,7 @@ async function deleteXiaomiSource() {
   xiaomiBusy.value = true
   try {
     await clearXiaomiConfig(selectedDeviceId.value)
+    xiaomiAddress.value = ''
     xiaomiSource.value = { routerId: selectedDeviceId.value, devices: [] }
     xiaomiError.value = ''
     xiaomiNotice.value = '小米路由器配置和保存的密码已清除'
@@ -2212,6 +2216,7 @@ async function confirmDeleteDevice() {
   sessions.get(id)?.logout()
   sessions.delete(id)
   try { await deleteDevicePassword(id) } catch (e) { listError.value = '删除本地密码失败：' + shortError(e) }
+  try { await clearXiaomiConfig(id) } catch (e) { listError.value = '删除小米路由器凭据失败：' + shortError(e) }
   devices.value = saveDevices(devices.value.filter(d => d.id !== id))
   delete deviceStatuses[id]
   delete deviceSummaries[id]
