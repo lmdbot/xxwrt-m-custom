@@ -65,6 +65,13 @@ test('RPC access code 6 explains the required QWRT helper instead of blaming Xia
   )
 })
 
+test('OpenWrt -32000 identifies a missing ubus object, not Xiaomi authentication', async () => {
+  const rpc = stubRpc()
+  rpc.client.call = async () => { throw new Error('RPC 调用失败（代码 -32000）') }
+  await assert.rejects(() => xiaomiRequestFromQwrt(rpc.client, '192.168.100.139',
+    '/cgi-bin/luci/api/xqsystem/init_info'), /没有注册小米查询 RPC 对象/)
+})
+
 test('curl and relay failures preserve an actionable error', async () => {
   const responses = [
     [{ code: 28, body: '' }, /超时/],
@@ -100,4 +107,10 @@ test('router helper shell scripts parse and installer ACL cannot grant generic f
   assert.match(helper, /--proto/)
   assert.match(setup, /luci\.xxwrt-xiaomi/)
   assert.doesNotMatch(setup, /"file"\s*:\s*\[/)
+  const list = execFileSync('sh', [backend, 'list'], { encoding: 'utf8' }).trim()
+  assert.deepEqual(JSON.parse(list), { Fetch: { address: 'str', path: 'str', form: 'str' } })
+  assert.match(setup, /ubus -v list/)
+  assert.match(setup, /ubus call 'luci\.xxwrt-xiaomi' Fetch/)
+  assert.match(setup, /FAIL|fail 'The Xiaomi ubus object is missing/)
+  assert.match(setup, /SUCCESS: QWRT has registered/)
 })
