@@ -64,7 +64,7 @@ case "$path" in
             *) respond 400; exit 0 ;;
         esac
         [ "${#form}" -le 512 ] || { respond 400; exit 0; }
-        case "$form" in *[!A-Za-z0-9_.%&=+~-]*) respond 400; exit 0 ;; esac ;;
+        case "$form" in *[!A-Za-z0-9_.%\&=+~-]*) respond 400; exit 0 ;; esac ;;
     /cgi-bin/luci/\;stok=*/api/misystem/devicelist|/cgi-bin/luci/\;stok=*/api/xqsystem/device_list\?all=1)
         [ -z "$form" ] || { respond 400; exit 0; }
         token="${path#*;stok=}"
