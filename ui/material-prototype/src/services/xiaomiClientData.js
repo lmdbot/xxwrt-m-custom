@@ -57,7 +57,11 @@ export function parseXiaomiDevices(payload) {
       name: String(entry.name || entry.oname || entry.hostname || entry.origin_name || '').trim().slice(0, 100),
       ip: String(ip || '').trim(),
       connectionType: attachment.connectionType,
-      band: attachment.band
+      band: attachment.band,
+      // Only an explicit current-inventory offline status is a negative
+      // observation. Xiaomi's online flag is never used as proof of online.
+      reportedOffline: entry.online === 0 || entry.online === false ||
+        entry.online === '0' || entry.online === 'offline'
     };
     const previous = result.get(mac);
     // If a Mesh node repeats the same MAC, prefer a row that identifies
@@ -79,6 +83,7 @@ export function mergeXiaomiDeviceLists(current = [], history = []) {
     byMac.set(row.mac, {
       mac: row.mac, name: row.name || '', ip: '',
       connectionType: row.connectionType || '', band: row.band || '',
+      reportedOffline: false, // History alone is not an offline observation.
       xiaomiHistoryOnly: true
     });
   }
@@ -93,6 +98,7 @@ export function mergeXiaomiDeviceLists(current = [], history = []) {
       mac: row.mac,
       name: row.name || previous?.name || '',
       ip: row.ip || '',
+      reportedOffline: row.reportedOffline === true,
       connectionType,
       band: connectionType === 'wireless'
         ? (row.band || (previous?.connectionType === 'wireless' ? previous.band : '') || '')
