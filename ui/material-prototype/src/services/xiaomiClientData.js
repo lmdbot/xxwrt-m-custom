@@ -83,7 +83,9 @@ export function mergeXiaomiDeviceLists(current = [], history = []) {
     byMac.set(row.mac, {
       mac: row.mac, name: row.name || '', ip: '',
       connectionType: row.connectionType || '', band: row.band || '',
-      reportedOffline: false, // History alone is not an offline observation.
+      // Explicit Xiaomi "online: 0" is negative evidence even in its
+      // history endpoint; a row lacking an online flag proves nothing.
+      reportedOffline: row.reportedOffline === true,
       xiaomiHistoryOnly: true
     });
   }
