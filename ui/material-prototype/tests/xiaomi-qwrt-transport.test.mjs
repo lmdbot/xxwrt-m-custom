@@ -35,6 +35,21 @@ test('Xiaomi requests use a dedicated scoped ubus plugin; not the denied file.ex
   }])
 })
 
+test('BE5000 login HTML is fetched from QWRT without executing its markup', async () => {
+  const page = '<html><script>var deviceId = "ac:12:34:56:78:90"; var Encrypt = { key: "publicKey123" };</script></html>'
+  const rpc = stubRpc({ code: 0, body: page })
+  const result = await xiaomiRequestFromQwrt(rpc.client, '192.168.100.139',
+    '/cgi-bin/luci/web')
+  assert.equal(result, page)
+  assert.deepEqual(rpc.calls[0].payload, {
+    address: 'http://192.168.100.139', path: '/cgi-bin/luci/web', form: ''
+  })
+  await assert.rejects(
+    () => xiaomiRequestFromQwrt(rpc.client, '192.168.100.139',
+      '/cgi-bin/luci/web', { password: 'unsafe' }), /方法不合法/
+  )
+})
+
 test('POST sends only the challenge response, not plaintext Xiaomi password', async () => {
   const rpc = stubRpc({ code: 0, body: '{"code":0,"token":"abc"}' })
   const credentials = { username: 'admin', password: 'a'.repeat(64), logtype: '2', nonce: 'safe_1' }
@@ -107,6 +122,7 @@ test('router helper shell scripts parse and installer ACL cannot grant generic f
   assert.match(helper, /--max-filesize/)
   assert.match(helper, /--max-time/)
   assert.match(helper, /--proto/)
+  assert.match(helper, /\/cgi-bin\/luci\/web/)
   assert.match(setup, /luci\.xxwrt-xiaomi/)
   assert.doesNotMatch(setup, /"file"\s*:\s*\[/)
   const list = execFileSync('sh', [backend, 'list'], { encoding: 'utf8' }).trim()
