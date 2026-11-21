@@ -57,8 +57,8 @@ export function terminalDiscoveryEntries({
  * 3. Otherwise, use the QWRT neighbour/association state; unknown remains
  *    unknown. Xiaomi online never authorizes an online status.
  *
- * Xiaomi history-only inventory does NOT count as Xiaomi offline: it lacks
- * a current offline observation.
+ * Only an explicit offline flag in a freshly fetched Xiaomi record can
+ * override QWRT. A historical record without such a flag proves nothing.
  */
 export function resolveTerminalRosterPresence({
   monitored, xiaomiReportedOffline = false,
