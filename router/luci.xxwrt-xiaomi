@@ -1,0 +1,89 @@
+#!/bin/sh
+# XX-WRT restricted Xiaomi API rpcd executable.
+# Exposes only the fixed MiWiFi login and device inventory endpoints.
+set -u
+umask 077
+
+case "$1:$2" in
+  list:)
+    printf '%s\n' '{"Request":{"address":"String","path":"String","form":"String"}}'
+    exit 0
+    ;;
+  call:Request) ;;
+  *) printf '%s\n' '{}'; exit 0 ;;
+esac
+
+fail() {
+  printf '{"xxwrtXiaomiError":"%s","code":%s}\n' "$1" "$2"
+  exit 0
+}
+
+input="$(cat)"
+[ "$(printf '%s' "$input" | wc -c)" -le 1500 ] || fail invalid_request 0
+address="$(jsonfilter -s "$input" -e '@.address' 2>/dev/null)" || fail invalid_request 0
+path="$(jsonfilter -s "$input" -e '@.path' 2>/dev/null)" || fail invalid_request 0
+form="$(jsonfilter -s "$input" -e '@.form' 2>/dev/null)" || form=''
+
+case "$address" in
+  http://*) hostport="$(printf '%s' "$address" | sed 's@^http://@@')" ;;
+  https://*) hostport="$(printf '%s' "$address" | sed 's@^https://@@')" ;;
+  *) fail bad_address 0 ;;
+esac
+case "$hostport" in
+  *[!0-9.:]*|'') fail bad_address 0 ;;
+esac
+host="$(printf '%s' "$hostport" | cut -d: -f1)"
+port="$(printf '%s' "$hostport" | cut -s -d: -f2)"
+[ "$(printf '%s' "$hostport" | tr -cd ':' | wc -c)" -le 1 ] || fail bad_address 0
+if [ -n "$port" ]; then
+  case "$port" in *[!0-9]*|'') fail bad_address 0 ;; esac
+  [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || fail bad_address 0
+fi
+printf '%s\n' "$host" | awk -F. '
+  NF != 4 { exit 1 }
+  {
+    for (i = 1; i <= 4; i++) {
+      if ($i !~ /^[0-9]+$/ || length($i) > 3 || ($i+0) > 255 ||
+          (length($i) > 1 && substr($i, 1, 1) == "0")) exit 1
+    }
+    if (($1 == 10) ||
+        ($1 == 172 && ($2+0) >= 16 && ($2+0) <= 31) ||
+        ($1 == 192 && $2 == 168)) exit 0
+    exit 1
+  }' || fail bad_address 0
+
+printf '%s\n' "$path" | grep -Eq \
+  '^/cgi-bin/luci/(api/xqsystem/(init_info|login)|;stok=[A-Za-z0-9_.%-]+/api/(misystem/devicelist|xqsystem/device_list[?]all=1))$' \
+  || fail bad_path 0
+
+if [ "$path" = '/cgi-bin/luci/api/xqsystem/login' ]; then
+  printf '%s\n' "$form" | grep -Eq \
+    '^username=admin&password=([0-9a-f]{40}|[0-9a-f]{64})&logtype=2&nonce=[A-Za-z0-9_.%-]{2,150}$' \
+    || fail invalid_login_proof 0
+else
+  [ -z "$form" ] || fail invalid_request 0
+fi
+
+tmp="$(mktemp /tmp/xxwrt-xiaomi.XXXXXX)" || fail io_error 0
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+if [ -n "$form" ]; then
+  /usr/bin/curl -q -sS --fail --globoff --noproxy '*' \
+    --proto '=http,https' --connect-timeout 4 --max-time 10 \
+    --max-redirs 0 --max-filesize 131072 \
+    --header 'Accept: application/json' \
+    --header 'Content-Type: application/x-www-form-urlencoded' \
+    --request POST --data-raw "$form" -- "$address$path" >"$tmp" 2>/dev/null
+  rc=$?
+else
+  /usr/bin/curl -q -sS --fail --globoff --noproxy '*' \
+    --proto '=http,https' --connect-timeout 4 --max-time 10 \
+    --max-redirs 0 --max-filesize 131072 \
+    --header 'Accept: application/json' \
+    -- "$address$path" >"$tmp" 2>/dev/null
+  rc=$?
+fi
+[ "$rc" -eq 0 ] || fail curl "$rc"
+[ "$(wc -c < "$tmp")" -le 131072 ] || fail too_large 0
+jsonfilter -i "$tmp" -e '@' >/dev/null 2>&1 || fail invalid_json 0
+cat "$tmp"
