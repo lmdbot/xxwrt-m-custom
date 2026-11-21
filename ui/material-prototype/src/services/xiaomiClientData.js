@@ -64,3 +64,20 @@ export function parseXiaomiDevices(payload) {
   }
   return [...result.values()];
 }
+
+
+/**
+ * Login challenge is embedded in Xiaomi's public /cgi-bin/luci/web HTML,
+ * not in the init_info JSON response on newer (e.g. RD18) firmware.
+ * Never execute or render the returned HTML; extract only bounded tokens.
+ */
+export function parseXiaomiLoginPage(html) {
+  const page = String(html || '')
+  if (page.length > 262144 || !page.trimStart().startsWith('<'))
+    throw new Error('小米管理登录页无效或内容过大')
+  const key = page.match(/\bkey\s*:\s*(['"])([A-Za-z0-9_+=/-]{1,128})\1/)?.[2] || ''
+  const deviceId = page.match(/\bdeviceId\s*=\s*(['"])([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\1/)?.[2] || ''
+  if (!key || !deviceId)
+    throw new Error('无法从小米管理登录页提取 key 或 deviceId；该固件登录页面可能不兼容')
+  return { key, deviceId: deviceId.toLowerCase() }
+}
