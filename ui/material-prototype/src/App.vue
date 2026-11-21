@@ -14,7 +14,7 @@ import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
 import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { reconcileTerminalClientData, resolveTerminalPresence } from './services/terminalPresence.js'
-import { normalizeXiaomiAddress } from './services/xiaomiClientData.js'
+import { normalizeXiaomiAddress, formatTerminalConnectionLabel } from './services/xiaomiClientData.js'
 import { readXiaomiAddress, readXiaomiPassword, saveXiaomiConfig, clearXiaomiConfig, fetchXiaomiDevices, resetXiaomiSession } from './services/xiaomiRouter.js'
 import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
@@ -635,6 +635,7 @@ const terminalDevices = computed(() => {
       connectionType,
       connectionBand,
       connectionSource: xiaomi?.connectionType ? 'xiaomi' : (monitored?.connectionType ? 'wechatpush' : ''),
+      xiaomiHistoryOnly: xiaomi?.xiaomiHistoryOnly === true,
       privateMac: identity.privateMac
     }
   })
@@ -881,7 +882,7 @@ async function saveXiaomiSource() {
     xiaomiSource.value = { routerId, devices }
     xiaomiAddress.value = address
     xiaomiLastPoll.set(routerId, Date.now())
-    xiaomiNotice.value = '已连接小米路由器，获取到 ' + devices.length + ' 台设备（仅作接入类型参考）'
+    xiaomiNotice.value = '已连接小米路由器，合并当前与历史记录共 ' + devices.length + ' 台设备（仅作接入类型参考）'
     xiaomiDialog.value = false
   } catch (error) {
     xiaomiError.value = shortError(error)
@@ -1097,6 +1098,12 @@ const factoryBusy = ref(false)
 const factoryError = ref('')
 const actionBusy = ref(false)
 const selectedClient = ref(null)
+// Read from the fresh merged roster rather than a stale detail-dialog snapshot.
+const selectedClientConnectionLabel = computed(() => {
+  const mac = String(selectedClient.value?.mac || '').toUpperCase()
+  const item = terminalDevices.value.find(entry => entry.mac === mac)
+  return formatTerminalConnectionLabel(item)
+})
 const terminalDetailEditor = ref('')
 const terminalSettings = ref(null)
 const terminalSettingsBusy = ref(false)
@@ -3560,7 +3567,7 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
-              <p class="v3-client-evidence">已安装微信推送时，每次刷新重新读取 QWRT 的设备数据与备注；小米路由器仅提供设备发现与 2.4G / 5G / LAN 接入类型，不参与在线判定。监控数据不可用时不沿用历史在线状态。</p>
+              <p class="v3-client-evidence">已安装微信推送时，每次刷新重新读取 QWRT 的设备数据与备注；小米路由器同时补充当前与历史设备的 2.4G / 5G / LAN 接入记录，历史信息标注“曾接入”，不参与在线判定。监控数据不可用时不沿用历史在线状态。</p>
             </div>
             <div class="v3-section-label v3-device-actions-heading">设备管理</div>
             <div class="v3-inline-links v3-device-actions" role="group" aria-label="终端管理工具">
@@ -4029,6 +4036,7 @@ onUnmounted(() => {
           <h3 class="v3-terminal-detail-section">设备信息</h3>
           <div class="v3-terminal-detail-info">
             <div><span>设备类型</span><strong>{{ selectedClient.kind || '未知' }}</strong></div>
+            <div v-if="selectedClientConnectionLabel"><span>连接类型</span><strong>{{ selectedClientConnectionLabel }}</strong></div>
             <div><span>数据来源</span><strong>{{ selectedClient.sources?.join(' / ') || '--' }}</strong></div>
             <div><span>IPv6 地址</span><strong>{{ selectedClient.ip6 || '未读取' }}</strong></div>
             <div><span>MAC 地址</span><strong>{{ selectedClient.mac || '--' }}</strong></div>
