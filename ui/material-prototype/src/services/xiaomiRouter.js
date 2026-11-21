@@ -1,10 +1,15 @@
-import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
+import { xiaomiRequestFromQwrt } from './xiaomiQwrtTransport.js';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
 import { normalizeXiaomiAddress, parseXiaomiDevices } from './xiaomiClientData.js';
 
 const ADDRESS_KEY = 'xxwrt_xiaomi_address_v1_';
 const PASSWORD_KEY = 'xxwrt_xiaomi_password_v1_';
-const sessions = new Map();
+// Xiaomi cookies are tied to the current authenticated QWRT client session.
+const sessions = new WeakMap();
+export function resetXiaomiSession(qwrt) {
+  if (qwrt) sessions.delete(qwrt);
+}
 
 export function readXiaomiAddress(routerId) {
   if (!routerId) return '';
@@ -22,7 +27,6 @@ export async function saveXiaomiConfig(routerId, address, password) {
   // Keystore write failed, and never put plaintext password in localStorage.
   await SecureStorage.set(PASSWORD_KEY + routerId, password);
   localStorage.setItem(ADDRESS_KEY + routerId, origin);
-  sessions.delete(origin);
   return origin;
 }
 
@@ -33,39 +37,11 @@ export async function clearXiaomiConfig(routerId) {
     catch (error) { throw new Error('无法从安全存储中清除小米密码：' + String(error?.message || error)); }
   }
   localStorage.removeItem(ADDRESS_KEY + routerId);
-  if (origin) sessions.delete(origin);
 }
 
 export async function readXiaomiPassword(routerId) {
   if (!Capacitor.isNativePlatform()) return '';
   return (await SecureStorage.get(PASSWORD_KEY + routerId)) || '';
-}
-
-function decodeResponse(response) {
-  if (response.status < 200 || response.status >= 300)
-    throw new Error('小米路由器 HTTP ' + response.status + '，请检查 IP 和管理权限');
-  let body = response.data;
-  if (typeof body === 'string') {
-    try { body = JSON.parse(body); } catch { throw new Error('小米接口返回了非 JSON 响应'); }
-  }
-  if (!body || typeof body !== 'object')
-    throw new Error('小米接口响应为空');
-  return body;
-}
-
-async function apiGet(url) {
-  return decodeResponse(await CapacitorHttp.get({
-    url, headers: { Accept: 'application/json' },
-    connectTimeout: 5500, readTimeout: 7500, disableRedirects: true
-  }));
-}
-
-async function apiPost(url, data) {
-  return decodeResponse(await CapacitorHttp.post({
-    url, data: new URLSearchParams(data).toString(),
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-    connectTimeout: 5500, readTimeout: 7500, disableRedirects: true
-  }));
 }
 
 async function digest(algorithm, value) {
@@ -76,9 +52,9 @@ async function digest(algorithm, value) {
   return [...new Uint8Array(result)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function login(origin, password) {
-  const prefix = origin + '/cgi-bin/luci';
-  const info = await apiGet(prefix + '/api/xqsystem/init_info');
+async function login(qwrt, origin, password) {
+  const prefix = '/cgi-bin/luci';
+  const info = await xiaomiRequestFromQwrt(qwrt, origin, prefix + '/api/xqsystem/init_info');
   if (Number(info.code ?? 0) !== 0 || typeof info.key !== 'string')
     throw new Error('小米路由器不支持当前登录接口（init_info）');
   const algorithm = Number(info.newEncryptMode) === 1 ? 'SHA-256' : 'SHA-1';
@@ -87,21 +63,23 @@ async function login(origin, password) {
   const nonce = '0_00:00:00:00:00:00_' + Math.floor(Date.now() / 1000) + '_' + (random[0] % 100000);
   const inner = await digest(algorithm, password + info.key);
   const passHash = await digest(algorithm, nonce + inner);
-  const response = await apiPost(prefix + '/api/xqsystem/login',
+  // Only a one-way proof travels from the App to QWRT. The plaintext
+  // password stays in Android SecureStorage / memory, never on the router.
+  const response = await xiaomiRequestFromQwrt(qwrt, origin, prefix + '/api/xqsystem/login',
     { username: 'admin', password: passHash, logtype: '2', nonce });
   const token = response.token || response.stok;
   if (Number(response.code ?? -1) !== 0 || !token)
     throw new Error('小米路由器登录失败，请确认管理密码和后台访问权限');
-  sessions.set(origin, String(token));
+  sessions.set(qwrt, { origin, token: String(token), session: qwrt.session });
   return String(token);
 }
 
-async function listWithToken(origin, token) {
-  const endpoint = origin + '/cgi-bin/luci/;stok=' + encodeURIComponent(token) + '/api/';
+async function listWithToken(qwrt, origin, token) {
+  const endpoint = '/cgi-bin/luci/;stok=' + encodeURIComponent(token) + '/api/';
   let firstFailure;
   for (const path of ['misystem/devicelist', 'xqsystem/device_list?all=1']) {
     try {
-      const body = await apiGet(endpoint + path);
+      const body = await xiaomiRequestFromQwrt(qwrt, origin, endpoint + path);
       return parseXiaomiDevices(body);
     } catch (error) { firstFailure ||= error; }
   }
@@ -109,18 +87,20 @@ async function listWithToken(origin, token) {
 }
 
 /** Returned rows contain no online status. Never trust Xiaomi's online flags. */
-export async function fetchXiaomiDevices(address, password) {
+export async function fetchXiaomiDevices(qwrt, address, password) {
   const origin = normalizeXiaomiAddress(address);
   if (!password) throw new Error('未保存小米路由器管理密码，请重新配置');
-  let token = sessions.get(origin);
-  if (!token) token = await login(origin, password);
+  if (!qwrt?.session) throw new Error('请先登录 QWRT');
+  const cached = sessions.get(qwrt);
+  let token = cached?.origin === origin && cached.session === qwrt.session ? cached.token : '';
+  if (!token) token = await login(qwrt, origin, password);
   try {
-    return await listWithToken(origin, token);
+    return await listWithToken(qwrt, origin, token);
   } catch {
     // A stale stok can be revoked on router reboot. Refresh it once; never
     // reuse a failed device list as live client data.
-    sessions.delete(origin);
-    token = await login(origin, password);
-    return listWithToken(origin, token);
+    resetXiaomiSession(qwrt);
+    token = await login(qwrt, origin, password);
+    return listWithToken(qwrt, origin, token);
   }
 }
