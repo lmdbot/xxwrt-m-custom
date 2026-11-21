@@ -513,9 +513,13 @@ test('manual terminal refresh reads new WeChatPush data and never replays prior 
             name: '监控命名电脑', status: mode === 'offline' ? 'offline' : 'online', interface: 'LAN' },
           { mac: 'A6:83:E7:2C:91:0F', ip: '192.168.100.89',
             name: '监控命名手机', status: 'offline', interface: '5G' },
-          // Missing from DHCP: still part of the WeChatPush roster, offline.
+          // Offline-only history must NOT enter the current QWRT ∪ WeChat-online roster.
           { mac: '66:55:44:33:22:11', ip: '192.168.100.42',
-            name: '监控记忆设备', status: 'offline', interface: 'LAN' }
+            name: '监控记忆设备', status: 'offline', interface: 'LAN' },
+          // Online-only WeChatPush record is admitted even without a QWRT lease.
+          { mac: '55:44:33:22:11:00', ip: '192.168.100.41',
+            name: '监控专属在线设备', status: mode === 'offline' ? 'offline' : 'online',
+            interface: '2.4G' }
         ] }) }
       } else if (args[1] === 'file' && args[2] === 'read' &&
         args[3]?.path === '/usr/share/wechatpush/api/device_aliases.list') {
@@ -540,11 +544,13 @@ test('manual terminal refresh reads new WeChatPush data and never replays prior 
   const computer = page.locator('.terminal-tile').filter({hasText:'AA:BB:CC:DD:EE:FF'})
   const phone = page.locator('.terminal-tile').filter({hasText:'A6:83:E7:2C:91:0F'})
   const remembered = page.locator('.terminal-tile').filter({hasText:'66:55:44:33:22:11'})
+  const monitorOnly = page.locator('.terminal-tile').filter({hasText:'55:44:33:22:11:00'})
   await expect(computer).toContainText('我的电脑')
   await expect(computer.locator('.v3-client-state')).toHaveText('在线')
   await expect(phone.locator('.v3-client-state')).toHaveText('离线')
-  await expect(remembered).toContainText('监控记忆设备')
-  await expect(remembered.locator('.v3-client-state')).toHaveText('离线')
+  await expect(remembered).toHaveCount(0)
+  await expect(monitorOnly).toContainText('监控专属在线设备')
+  await expect(monitorOnly.locator('.v3-client-state')).toHaveText('在线')
 
   // Even within the 45s prefetch window, returning to Devices must issue
   // a new WeChatPush file read instead of showing app-cached observations.
@@ -557,21 +563,24 @@ test('manual terminal refresh reads new WeChatPush data and never replays prior 
   const before = monitorReads
   await page.getByRole('button', {name:'刷新当前页面'}).click()
   await expect.poll(()=>monitorReads).toBeGreaterThan(before)
-  // Invalid live data must neither reuse the old online state nor old
-  // monitor-only devices/aliases. Report the source failure clearly.
+  // Invalid live data must drop all old WeChat-only evidence and aliases,
+  // but keep FRESH independent QWRT neighbour evidence: REACHABLE/FAILED.
   await expect(page.getByText('微信推送实时终端数据不可用', {exact:false})).toBeVisible()
-  await expect(computer.locator('.v3-client-state')).toHaveText('待确认')
+  await expect(computer.locator('.v3-client-state')).toHaveText('在线')
   await expect(computer).not.toContainText('我的电脑')
-  await expect(phone.locator('.v3-client-state')).toHaveText('待确认')
+  await expect(phone.locator('.v3-client-state')).toHaveText('离线')
   await expect(remembered).toHaveCount(0)
+  await expect(monitorOnly).toHaveCount(0)
 
   // When WeChatPush recovers, new values become authoritative at once.
   mode = 'offline'
   await page.getByRole('button', {name:'刷新当前页面'}).click()
   await expect(page.getByText('微信推送实时终端数据不可用', {exact:false})).toHaveCount(0)
   await expect(computer).toContainText('我的电脑')
-  await expect(computer.locator('.v3-client-state')).toHaveText('离线')
-  await expect(remembered).toHaveCount(1)
+  // WeChatPush OFFLINE is not an override: QWRT REACHABLE still means online.
+  await expect(computer.locator('.v3-client-state')).toHaveText('在线')
+  await expect(remembered).toHaveCount(0)
+  await expect(monitorOnly).toHaveCount(0)
 })
 
 test('multiple saved routers remain on router management at startup', async ({ page }) => {
