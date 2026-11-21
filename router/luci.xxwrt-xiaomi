@@ -70,7 +70,7 @@ esac
 
 method=GET
 case "$path" in
-    /cgi-bin/luci/api/xqsystem/init_info)
+    /cgi-bin/luci/web|/cgi-bin/luci/api/xqsystem/init_info)
         [ -z "$form" ] || { respond 400; exit 0; } ;;
     /cgi-bin/luci/api/xqsystem/login)
         method=POST
