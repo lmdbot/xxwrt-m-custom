@@ -198,3 +198,41 @@ test('current QWRT online status and Xiaomi past attachment never cross streams'
     fallbackOnline: true, fallbackKnown: true
   }), { online: false, onlineKnown: true, monitorStatus: 'offline' })
 })
+
+
+test('Xiaomi explicit offline flag is negative-only evidence, never online authority', () => {
+  const rows = parseXiaomiDevices({ code: 0, list: [
+    { mac: 'AA:BB:CC:DD:EF:01', type: 1, online: 0 },
+    { mac: 'AA:BB:CC:DD:EF:02', type: 2, online: 1 },
+    { mac: 'AA:BB:CC:DD:EF:03', type: 0 },
+    { mac: 'AA:BB:CC:DD:EF:04', type: 1, online: '0' }
+  ] })
+  assert.deepEqual(rows.map(row => row.reportedOffline), [true, false, false, true])
+  assert.ok(rows.every(row => !('online' in row)))
+})
+
+test('explicit Xiaomi offline in history is retained; unreported history is unknown', () => {
+  const history = parseXiaomiDevices({ code: 0, list: [
+    { mac: 'AA:BB:CC:DD:EF:01', type: 1, online: 0 },
+    { mac: 'AA:BB:CC:DD:EF:02', type: 2 },
+    { mac: 'AA:BB:CC:DD:EF:03', type: 0, online: 1 }
+  ] })
+  const merged = mergeXiaomiDeviceLists([], history)
+  assert.equal(merged[0].reportedOffline, true)
+  assert.equal(merged[1].reportedOffline, false)
+  assert.equal(merged[2].reportedOffline, false)
+  assert.ok(merged.every(row => !('online' in row)))
+})
+
+test('fresh Xiaomi current-online observation overrides old offline history', () => {
+  const history = parseXiaomiDevices({ code: 0, list: [
+    { mac: 'AA:BB:CC:DD:EF:04', type: 1, online: 0 }
+  ] })
+  const current = parseXiaomiDevices({ code: 0, list: [
+    { mac: 'AA:BB:CC:DD:EF:04', type: 2, online: 1 }
+  ] })
+  const [row] = mergeXiaomiDeviceLists(current, history)
+  assert.equal(row.reportedOffline, false)
+  assert.equal(row.band, '5G')
+  assert.equal(row.xiaomiHistoryOnly, false)
+})
