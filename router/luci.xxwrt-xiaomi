@@ -1,6 +1,9 @@
 #!/bin/sh
 # XX-WRT dedicated Xiaomi RPC backend. No arbitrary file.exec access.
-set -eu
+# libubox jshn.sh intentionally accesses optional/unset JSON_* variables.
+# nounset (`set -u`) aborts the rpcd worker before it emits a JSON response.
+# Keep errexit but leave nounset off for compatibility with OpenWrt jshn.
+set -e
 
 # rpcd registers an executable only if "list" returns a valid signature.
 # Do this BEFORE sourcing any optional JSON helper; registration must work
