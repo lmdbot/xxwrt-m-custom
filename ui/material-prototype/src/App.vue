@@ -13,7 +13,7 @@ import {
 import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
 import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
-import { reconcileTerminalClientData, resolveTerminalPresence } from './services/terminalPresence.js'
+import { reconcileTerminalClientData, terminalDiscoveryEntries, resolveTerminalRosterPresence } from './services/terminalPresence.js'
 import { normalizeXiaomiAddress, formatTerminalConnectionLabel } from './services/xiaomiClientData.js'
 import { readXiaomiAddress, readXiaomiPassword, saveXiaomiConfig, clearXiaomiConfig, fetchXiaomiDevices, resetXiaomiSession } from './services/xiaomiRouter.js'
 import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
@@ -556,66 +556,68 @@ const terminalDevices = computed(() => {
       item.expires = item.expires ?? raw.expires
       item.online = item.online === true || raw.online === true
       item.onlineKnown = item.onlineKnown === true || raw.onlineKnown === true
+      item.qwrtOnline = item.qwrtOnline === true || raw.qwrtOnline === true
+      item.qwrtOnlineKnown = item.qwrtOnlineKnown === true || raw.qwrtOnlineKnown === true
     }
     item.sources.add(source)
     if (source === 'wireless') {
       item.wifi = raw
       item.online = true
       item.onlineKnown = true
+      item.qwrtOnline = true
+      item.qwrtOnlineKnown = true
     }
     return item
   }
-  clientData.value.data.forEach(item => add(item, 'dhcp4'))
-  clientData.value.ipv6.forEach(item => add({
-    ...item, ip: item.ip4 || '', ip6: item.ip || item.ip6addr || '',
-    name: item.name || item.hostname || ''
-  }, 'dhcp6'))
-  wifiClientData.value.stations.forEach(item => {
-    const hint = clientData.value.hints?.[item.mac] || clientData.value.hints?.[item.mac?.toUpperCase()] || {}
-    add({
-      ...item, name: hint.name || '', ip: hint.ipaddrs?.[0] || '',
-      ip6: hint.ip6addrs?.[0] || '', online: true, onlineKnown: true
-    }, 'wireless')
+  // Only QWRT discovery and WeChatPush ONLINE observations add rows.
+  // Xiaomi and OpenAppFilter only enrich devices already in that union.
+  const candidates = terminalDiscoveryEntries({
+    dhcp4: clientData.value.data,
+    dhcp6: clientData.value.ipv6,
+    wireless: wifiClientData.value.stations,
+    wechatRecords
   })
-  // WeChatPush is the authoritative presence roster when installed.
-  // Include offline/unknown records as well so an intermittent DHCP or
-  // monitor read cannot make remembered terminals vanish from "All".
-  // The monitor's explicit status—not this merge—is used below.
-  wechatRecords.forEach(item => {
-    add({ ...item, name: item.name || '',
-      online: item.status === 'online',
-      onlineKnown: item.status === 'online' || item.status === 'offline',
-      monitorStatus: item.status }, 'wechatpush')
+  for (const { item, source } of candidates) {
+    if (source === 'dhcp6') {
+      add({ ...item, ip: item.ip4 || '', ip6: item.ip || item.ip6addr || '',
+        name: item.name || item.hostname || '' }, 'dhcp6')
+    } else if (source === 'wireless') {
+      const hint = clientData.value.hints?.[item.mac] ||
+        clientData.value.hints?.[item.mac?.toUpperCase()] || {}
+      add({ ...item, name: hint.name || '', ip: hint.ipaddrs?.[0] || '',
+        ip6: hint.ip6addrs?.[0] || '', online: true, onlineKnown: true }, 'wireless')
+    } else if (source === 'wechatpush') {
+      add({ ...item, name: item.name || '', online: true,
+        onlineKnown: true, monitorStatus: 'online' }, 'wechatpush')
+    } else {
+      add(item, 'dhcp4')
+    }
+  }
+  // OpenAppFilter metadata is permitted only on devices already admitted.
+  appFilterUsers.value.users.forEach(user => {
+    const mac = String(user.mac || user.macaddr || '').toUpperCase()
+    const existing = byMac.get(mac)
+    if (!existing) return
+    existing.sources.add('oaf')
+    existing.name ||= user.nickname || user.name || user.hostname || ''
   })
-  // Xiaomi's inventory is discovery/attachment metadata ONLY. Even its
-  // online flag cannot change the presence policy used by WeChatPush/QWRT.
-  xiaomiRows.forEach(item => add({ ...item, online: false, onlineKnown: false }, 'xiaomi'))
-  // OpenAppFilter users are another discovery source, not proof of being online.
-  // Merge by MAC so one terminal does not appear twice across DHCP, Wi-Fi and apps.
-  appFilterUsers.value.users.forEach((user, index) => add({
-    ...user,
-    name: user.nickname || user.name || user.hostname || '',
-    ip: user.ip || user.ipaddr || '',
-    sourceIndex: index,
-    online: false,
-    onlineKnown: false
-  }, 'oaf'))
   return [...byMac.values()].map(item => {
     const mac = String(item.mac || '').toUpperCase()
     const monitored = wechatByMac.get(mac)
     const xiaomi = xiaomiByMac.get(mac)
-    if (monitored) item.sources.add('wechatpush')
+    if (monitored?.status === 'online') item.sources.add('wechatpush')
+    if (xiaomi) item.sources.add('xiaomi')
     const alias = wechatAliases.get(mac.toLowerCase()) ||
       wechatAliases.get(String(item.ip || '').toLowerCase()) || ''
     // Alias is explicit user configuration. Monitor name is the next best
     // source, with the DHCP / host hint and device identity as fallbacks.
     const hostname = alias || monitored?.name || item.name || item.hostname || ''
     const identity = identifyDevice(item.identityName || item.name || item.hostname, mac)
-    const presence = resolveTerminalPresence({
-      wechatInstalled: clientData.value.wechatInstalled,
+    const presence = resolveTerminalRosterPresence({
       monitored,
-      fallbackOnline: item.online,
-      fallbackKnown: item.onlineKnown
+      xiaomiReportedOffline: xiaomi?.reportedOffline === true,
+      qwrtOnline: item.qwrtOnline === true,
+      qwrtOnlineKnown: item.qwrtOnlineKnown === true
     })
     const { online, onlineKnown } = presence
     const connectionType = xiaomi?.connectionType || monitored?.connectionType ||
@@ -805,7 +807,6 @@ const xiaomiDialog = ref(false)
 const xiaomiForm = reactive({ address: '', password: '', showPassword: false })
 const xiaomiBusy = ref(false)
 const xiaomiError = ref('')
-const xiaomiNotice = ref('')
 const xiaomiRequests = new Map()
 const xiaomiLastPoll = new Map()
 
@@ -814,7 +815,6 @@ watch(selectedDeviceId, () => {
   xiaomiBusy.value = false
   xiaomiSource.value = { routerId: '', devices: [] }
   xiaomiError.value = ''
-  xiaomiNotice.value = ''
   xiaomiDialog.value = false
   xiaomiForm.password = ''
 })
@@ -882,7 +882,6 @@ async function saveXiaomiSource() {
     xiaomiSource.value = { routerId, devices }
     xiaomiAddress.value = address
     xiaomiLastPoll.set(routerId, Date.now())
-    xiaomiNotice.value = '已连接小米路由器，合并当前与历史记录共 ' + devices.length + ' 台设备（仅作接入类型参考）'
     xiaomiDialog.value = false
   } catch (error) {
     xiaomiError.value = shortError(error)
@@ -901,7 +900,6 @@ async function deleteXiaomiSource() {
     xiaomiAddress.value = ''
     xiaomiSource.value = { routerId: selectedDeviceId.value, devices: [] }
     xiaomiError.value = ''
-    xiaomiNotice.value = '小米路由器配置和保存的密码已清除'
     xiaomiDialog.value = false
     xiaomiForm.password = ''
   } catch (error) {
@@ -1058,7 +1056,8 @@ const terminalCategories = computed(() => [
   { value: 'dhcp4', label: 'DHCPv4', count: clientData.value.data.length, icon: 'mdi-laptop' },
   { value: 'dhcp6', label: 'DHCPv6', count: clientData.value.ipv6.length, icon: 'mdi-ip-network' },
   { value: 'wireless', label: '无线终端', count: terminalDevices.value.filter(item => item.connectionType === 'wireless').length, icon: 'mdi-wifi' },
-  ...(xiaomiAddress.value ? [{ value: 'xiaomi', label: '小米设备', count: xiaomiDevices.value.length, icon: 'mdi-router-wireless' }] : []),
+  ...(xiaomiAddress.value ? [{ value: 'xiaomi', label: '小米记录',
+    count: terminalDevices.value.filter(item => item.sources.includes('xiaomi')).length, icon: 'mdi-router-wireless' }] : []),
   ...(clientData.value.wechatInstalled ? [{
     value: 'wechatpush', label: '微信推送', count: terminalDevices.value.filter(item => item.sources.includes('wechatpush')).length,
     icon: 'mdi-message-badge-outline'
@@ -3472,14 +3471,14 @@ onUnmounted(() => {
               <v-alert v-if="clientData.wechatInstalled && clientData.monitorAvailable !== true"
                 class="mb-3" type="warning" variant="tonal" density="compact" role="status">
                 微信推送实时终端数据不可用：{{ clientData.monitorReason || '本轮未能获取有效设备状态' }}。
-                当前在线状态待确认，未使用 App 端历史缓存。
+                微信推送在线记录暂不可用；仅按 QWRT 本轮检测和小米明确离线证据判断，其余状态可能待确认。
               </v-alert>
 
               <div class="v3-xiaomi-source">
                 <div class="v3-xiaomi-source-label">
                   <v-icon icon="mdi-router-wireless" size="22" color="primary"/>
                   <div><strong>小米路由器</strong>
-                    <small>{{ xiaomiAddress ? ('接入类型 · ' + xiaomiDevices.length + ' 台设备') : '配置 IP 和密码，识别 2.4G / 5G / LAN' }}</small>
+                    <small>{{ xiaomiAddress ? '已配置 · 连接类型与离线证据参考' : '配置 IP 和密码，识别 2.4G / 5G / LAN' }}</small>
                   </div>
                 </div>
                 <div class="v3-xiaomi-source-actions">
@@ -3491,13 +3490,11 @@ onUnmounted(() => {
               </div>
               <v-alert v-if="xiaomiError" class="mb-3" type="warning" variant="tonal"
                 density="compact" role="status">{{ xiaomiError }}</v-alert>
-              <v-alert v-else-if="xiaomiNotice" class="mb-3" type="success"
-                variant="tonal" density="compact">{{ xiaomiNotice }}</v-alert>
               <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
-                  { id: 'online', label: '在线', count: clientData.wechatInstalled && !clientData.monitorAvailable ? '—' : terminalDevices.filter(i => i.online).length },
-                  { id: 'other', label: '离线/未知', count: clientData.wechatInstalled && !clientData.monitorAvailable ? '—' : terminalDevices.filter(i => !i.online).length }
+                  { id: 'online', label: '在线', count: terminalDevices.filter(i => i.online).length },
+                  { id: 'other', label: '离线/未知', count: terminalDevices.filter(i => !i.online).length }
                 ]" :key="option.id" type="button"
                   :class="{ 'is-selected': terminalOnlineFilter === option.id }"
                   :aria-pressed="terminalOnlineFilter === option.id"
@@ -3567,7 +3564,7 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
-              <p class="v3-client-evidence">已安装微信推送时，每次刷新重新读取 QWRT 的设备数据与备注；小米路由器同时补充当前与历史设备的 2.4G / 5G / LAN 接入记录，历史信息标注“曾接入”，不参与在线判定。监控数据不可用时不沿用历史在线状态。</p>
+              <p class="v3-client-evidence">列表仅包含 QWRT 本轮发现的终端和微信推送在线设备；小米记录只补充接入类型及明确的离线证据，不单独增加设备。微信推送在线优先；未报在线且小米明确离线时判离线；其余按 QWRT 检测状态，不沿用旧的在线缓存。</p>
             </div>
             <div class="v3-section-label v3-device-actions-heading">设备管理</div>
             <div class="v3-inline-links v3-device-actions" role="group" aria-label="终端管理工具">
