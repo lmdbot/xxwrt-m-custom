@@ -10,7 +10,7 @@ export async function xiaomiRequestFromQwrt(qwrt, address, path, form = null) {
     throw new Error('请先登录 QWRT，再读取小米设备')
 
   const origin = normalizeXiaomiAddress(address)
-  if (!/^\/cgi-bin\/luci\/(?:api\/xqsystem\/(?:init_info|login)|;stok=[a-zA-Z0-9_%.-]+\/api\/(?:misystem\/devicelist|xqsystem\/device_list\?all=1))$/.test(path))
+  if (!/^\/cgi-bin\/luci\/(?:web|api\/xqsystem\/(?:init_info|login)|;stok=[a-zA-Z0-9_%.-]+\/api\/(?:misystem\/devicelist|xqsystem\/device_list\?all=1))$/.test(path))
     throw new Error('不允许访问小米路由器的其他接口')
   if ((form !== null) !== (path === '/cgi-bin/luci/api/xqsystem/login'))
     throw new Error('小米登录请求方法不合法')
@@ -50,6 +50,11 @@ export async function xiaomiRequestFromQwrt(qwrt, address, path, form = null) {
   }
   if (typeof result.body !== 'string' || result.body.length > 262144)
     throw new Error('QWRT 小米查询返回数据无效或超过大小限制')
+  if (path === '/cgi-bin/luci/web') {
+    if (!result.body.trimStart().startsWith('<'))
+      throw new Error('小米管理登录页未返回 HTML，请检查固件登录页面')
+    return result.body
+  }
   try {
     const body = JSON.parse(result.body)
     if (body && typeof body === 'object') return body

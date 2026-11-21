@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { xiaomiRequestFromQwrt } from './xiaomiQwrtTransport.js';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
-import { normalizeXiaomiAddress, parseXiaomiDevices } from './xiaomiClientData.js';
+import { normalizeXiaomiAddress, parseXiaomiDevices, parseXiaomiLoginPage } from './xiaomiClientData.js';
 
 const ADDRESS_KEY = 'xxwrt_xiaomi_address_v1_';
 const PASSWORD_KEY = 'xxwrt_xiaomi_password_v1_';
@@ -55,13 +55,18 @@ async function digest(algorithm, value) {
 async function login(qwrt, origin, password) {
   const prefix = '/cgi-bin/luci';
   const info = await xiaomiRequestFromQwrt(qwrt, origin, prefix + '/api/xqsystem/init_info');
-  if (Number(info.code ?? 0) !== 0 || typeof info.key !== 'string')
-    throw new Error('小米路由器不支持当前登录接口（init_info）');
+  if (Number(info.code ?? -1) !== 0)
+    throw new Error('小米路由器初始化接口返回异常，无法判断登录加密模式');
+  // Xiaomi's challenge key and actual device MAC are embedded in the public
+  // management login HTML, not in init_info on BE5000/RD18 firmware.
+  const page = await xiaomiRequestFromQwrt(qwrt, origin, prefix + '/web');
+  const { key, deviceId } = parseXiaomiLoginPage(page);
   const algorithm = Number(info.newEncryptMode) === 1 ? 'SHA-256' : 'SHA-1';
   const random = new Uint32Array(1);
   globalThis.crypto.getRandomValues(random);
-  const nonce = '0_00:00:00:00:00:00_' + Math.floor(Date.now() / 1000) + '_' + (random[0] % 100000);
-  const inner = await digest(algorithm, password + info.key);
+  const nonce = '0_' + deviceId + '_' + Math.floor(Date.now() / 1000) +
+    '_' + (1000 + (random[0] % 9000));
+  const inner = await digest(algorithm, password + key);
   const passHash = await digest(algorithm, nonce + inner);
   // Only a one-way proof travels from the App to QWRT. The plaintext
   // password stays in Android SecureStorage / memory, never on the router.
@@ -69,7 +74,7 @@ async function login(qwrt, origin, password) {
     { username: 'admin', password: passHash, logtype: '2', nonce });
   const token = response.token || response.stok;
   if (Number(response.code ?? -1) !== 0 || !token)
-    throw new Error('小米路由器登录失败，请确认管理密码和后台访问权限');
+    throw new Error('小米路由器登录未通过（code: ' + String(response.code ?? '未知') + '），请确认管理密码；连续失败请稍后再试，避免触发锁定');
   sessions.set(qwrt, { origin, token: String(token), session: qwrt.session });
   return String(token);
 }
