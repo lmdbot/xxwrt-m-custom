@@ -14,6 +14,8 @@ import classicAppIconBase64 from '../assets/icons/xxwrtm-classic.png.b64?raw'
 import openwrtAppIconBase64 from '../assets/icons/openwrt-brand.png.b64?raw'
 import { readLanDhcpStatus } from './services/networkInterfaceConfig.js'
 import { reconcileTerminalClientData, resolveTerminalPresence } from './services/terminalPresence.js'
+import { normalizeXiaomiAddress } from './services/xiaomiClientData.js'
+import { readXiaomiAddress, readXiaomiPassword, saveXiaomiConfig, clearXiaomiConfig, fetchXiaomiDevices } from './services/xiaomiRouter.js'
 import { loadPairedRoutes, removePairedRoute, readRouterIdentity, sameRouterIdentity } from './services/labFeatures.js'
 import { describeNavigationMotion, playInterfaceMotion } from './services/motionEngine.js'
 import { VGlass } from '@daisigu/vue-liquid-glass'
@@ -537,6 +539,8 @@ const terminalDevices = computed(() => {
   const wechatRecords = clientData.value.wechatRecords || []
   const wechatByMac = new Map(wechatRecords.map(item => [String(item.mac || '').toUpperCase(), item]))
   const wechatAliases = new Map(clientData.value.wechatAliases || [])
+  const xiaomiRows = xiaomiSource.value.routerId === selectedDeviceId.value ? xiaomiSource.value.devices : []
+  const xiaomiByMac = new Map(xiaomiRows.map(item => [item.mac, item]))
   const add = (raw, source) => {
     const mac = String(raw.mac || raw.macaddr || '').toUpperCase()
     const key = mac || String(raw.ip || raw.ip6addr || raw.address || raw.name || `${source}:${raw.sourceIndex ?? byMac.size}`)
@@ -583,6 +587,9 @@ const terminalDevices = computed(() => {
       onlineKnown: item.status === 'online' || item.status === 'offline',
       monitorStatus: item.status }, 'wechatpush')
   })
+  // Xiaomi's inventory is discovery/attachment metadata ONLY. Even its
+  // online flag cannot change the presence policy used by WeChatPush/QWRT.
+  xiaomiRows.forEach(item => add({ ...item, online: false, onlineKnown: false }, 'xiaomi'))
   // OpenAppFilter users are another discovery source, not proof of being online.
   // Merge by MAC so one terminal does not appear twice across DHCP, Wi-Fi and apps.
   appFilterUsers.value.users.forEach((user, index) => add({
@@ -596,6 +603,7 @@ const terminalDevices = computed(() => {
   return [...byMac.values()].map(item => {
     const mac = String(item.mac || '').toUpperCase()
     const monitored = wechatByMac.get(mac)
+    const xiaomi = xiaomiByMac.get(mac)
     if (monitored) item.sources.add('wechatpush')
     const alias = wechatAliases.get(mac.toLowerCase()) ||
       wechatAliases.get(String(item.ip || '').toLowerCase()) || ''
@@ -610,9 +618,9 @@ const terminalDevices = computed(() => {
       fallbackKnown: item.onlineKnown
     })
     const { online, onlineKnown } = presence
-    const connectionType = monitored?.connectionType ||
+    const connectionType = xiaomi?.connectionType || monitored?.connectionType ||
       (item.wifi ? 'wireless' : '')
-    const connectionBand = monitored?.band || ''
+    const connectionBand = xiaomi?.band || monitored?.band || ''
     return {
       ...item,
       name: hostname,
@@ -626,6 +634,7 @@ const terminalDevices = computed(() => {
       monitorStatus: presence.monitorStatus,
       connectionType,
       connectionBand,
+      connectionSource: xiaomi?.connectionType ? 'xiaomi' : (monitored?.connectionType ? 'wechatpush' : ''),
       privateMac: identity.privateMac
     }
   })
@@ -635,7 +644,7 @@ const filteredClients = computed(() => {
   const sourceList = terminalView.value === 'all' ? terminalDevices.value
     : terminalDevices.value.filter(item =>
       terminalView.value === 'wireless'
-        ? item.online && item.connectionType === 'wireless'
+        ? item.connectionType === 'wireless'
         : item.sources.includes(terminalView.value))
   const visible = sourceList.filter(item => {
     const online = item.online === true
@@ -786,6 +795,109 @@ const {
 })
 const clientData = ref({ data: [], ipv6: [], wechatRecords: [], wechatAliases: [],
   wechatInstalled: false, leasesAvailable: false })
+
+const xiaomiSource = ref({ routerId: '', devices: [] })
+const xiaomiAddress = computed(() => readXiaomiAddress(selectedDeviceId.value))
+const xiaomiDevices = computed(() => xiaomiSource.value.routerId === selectedDeviceId.value
+  ? xiaomiSource.value.devices : [])
+const xiaomiDialog = ref(false)
+const xiaomiForm = reactive({ address: '', password: '', showPassword: false })
+const xiaomiBusy = ref(false)
+const xiaomiError = ref('')
+const xiaomiNotice = ref('')
+const xiaomiRequests = new Map()
+const xiaomiLastPoll = new Map()
+
+watch(selectedDeviceId, () => {
+  xiaomiSource.value = { routerId: '', devices: [] }
+  xiaomiError.value = ''
+  xiaomiNotice.value = ''
+  xiaomiDialog.value = false
+  xiaomiForm.password = ''
+})
+
+function openXiaomiDialog() {
+  xiaomiForm.address = xiaomiAddress.value || ''
+  xiaomiForm.password = ''
+  xiaomiForm.showPassword = false
+  xiaomiError.value = ''
+  xiaomiDialog.value = true
+}
+function closeXiaomiDialog() {
+  if (xiaomiBusy.value) return
+  xiaomiDialog.value = false
+  xiaomiForm.password = ''
+}
+
+async function refreshXiaomiSource({ force = false } = {}) {
+  const routerId = selectedDeviceId.value
+  const address = readXiaomiAddress(routerId)
+  if (!routerId || !address || !connected.value) return
+  if (xiaomiRequests.has(routerId)) return xiaomiRequests.get(routerId)
+  if (!force && Date.now() - (xiaomiLastPoll.get(routerId) || 0) < 15000) return
+  xiaomiLastPoll.set(routerId, Date.now())
+  xiaomiBusy.value = true
+  const job = (async () => {
+    try {
+      const password = await readXiaomiPassword(routerId)
+      const devices = await fetchXiaomiDevices(address, password)
+      if (routerId !== selectedDeviceId.value || readXiaomiAddress(routerId) !== address) return
+      xiaomiSource.value = { routerId, devices }
+      xiaomiError.value = ''
+    } catch (error) {
+      if (routerId !== selectedDeviceId.value) return
+      // A failed live read never leaves old Xiaomi attachment metadata on screen.
+      xiaomiSource.value = { routerId, devices: [] }
+      xiaomiError.value = '小米设备列表获取失败：' + shortError(error)
+    } finally {
+      if (routerId === selectedDeviceId.value) xiaomiBusy.value = false
+    }
+  })()
+  xiaomiRequests.set(routerId, job)
+  try { return await job } finally {
+    if (xiaomiRequests.get(routerId) === job) xiaomiRequests.delete(routerId)
+  }
+}
+
+async function saveXiaomiSource() {
+  if (xiaomiBusy.value) return
+  const routerId = selectedDeviceId.value
+  const password = xiaomiForm.password
+  xiaomiBusy.value = true
+  xiaomiError.value = ''
+  try {
+    const address = normalizeXiaomiAddress(xiaomiForm.address)
+    // Verify credentials and inventory BEFORE storing a password or enabling polling.
+    const devices = await fetchXiaomiDevices(address, password)
+    await saveXiaomiConfig(routerId, address, password)
+    if (routerId !== selectedDeviceId.value) return
+    xiaomiSource.value = { routerId, devices }
+    xiaomiLastPoll.set(routerId, Date.now())
+    xiaomiNotice.value = '已连接小米路由器，获取到 ' + devices.length + ' 台设备（仅作接入类型参考）'
+    xiaomiDialog.value = false
+  } catch (error) {
+    xiaomiError.value = shortError(error)
+  } finally {
+    xiaomiForm.password = ''
+    if (routerId === selectedDeviceId.value) xiaomiBusy.value = false
+  }
+}
+
+async function deleteXiaomiSource() {
+  if (xiaomiBusy.value || !selectedDeviceId.value) return
+  xiaomiBusy.value = true
+  try {
+    await clearXiaomiConfig(selectedDeviceId.value)
+    xiaomiSource.value = { routerId: selectedDeviceId.value, devices: [] }
+    xiaomiError.value = ''
+    xiaomiNotice.value = '小米路由器配置和保存的密码已清除'
+    xiaomiDialog.value = false
+    xiaomiForm.password = ''
+  } catch (error) {
+    xiaomiError.value = shortError(error)
+  } finally { xiaomiBusy.value = false }
+}
+
 // In-memory, session-scoped data: never persist LAN client identities or
 // password-bearing RPC sessions into localStorage.
 const routerPreloadCache = new Map()
@@ -872,6 +984,7 @@ async function preloadRouterExtras(id, api) {
   return pending
 }
 async function preloadRouterClients(id, api, { force = false } = {}) {
+  if (id === selectedDeviceId.value) void refreshXiaomiSource({ force })
   const entry = routerPreloadEntry(id, api)
   if (!entry) return
   if (entry.clientsPromise) {
@@ -933,7 +1046,8 @@ const terminalCategories = computed(() => [
   { value: 'all', label: '全部终端', count: terminalDevices.value.length, icon: 'mdi-devices' },
   { value: 'dhcp4', label: 'DHCPv4', count: clientData.value.data.length, icon: 'mdi-laptop' },
   { value: 'dhcp6', label: 'DHCPv6', count: clientData.value.ipv6.length, icon: 'mdi-ip-network' },
-  { value: 'wireless', label: '无线终端', count: terminalDevices.value.filter(item => item.online && item.connectionType === 'wireless').length, icon: 'mdi-wifi' },
+  { value: 'wireless', label: '无线终端', count: terminalDevices.value.filter(item => item.connectionType === 'wireless').length, icon: 'mdi-wifi' },
+  ...(xiaomiAddress.value ? [{ value: 'xiaomi', label: '小米设备', count: xiaomiDevices.value.length, icon: 'mdi-router-wireless' }] : []),
   ...(clientData.value.wechatInstalled ? [{
     value: 'wechatpush', label: '微信推送', count: terminalDevices.value.filter(item => item.sources.includes('wechatpush')).length,
     icon: 'mdi-message-badge-outline'
@@ -1756,6 +1870,7 @@ async function handleBack() {
   if (factoryBusy.value || connecting.value || actionBusy.value) return 'busy'
   // Consume transient menus and dialogs before changing any page or router.
   if (terminalDisplayMenuOpen.value) { terminalDisplayMenuOpen.value = false; return 'dialog' }
+  if (xiaomiDialog.value) { if (xiaomiBusy.value) return 'busy'; closeXiaomiDialog(); return 'dialog' }
   if (updateDialog.value) {
     if (downloadBusy.value) return 'busy'
     updateDialog.value = false
@@ -3340,6 +3455,25 @@ onUnmounted(() => {
                 微信推送实时终端数据不可用：{{ clientData.monitorReason || '本轮未能获取有效设备状态' }}。
                 当前在线状态待确认，未使用 App 端历史缓存。
               </v-alert>
+
+              <div class="v3-xiaomi-source">
+                <div class="v3-xiaomi-source-label">
+                  <v-icon icon="mdi-router-wireless" size="22" color="primary"/>
+                  <div><strong>小米路由器</strong>
+                    <small>{{ xiaomiAddress ? ('接入类型 · ' + xiaomiDevices.length + ' 台设备') : '配置 IP 和密码，识别 2.4G / 5G / LAN' }}</small>
+                  </div>
+                </div>
+                <div class="v3-xiaomi-source-actions">
+                  <v-btn v-if="xiaomiAddress" icon="mdi-refresh" variant="text" size="small"
+                    :loading="xiaomiBusy" aria-label="刷新小米设备" @click="refreshXiaomiSource({ force: true })"/>
+                  <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-cog-outline"
+                    @click="openXiaomiDialog">{{ xiaomiAddress ? '设置' : '配置' }}</v-btn>
+                </div>
+              </div>
+              <v-alert v-if="xiaomiError" class="mb-3" type="warning" variant="tonal"
+                density="compact" role="status">{{ xiaomiError }}</v-alert>
+              <v-alert v-else-if="xiaomiNotice" class="mb-3" type="success"
+                variant="tonal" density="compact">{{ xiaomiNotice }}</v-alert>
               <div class="v3-terminal-status" role="group" aria-label="终端在线状态筛选">
                 <button v-for="option in [
                   { id: 'all', label: '全部', count: terminalDevices.length },
@@ -3414,7 +3548,7 @@ onUnmounted(() => {
                 :text="terminalView === 'dhcp4' && !clientData.leasesAvailable
                   ? '无法读取 DHCP 租约，请检查 luci-rpc.getDHCPLeases 权限'
                   : '没有对应来源的记录；租约不等于在线状态'"/>
-              <p class="v3-client-evidence">已安装微信推送时，每次刷新重新读取路由器上的设备数据与备注；DHCP、无线及邻居信息只补充设备属性。监控数据不可用时不沿用 App 历史状态，租约不代表在线。</p>
+              <p class="v3-client-evidence">已安装微信推送时，每次刷新重新读取 QWRT 的设备数据与备注；小米路由器仅提供设备发现与 2.4G / 5G / LAN 接入类型，不参与在线判定。监控数据不可用时不沿用历史在线状态。</p>
             </div>
             <div class="v3-section-label v3-device-actions-heading">设备管理</div>
             <div class="v3-inline-links v3-device-actions" role="group" aria-label="终端管理工具">
@@ -4230,6 +4364,40 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="xiaomiDialog" max-width="440" :persistent="xiaomiBusy"
+      aria-label="小米路由器接入信息配置">
+      <v-card rounded="xl" class="pa-2">
+        <v-card-title class="d-flex align-center ga-2"><v-icon icon="mdi-router-wireless" color="primary"/>小米路由器</v-card-title>
+        <v-card-subtitle>读取小米设备列表，补充 2.4G、5G 和 LAN 接入类型</v-card-subtitle>
+        <v-card-text>
+          <v-text-field v-model="xiaomiForm.address" label="路由器局域网 IP"
+            placeholder="192.168.100.2" variant="outlined" density="comfortable"
+            prepend-inner-icon="mdi-ip-network-outline" autocomplete="off" :disabled="xiaomiBusy"/>
+          <v-text-field v-model="xiaomiForm.password" label="管理密码"
+            :type="xiaomiForm.showPassword ? 'text' : 'password'" variant="outlined"
+            density="comfortable" prepend-inner-icon="mdi-lock-outline"
+            :append-inner-icon="xiaomiForm.showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'"
+            autocomplete="new-password" :disabled="xiaomiBusy"
+            @click:append-inner="xiaomiForm.showPassword = !xiaomiForm.showPassword"/>
+          <p class="text-caption text-medium-emphasis">
+            密码仅加密存入 Android 安全存储；小米设备的在线标记不会影响 QWRT 终端在线判断。
+            小米路由器必须可从手机局域网访问。
+          </p>
+          <v-alert v-if="xiaomiError" density="compact" variant="tonal" type="warning"
+            class="mt-2">{{ xiaomiError }}</v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-btn v-if="xiaomiAddress" color="error" variant="text" :disabled="xiaomiBusy"
+            @click="deleteXiaomiSource">移除配置</v-btn>
+          <v-spacer/>
+          <v-btn variant="text" :disabled="xiaomiBusy" @click="closeXiaomiDialog">取消</v-btn>
+          <v-btn color="primary" variant="flat" :loading="xiaomiBusy"
+            @click="saveXiaomiSource">验证并保存</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-dialog v-model="loginDialog" max-width="430" :persistent="connecting">
       <v-card rounded="xl">
         <v-card-title>连接 {{ displayDeviceName(selectedDevice) }}</v-card-title>
