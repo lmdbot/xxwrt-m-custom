@@ -640,7 +640,8 @@ export async function readClients(client) {
     const ip = item.ipaddr || hint.ipaddrs?.[0] || '--'
     const ip6 = hint.ip6addrs?.[0] || ''
     const monitorDevice = monitoredClient(monitored, mac, ip)
-    const state = preferredClientStatus(monitorDevice, neighborStatus(neighbors, mac, ip, ip6))
+    const qwrtState = neighborStatus(neighbors, mac, ip, ip6)
+    const state = preferredClientStatus(monitorDevice, qwrtState)
     return {
       mac, ip, ip6,
       name: resolveWechatClientName(monitored, mac, ip, item.hostname || hint.name || ''),
@@ -650,6 +651,9 @@ export async function readClients(client) {
       connectionBand: monitorDevice?.band || '',
       expires: item.expires,
       active: Number(item.expires) > 0,
+      // Preserve the independent QWRT neighbour result for App roster policy.
+      qwrtOnline: qwrtState === 'online',
+      qwrtOnlineKnown: qwrtState !== 'unknown',
       online: state === 'online',
       onlineKnown: state !== 'unknown',
       source: 'dhcp4'
@@ -661,7 +665,8 @@ export async function readClients(client) {
     const ip = item.ip6addr || item.address || item.ip6addrs?.[0] || '--'
     const ip4 = hint.ipaddrs?.[0] || ''
     const monitorDevice = monitoredClient(monitored, mac, ip4)
-    const state = preferredClientStatus(monitorDevice, neighborStatus(neighbors, mac, ip, ip4))
+    const qwrtState = neighborStatus(neighbors, mac, ip, ip4)
+    const state = preferredClientStatus(monitorDevice, qwrtState)
     return {
       ...item,
       mac: mac.toUpperCase(),
@@ -671,6 +676,9 @@ export async function readClients(client) {
       connectionType: monitorDevice?.connectionType || '',
       connectionBand: monitorDevice?.band || '',
       ip, ip4,
+      // Preserve the independent QWRT neighbour result for App roster policy.
+      qwrtOnline: qwrtState === 'online',
+      qwrtOnlineKnown: qwrtState !== 'unknown',
       online: state === 'online',
       onlineKnown: state !== 'unknown',
       source: 'dhcp6'

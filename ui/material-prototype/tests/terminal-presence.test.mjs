@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { reconcileTerminalClientData, resolveTerminalPresence } from '../src/services/terminalPresence.js'
+import { reconcileTerminalClientData, resolveTerminalPresence, terminalDiscoveryEntries, resolveTerminalRosterPresence } from '../src/services/terminalPresence.js'
 import { parseWechatClientPresence } from '../src/services/wechatClientPresence.js'
 
 const online = { mac: 'AA:BB:CC:DD:EE:FF', ip: '192.168.100.88', name: '客厅电脑', status: 'online' }
@@ -91,4 +91,68 @@ test('without WeChatPush other live association evidence remains usable', () => 
   assert.deepEqual(resolveTerminalPresence({
     wechatInstalled: false, monitored: null, fallbackOnline: true, fallbackKnown: true
   }), { online: true, onlineKnown: true, monitorStatus: '' })
+})
+
+
+test('terminal roster contains only QWRT discovery union WeChatPush online, no offline or Xiaomi-only entries', () => {
+  const items = terminalDiscoveryEntries({
+    dhcp4: [{ mac: 'AA:00:00:00:00:01', online: false }],
+    dhcp6: [{ mac: 'AA:00:00:00:00:01', online: false }],
+    wireless: [{ mac: 'AA:00:00:00:00:02', online: true }],
+    wechatRecords: [
+      { mac: 'AA:00:00:00:00:02', status: 'online' },
+      { mac: 'AA:00:00:00:00:03', status: 'online' },
+      { mac: 'AA:00:00:00:00:04', status: 'offline' },
+      { mac: 'AA:00:00:00:00:05', status: 'unknown' }
+    ]
+  })
+  assert.deepEqual(items.map(x => x.source),
+    ['dhcp4', 'dhcp6', 'wireless', 'wechatpush', 'wechatpush'])
+  const roster = new Set(items.map(x => x.item.mac))
+  assert.deepEqual([...roster], [
+    'AA:00:00:00:00:01', 'AA:00:00:00:00:02', 'AA:00:00:00:00:03'
+  ])
+  assert.equal(roster.has('AA:00:00:00:00:04'), false)
+  assert.equal(roster.has('AA:00:00:00:00:05'), false)
+})
+
+test('WeChatPush online always wins, even when Xiaomi explicitly offline', () => {
+  assert.deepEqual(resolveTerminalRosterPresence({
+    monitored: { status: 'online' },
+    xiaomiReportedOffline: true, qwrtOnline: false, qwrtOnlineKnown: true
+  }), { online: true, onlineKnown: true, monitorStatus: 'online' })
+})
+
+test('not WeChatPush-online plus explicit Xiaomi current offline means offline', () => {
+  for (const monitored of [null, { status: 'offline' }, { status: 'unknown' }]) {
+    const result = resolveTerminalRosterPresence({
+      monitored, xiaomiReportedOffline: true,
+      qwrtOnline: true, qwrtOnlineKnown: true
+    })
+    assert.equal(result.online, false)
+    assert.equal(result.onlineKnown, true)
+  }
+})
+
+test('all other cases follow independent QWRT neighbour/Wi-Fi state', () => {
+  for (const monitored of [null, { status: 'offline' }, { status: 'unknown' }]) {
+    const isUp = resolveTerminalRosterPresence({
+      monitored, xiaomiReportedOffline: false,
+      qwrtOnline: true, qwrtOnlineKnown: true
+    })
+    assert.equal(isUp.online, true)
+    assert.equal(isUp.onlineKnown, true)
+    const isDown = resolveTerminalRosterPresence({
+      monitored, xiaomiReportedOffline: false,
+      qwrtOnline: false, qwrtOnlineKnown: true
+    })
+    assert.equal(isDown.online, false)
+    assert.equal(isDown.onlineKnown, true)
+    const unknown = resolveTerminalRosterPresence({
+      monitored, xiaomiReportedOffline: false,
+      qwrtOnline: false, qwrtOnlineKnown: false
+    })
+    assert.deepEqual({ online: unknown.online, onlineKnown: unknown.onlineKnown },
+      { online: false, onlineKnown: false })
+  }
 })

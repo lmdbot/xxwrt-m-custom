@@ -34,3 +34,43 @@ export function resolveTerminalPresence({ wechatInstalled, monitored, fallbackOn
     monitorStatus: ''
   }
 }
+
+// Only QWRT's current discovery (DHCPv4/DHCPv6/associated Wi-Fi) and
+// WeChatPush's *online* monitor roster may introduce a terminal. Xiaomi
+// inventory and OpenAppFilter never enlarge the device list.
+export function terminalDiscoveryEntries({
+  dhcp4 = [], dhcp6 = [], wireless = [], wechatRecords = []
+} = {}) {
+  return [
+    ...dhcp4.map(item => ({ item, source: 'dhcp4' })),
+    ...dhcp6.map(item => ({ item, source: 'dhcp6' })),
+    ...wireless.map(item => ({ item, source: 'wireless' })),
+    ...wechatRecords.filter(item => item?.status === 'online')
+      .map(item => ({ item, source: 'wechatpush' }))
+  ]
+}
+
+/**
+ * Explicit priority requested for the terminal screen:
+ * 1. WeChatPush online -> online, even if Xiaomi reports offline.
+ * 2. Not WeChatPush online AND Xiaomi explicitly offline -> offline.
+ * 3. Otherwise, use the QWRT neighbour/association state; unknown remains
+ *    unknown. Xiaomi online never authorizes an online status.
+ *
+ * Only an explicit offline flag in a freshly fetched Xiaomi record can
+ * override QWRT. A historical record without such a flag proves nothing.
+ */
+export function resolveTerminalRosterPresence({
+  monitored, xiaomiReportedOffline = false,
+  qwrtOnline = false, qwrtOnlineKnown = false
+} = {}) {
+  if (monitored?.status === 'online')
+    return { online: true, onlineKnown: true, monitorStatus: 'online' }
+  if (xiaomiReportedOffline === true)
+    return { online: false, onlineKnown: true, monitorStatus: monitored?.status === 'offline' ? 'offline' : '' }
+  return {
+    online: qwrtOnline === true,
+    onlineKnown: qwrtOnlineKnown === true || qwrtOnline === true,
+    monitorStatus: monitored?.status === 'offline' ? 'offline' : ''
+  }
+}
