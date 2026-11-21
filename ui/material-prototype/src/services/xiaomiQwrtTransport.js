@@ -1,59 +1,55 @@
 import { normalizeXiaomiAddress } from './xiaomiClientData.js'
 
 /**
- * Router-side egress for Xiaomi's LAN API. Android connects ONLY to its
- * authenticated QWRT /ubus endpoint. QWRT executes curl with argv (no shell).
- *
- * Deliberately refuse URLs outside the validated private IPv4 Xiaomi origin,
- * disable user curlrc, ambient proxies and redirects, and bound I/O.
+ * Xiaomi management requests are executed inside QWRT's dedicated rpcd
+ * plugin. The App never connects to Xiaomi directly and never requires the
+ * generic file.exec permission (which would expose arbitrary execution).
  */
 export async function xiaomiRequestFromQwrt(qwrt, address, path, form = null) {
   if (!qwrt?.session || typeof qwrt.call !== 'function')
     throw new Error('请先登录 QWRT，再读取小米设备')
+
   const origin = normalizeXiaomiAddress(address)
   if (!/^\/cgi-bin\/luci\/(?:api\/xqsystem\/(?:init_info|login)|;stok=[a-zA-Z0-9_%.-]+\/api\/(?:misystem\/devicelist|xqsystem\/device_list\?all=1))$/.test(path))
     throw new Error('不允许访问小米路由器的其他接口')
-  const args = [
-    '-q', '--silent', '--show-error', '--fail', '--globoff',
-    '--noproxy', '*', '--proto', '=http,https',
-    '--connect-timeout', '4', '--max-time', '8',
-    '--max-redirs', '0', '--max-filesize', '1048576',
-    '--header', 'Accept: application/json'
-  ]
-  if (form) {
-    args.push('--request', 'POST', '--header',
-      'Content-Type: application/x-www-form-urlencoded',
-      '--data-raw', new URLSearchParams(form).toString())
+  if ((form !== null) !== (path === '/cgi-bin/luci/api/xqsystem/login'))
+    throw new Error('小米登录请求方法不合法')
+
+  // The only POST body is a challenge-response digest, never the plaintext
+  // Xiaomi password. Backend also validates destination, path and form.
+  const payload = {
+    address: origin,
+    path,
+    form: form === null ? '' : new URLSearchParams(form).toString()
   }
-  // The binary receives a fixed, validated URL, and no shell is invoked.
-  args.push('--', origin + path)
   let result
   try {
-    result = await qwrt.call('file', 'exec',
-      { command: '/usr/bin/curl', params: args, env: null })
+    result = await qwrt.call('luci.xxwrt-xiaomi', 'Fetch', payload)
   } catch (error) {
-    throw new Error('无法让 QWRT 转发小米请求：' + String(error?.message || error))
+    const detail = String(error?.message || error)
+    if (/代码\s*(?:4|6|9)|(?:permission|access)\s*denied|not\s*found/i.test(detail)) {
+      throw new Error('QWRT 尚未安装或授权小米查询扩展（也可能是登录已过期）；请安装 XX-WRT 小米 RPC 扩展并重新登录 QWRT。' + detail)
+    }
+    throw new Error('QWRT 小米查询服务调用失败：' + detail)
   }
-  if (!result || typeof result.stdout !== 'string')
-    throw new Error('QWRT 未返回 curl 执行结果，请检查 file.exec RPC 权限')
-  if (Number(result.code ?? -1) !== 0) {
-    const code = Number(result.code)
-    if (code === 127 || /not found|no such file/i.test(result.stderr || ''))
-      throw new Error('QWRT 未安装 /usr/bin/curl，请先在 QWRT 安装 curl')
-    const detail = code === 7 ? '无法从 QWRT 连接小米 IP'
+  if (!result || typeof result !== 'object')
+    throw new Error('QWRT 小米查询扩展没有返回数据')
+  const code = Number(result.code)
+  if (code !== 0) {
+    const hint = code === 7 ? 'QWRT 无法连接小米路由器的管理 IP'
       : code === 22 ? '小米接口返回 HTTP 错误'
       : code === 28 ? 'QWRT 到小米路由器请求超时'
-      : code === 60 ? '小米 HTTPS 证书无法验证'
-      : 'QWRT 发起小米请求失败（curl ' + code + '）'
-    throw new Error(detail)
+      : code === 60 ? '小米 HTTPS 证书验证失败'
+      : code === 127 ? 'QWRT 缺少 curl，需安装 curl 软件包'
+      : code === 400 ? 'QWRT 小米查询参数被安全校验拒绝'
+      : 'QWRT 小米查询失败（代码 ' + code + '）'
+    throw new Error(hint)
   }
-  const raw = result.stdout
-  if (raw.length > 1048576) throw new Error('小米返回的设备数据超过 1 MB')
+  if (typeof result.body !== 'string' || result.body.length > 262144)
+    throw new Error('QWRT 小米查询返回数据无效或超过大小限制')
   try {
-    const data = JSON.parse(raw)
-    if (!data || typeof data !== 'object') throw new Error('bad')
-    return data
-  } catch {
-    throw new Error('小米路由器返回的不是有效 JSON 数据')
-  }
+    const body = JSON.parse(result.body)
+    if (body && typeof body === 'object') return body
+  } catch { /* Preserve a clear error instead of treating HTML as JSON. */ }
+  throw new Error('小米路由器返回的不是有效 JSON 数据')
 }

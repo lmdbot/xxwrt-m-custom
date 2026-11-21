@@ -1,0 +1,97 @@
+#!/bin/sh
+# XX-WRT dedicated Xiaomi RPC backend. No arbitrary file.exec access.
+set -eu
+. /usr/share/libubox/jshn.sh
+
+respond() {
+    json_init
+    json_add_int code "$1"
+    json_add_string body "${2:-}"
+    json_dump
+    printf '\n'
+}
+
+case "${1:-}:${2:-}" in
+    list:) printf '%s\n' '{"Fetch":{"address":"str","path":"str","form":"str"}}'; exit 0 ;;
+    call:Fetch) ;;
+    *) printf '%s\n' '{}'; exit 0 ;;
+esac
+
+IFS= read -r input || [ -n "${input:-}" ] || { respond 400; exit 0; }
+[ "${#input}" -le 2048 ] || { respond 400; exit 0; }
+json_load "$input" >/dev/null 2>&1 || { respond 400; exit 0; }
+json_get_var address address
+json_get_var path path
+json_get_var form form
+
+# Only RFC1918 numeric IPv4 origins; never allow hostnames or URL paths.
+case "$address" in http://*|https://*) ;; *) respond 400; exit 0 ;; esac
+hostport="${address#*://}"
+case "$hostport" in ''|*[!0-9.:]*|*/*) respond 400; exit 0 ;; esac
+ip="${hostport%%:*}"
+if [ "$hostport" != "$ip" ]; then
+    port="${hostport#*:}"
+    case "$port" in ''|*[!0-9]*|*:*) respond 400; exit 0 ;; esac
+    [ "$port" -ge 1 ] && [ "$port" -le 65535 ] || { respond 400; exit 0; }
+fi
+old_ifs="$IFS"
+IFS=.
+set -- $ip
+IFS="$old_ifs"
+[ "$#" -eq 4 ] || { respond 400; exit 0; }
+for octet do
+    case "$octet" in
+        0|[1-9]|[1-9][0-9]|[1-9][0-9][0-9]) ;;
+        *) respond 400; exit 0 ;;
+    esac
+    [ "$octet" -le 255 ] || { respond 400; exit 0; }
+done
+case "$1" in
+    10) ;;
+    172) [ "$2" -ge 16 ] && [ "$2" -le 31 ] || { respond 400; exit 0; } ;;
+    192) [ "$2" -eq 168 ] || { respond 400; exit 0; } ;;
+    *) respond 400; exit 0 ;;
+esac
+
+method=GET
+case "$path" in
+    /cgi-bin/luci/api/xqsystem/init_info)
+        [ -z "$form" ] || { respond 400; exit 0; } ;;
+    /cgi-bin/luci/api/xqsystem/login)
+        method=POST
+        case "$form" in
+            username=admin\&password=*\&logtype=2\&nonce=*) ;;
+            *) respond 400; exit 0 ;;
+        esac
+        [ "${#form}" -le 512 ] || { respond 400; exit 0; }
+        case "$form" in *[!A-Za-z0-9_.%\&=+~-]*) respond 400; exit 0 ;; esac ;;
+    /cgi-bin/luci/\;stok=*/api/misystem/devicelist|/cgi-bin/luci/\;stok=*/api/xqsystem/device_list\?all=1)
+        [ -z "$form" ] || { respond 400; exit 0; }
+        token="${path#*;stok=}"
+        token="${token%%/*}"
+        case "$token" in ''|*[!A-Za-z0-9_-]*) respond 400; exit 0 ;; esac
+        [ "${#token}" -le 128 ] || { respond 400; exit 0; } ;;
+    *) respond 400; exit 0 ;;
+esac
+
+CURL="$(command -v curl || true)"
+[ -n "$CURL" ] || { respond 127; exit 0; }
+tmp="$(mktemp /tmp/xxwrt-xiaomi.XXXXXX)" || { respond 70; exit 0; }
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+# -q first disables curlrc. No shell eval, proxy or redirect.
+set -- -q --silent --show-error --fail --globoff --noproxy '*' \
+    --proto '=http,https' --connect-timeout 4 --max-time 8 \
+    --max-redirs 0 --max-filesize 262144 \
+    --header 'Accept: application/json' --output "$tmp"
+if [ "$method" = POST ]; then
+    set -- "$@" --request POST --header \
+        'Content-Type: application/x-www-form-urlencoded' --data-raw "$form"
+fi
+code=0
+"$CURL" "$@" -- "$address$path" 2>/dev/null || code=$?
+if [ "$code" -ne 0 ]; then respond "$code"; exit 0; fi
+bytes="$(wc -c < "$tmp" | tr -d ' ')"
+[ "$bytes" -le 262144 ] || { respond 63; exit 0; }
+body="$(cat "$tmp")"
+respond 0 "$body"

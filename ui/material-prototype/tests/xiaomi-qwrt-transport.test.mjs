@@ -1,8 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { xiaomiRequestFromQwrt } from '../src/services/xiaomiQwrtTransport.js'
 
-function stubRpc(output = { code: 0, stdout: '{"code":0,"list":[]}' }) {
+const backend = fileURLToPath(new URL('../../../router/luci.xxwrt-xiaomi', import.meta.url))
+const installer = fileURLToPath(new URL('../../../router/XX-WRT-QWRT-xiaomi-install.sh', import.meta.url))
+
+function stubRpc(output = { code: 0, body: '{"code":0,"list":[]}' }) {
   const calls = []
   return {
     client: {
@@ -16,70 +22,82 @@ function stubRpc(output = { code: 0, stdout: '{"code":0,"list":[]}' }) {
   }
 }
 
-test('GET originates from QWRT file.exec using a fixed curl binary, never from Android', async () => {
+test('Xiaomi requests use a dedicated scoped ubus plugin; not the denied file.exec', async () => {
   const rpc = stubRpc()
-  const data = await xiaomiRequestFromQwrt(rpc.client, '192.168.100.2',
+  const result = await xiaomiRequestFromQwrt(rpc.client, '192.168.100.139',
     '/cgi-bin/luci/api/xqsystem/init_info')
-  assert.deepEqual(data, { code: 0, list: [] })
-  assert.equal(rpc.calls.length, 1)
-  const { object, method, payload } = rpc.calls[0]
-  assert.equal(object, 'file')
-  assert.equal(method, 'exec')
-  assert.equal(payload.command, '/usr/bin/curl')
-  assert.deepEqual(payload.params.slice(0, 2), ['-q', '--silent'])
-  assert.ok(payload.params.includes('--noproxy'))
-  assert.ok(payload.params.includes('--max-time'))
-  assert.ok(payload.params.includes('--max-filesize'))
-  assert.equal(payload.params.at(-2), '--')
-  assert.equal(payload.params.at(-1), 'http://192.168.100.2/cgi-bin/luci/api/xqsystem/init_info')
-  assert.ok(!payload.params.includes('--location'))
-  assert.equal(payload.env, null)
+  assert.deepEqual(result, { code: 0, list: [] })
+  assert.deepEqual(rpc.calls, [{
+    object: 'luci.xxwrt-xiaomi', method: 'Fetch',
+    payload: { address: 'http://192.168.100.139', path: '/cgi-bin/luci/api/xqsystem/init_info', form: '' }
+  }])
 })
 
-test('POST forwards only form digest, not a Xiaomi password', async () => {
-  const rpc = stubRpc({ code: 0, stdout: '{"code":0,"token":"abc"}' })
-  const body = { username: 'admin', password: 'a'.repeat(64), logtype: '2', nonce: 'safe_1' }
-  const response = await xiaomiRequestFromQwrt(rpc.client, '10.0.0.2',
-    '/cgi-bin/luci/api/xqsystem/login', body)
-  assert.equal(response.token, 'abc')
-  const args = rpc.calls[0].payload.params
-  assert.ok(args.includes('POST'))
-  const encoded = args[args.indexOf('--data-raw') + 1]
-  assert.equal(encoded, new URLSearchParams(body).toString())
-  assert.ok(!encoded.includes('plainRouterPassword'))
+test('POST sends only the challenge response, not plaintext Xiaomi password', async () => {
+  const rpc = stubRpc({ code: 0, body: '{"code":0,"token":"abc"}' })
+  const credentials = { username: 'admin', password: 'a'.repeat(64), logtype: '2', nonce: 'safe_1' }
+  const data = await xiaomiRequestFromQwrt(rpc.client, '10.0.0.2',
+    '/cgi-bin/luci/api/xqsystem/login', credentials)
+  assert.equal(data.token, 'abc')
+  assert.equal(rpc.calls[0].payload.form, new URLSearchParams(credentials).toString())
+  assert.equal(rpc.calls[0].payload.form.includes('plainRouterPassword'), false)
 })
 
-test('never proxy an arbitrary URL, shell command, or public IP', async () => {
+test('unapproved destinations and methods never hit QWRT', async () => {
   const rpc = stubRpc()
-  await assert.rejects(() => xiaomiRequestFromQwrt(rpc.client, '8.8.8.8',
-    '/cgi-bin/luci/api/xqsystem/init_info'), /仅允许/)
-  await assert.rejects(() => xiaomiRequestFromQwrt(rpc.client, '192.168.100.2',
-    '/cgi-bin/luci/admin'), /不允许/)
-  await assert.rejects(() => xiaomiRequestFromQwrt(rpc.client, '192.168.100.2',
-    '/cgi-bin/luci/;stok=123/api/misystem/devicelist/../../etc/passwd'), /不允许/)
+  for (const [addr, path, form] of [
+    ['8.8.8.8', '/cgi-bin/luci/api/xqsystem/init_info', null],
+    ['192.168.100.2', '/cgi-bin/luci/admin', null],
+    ['192.168.100.2', '/cgi-bin/luci/;stok=abc/api/misystem/devicelist/../../etc/passwd', null],
+    ['192.168.100.2', '/cgi-bin/luci/api/xqsystem/login', null],
+    ['192.168.100.2', '/cgi-bin/luci/api/xqsystem/init_info', { bogus: 1 }]
+  ]) await assert.rejects(() => xiaomiRequestFromQwrt(rpc.client, addr, path, form))
   assert.equal(rpc.calls.length, 0)
 })
 
-test('router RPC errors remain errors rather than cached terminal data', async () => {
-  const denied = stubRpc(null)
-  await assert.rejects(() => xiaomiRequestFromQwrt(denied.client, '192.168.100.2',
-    '/cgi-bin/luci/api/xqsystem/init_info'), /RPC 权限/)
-  const timeout = stubRpc({ code: 28, stdout: '', stderr: 'timed out' })
-  await assert.rejects(() => xiaomiRequestFromQwrt(timeout.client, '192.168.100.2',
-    '/cgi-bin/luci/api/xqsystem/init_info'), /超时/)
-  const missing = stubRpc({ code: 127, stdout: '', stderr: 'not found' })
-  await assert.rejects(() => xiaomiRequestFromQwrt(missing.client, '192.168.100.2',
-    '/cgi-bin/luci/api/xqsystem/init_info'), /安装 curl/)
-  const malformed = stubRpc({ code: 0, stdout: '<html>login</html>', stderr: '' })
-  await assert.rejects(() => xiaomiRequestFromQwrt(malformed.client, '192.168.100.2',
-    '/cgi-bin/luci/api/xqsystem/init_info'), /JSON/)
+test('RPC access code 6 explains the required QWRT helper instead of blaming Xiaomi password', async () => {
+  const denied = stubRpc()
+  denied.client.call = async () => { throw new Error('RPC 没有权限或登录已失效（代码 6）') }
+  await assert.rejects(
+    () => xiaomiRequestFromQwrt(denied.client, '192.168.100.139',
+      '/cgi-bin/luci/api/xqsystem/init_info'),
+    /尚未安装或授权小米查询扩展/
+  )
 })
 
-test('stok path remains constrained to two read-only inventory endpoints', async () => {
+test('curl and relay failures preserve an actionable error', async () => {
+  const responses = [
+    [{ code: 28, body: '' }, /超时/],
+    [{ code: 127, body: '' }, /缺少 curl/],
+    [{ code: 7, body: '' }, /无法连接/],
+    [{ code: 400, body: '' }, /参数被安全校验拒绝/],
+    [{ code: 0, body: '<html>bad</html>' }, /JSON/]
+  ]
+  for (const [payload, pattern] of responses)
+    await assert.rejects(
+      () => xiaomiRequestFromQwrt(stubRpc(payload).client, '192.168.100.2',
+        '/cgi-bin/luci/api/xqsystem/init_info'),
+      pattern
+    )
+})
+
+test('authenticated MiWiFi inventory has only two allowed read endpoints', async () => {
   const rpc = stubRpc()
-  const inventory = ['/cgi-bin/luci/;stok=abc123/api/misystem/devicelist',
-    '/cgi-bin/luci/;stok=abc123/api/xqsystem/device_list?all=1']
-  for (const path of inventory)
-    await xiaomiRequestFromQwrt(rpc.client, '192.168.100.2', path)
+  for (const path of ['/cgi-bin/luci/;stok=abcd1234/api/misystem/devicelist',
+    '/cgi-bin/luci/;stok=abcd1234/api/xqsystem/device_list?all=1'])
+    await xiaomiRequestFromQwrt(rpc.client, '192.168.100.139', path)
   assert.equal(rpc.calls.length, 2)
+})
+
+test('router helper shell scripts parse and installer ACL cannot grant generic file.exec', () => {
+  execFileSync('sh', ['-n', backend])
+  execFileSync('sh', ['-n', installer])
+  const helper = readFileSync(backend, 'utf8')
+  const setup = readFileSync(installer, 'utf8')
+  assert.match(helper, /--noproxy/)
+  assert.match(helper, /--max-filesize/)
+  assert.match(helper, /--max-time/)
+  assert.match(helper, /--proto/)
+  assert.match(setup, /luci\.xxwrt-xiaomi/)
+  assert.doesNotMatch(setup, /"file"\s*:\s*\[/)
 })
