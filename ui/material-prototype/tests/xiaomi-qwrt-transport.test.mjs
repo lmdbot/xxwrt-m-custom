@@ -1,7 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { xiaomiRequestFromQwrt } from '../src/services/xiaomiQwrtTransport.js'
 
@@ -113,4 +115,31 @@ test('router helper shell scripts parse and installer ACL cannot grant generic f
   assert.match(setup, /ubus call 'luci\.xxwrt-xiaomi' Fetch/)
   assert.match(setup, /FAIL|fail 'The Xiaomi ubus object is missing/)
   assert.match(setup, /SUCCESS: QWRT has registered/)
+})
+
+// OpenWrt's jshn.sh reads optional JSON_PREFIX / JSON_CUR without defining
+// them first. nounset in the rpcd backend makes these library calls fatal.
+test('QWRT rpcd worker handles jshn optional globals without nounset', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'xxwrt-xiaomi-rpcd-'))
+  const helper = join(dir, 'luci.xxwrt-xiaomi')
+  const jshn = join(dir, 'jshn.sh')
+  try {
+    writeFileSync(jshn, [
+      'json_load() { JSON_CUR=J_V; }',
+      // Deliberately reference an unset variable, as OpenWrt jshn does.
+      'json_get_var() { local __prefix="${JSON_PREFIX}"; case "$2" in address) eval "$1=http://127.0.0.1";; path) eval "$1=/cgi-bin/luci/api/xqsystem/init_info";; form) eval "$1=";; esac; }',
+      'json_init() { :; }',
+      'json_add_int() { code=$2; }',
+      'json_add_string() { body=$2; }',
+      'json_dump() { printf \'{"code":%s,"body":"%s"}\\n\' "$code" "$body"; }'
+    ].join('\\n') + '\\n')
+    const source = readFileSync(backend, 'utf8')
+      .replaceAll('/usr/share/libubox/jshn.sh', jshn)
+    writeFileSync(helper, source)
+    const response = execFileSync('sh', [helper, 'call', 'Fetch'], {
+      encoding: 'utf8', timeout: 3000,
+      input: '{"address":"http://127.0.0.1","path":"/cgi-bin/luci/api/xqsystem/init_info","form":""}'
+    })
+    assert.deepEqual(JSON.parse(response), { code: 400, body: '' })
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
