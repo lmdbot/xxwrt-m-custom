@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { xiaomiRequestFromQwrt } from './xiaomiQwrtTransport.js';
 import { SecureStorage } from '@aparajita/capacitor-secure-storage';
-import { normalizeXiaomiAddress, parseXiaomiDevices, parseXiaomiLoginPage } from './xiaomiClientData.js';
+import { normalizeXiaomiAddress, parseXiaomiLoginPage, queryXiaomiDeviceLists } from './xiaomiClientData.js';
 
 const ADDRESS_KEY = 'xxwrt_xiaomi_address_v1_';
 const PASSWORD_KEY = 'xxwrt_xiaomi_password_v1_';
@@ -81,14 +81,8 @@ async function login(qwrt, origin, password) {
 
 async function listWithToken(qwrt, origin, token) {
   const endpoint = '/cgi-bin/luci/;stok=' + encodeURIComponent(token) + '/api/';
-  let firstFailure;
-  for (const path of ['misystem/devicelist', 'xqsystem/device_list?all=1']) {
-    try {
-      const body = await xiaomiRequestFromQwrt(qwrt, origin, endpoint + path);
-      return parseXiaomiDevices(body);
-    } catch (error) { firstFailure ||= error; }
-  }
-  throw firstFailure || new Error('小米路由器未提供设备列表接口');
+  return queryXiaomiDeviceLists(path =>
+    xiaomiRequestFromQwrt(qwrt, origin, endpoint + path));
 }
 
 /** Returned rows contain no online status. Never trust Xiaomi's online flags. */
