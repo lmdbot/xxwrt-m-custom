@@ -132,7 +132,7 @@ test('QWRT rpcd worker handles jshn optional globals without nounset', () => {
       'json_add_int() { code=$2; }',
       'json_add_string() { body=$2; }',
       'json_dump() { printf \'{"code":%s,"body":"%s"}\\n\' "$code" "$body"; }'
-    ].join('\\n') + '\\n')
+    ].join('\n') + '\n')
     const source = readFileSync(backend, 'utf8')
       .replaceAll('/usr/share/libubox/jshn.sh', jshn)
     writeFileSync(helper, source)
