@@ -70,8 +70,6 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
             :title="onlineTitle" :aria-label="onlineTitle" role="img"/>
           <div class="terminal-name">{{ item.displayName || item.name || '未知设备' }}</div>
         </div>
-        <span v-if="onlineState !== 'unknown'" class="v3-client-state"
-          :class="'is-' + onlineState">{{ onlineTitle }}</span>
       </div>
       <div v-if="item.kind" class="terminal-kind">{{ item.kind }}</div>
       <div v-if="(showAddress && (item.ip || item.ip6)) || item.mac" class="terminal-address-line">
@@ -97,8 +95,10 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
           :title="'无线信号 ' + item.wifi.signal + ' dBm'">Wi-Fi {{ item.wifi.signal }} dBm</v-chip>
       </div>
     </div>
-    <div class="terminal-trailing" aria-hidden="true">
-      <v-icon icon="mdi-chevron-right" size="19" color="secondary"/>
+    <div class="terminal-trailing">
+      <span v-if="onlineState !== 'unknown'" class="v3-client-state"
+        :class="'is-' + onlineState">{{ onlineTitle }}</span>
+      <v-icon icon="mdi-chevron-right" size="19" color="secondary" aria-hidden="true"/>
     </div>
   </v-card>
 </template>

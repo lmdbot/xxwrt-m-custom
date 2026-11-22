@@ -352,11 +352,11 @@
 .xxwrt-v3 .terminal-grid .terminal-address-line{column-gap:7px;row-gap:2px;line-height:17px}
 .xxwrt-v3 .terminal-grid .terminal-ip{font-size:12px}
 .xxwrt-v3 .terminal-grid .terminal-mac{font-size:10px}
-.xxwrt-v3 .terminal-grid .terminal-trailing{display:flex;flex:0 0 19px;align-items:center;justify-content:center;min-width:19px;align-self:center}
+.xxwrt-v3 .terminal-grid .terminal-trailing{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:6px;min-width:19px;align-self:center}
 .xxwrt-v3 .terminal-grid .terminal-tags{display:flex;align-items:center;align-content:flex-start;flex-wrap:wrap;gap:5px;margin-top:3px!important;min-width:0}
 /* Device information chips share a single row/flow, rather than floating in separate columns. */
 .xxwrt-v3 .terminal-grid .terminal-tags .terminal-tag.v-chip,
-.xxwrt-v3 .terminal-grid .terminal-heading .v3-client-state{
+.xxwrt-v3 .terminal-grid .terminal-trailing .v3-client-state{
  box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;
  flex:0 0 auto;height:22px!important;min-height:22px!important;max-width:100%;
  padding:0 8px!important;border-radius:999px!important;
@@ -367,9 +367,9 @@
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
 .xxwrt-v3 .terminal-grid .terminal-tags .v-chip__prepend{display:inline-flex;align-items:center;margin-inline-end:4px}
-.xxwrt-v3 .terminal-grid .terminal-heading .v3-client-state{background:var(--ui-surface-2);color:var(--ui-muted)}
-.xxwrt-v3 .terminal-grid .terminal-heading .v3-client-state.is-online{background:rgba(20,170,101,.10);color:var(--ui-success)}
-.xxwrt-v3 .terminal-grid .terminal-heading .v3-client-state.is-offline{background:rgba(220,80,91,.09);color:var(--ui-error)}
+.xxwrt-v3 .terminal-grid .terminal-trailing .v3-client-state{background:var(--ui-surface-2);color:var(--ui-muted)}
+.xxwrt-v3 .terminal-grid .terminal-trailing .v3-client-state.is-online{background:rgba(20,170,101,.10);color:var(--ui-success)}
+.xxwrt-v3 .terminal-grid .terminal-trailing .v3-client-state.is-offline{background:rgba(220,80,91,.09);color:var(--ui-error)}
 .xxwrt-v3 .terminal-online-dot.is-online{background:var(--ui-success);box-shadow:0 0 0 3px rgba(20,170,101,.12)}
 .xxwrt-v3 .terminal-online-dot.is-offline{background:var(--ui-error);box-shadow:0 0 0 3px rgba(220,80,91,.12)}
 .xxwrt-v3 .terminal-online-dot.is-unknown{background:var(--ui-muted);box-shadow:0 0 0 3px rgba(99,117,142,.12)}
@@ -505,8 +505,8 @@
 .xxwrt-v3.theme-is-dark .v3-shortcut .v-icon,.xxwrt-v3.theme-is-dark .app-favorite-tile .v-icon{color:var(--ui-primary)}
 .xxwrt-v3.theme-is-dark .v3-device-actions .v3-inline-action{background:rgba(131,182,255,.14);color:var(--ui-primary)}
 .xxwrt-v3.theme-is-dark .v3-device-actions .v3-inline-action:last-child{background:rgba(98,206,192,.12);color:var(--ui-teal)}
-.xxwrt-v3.theme-is-dark .terminal-grid .terminal-heading .v3-client-state.is-online{background:rgba(86,213,155,.13)}
-.xxwrt-v3.theme-is-dark .terminal-grid .terminal-heading .v3-client-state.is-offline{background:rgba(255,135,144,.12)}
+.xxwrt-v3.theme-is-dark .terminal-grid .terminal-trailing .v3-client-state.is-online{background:rgba(86,213,155,.13)}
+.xxwrt-v3.theme-is-dark .terminal-grid .terminal-trailing .v3-client-state.is-offline{background:rgba(255,135,144,.12)}
 /* Narrow layouts use 2x2 KPIs, but keep the 5-tab bar equal-width. */
 @media(max-width:379px){
  .xxwrt-v3 .main-container{padding:15px 12px calc(105px + env(safe-area-inset-bottom,0px))}

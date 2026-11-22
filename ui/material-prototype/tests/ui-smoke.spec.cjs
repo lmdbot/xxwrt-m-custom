@@ -1006,6 +1006,16 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
   await expect(page.locator('.terminal-category-grid')).toBeVisible()
   await expect(page.getByRole('button', { name: /全部终端/ })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.locator('.terminal-tile')).toHaveCount(5, { timeout: 15000 })
+  // A right-side presence capsule must be vertically centered over the entire card.
+  const centeredStateOffset = await page.locator('.terminal-tile')
+    .filter({ has: page.locator('.v3-client-state') }).first()
+    .evaluate(tile => {
+      const capsule = tile.querySelector('.terminal-trailing .v3-client-state')
+      if (!capsule) return Infinity
+      const card = tile.getBoundingClientRect(), status = capsule.getBoundingClientRect()
+      return Math.abs((card.top + card.bottom - status.top - status.bottom) / 2)
+    })
+  expect(centeredStateOffset).toBeLessThan(3)
   // One OpenAppFilter record shares Phone's MAC and must not create a duplicate.
   await expect(page.locator('.terminal-tile').filter({ has: page.getByText('Phone', { exact: true }) })).toHaveCount(1)
   await page.getByRole('button', { name: /DHCPv4/ }).click()
