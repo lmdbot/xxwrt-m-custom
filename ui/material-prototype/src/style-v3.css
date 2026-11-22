@@ -338,33 +338,36 @@
 .xxwrt-v3 .terminal-grid{display:flex;flex-direction:column;gap:8px;width:100%;padding:0;border:0;border-radius:0;overflow:visible;background:transparent;box-shadow:none}
 .xxwrt-v3 .terminal-grid .terminal-tile{flex:0 0 auto;min-height:76px!important;padding:10px 12px!important;margin:0;gap:10px!important;background:var(--ui-surface)!important;border:1px solid var(--ui-border)!important;border-radius:14px!important;box-shadow:none!important}
 .xxwrt-v3 .terminal-grid .terminal-tile:last-child{border-bottom:1px solid var(--ui-border)!important}
-.xxwrt-v3 .terminal-grid .terminal-tile:active{background:var(--ui-surface-2)!important}
+/* All device cards share one surface; a touch must not leave a gray selected-looking row. */
+.xxwrt-v3 .terminal-grid .terminal-tile:active{background:var(--ui-surface)!important}
+.xxwrt-v3 .terminal-grid .terminal-tile .v-card__overlay,
+.xxwrt-v3 .terminal-grid .terminal-tile .v-card__underlay{display:none!important}
 .xxwrt-v3 .terminal-grid .terminal-name{font-size:14px;font-weight:700}
 .xxwrt-v3 .terminal-grid .terminal-identity{flex:0 0 37px!important;width:37px!important;height:37px!important;border-radius:12px!important}
 .xxwrt-v3 .terminal-grid .terminal-meta{gap:3px}
 .xxwrt-v3 .terminal-grid .terminal-kind{font-size:10px}
-.xxwrt-v3 .terminal-grid .terminal-source-stack{display:flex;max-width:86px;min-width:0;gap:4px;align-items:flex-end}
-.xxwrt-v3 .terminal-grid .terminal-source-stack .v-chip{max-width:100%;min-width:0}
+.xxwrt-v3 .terminal-grid .terminal-heading{display:flex;align-items:center;gap:8px;min-height:22px;min-width:0}
+.xxwrt-v3 .terminal-grid .terminal-name-line{display:flex;align-items:center;flex:1 1 auto;min-width:0;gap:7px}
+.xxwrt-v3 .terminal-grid .terminal-name{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xxwrt-v3 .terminal-grid .terminal-address-line{column-gap:7px;row-gap:2px;line-height:17px}
 .xxwrt-v3 .terminal-grid .terminal-ip{font-size:12px}
 .xxwrt-v3 .terminal-grid .terminal-mac{font-size:10px}
-.xxwrt-v3 .terminal-trailing{display:flex;flex-direction:row;align-items:center;gap:5px;min-width:0}
-/* Shared geometry for all device-card pills (Vuetify chips and custom status).
-   Use the same box model across DHCP, private MAC, link type and presence. */
-.xxwrt-v3 .terminal-grid .terminal-source-stack .terminal-tag.v-chip,
+.xxwrt-v3 .terminal-grid .terminal-trailing{display:flex;flex:0 0 19px;align-items:center;justify-content:center;min-width:19px;align-self:center}
+.xxwrt-v3 .terminal-grid .terminal-tags{display:flex;align-items:center;align-content:flex-start;flex-wrap:wrap;gap:5px;margin-top:3px!important;min-width:0}
+/* Device information chips share a single row/flow, rather than floating in separate columns. */
 .xxwrt-v3 .terminal-grid .terminal-tags .terminal-tag.v-chip,
-.xxwrt-v3 .terminal-grid .terminal-trailing .v3-client-state{
+.xxwrt-v3 .terminal-grid .terminal-heading .v3-client-state{
  box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;
- flex:0 0 auto;height:22px!important;min-height:22px!important;
+ flex:0 0 auto;height:22px!important;min-height:22px!important;max-width:100%;
  padding:0 8px!important;border-radius:999px!important;
- font-size:11px!important;line-height:16px!important;font-weight:650!important;
- white-space:nowrap
+ font-size:11px!important;line-height:16px!important;font-weight:650!important;white-space:nowrap
 }
-.xxwrt-v3 .terminal-grid .terminal-source-stack .v-chip__content,
 .xxwrt-v3 .terminal-grid .terminal-tags .v-chip__content{
- display:flex;align-items:center;min-width:0;max-width:100%;line-height:16px
+ display:inline-flex;align-items:center;min-width:0;max-width:100%;line-height:16px!important;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap
 }
-.xxwrt-v3 .terminal-trailing .v3-client-state{background:var(--ui-surface-2);color:var(--ui-muted)}
+.xxwrt-v3 .terminal-grid .terminal-tags .v-chip__prepend{display:inline-flex;align-items:center;margin-inline-end:4px}
+.xxwrt-v3 .terminal-grid .terminal-heading .v3-client-state{background:var(--ui-surface-2);color:var(--ui-muted)}
 .xxwrt-v3 .v3-client-state.is-online{background:rgba(20,170,101,.10);color:var(--ui-success)}
 .xxwrt-v3 .v3-client-state.is-offline{background:rgba(220,80,91,.09);color:var(--ui-error)}
 .xxwrt-v3 .terminal-online-dot.is-online{background:var(--ui-success);box-shadow:0 0 0 3px rgba(20,170,101,.12)}
@@ -514,7 +517,6 @@
  .xxwrt-v3 .v3-network-kpis span{font-size:10px}
  .xxwrt-v3 .v3-terminal-status button{font-size:10px}
  .xxwrt-v3 .terminal-grid .terminal-tile{padding:10px 9px!important;gap:7px!important}
- .xxwrt-v3 .terminal-trailing{gap:2px}
  .xxwrt-v3 .app-favorites-grid{gap:6px}
  .xxwrt-v3 .app-category-toggle{padding:11px}
  .xxwrt-v3 .app-subpage{padding:13px!important}
@@ -906,14 +908,10 @@
 .xxwrt-v3 .terminal-grid .terminal-tile:focus-visible{
   outline:2px solid var(--ui-primary);outline-offset:-2px;z-index:1
 }
-.xxwrt-v3 .terminal-grid .terminal-tags{flex-wrap:wrap;gap:4px;margin-top:3px}
-.xxwrt-v3 .terminal-grid .terminal-main-source{font-weight:700}
-.xxwrt-v3 .terminal-grid .terminal-source-stack .v-chip__content{max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .xxwrt-v3 .terminal-grid .terminal-trailing>.v-icon{color:var(--ui-muted)!important;flex:none}
 .xxwrt-v3 .top-bar .v3-theme-toggle{min-height:48px;height:48px}
 @media(max-width:390px){
   .xxwrt-v3 .terminal-grid .terminal-tile{padding:10px 8px!important;gap:7px!important}
-  .xxwrt-v3 .terminal-grid .terminal-source-stack{max-width:78px}
   .xxwrt-v3 .terminal-grid .terminal-identity{flex-basis:34px!important;width:34px!important;height:34px!important}
 }
 
