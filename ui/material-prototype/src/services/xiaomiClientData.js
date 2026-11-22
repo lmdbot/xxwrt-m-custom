@@ -139,7 +139,7 @@ export function formatTerminalConnectionLabel(item) {
   const medium = item.connectionType === 'wired' ? 'LAN'
     : item.connectionType === 'wireless'
       ? (historical
-          ? (item.connectionBand || '无线（频段未知）')
+          ? (item.connectionBand || '无线')
           : (item.connectionBand ? '无线 · ' + item.connectionBand : '无线'))
       : '';
   return medium ? (historical ? '曾接入 · ' : '') + medium : '';

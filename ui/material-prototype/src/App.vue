@@ -3475,7 +3475,7 @@ onUnmounted(() => {
               <v-alert v-if="clientData.wechatInstalled && clientData.monitorAvailable !== true"
                 class="mb-3" type="warning" variant="tonal" density="compact" role="status">
                 微信推送实时终端数据不可用：{{ clientData.monitorReason || '本轮未能获取有效设备状态' }}。
-                微信推送在线记录暂不可用；仅按 QWRT 本轮检测和小米明确离线证据判断，其余状态可能待确认。
+                微信推送在线记录暂不可用；仅按 QWRT 本轮检测和小米明确离线证据判断，其余状态可能无法判定。
               </v-alert>
 
               <div class="v3-xiaomi-source">
@@ -4023,9 +4023,9 @@ onUnmounted(() => {
           <header class="v3-terminal-detail-hero">
             <div class="v3-terminal-detail-heading">
               <h2>{{ selectedClient.displayName || selectedClient.name || '未知终端' }}</h2>
-              <v-chip size="small" variant="tonal"
-                :color="selectedClient.online ? 'success' : selectedClient.onlineKnown ? 'error' : undefined">
-                {{ selectedClient.online ? '在线' : selectedClient.onlineKnown ? '离线' : '待确认' }}
+              <v-chip v-if="selectedClient.online === true || selectedClient.onlineKnown === true"
+                size="small" variant="tonal" :color="selectedClient.online ? 'success' : 'error'">
+                {{ selectedClient.online ? '在线' : '离线' }}
               </v-chip>
             </div>
             <p>IPv4　{{ selectedClient.ip || '--' }}</p>

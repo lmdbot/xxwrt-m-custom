@@ -23,15 +23,13 @@ const onlineState = computed(() => {
   return props.item.onlineKnown === false ? 'unknown' : 'offline'
 })
 const onlineTitle = computed(() => ({
-  online: '在线', offline: '离线', unknown: '待确认'
+  online: '在线', offline: '离线', unknown: '状态未知'
 }[onlineState.value]))
 const sourceLabels = computed(() => {
   const labels = []
   if (props.item.sources?.includes('dhcp4')) labels.push('DHCPv4')
   if (props.item.sources?.includes('dhcp6')) labels.push('DHCPv6')
   if (props.item.sources?.includes('wireless')) labels.push('无线')
-  if (props.item.sources?.includes('wechatpush')) labels.push('微信推送')
-  if (props.item.sources?.includes('xiaomi')) labels.push('小米记录')
   if (props.item.sources?.includes('oaf')) labels.push('应用用户')
   return labels
 })
@@ -111,7 +109,7 @@ const title = computed(() => '查看终端 ' + (props.item.displayName || props.
       </div>
     </div>
     <div class="terminal-trailing">
-      <span class="v3-client-state" :class="'is-' + onlineState">{{ onlineTitle }}</span>
+      <span v-if="onlineState !== 'unknown'" class="v3-client-state" :class="'is-' + onlineState">{{ onlineTitle }}</span>
       <v-icon icon="mdi-chevron-right" size="19" color="secondary"/>
     </div>
   </v-card>

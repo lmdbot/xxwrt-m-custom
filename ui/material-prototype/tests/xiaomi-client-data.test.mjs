@@ -184,7 +184,7 @@ test('current QWRT online status and Xiaomi past attachment never cross streams'
   assert.equal(formatTerminalConnectionLabel({
     connectionType: 'wireless', connectionBand: '',
     connectionSource: 'xiaomi', online: false
-  }), '曾接入 · 无线（频段未知）')
+  }), '曾接入 · 无线')
   assert.equal(formatTerminalConnectionLabel({
     connectionType: 'wireless', connectionBand: '5G',
     connectionSource: 'xiaomi', online: true, xiaomiHistoryOnly: false
