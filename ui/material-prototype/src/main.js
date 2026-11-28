@@ -8,6 +8,7 @@ import '@mdi/font/css/materialdesignicons.css'
 import App from './App.vue'
 import './style.css'
 import './style-v3.css'
+import './style-miuix.css'
 
 const vuetify = createVuetify({
   components,

@@ -1,0 +1,153 @@
+/* Miuix-inspired HyperOS visual layer, independently switchable from color mode.
+ * No layout or business logic is duplicated. Scope at html for teleported overlays.
+ * Keep existing safe areas, five equal nav slots, full-screen editors and motion opt-out. */
+html[data-xxwrt-style="miuix"] {
+  --mx-bg: #f4f4f6; --mx-surface: #fff; --mx-group: #efeff2;
+  --mx-text: #202124; --mx-muted: #74747c; --mx-divider: #e6e6eb;
+  --mx-primary: #3482ff; --mx-radius: 22px; --mx-control: 14px;
+}
+html[data-xxwrt-style="miuix"] .v-theme--light {
+  --v-theme-primary: 52,130,255; --v-theme-on-primary: 255,255,255;
+  --v-theme-background: 244,244,246; --v-theme-surface: 255,255,255;
+  --v-theme-on-surface: 32,33,36; --v-theme-on-background: 32,33,36;
+  --v-theme-on-surface-variant: 116,116,124;
+}
+html[data-xxwrt-style="miuix"] .v-theme--dark,
+html[data-xxwrt-style="miuix"] .theme-is-dark {
+  --mx-bg: #141414; --mx-surface: #242424; --mx-group: #303030;
+  --mx-text: #f3f3f5; --mx-muted: #a6a6ad; --mx-divider: #383838;
+  --mx-primary: #71a9ff;
+  --v-theme-primary: 113,169,255; --v-theme-on-primary: 15,29,52;
+  --v-theme-background: 20,20,20; --v-theme-surface: 36,36,36;
+  --v-theme-on-surface: 243,243,245; --v-theme-on-background: 243,243,245;
+  --v-theme-on-surface-variant: 166,166,173;
+}
+/* Map legacy Design A tokens, including the teleported terminal detail. */
+html[data-xxwrt-style="miuix"] .xxwrt-v3 {
+  --ui-primary: var(--mx-primary); --ui-bg: var(--mx-bg);
+  --ui-surface: var(--mx-surface); --ui-surface-2: var(--mx-group);
+  --ui-text: var(--mx-text); --ui-muted: var(--mx-muted);
+  --ui-text-muted: var(--mx-muted); --ui-border: var(--mx-divider);
+  --v3-border: var(--mx-divider); --v3-muted: var(--mx-muted);
+  --v3-card-shadow: none; --v3-radius: var(--mx-radius);
+  --v3-tint: rgba(var(--v-theme-primary),.10);
+  font-family: "MiSans","Noto Sans SC","PingFang SC",Roboto,system-ui,sans-serif;
+  color: var(--mx-text); background: var(--mx-bg);
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v-main {
+  background: var(--mx-bg)!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .top-bar {
+  background: var(--mx-bg)!important; border-bottom: 0!important;
+  box-shadow: none!important; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .top-bar .router-toolbar-name {
+  font-size: clamp(19px,5.4vw,25px); line-height: 1.3;
+  letter-spacing: -.035em; font-weight: 760;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .router-list-add-topbar { border-radius: 18px!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .main-container { padding-top: 12px; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-section-label,.app-hub-section-heading strong,.settings-option-heading h2,.v3-module-heading h2) {
+  font-size: 15px; font-weight: 700; letter-spacing: 0;
+}
+/* Overview / router management / network / devices / tools / settings / about.
+ * No overflow or size constraints on tables, telemetry, terminal capsules. */
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v-card,.v3-health-card,.v3-network-status,.v3-me-profile,.v3-live-card,.network-card,.device-card,.resource-card,.settings-option-card,.app-category-card,.app-subpage,.saved-device-card,.router-list-card,.v3-feature-list,.more-menu-list,.v3-monitor-subnav,.v3-interface-detail-card,.v3-interfaces-list,.hardware-panel,.trend-visual-card,.compact-system-list,.app-search-results) {
+  background-color: var(--mx-surface)!important; border-color: transparent!important;
+  border-radius: var(--mx-radius)!important; box-shadow: none!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-health-card,.v3-network-status,.v3-me-profile,.v3-live-card,.resource-card,.saved-device-card,.router-list-card,.settings-option-card,.v3-monitor-subnav) {
+  background: var(--mx-surface)!important; color: var(--mx-text);
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-metric,.v3-network-kpis>div,.v3-shortcut,.v3-inline-action,.app-favorite-tile,.terminal-category-card.v-btn) {
+  background-color: var(--mx-group); border-color: transparent!important;
+  border-radius: 17px!important; box-shadow: none!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .terminal-category-card.is-selected {
+  background: rgba(var(--v-theme-primary),.13)!important; border-color: var(--mx-primary)!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-feature-list button,.more-menu-item,.app-tool-row,.v3-interfaces-row,.settings-detail-row) {
+  border-color: var(--mx-divider)!important; box-shadow: none!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-feature-list button,.more-menu-item) {
+  min-height: 62px; text-align: start;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-feature-list button strong,.more-menu-item strong,.app-tool-row strong) {
+  font-size: 15px; font-weight: 650;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v3-feature-list button:last-child { border-bottom: 0!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-feature-list button .v-icon:last-child,.more-menu-item .v-icon:last-child) { color: var(--mx-muted); }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .terminal-tile { box-shadow: none!important; border-color: var(--mx-divider)!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-terminal-status,.settings-segmented,.v-btn-toggle) {
+  border-radius: var(--mx-control); background-color: var(--mx-group); border-color: transparent!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .settings-segmented > .v-btn { border: 0!important; border-radius: 11px!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .settings-segmented > .v-btn.v-btn--active { background: var(--mx-primary)!important; color: rgb(var(--v-theme-on-primary))!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .standard-bottom {
+  background: var(--mx-surface)!important; border-radius: 0!important;
+  border-top: 1px solid var(--mx-divider)!important; box-shadow: none!important;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .standard-bottom .v-btn--active { background: transparent!important; color: var(--mx-primary)!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .standard-bottom .v-btn--active .v-icon { background: transparent!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .standard-bottom .nav-label { font-weight: 650; }
+/* Shared controls also apply to teleported menus and dialogs. Keep outlines for focus/errors. */
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-btn:not(.v-btn--icon) { text-transform: none; letter-spacing: 0; }
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-field {
+  background-color: var(--mx-group); border-radius: var(--mx-control)!important;
+}
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-field:not(.v-field--focused):not(.v-field--error) .v-field__outline { opacity: .28; }
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-switch .v-switch__track { opacity: 1; border-radius: 999px; }
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-switch .v-selection-control:not(.v-selection-control--dirty) .v-switch__track { background: var(--mx-divider); }
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-switch .v-switch__thumb { background: #fff; box-shadow: 0 1px 3px #0002; }
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-alert { border-radius: 16px!important; }
+html[data-xxwrt-style="miuix"] .v-menu .v-overlay__content > :is(.v-list,.v-card) {
+  background: var(--mx-surface); border-radius: 18px!important; box-shadow: 0 8px 28px #0002!important;
+}
+html[data-xxwrt-style="miuix"] .v-menu .v-list-item { border-radius: 10px; }
+html[data-xxwrt-style="miuix"] .v-dialog .v-overlay__scrim { background: #000; opacity: .42; }
+/* All modal cards: confirmation, scrollable detail, update, nested forms.
+ * Do not set a fixed height or force bottom positioning; preserve keyboard and scroll. */
+html[data-xxwrt-style="miuix"] .v-dialog:not(.v-dialog--fullscreen) .v-overlay__content > .v-card {
+  background: var(--mx-surface)!important; color: var(--mx-text);
+  border: 0!important; border-radius: 28px!important; box-shadow: 0 12px 44px #0002!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog:not(.v-dialog--fullscreen) .v-overlay__content > .v-card > .v-card-title {
+  font-size: 20px; font-weight: 750; line-height: 1.4; white-space: normal;
+  padding: 22px 22px 10px;
+}
+html[data-xxwrt-style="miuix"] .v-dialog .v-card-text { line-height: 1.55; }
+html[data-xxwrt-style="miuix"] .v-dialog .v-card-actions {
+  gap: 8px; padding: 12px 16px 16px; background: var(--mx-surface);
+}
+html[data-xxwrt-style="miuix"] .v-dialog .v-card-actions .v-btn:not(.v-btn--icon) {
+  border-radius: 18px!important; min-height: 44px; font-weight: 650;
+}
+html[data-xxwrt-style="miuix"] .v-dialog .v-card-actions .v-btn--variant-text:not(.text-error):not(.text-primary) {
+  background: var(--mx-group); color: var(--mx-text);
+}
+html[data-xxwrt-style="miuix"] .v-dialog .v-card-actions .v-btn.text-primary:not(.v-btn--variant-elevated):not(.v-btn--variant-flat) {
+  background: rgba(var(--v-theme-primary),.12);
+}
+html[data-xxwrt-style="miuix"] .v-dialog .v-card-actions .v-btn.text-error { background: rgba(var(--v-theme-error),.10); }
+/* Router wizard / login, terminal details, network editor, version notes. */
+html[data-xxwrt-style="miuix"] .v-dialog :is(.router-editor-title,.network-editor-header,.v3-terminal-detail-title) {
+  background: var(--mx-surface)!important; color: var(--mx-text);
+}
+html[data-xxwrt-style="miuix"] .v-dialog :is(.router-editor-actions,.network-editor-actions) {
+  border-top-color: var(--mx-divider)!important; background: var(--mx-surface)!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog :is(.network-editor-tabs .v-tabs,.network-editor-section-intro) {
+  background: var(--mx-group); border-color: transparent; border-radius: 16px;
+}
+html[data-xxwrt-style="miuix"] .v-dialog--fullscreen .v-overlay__content > .v-card {
+  background: var(--mx-bg)!important; border-radius: 0!important; box-shadow: none!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog--fullscreen .v-card-title {
+  background: var(--mx-surface)!important; color: var(--mx-text);
+}
+html[data-xxwrt-style="miuix"] .v-snackbar__wrapper { border-radius: 18px!important; }
+@media (max-width: 380px) {
+  html[data-xxwrt-style="miuix"] .xxwrt-v3 .top-bar .router-toolbar-name { font-size: 19px; }
+  html[data-xxwrt-style="miuix"] .v-dialog .v-card-actions { gap: 4px; padding-inline: 10px; }
+}

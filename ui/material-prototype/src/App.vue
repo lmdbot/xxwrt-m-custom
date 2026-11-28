@@ -443,11 +443,12 @@ async function downloadLatestApk() {
 }
 
 function syncNativeChrome(isDark) {
-  const color = isDark ? '#0F1727' : '#F3F7FD'
+  const miuix = uiStyle.value === 'miuix'
+  const color = miuix ? (isDark ? '#141414' : '#F4F4F6') : (isDark ? '#0F1727' : '#F3F7FD')
   document.documentElement.style.backgroundColor = color
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
   if (isNative) {
-    void UiChrome.setTheme({ dark: isDark }).catch(e =>
+    void UiChrome.setTheme({ dark: isDark, miuix }).catch(e =>
       console.warn('Android system bar theme sync unavailable', e))
   }
 }
@@ -492,6 +493,7 @@ const form = reactive({
   password: '',
   showPassword: false
 })
+const uiStyle = ref(localStorage.getItem('xxwrt_ui_style_v1') === 'miuix' ? 'miuix' : 'material')
 const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' : 'standard')
 // User setting defaults ON, but OS "Reduce motion" always takes precedence.
 const motionEnabled = ref(readMotionPreference(localStorage))
@@ -515,7 +517,7 @@ const moreCategories = [
   { id: 'help', title: '帮助与反馈', description: '使用说明与问题反馈', icon: 'mdi-help-circle-outline' }
 ]
 const settingsCategories = [
-  { id: 'display', title: '显示与外观', description: '深浅主题 / 底栏样式', icon: 'mdi-theme-light-dark' },
+  { id: 'display', title: '显示与外观', description: '界面风格 / 深浅主题 / 底栏样式', icon: 'mdi-theme-light-dark' },
   { id: 'privacy', title: '隐私与安全', description: '名称与地址隐藏', icon: 'mdi-shield-lock-outline' },
   { id: 'refresh', title: '刷新与同步', description: '数据更新和刷新策略', icon: 'mdi-refresh' },
   { id: 'language', title: '语言', description: '简体中文 / 繁體中文 / English', icon: 'mdi-translate' },
@@ -1658,7 +1660,11 @@ watch(toolPanel, panel => {
     } finally { processRefreshBusy = false }
   }, 3000)
 })
-watch(dark, v => {
+watch([dark, uiStyle], ([v, style]) => {
+  const normalized = style === 'miuix' ? 'miuix' : 'material'
+  try { localStorage.setItem('xxwrt_ui_style_v1', normalized) } catch (_) {}
+  // Root scope includes Vuetify overlays teleported outside v-app.
+  document.documentElement.dataset.xxwrtStyle = normalized
   theme.global.name.value = v ? 'dark' : 'light'
   syncNativeChrome(v)
 }, { immediate: true })
@@ -2987,6 +2993,16 @@ onUnmounted(() => {
                 @click="settingsOpen = false; settingsTrail.length = 0; showDeviceDialog()">添加路由器</v-btn>
             </template>
             <template v-else-if="settingsCategory === 'display'">
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-palette-outline" size="23"/></v-avatar>
+                  <div><h2>界面风格</h2><p>切换应用页面及弹窗的视觉风格，独立于深浅主题。</p></div>
+                </div>
+                <v-btn-toggle v-model="uiStyle" mandatory color="primary" variant="outlined" class="settings-segmented ui-style-toggle" aria-label="界面风格">
+                  <v-btn value="material" aria-label="Material V3">Material V3</v-btn>
+                  <v-btn value="miuix" aria-label="Miuix">Miuix</v-btn>
+                </v-btn-toggle>
+              </v-card>
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-theme-light-dark" size="23"/></v-avatar>

@@ -85,10 +85,11 @@ public class UiChromePlugin extends Plugin {
     @PluginMethod
     public void setTheme(PluginCall call) {
         final boolean dark = Boolean.TRUE.equals(call.getBoolean("dark", false));
+        final boolean miuix = Boolean.TRUE.equals(call.getBoolean("miuix", false));
         getActivity().runOnUiThread(() -> {
             // The inset area belongs to Android, not the WebView's CSS.
             // Paint the root/decor behind the transparent system status bar.
-            final int color = Color.parseColor(dark ? "#11141B" : "#F5F6FB");
+            final int color = Color.parseColor(miuix ? (dark ? "#141414" : "#F4F4F6") : (dark ? "#11141B" : "#F5F6FB"));
             final Window window = getActivity().getWindow();
             window.getDecorView().setBackgroundColor(color);
             final View content = getActivity().findViewById(android.R.id.content);
