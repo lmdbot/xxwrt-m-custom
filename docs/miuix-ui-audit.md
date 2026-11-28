@@ -24,3 +24,11 @@ Also terminalDisplayMenuOpen, Vuetify select menus and snackbar. The HTML root s
 - Walk every page and every dialog listed above in light/dark. Verify 360px/412px phone and tablet, long names, long translated labels, scrolling, keyboard, back, destructive confirmation, loading, disabled states and online/offline indicators.
 - Verify native system bars, Android gesture back, safe areas, and reduced motion.
 - Compare default Material with baseline. No new dependency, no RPC changes, no version bump or release until verified.
+
+## Round 2: explicit dialog roles
+All 33 instances now have a unique instance class and a role: 16 confirmations, 10 forms, 5 information dialogs, 2 fullscreen editors.
+- Confirmations bottom-align in portrait phones; centered on larger screens; balanced actions, preserving warning/danger semantics and persistent guards.
+- Forms remain centered to avoid keyboard overlap; multi-button actions wrap. Information dialogs retain scrolling and multiple actions. Fullscreen editors preserve original dimensions and scroll ownership.
+- Root dark tokens now cover detached overlays. Narrow generic card styles avoid recoloring semantic cards; network groups, terminal filters, water tiles, app groups and liquid navigation receive targeted rules.
+- References: https://compose-miuix-ui.github.io/miuix/components/basic/card and https://compose-miuix-ui.github.io/miuix/components/basic/overlaydialog . Native card radius 16dp; compact bottom dialogs and centered large-screen dialogs adapted to WebView.
+- Round 1 CI passed; round 2 build and actual runtime/visual validation pending.

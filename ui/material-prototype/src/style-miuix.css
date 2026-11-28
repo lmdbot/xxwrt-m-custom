@@ -4,7 +4,7 @@
 html[data-xxwrt-style="miuix"] {
   --mx-bg: #f4f4f6; --mx-surface: #fff; --mx-group: #efeff2;
   --mx-text: #202124; --mx-muted: #74747c; --mx-divider: #e6e6eb;
-  --mx-primary: #3482ff; --mx-radius: 22px; --mx-control: 14px;
+  --mx-primary: #3482ff; --mx-radius: 16px; --mx-control: 14px;
 }
 html[data-xxwrt-style="miuix"] .v-theme--light {
   --v-theme-primary: 52,130,255; --v-theme-on-primary: 255,255,255;
@@ -12,6 +12,7 @@ html[data-xxwrt-style="miuix"] .v-theme--light {
   --v-theme-on-surface: 32,33,36; --v-theme-on-background: 32,33,36;
   --v-theme-on-surface-variant: 116,116,124;
 }
+html[data-xxwrt-style="miuix"][data-xxwrt-color="dark"],
 html[data-xxwrt-style="miuix"] .v-theme--dark,
 html[data-xxwrt-style="miuix"] .theme-is-dark {
   --mx-bg: #141414; --mx-surface: #242424; --mx-group: #303030;
@@ -52,14 +53,14 @@ html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-section-label,.app-hub-section-
 }
 /* Overview / router management / network / devices / tools / settings / about.
  * No overflow or size constraints on tables, telemetry, terminal capsules. */
-html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v-card,.v3-health-card,.v3-network-status,.v3-me-profile,.v3-live-card,.network-card,.device-card,.resource-card,.settings-option-card,.app-category-card,.app-subpage,.saved-device-card,.router-list-card,.v3-feature-list,.more-menu-list,.v3-monitor-subnav,.v3-interface-detail-card,.v3-interfaces-list,.hardware-panel,.trend-visual-card,.compact-system-list,.app-search-results) {
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-health-card,.v3-network-status,.v3-me-profile,.v3-live-card,.network-card,.device-card,.resource-card,.settings-option-card,.app-category-card,.app-subpage,.saved-device-card,.router-list-card,.v3-feature-list,.more-menu-list,.v3-monitor-subnav,.v3-interface-detail-card,.v3-interfaces-list,.hardware-panel,.trend-visual-card,.compact-system-list,.app-search-results) {
   background-color: var(--mx-surface)!important; border-color: transparent!important;
   border-radius: var(--mx-radius)!important; box-shadow: none!important;
 }
 html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-health-card,.v3-network-status,.v3-me-profile,.v3-live-card,.resource-card,.saved-device-card,.router-list-card,.settings-option-card,.v3-monitor-subnav) {
   background: var(--mx-surface)!important; color: var(--mx-text);
 }
-html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-metric,.v3-network-kpis>div,.v3-shortcut,.v3-inline-action,.app-favorite-tile,.terminal-category-card.v-btn) {
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-metric:not(.v3-metric--water),.v3-network-kpis>div,.v3-shortcut,.v3-inline-action,.app-favorite-tile,.terminal-category-card.v-btn) {
   background-color: var(--mx-group); border-color: transparent!important;
   border-radius: 17px!important; box-shadow: none!important;
 }
@@ -150,4 +151,102 @@ html[data-xxwrt-style="miuix"] .v-snackbar__wrapper { border-radius: 18px!import
 @media (max-width: 380px) {
   html[data-xxwrt-style="miuix"] .xxwrt-v3 .top-bar .router-toolbar-name { font-size: 19px; }
   html[data-xxwrt-style="miuix"] .v-dialog .v-card-actions { gap: 4px; padding-inline: 10px; }
+}
+
+/* Round 2: targeted surfaces and dialog roles. Keep business state colors,
+ * fullscreen geometry, water fills, input focus, and native keyboard handling. */
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v-card:not([class*="bg-"]) {
+  border-radius: var(--mx-radius)!important; box-shadow: none!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-network-section-panel,.v3-interfaces-list,.more-menu-list,.app-category-card) {
+  background: var(--mx-surface)!important; border-radius: 16px!important; border-color: transparent!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-network-section-row,.app-favorite-edit-row,.v3-interfaces-row) {
+  border-color: var(--mx-divider)!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-network-group-title h2,.settings-option-heading h2,.app-subpage h2) {
+  font-weight: 700; letter-spacing: -.015em;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v3-health-metrics { gap: 8px; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v3-metric:not(.v3-metric--water) {
+  background: var(--mx-surface)!important; border-color: transparent!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v3-metric.v3-metric--water { border-color: var(--mx-divider)!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.v3-source-chip,.v3-terminal-status button,.app-favorite-tile,.v3-shortcut) {
+  border-radius: 14px!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v3-source-chip:not(.is-selected) {
+  background: var(--mx-surface)!important; border-color: transparent!important; color: var(--mx-muted);
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .v3-source-chip.is-selected {
+  background: rgba(var(--v-theme-primary),.13)!important; color: var(--mx-primary)!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .terminal-grid .terminal-tile {
+  background: var(--mx-surface)!important; border-color: transparent!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.app-category-toggle,.more-menu-item,.v3-feature-list button):active {
+  background: var(--mx-group)!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.app-category-icon,.app-tool-icon,.more-menu-icon) { border-radius: 12px; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.settings-option-card,.app-subpage) .v-list {
+  border-color: transparent!important; border-radius: 16px!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .liquid-bottom .glass-tab.selected { color: var(--mx-primary)!important; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 .liquid-bottom .glass-host { border-color: var(--mx-divider)!important; }
+/* Dialog role styles are opt-in and have no effect in Material mode. */
+html[data-xxwrt-style="miuix"] .v-dialog :is(.v-card-subtitle,.router-wizard-step-count) {
+  white-space: normal; overflow-wrap: anywhere; color: var(--mx-muted);
+}
+html[data-xxwrt-style="miuix"] .v-dialog :is(.v-card-text,.v-card-actions) { min-width: 0; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-title { text-align: start; font-weight: 730; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-text { padding: 8px 22px 16px; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions { display: flex; gap: 10px; padding: 8px 20px 20px; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions > .v-spacer { display: none; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions > .v-btn {
+  flex: 1 1 0; min-width: 0; min-height: 48px; padding-inline: 10px;
+  margin: 0; border-radius: 16px!important; background: var(--mx-group); color: var(--mx-text);
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions > .v-btn:is(.text-primary,.bg-primary) {
+  background: var(--mx-primary)!important; color: rgb(var(--v-theme-on-primary))!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions > .v-btn:is(.text-error,.bg-error) {
+  background: rgba(var(--v-theme-error),.14)!important; color: rgb(var(--v-theme-error))!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions > .v-btn:is(.text-warning,.bg-warning) {
+  background: rgba(var(--v-theme-warning),.17)!important; color: rgb(var(--v-theme-on-surface))!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions > .v-btn:is(.text-success,.bg-success) {
+  background: rgba(var(--v-theme-success),.14)!important; color: rgb(var(--v-theme-on-surface))!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm .v-card-actions > .v-btn .v-btn__content {
+  white-space: normal; line-height: 1.25; text-align: center; overflow-wrap: anywhere;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-form .v-card-actions { flex-wrap: wrap; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-form .v-card-actions .v-btn {
+  max-width: 100%; margin-inline-start: 0; min-height: 44px;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-info .v-card-text { line-height: 1.6; overflow-wrap: anywhere; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-info .v-card-actions > .v-btn:only-of-type {
+  flex: 1; background: var(--mx-group); color: var(--mx-primary);
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-info .v-card-actions > .v-spacer:has(+ .v-btn:only-of-type) { display: none; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-device-dialog .router-wizard-progress { background: var(--mx-surface); }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-device-dialog :is(.router-wizard-alternates,.router-wizard-preview,.router-wizard-saved-summary) {
+  background: var(--mx-group); border-color: transparent!important; border-radius: 16px;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-config-dialog textarea,
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-output-dialog pre { font-family: ui-monospace,monospace; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-fullscreen.v-dialog--fullscreen .v-overlay__content > .v-card {
+  border-radius: 0!important; background: var(--mx-bg)!important;
+}
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-fullscreen .v-card-actions { background: var(--mx-surface)!important; }
+@media (max-width: 599px) and (orientation: portrait) {
+  html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm:not(.v-dialog--fullscreen) { align-items: flex-end!important; }
+  html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm:not(.v-dialog--fullscreen) > .v-overlay__content {
+    width: calc(100% - 16px)!important; max-width: calc(100% - 16px)!important;
+    max-height: calc(100dvh - 24px)!important; margin: 8px!important;
+  }
+  html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm:not(.v-dialog--fullscreen) .v-overlay__content > .v-card {
+    border-radius: 32px!important; overflow-y: auto;
+  }
 }
