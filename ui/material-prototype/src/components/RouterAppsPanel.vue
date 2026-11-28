@@ -1417,7 +1417,7 @@ defineExpose({ refresh, refreshAction, handleBack })
           <p class="muted-hint mt-3">优先使用 SSR Plus+ 原版 LuCI 接口。安装可能持续数分钟，APP 最长等待 10 分钟；遇到超时或断线时，请先查看本地版本，不要重复安装。</p>
         </template>
       </template>
-      <v-dialog v-model="ssrComponentDialog" max-width="420"><v-card rounded="xl">
+      <v-dialog v-model="ssrComponentDialog" max-width="420" class="mx-dialog-confirm mx-dialog-ssr-component-dialog"><v-card rounded="xl">
         <v-card-title>确认安装 SSR Plus+ 更新？</v-card-title>
         <v-card-text>组件：{{ ssrComponents.find(x => x.value === ssrComponent)?.title }}。更新可能导致代理服务短暂中断。</v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" @click="ssrComponentDialog = false">取消</v-btn><v-btn color="success" @click="upgradeSsrComponent">确认安装</v-btn></v-card-actions>
@@ -1633,7 +1633,7 @@ defineExpose({ refresh, refreshAction, handleBack })
         <v-alert v-if="carbon.updater?.reason" type="info" variant="tonal" density="compact" class="mt-3">{{ carbon.updater.reason }}</v-alert>
         <v-alert v-if="carbon.updater?.state && carbon.updater.state !== 'idle'" type="info" variant="tonal" density="compact" class="mt-3">更新状态：{{ carbon.updater.state }} {{ carbon.updater.error || '' }}</v-alert>
       </template>
-      <v-dialog v-model="carbonUpgradeDialog" max-width="420"><v-card rounded="xl"><v-card-title>确认更新 Carbon 主题</v-card-title><v-card-text>将通过 Carbon 官方更新器安装已校验版本 {{ carbon.updater?.latest }}。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="carbonUpgradeDialog = false">取消</v-btn><v-btn color="primary" @click="upgradeCarbon">确认更新</v-btn></v-card-actions></v-card></v-dialog>
+      <v-dialog v-model="carbonUpgradeDialog" max-width="420" class="mx-dialog-confirm mx-dialog-carbon-upgrade-dialog"><v-card rounded="xl"><v-card-title>确认更新 Carbon 主题</v-card-title><v-card-text>将通过 Carbon 官方更新器安装已校验版本 {{ carbon.updater?.latest }}。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="carbonUpgradeDialog = false">取消</v-btn><v-btn color="primary" @click="upgradeCarbon">确认更新</v-btn></v-card-actions></v-card></v-dialog>
     </template>
     <template v-else-if="kind === 'zerotier'">
       <v-alert v-if="!zt.available" type="warning" variant="tonal">未检测到 ZeroTier 配置，请先安装 zerotier 并初始化 /etc/config/zerotier。</v-alert>
@@ -1671,7 +1671,7 @@ defineExpose({ refresh, refreshAction, handleBack })
         <h3 class="router-app-section-title mt-4">加入新网络</h3><v-text-field v-model.trim="ztNewId" label="Network ID" placeholder="16 位十六进制字符" density="comfortable" variant="outlined" maxlength="16"/><v-btn color="primary" variant="tonal" :disabled="busy" @click="addZt">加入网络并重启服务</v-btn>
         <p class="muted-hint mt-2">加入后仍需在 ZeroTier Central 中授权此设备。默认启用 allowManaged，关闭 allowDefault 和 allowDNS。</p>
       </template>
-      <v-dialog v-model="ztDeleteDialog" max-width="400"><v-card rounded="xl"><v-card-title>删除 ZeroTier 网络？</v-card-title><v-card-text>将移除网络 {{ ztDelete?.id }} 并重启服务。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="ztDeleteDialog=false">取消</v-btn><v-btn color="error" @click="deleteZt">删除</v-btn></v-card-actions></v-card></v-dialog>
+      <v-dialog v-model="ztDeleteDialog" max-width="400" class="mx-dialog-confirm mx-dialog-zt-delete-dialog"><v-card rounded="xl"><v-card-title>删除 ZeroTier 网络？</v-card-title><v-card-text>将移除网络 {{ ztDelete?.id }} 并重启服务。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="ztDeleteDialog=false">取消</v-btn><v-btn color="error" @click="deleteZt">删除</v-btn></v-card-actions></v-card></v-dialog>
     </template>
     <template v-else-if="kind === 'firewall'">
       <v-alert v-if="!fw.available" type="warning" variant="tonal">
@@ -1827,7 +1827,7 @@ defineExpose({ refresh, refreshAction, handleBack })
           <AdvancedManagementPanel ref="advancedSubpanel" :client="client" kind="firewallPlus"/>
         </div>
       </template>
-      <v-dialog v-model="fwRuleConfirm" max-width="420">
+      <v-dialog v-model="fwRuleConfirm" max-width="420" class="mx-dialog-confirm mx-dialog-fw-rule-confirm">
         <v-card rounded="xl">
           <v-card-title>{{ fwRulePendingEnabled ? '启用' : '停用' }}防火墙规则？</v-card-title>
           <v-card-text>
@@ -1840,7 +1840,7 @@ defineExpose({ refresh, refreshAction, handleBack })
           </v-card-actions>
         </v-card>
       </v-dialog>
-      <v-dialog v-model="fwDeleteDialog" max-width="400"><v-card rounded="xl"><v-card-title>删除端口转发规则？</v-card-title><v-card-text>将删除 {{ fwDelete?.name || fwDelete?.section }} 并重载防火墙。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="fwDeleteDialog=false">取消</v-btn><v-btn color="error" @click="deleteForward">删除</v-btn></v-card-actions></v-card></v-dialog>
+      <v-dialog v-model="fwDeleteDialog" max-width="400" class="mx-dialog-confirm mx-dialog-fw-delete-dialog"><v-card rounded="xl"><v-card-title>删除端口转发规则？</v-card-title><v-card-text>将删除 {{ fwDelete?.name || fwDelete?.section }} 并重载防火墙。</v-card-text><v-card-actions><v-spacer/><v-btn variant="text" @click="fwDeleteDialog=false">取消</v-btn><v-btn color="error" @click="deleteForward">删除</v-btn></v-card-actions></v-card></v-dialog>
     </template>
     </template>
   </div>

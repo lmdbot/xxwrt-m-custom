@@ -298,7 +298,7 @@ defineExpose({ refreshAction, handleBack })
     </template>
     <v-alert v-if="!interfaces.length" type="info" variant="tonal" density="compact">暂未获取到网络接口。</v-alert>
 
-    <v-dialog v-model="editorOpen" :fullscreen="smAndDown" max-width="590" persistent class="v3-network-editor-dialog">
+    <v-dialog v-model="editorOpen" :fullscreen="smAndDown" max-width="590" persistent class="v3-network-editor-dialog mx-dialog-fullscreen mx-dialog-editor-open">
       <v-card v-if="editor" rounded="xl" class="network-interface-editor">
         <header class="network-editor-header">
           <div class="network-editor-header-copy">
@@ -425,7 +425,7 @@ defineExpose({ refreshAction, handleBack })
       </v-card>
     </v-dialog>
 
-    <v-dialog :model-value="Boolean(runtimeTarget)" max-width="420" class="v3-network-runtime-dialog"
+    <v-dialog :model-value="Boolean(runtimeTarget)" max-width="420" class="v3-network-runtime-dialog mx-dialog-confirm mx-dialog-runtime-target"
       @update:model-value="!$event && (runtimeTarget = null)">
       <v-card rounded="xl">
         <v-card-title class="d-flex align-center ga-2">

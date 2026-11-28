@@ -525,7 +525,7 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
       <v-text-field v-if="dhcpTab === 'lease'" v-model.trim="recordMac"
         label="设备 MAC 地址" density="compact" variant="outlined"/>
       <v-btn color="primary" block :loading="busy" @click="addRecord">保存记录并重载 dnsmasq</v-btn>
-      <v-dialog :model-value="!!recordDelete" max-width="420" persistent>
+      <v-dialog :model-value="!!recordDelete" max-width="420" persistent class="mx-dialog-confirm mx-dialog-record-delete">
         <v-card>
           <v-card-title>删除静态记录？</v-card-title>
           <v-card-text>删除 {{ recordDelete?.name }} 后需要重新加载 dnsmasq。</v-card-text>
@@ -571,7 +571,7 @@ onUnmounted(() => { if (restoreTimer) clearInterval(restoreTimer) })
         </div>
       </div>
       <v-alert v-if="!selectedServices.length" type="info" variant="tonal">暂无匹配的服务</v-alert>
-      <v-dialog :model-value="!!serviceConfirm" max-width="400" persistent>
+      <v-dialog :model-value="!!serviceConfirm" max-width="400" persistent class="mx-dialog-confirm mx-dialog-service-confirm">
         <v-card>
           <v-card-title>确认服务操作</v-card-title>
           <v-card-text>将向路由器提交 {{ serviceConfirm?.name }} 的 {{ serviceConfirm?.action }} 操作。

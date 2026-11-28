@@ -98,7 +98,7 @@ const rpcColor = result=>result==='success'?'success':result==='error'?'error':'
     </div>
     <p v-if="globalMessage" class="lab-reset-notice" role="status">{{ globalMessage }}</p>
     <p class="lab-note">主登录地址、加密密码和备用入口已迁移至「路由器管理 → 添加/编辑路由器 → 登录配置」，实验室不再管理这些连接设置。</p>
-    <v-dialog v-model="resetConfirmation" max-width="430">
+    <v-dialog v-model="resetConfirmation" max-width="430" class="mx-dialog-confirm mx-dialog-reset-confirmation">
       <v-card rounded="xl" class="pa-4" title="恢复实验室默认值？">
         <v-card-text class="lab-reset-dialog-text">
           将刷新间隔恢复为均衡模式（概览 12 秒、流量 3 秒、设备 15 秒），
