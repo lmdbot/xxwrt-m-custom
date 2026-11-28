@@ -19,7 +19,7 @@ async function openUpstream(url) {
 </script>
 
 <template>
-  <v-dialog v-model="visible" max-width="720" scrollable aria-label="开源许可证">
+  <v-dialog v-model="visible" max-width="720" scrollable aria-label="开源许可证" class="mx-dialog-info mx-dialog-visible">
     <v-card rounded="xl">
       <v-card-title class="license-dialog-title">
         <v-icon icon="mdi-scale-balance" color="primary" size="24"/>

@@ -356,7 +356,7 @@ onUnmounted(()=>{if(interval)clearInterval(interval)})
         <v-alert v-if="!cron.entries.length" type="info" density="compact" variant="tonal">
           未发现常规五段式 Cron 任务。注释、环境变量和特殊任务保持原样。
         </v-alert>
-        <v-dialog :model-value="!!cronEditing" max-width="420" persistent>
+        <v-dialog :model-value="!!cronEditing" max-width="420" persistent class="mx-dialog-form mx-dialog-cron-editing">
           <v-card rounded="xl">
             <v-card-title>修改 Cron 执行周期</v-card-title>
             <v-card-text>
@@ -526,7 +526,7 @@ onUnmounted(()=>{if(interval)clearInterval(interval)})
     <template v-else-if="kind==='security'">
       <SecurityDashboard v-if="security" :report="security"/>
     </template>
-    <v-dialog :model-value="!!queued" max-width="460" persistent>
+    <v-dialog :model-value="!!queued" max-width="460" persistent class="mx-dialog-confirm mx-dialog-queued">
       <v-card rounded="xl">
         <v-card-title>确认配置变更</v-card-title>
         <v-card-text>

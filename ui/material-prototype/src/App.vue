@@ -443,11 +443,12 @@ async function downloadLatestApk() {
 }
 
 function syncNativeChrome(isDark) {
-  const color = isDark ? '#0F1727' : '#F3F7FD'
+  const miuix = uiStyle.value === 'miuix'
+  const color = miuix ? (isDark ? '#141414' : '#F4F4F6') : (isDark ? '#0F1727' : '#F3F7FD')
   document.documentElement.style.backgroundColor = color
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
   if (isNative) {
-    void UiChrome.setTheme({ dark: isDark }).catch(e =>
+    void UiChrome.setTheme({ dark: isDark, miuix }).catch(e =>
       console.warn('Android system bar theme sync unavailable', e))
   }
 }
@@ -492,6 +493,7 @@ const form = reactive({
   password: '',
   showPassword: false
 })
+const uiStyle = ref(localStorage.getItem('xxwrt_ui_style_v1') === 'miuix' ? 'miuix' : 'material')
 const navStyle = ref(localStorage.getItem(storage.nav) === 'liquid' ? 'liquid' : 'standard')
 // User setting defaults ON, but OS "Reduce motion" always takes precedence.
 const motionEnabled = ref(readMotionPreference(localStorage))
@@ -515,7 +517,7 @@ const moreCategories = [
   { id: 'help', title: '帮助与反馈', description: '使用说明与问题反馈', icon: 'mdi-help-circle-outline' }
 ]
 const settingsCategories = [
-  { id: 'display', title: '显示与外观', description: '深浅主题 / 底栏样式', icon: 'mdi-theme-light-dark' },
+  { id: 'display', title: '显示与外观', description: '界面风格 / 深浅主题 / 底栏样式', icon: 'mdi-theme-light-dark' },
   { id: 'privacy', title: '隐私与安全', description: '名称与地址隐藏', icon: 'mdi-shield-lock-outline' },
   { id: 'refresh', title: '刷新与同步', description: '数据更新和刷新策略', icon: 'mdi-refresh' },
   { id: 'language', title: '语言', description: '简体中文 / 繁體中文 / English', icon: 'mdi-translate' },
@@ -1658,7 +1660,12 @@ watch(toolPanel, panel => {
     } finally { processRefreshBusy = false }
   }, 3000)
 })
-watch(dark, v => {
+watch([dark, uiStyle], ([v, style]) => {
+  const normalized = style === 'miuix' ? 'miuix' : 'material'
+  try { localStorage.setItem('xxwrt_ui_style_v1', normalized) } catch (_) {}
+  // Root scope includes Vuetify overlays teleported outside v-app.
+  document.documentElement.dataset.xxwrtStyle = normalized
+  document.documentElement.dataset.xxwrtColor = v ? 'dark' : 'light'
   theme.global.name.value = v ? 'dark' : 'light'
   syncNativeChrome(v)
 }, { immediate: true })
@@ -2989,6 +2996,16 @@ onUnmounted(() => {
             <template v-else-if="settingsCategory === 'display'">
               <v-card rounded="xl" elevation="1" class="settings-option-card">
                 <div class="settings-option-heading">
+                  <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-palette-outline" size="23"/></v-avatar>
+                  <div><h2>界面风格</h2><p>切换应用页面及弹窗的视觉风格，独立于深浅主题。</p></div>
+                </div>
+                <v-btn-toggle v-model="uiStyle" mandatory color="primary" variant="outlined" class="settings-segmented ui-style-toggle" aria-label="界面风格">
+                  <v-btn value="material" aria-label="Material V3">Material V3</v-btn>
+                  <v-btn value="miuix" aria-label="Miuix">Miuix</v-btn>
+                </v-btn-toggle>
+              </v-card>
+              <v-card rounded="xl" elevation="1" class="settings-option-card">
+                <div class="settings-option-heading">
                   <v-avatar color="primary" variant="tonal" rounded="lg"><v-icon icon="mdi-theme-light-dark" size="23"/></v-avatar>
                   <div><h2>主题模式</h2><p>选择应用的颜色主题，也可以跟随 Android 系统设置。</p></div>
                 </div>
@@ -3774,7 +3791,7 @@ onUnmounted(() => {
                 </template>
               </div>
 
-              <v-dialog v-model="favoriteEditorOpen" max-width="480" scrollable>
+              <v-dialog v-model="favoriteEditorOpen" max-width="480" scrollable class="mx-dialog-form mx-dialog-favorite-editor-open">
                 <v-card rounded="xl" class="app-favorite-dialog">
                   <v-card-title>编辑常用应用</v-card-title>
                   <v-card-subtitle>最多 {{ APP_FAVORITES_LIMIT }} 个快捷入口，使用箭头调整顺序</v-card-subtitle>
@@ -3971,7 +3988,7 @@ onUnmounted(() => {
       </div>
     </div>
     <OpenSourceLicensesDialog v-model="openSourceDialog"/>
-    <v-dialog v-model="versionDetailsDialog" max-width="440" aria-label="应用版本详情">
+    <v-dialog v-model="versionDetailsDialog" max-width="440" aria-label="应用版本详情" class="mx-dialog-info mx-dialog-version-details-dialog">
       <v-card rounded="xl" class="about-info-dialog">
         <v-card-title class="d-flex align-center ga-2">
           <v-icon icon="mdi-information-outline" color="primary"/>应用版本详情
@@ -3990,7 +4007,7 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="privacyDialog" max-width="560" scrollable aria-label="隐私与免责声明">
+    <v-dialog v-model="privacyDialog" max-width="560" scrollable aria-label="隐私与免责声明" class="mx-dialog-info mx-dialog-privacy-dialog">
       <v-card rounded="xl" class="about-info-dialog">
         <v-card-title class="d-flex align-center ga-2">
           <v-icon icon="mdi-shield-check-outline" color="primary"/>隐私与免责声明
@@ -4011,7 +4028,7 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog xxwrt-v3" :class="{ 'theme-is-dark': dark }">
+    <v-dialog v-model="selectedClient" :fullscreen="smAndDown" max-width="480" :persistent="terminalSaving" class="v3-terminal-detail-dialog xxwrt-v3 mx-dialog-fullscreen mx-dialog-selected-client" :class="{ 'theme-is-dark': dark }">
       <v-card v-if="selectedClient" rounded="xl" class="v3-terminal-detail">
         <v-card-title class="v3-terminal-detail-title">
           <v-btn icon="mdi-arrow-left" size="small" variant="text" color="primary"
@@ -4173,7 +4190,7 @@ onUnmounted(() => {
           @click="selectedClient = null; terminalRequestId++">关闭</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="hqosGlobalDialog" max-width="540" persistent>
+    <v-dialog v-model="hqosGlobalDialog" max-width="540" persistent class="mx-dialog-form mx-dialog-hqos-global-dialog">
       <v-card rounded="xl">
         <v-card-title>HQoS 全局设置</v-card-title>
         <v-card-text>
@@ -4199,7 +4216,7 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="hqosGlobalConfirm" max-width="430" persistent>
+    <v-dialog v-model="hqosGlobalConfirm" max-width="430" persistent class="mx-dialog-confirm mx-dialog-hqos-global-confirm">
       <v-card rounded="xl">
         <v-card-title>确认修改所有客户端的 QoS？</v-card-title>
         <v-card-text>
@@ -4220,7 +4237,7 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="qosWriteConfirm" max-width="430" persistent>
+    <v-dialog v-model="qosWriteConfirm" max-width="430" persistent class="mx-dialog-confirm mx-dialog-qos-write-confirm">
       <v-card rounded="xl">
         <v-card-title>确认 QoS 变更风险</v-card-title>
         <v-card-text>
@@ -4246,7 +4263,7 @@ onUnmounted(() => {
       </v-card>
     </v-dialog>
     <!-- Step-based editor: backup endpoints stay in Step 1, credentials in Step 2. -->
-    <v-dialog v-model="deviceDialog" max-width="480" scrollable :persistent="deviceEditorBusy">
+    <v-dialog v-model="deviceDialog" max-width="480" scrollable :persistent="deviceEditorBusy" class="mx-dialog-form mx-dialog-device-dialog">
       <v-card rounded="xl" class="router-login-editor router-wizard">
         <v-card-title class="router-editor-title">
           <span>{{ editDeviceId ? '编辑 OpenWrt 设备' : '添加 OpenWrt 设备' }}</span>
@@ -4387,7 +4404,7 @@ onUnmounted(() => {
     </v-dialog>
 
     <v-dialog v-model="xiaomiDialog" max-width="440" :persistent="xiaomiBusy"
-      aria-label="小米路由器接入信息配置">
+      aria-label="小米路由器接入信息配置" class="mx-dialog-form mx-dialog-xiaomi-dialog">
       <v-card rounded="xl" class="pa-2">
         <v-card-title class="d-flex align-center ga-2"><v-icon icon="mdi-router-wireless" color="primary"/>小米路由器</v-card-title>
         <v-card-subtitle>通过 QWRT 读取小米设备，补充 2.4G、5G 和 LAN 接入类型</v-card-subtitle>
@@ -4419,7 +4436,7 @@ onUnmounted(() => {
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="loginDialog" max-width="430" :persistent="connecting">
+    <v-dialog v-model="loginDialog" max-width="430" :persistent="connecting" class="mx-dialog-form mx-dialog-login-dialog">
       <v-card rounded="xl">
         <v-card-title>连接 {{ displayDeviceName(selectedDevice) }}</v-card-title>
         <v-card-text>
@@ -4439,19 +4456,19 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="deleteDialog" max-width="360">
+    <v-dialog v-model="deleteDialog" max-width="360" class="mx-dialog-confirm mx-dialog-delete-dialog">
       <v-card rounded="xl" title="删除路由器">
         <v-card-text>确定从设备列表移除这台 OpenWrt 吗？本机保存的对应密码也将删除，不会对路由器执行任何命令。</v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="deleteDialog = false">取消</v-btn><v-btn color="error" @click="confirmDeleteDevice">删除</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="wolDeleteDialog" max-width="360">
+    <v-dialog v-model="wolDeleteDialog" max-width="360" class="mx-dialog-confirm mx-dialog-wol-delete-dialog">
       <v-card rounded="xl" title="删除网络唤醒目标">
         <v-card-text>删除 {{ wolDeleteTarget?.name }} 的 WOL 配置？这只删除保存的唤醒目标，不会关闭当前设备。</v-card-text>
         <v-card-actions><v-spacer/><v-btn @click="wolDeleteDialog = false">取消</v-btn><v-btn color="error" @click="confirmRemoveWol">删除目标</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="factoryDialog" max-width="420" :persistent="factoryBusy">
+    <v-dialog v-model="factoryDialog" max-width="420" :persistent="factoryBusy" class="mx-dialog-form mx-dialog-factory-dialog">
       <v-card rounded="xl" title="恢复 QWRT 出厂设置">
         <v-card-text>
           <v-alert type="error" variant="tonal" density="comfortable" class="mb-4">
@@ -4469,13 +4486,13 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="confirmReboot" max-width="360">
+    <v-dialog v-model="confirmReboot" max-width="360" class="mx-dialog-confirm mx-dialog-confirm-reboot">
       <v-card rounded="xl" title="确认重启 QWRT">
         <v-card-text>此操作将断开所有连接并重启路由器。确定执行吗？</v-card-text>
         <v-card-actions><v-spacer/><v-btn variant="text" @click="confirmReboot = false">取消</v-btn><v-btn color="error" :loading="actionBusy" @click="rebootRouter">确认重启</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="releaseNotesDialog" max-width="620" scrollable>
+    <v-dialog v-model="releaseNotesDialog" max-width="620" scrollable class="mx-dialog-info mx-dialog-release-notes-dialog">
       <v-card rounded="xl" class="release-notes-dialog">
         <v-card-title class="d-flex align-center ga-2">
           <v-icon icon="mdi-text-box-outline" color="primary"/>
@@ -4507,7 +4524,7 @@ onUnmounted(() => {
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="updateDialog" max-width="420" :persistent="downloadBusy">
+    <v-dialog v-model="updateDialog" max-width="420" :persistent="downloadBusy" class="mx-dialog-form mx-dialog-update-dialog">
       <v-card rounded="xl">
         <v-card-title class="d-flex align-center ga-2"><v-icon icon="mdi-update" color="primary"/>发现应用新版本</v-card-title>
         <v-card-text v-if="latestRelease">

@@ -353,7 +353,7 @@ defineExpose({ refreshAction: load, handleBack })
       {{ supported ? '当前筛选条件下没有软件包，请尝试清空过滤器或更新列表。' : '暂无可显示的软件包。' }}
     </v-alert>
 
-    <v-dialog v-model="actionDialog" max-width="480">
+    <v-dialog v-model="actionDialog" max-width="480" class="mx-dialog-form mx-dialog-action-dialog">
       <v-card rounded="xl">
         <v-card-title>确认{{ actionLabel }}？</v-card-title>
         <v-card-text>
@@ -379,7 +379,7 @@ defineExpose({ refreshAction: load, handleBack })
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="outputDialog" max-width="620" scrollable>
+    <v-dialog v-model="outputDialog" max-width="620" scrollable class="mx-dialog-info mx-dialog-output-dialog">
       <v-card rounded="xl">
         <v-card-title>{{ outputTitle }}</v-card-title>
         <v-card-text>
@@ -390,7 +390,7 @@ defineExpose({ refreshAction: load, handleBack })
         <v-card-actions><v-spacer/><v-btn variant="tonal" @click="outputDialog = false">关闭</v-btn></v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="configDialog" max-width="650" scrollable>
+    <v-dialog v-model="configDialog" max-width="650" scrollable class="mx-dialog-form mx-dialog-config-dialog">
       <v-card rounded="xl">
         <v-card-title>配置 {{ manager }}</v-card-title>
         <v-card-text>
@@ -413,7 +413,7 @@ defineExpose({ refreshAction: load, handleBack })
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-dialog v-model="configSaveConfirm" max-width="430">
+    <v-dialog v-model="configSaveConfirm" max-width="430" class="mx-dialog-confirm mx-dialog-config-save-confirm">
       <v-card rounded="xl">
         <v-card-title>确认覆盖软件源配置？</v-card-title>
         <v-card-text>
