@@ -32,3 +32,6 @@ All 33 instances now have a unique instance class and a role: 16 confirmations, 
 - Root dark tokens now cover detached overlays. Narrow generic card styles avoid recoloring semantic cards; network groups, terminal filters, water tiles, app groups and liquid navigation receive targeted rules.
 - References: https://compose-miuix-ui.github.io/miuix/components/basic/card and https://compose-miuix-ui.github.io/miuix/components/basic/overlaydialog . Native card radius 16dp; compact bottom dialogs and centered large-screen dialogs adapted to WebView.
 - Round 1 CI passed; round 2 build and actual runtime/visual validation pending.
+
+## Round 3
+Source-specific rules added for SSR+, WeChat Push, detector, ZeroTier, firewall, Lucky, Vlmcsd, packages, AppFilter, advanced management, lab, about and compact management lists. Round 2 CI passed. Runtime screenshot review remains unverified.

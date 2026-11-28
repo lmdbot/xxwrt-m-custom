@@ -250,3 +250,29 @@ html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-fullscreen .v-card-actions { 
     border-radius: 32px!important; overflow-y: auto;
   }
 }
+
+/* Round 3: plugin-specific grouped surfaces, without changing status colors. */
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-panel,.lucky-app-panel,.vlmcsd-panel,.package-manager-panel,.appfilter-panel) {
+  color: var(--mx-text);
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-section-title,.about-section-title,.compact-list-heading,.appfilter-title) {
+  font-weight: 700; letter-spacing: -.015em;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.detector-list,.zt-network-card,.zt-interface-card,.firewall-kernel-item,.v3-firewall-section,.about-group,.about-update-group,.lab-card-list,.lab-health-list,.compact-list-rows,.package-list) {
+  background-color: var(--mx-surface)!important; border-color: var(--mx-divider)!important;
+  border-radius: 16px!important; box-shadow: none!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.app-compact-row,.ssr-node-row,.wechat-online-row,.detector-row,.zt-interface-row,.about-version-row,.lab-card-row,.lab-rpc-row,.lab-health-row,.data-row,.cron-row,.compact-filter-row) {
+  border-color: var(--mx-divider)!important; box-shadow: none!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.ssr-status-grid,.firewall-kernel-cards,.lab-icon-grid,.appfilter-check-grid) { gap: 8px; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.compact-list-search,.package-list-meta) { color: var(--mx-muted); }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-panel,.lucky-app-panel,.vlmcsd-panel,.package-manager-panel,.appfilter-panel) .v-expansion-panel {
+  background: var(--mx-surface); border-radius: 16px!important;
+}
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-panel,.lucky-app-panel,.vlmcsd-panel,.package-manager-panel,.appfilter-panel) .v-expansion-panel__shadow { display: none; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-panel,.package-manager-panel,.appfilter-panel) .v-tabs { border-radius: 14px; background: var(--mx-group); }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-panel,.package-manager-panel,.appfilter-panel) .v-tab { letter-spacing: 0; }
+html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm:not(.v-dialog--fullscreen) > .v-overlay__content {
+  margin-bottom: max(8px, env(safe-area-inset-bottom));
+}
