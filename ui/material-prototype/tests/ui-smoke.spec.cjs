@@ -761,6 +761,12 @@ test('authenticate to real RPC adapter and operate Material pages and bottom bar
       headers: { 'Access-Control-Allow-Origin': '*' },
       body: JSON.stringify({ socket: true, ping: 23 }) })
   })
+  // Feature-only screenshot diagnostic: the existing regression still runs.
+  if (process.env.GITHUB_HEAD_REF === 'feat/miuix-ui' || process.env.XXWRT_CAPTURE_MIUIX === '1') {
+    test.setTimeout(360000)
+    const { captureMiuix } = require('../scripts/miuix-visual-audit.cjs')
+    await captureMiuix(page, handler, openApplication)
+  }
   // Preserve the exhaustive pre-redesign route walk as an explicit manual
   // diagnostic, but gate APK release on the current Design A screens and
   // real mock-RPC login. No new test cases or visual audit checks are added.

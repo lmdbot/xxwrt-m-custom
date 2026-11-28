@@ -35,3 +35,8 @@ All 33 instances now have a unique instance class and a role: 16 confirmations, 
 
 ## Round 3
 Source-specific rules added for SSR+, WeChat Push, detector, ZeroTier, firewall, Lucky, Vlmcsd, packages, AppFilter, advanced management, lab, about and compact management lists. Round 2 CI passed. Runtime screenshot review remains unverified.
+
+## Round 4: screenshot diagnostic
+The existing smoke test optionally collects actual screenshots in isolated light/dark mock RPC browser contexts on the feature PR. It reports each screenshot, observed dialog IDs, layout width, theme, missed steps and page errors. Existing web prototype CI artifact includes dist/miuix-audit/manifest.json and screenshots. Unseen dialogs remain unverified; screenshots must be reviewed before declaring visual acceptance.
+## Round 5: release candidate
+Stage v3.0.41 with release notes; retain main unchanged until latest CI and visual acceptance. No APK has been published for this candidate.
