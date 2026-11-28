@@ -276,3 +276,37 @@ html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-panel,.package-manager-
 html[data-xxwrt-style="miuix"] .v-dialog.mx-dialog-confirm:not(.v-dialog--fullscreen) > .v-overlay__content {
   margin-bottom: max(8px, env(safe-area-inset-bottom));
 }
+
+/* Visual review: teleported wizard must not depend on the page ancestor.
+ * Preserve Material mode unchanged; do not modify validation or action logic. */
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-editor-title {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+}
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-progress { padding:0 20px 14px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-step-count { display:block; font-size:12px; margin-bottom:10px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-track { display:flex; align-items:flex-start; justify-content:center; gap:8px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-node { display:flex; flex-direction:column; align-items:center; gap:5px; min-width:80px; color:var(--mx-muted); }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-node>span { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:var(--mx-group); font-weight:700; font-size:12px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-node:is(.is-active,.is-complete)>span { background:var(--mx-primary); color:rgb(var(--v-theme-on-primary)); }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-node>small { font-size:12px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-line { width: min(18vw,80px); height:2px; margin-top:13px; background:var(--mx-divider); }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-line.is-complete { background:var(--mx-primary); }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-editor-body { padding:4px 20px 12px; overflow-y:auto; overscroll-behavior:contain; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog :is(.router-wizard-section-title,.router-wizard-alt-top,.router-wizard-alt-heading,.router-wizard-preview,.router-wizard-saved-summary,.router-wizard-option) { display:flex; align-items:center; gap:10px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-section-title { margin:6px 0 12px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-section-title h3 { font-size:16px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog :is(.router-wizard-alt-top,.router-wizard-option,.router-wizard-saved-summary) { justify-content:space-between; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog :is(.router-wizard-alt-heading>div,.router-wizard-preview>span,.router-wizard-saved-summary>span,.router-wizard-option>div:first-child) { display:flex; flex-direction:column; gap:4px; flex:1; min-width:0; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog :is(.router-wizard-alternates,.router-wizard-preview,.router-wizard-saved-summary) { padding:12px; margin:6px 0 12px; text-align:start; color:var(--mx-text); }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog :is(.router-wizard-preview,.router-wizard-saved-summary) { width:100%; min-height:48px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog :is(.router-wizard-alt-heading span,.router-wizard-preview small,.router-wizard-saved-summary small,.router-wizard-option span) { color:var(--mx-muted); font-size:12px; overflow-wrap:anywhere; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-option { padding:8px 0; border-bottom:1px solid var(--mx-divider); }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-wizard-option .v-input { flex:none; margin:0; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-editor-alternate-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:8px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-editor-alternate-row>.v-input { flex:1; min-width:120px; }
+html[data-xxwrt-style="miuix"] .mx-dialog-device-dialog .router-editor-actions .v-btn:last-child { min-width:120px; }
+/* Restore readable floating/empty field labels. Disabled fields keep their original opacity. */
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-field:not(.v-field--disabled):not(.v-field--error) .v-label { color:var(--mx-muted)!important; opacity:1; }
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-field--focused:not(.v-field--error) .v-label { color:var(--mx-primary)!important; }
+html[data-xxwrt-style="miuix"] :is(.xxwrt-v3,.v-overlay) .v-field:not(.v-field--disabled) input::placeholder { color:var(--mx-muted); opacity:.85; }
+html[data-xxwrt-style="miuix"] .xxwrt-v3 :is(.router-app-panel,.lucky-app-panel,.vlmcsd-panel,.package-manager-panel,.appfilter-panel) .v-btn:not(.v-btn--icon):not(.v-tab) { border-radius:12px!important; }

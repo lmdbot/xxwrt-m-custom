@@ -40,3 +40,6 @@ Source-specific rules added for SSR+, WeChat Push, detector, ZeroTier, firewall,
 The existing smoke test optionally collects actual screenshots in isolated light/dark mock RPC browser contexts on the feature PR. It reports each screenshot, observed dialog IDs, layout width, theme, missed steps and page errors. Existing web prototype CI artifact includes dist/miuix-audit/manifest.json and screenshots. Unseen dialogs remain unverified; screenshots must be reviewed before declaring visual acceptance.
 ## Round 5: release candidate
 Stage v3.0.41 with release notes; retain main unchanged until latest CI and visual acceptance. No APK has been published for this candidate.
+
+### Round 4 visual findings
+CI run 46095127461 produced 98 Chromium screenshots (49 per mode, 393px viewport, mock RPC), 12 distinct dialogs per mode, no reported page errors or horizontal document overflow. Review identified missing teleported wizard step layout and low contrast field labels; corrected with Miuix-only selectors. Remaining 21 dialogs have source-role coverage but no observed screenshot; Android hardware and post-fix screenshot acceptance remain pending. Release candidate requested for main; Material remains default and Miuix optional.
